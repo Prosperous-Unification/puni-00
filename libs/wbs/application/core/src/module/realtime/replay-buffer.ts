@@ -71,7 +71,7 @@ export class ReplayBuffer {
    *
    * **Eviction was only ever lazy, and lazy means never for an abandoned key.**
    * `record`, `since` and `covers` each evict the subscription they are about,
-   * so a project that is edited a thousand times and then closed keeps a
+   * so a work package that is edited a thousand times and then closed keeps a
    * thousand `tree_replaced` entries — whole plans, hundreds of rows each —
    * with every one of them long past `maxAgeMs` and nothing left that would
    * ever ask about them again. The map kept the name too.
@@ -79,7 +79,7 @@ export class ReplayBuffer {
    * One key per write, selected by at most three iterator advances: one entry,
    * possibly a wrap, and possibly the just-written key. A sweep visits every
    * subscription once per K writes across K live subscriptions. An abandoned
-   * project therefore drains within one lap of whatever traffic is left, rather
+   * work package therefore drains within one lap of whatever traffic is left, rather
    * than never.
    *
    * Proof: restoring the key-array sweep made `bounds record iterator work`

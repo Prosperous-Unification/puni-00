@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,7 +6,7 @@ import type { WriteStamp } from '@wbs/core';
 import { planInputRowsOf } from '@wbs/core';
 import { bodySha256 } from '@wbs/core';
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
@@ -17,22 +17,29 @@ import type { Connection, Drizzle } from './db';
 import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { ResourceCapacityRepository } from './resource';
 import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
-import { person, project, step, tag, workItem, workItemTag } from './schema';
-import { StepRepository } from './step';
+import {
+  person,
+  stepBinding,
+  stepDefinition,
+  tag,
+  workItem,
+  workItemTag,
+  workPackage,
+} from './schema';
 import { StepBlockageRepository } from './step-blockage';
+import { StepCatalogueRepository } from './step-catalogue';
 import { StepParallelRepository } from './step-parallel';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { nodeDigest } from './testing/node-digest';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from './work-package';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -128,88 +135,230 @@ const tracing = (
  * coverage: the capture-only reads exist because the live projection has two
  * holes, and both are seeded below rather than described.
  */
-describe('capturing a project’s plan input', () => {
+describe('capturing a work package’s plan input', () => {
   let dir: string;
   let path: string;
-  let sqlite: Database;
   let trace: { statements: string[]; closes: number };
+  let fixtureCustody: {
+    directory: string;
+    sqlite: Database | null;
+    seed: Connection | null;
+    seedCloseAttempted: boolean;
+    hasUnknownOwner: boolean;
+    closing: unknown[] | null;
+  } | null = null;
 
-  beforeEach(async () => {
+  function closeFixture(): unknown[] {
+    const owned = fixtureCustody;
+    if (owned === null) return [];
+    if (owned.closing !== null) return owned.closing;
+    const failures: unknown[] = [];
+    owned.closing = failures;
+    if (owned.seed !== null && !owned.seedCloseAttempted) {
+      owned.seedCloseAttempted = true;
+      try {
+        owned.seed.close();
+        owned.seed = null;
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        failures.push(cause);
+      }
+    }
+    if (owned.sqlite !== null) {
+      try {
+        owned.sqlite.close();
+        owned.sqlite = null;
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        failures.push(cause);
+      }
+    }
+    // Proof: V115 capture-retention omitted recorded uncertainty and removed the fixture directory; no actual native close failure is claimed.
+    if (owned.seed === null && owned.sqlite === null && !owned.hasUnknownOwner) {
+      try {
+        rmSync(owned.directory, { recursive: true });
+        fixtureCustody = null;
+      } catch (cause) {
+        failures.push(cause);
+      }
+    }
+    return failures;
+  }
+
+  async function openFixture() {
+    // Proof: V115 capture-reentry omission acquired a new fixture instead of refusing the retained recorded-uncertainty owner.
+    if (fixtureCustody !== null) throw Error('previous capture fixture settlement is unknown');
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-capture-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    activateTestStepBlockages(path);
-    sqlite = openDatabase(path);
-    const seed = openConnection(path);
-    const db = seed.db;
-    await new UserRepository(db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
-    );
-    await new ProjectRepository(db, OPEN).create(
-      // `name` and `estimateMethod` are generation markers for the torn-read
-      // cases below: `before`/`pert` is the seeded state, and the one edit
-      // committed mid-capture moves both.
-      projectRow({ id: 'p1', name: 'before', ownerId: 'owner', estimateMethod: 'pert' }),
-      [
+    const owned = {
+      directory: dir,
+      sqlite: null as Database | null,
+      seed: null as Connection | null,
+      seedCloseAttempted: false,
+      hasUnknownOwner: false,
+      closing: null as unknown[] | null,
+    };
+    fixtureCustody = owned;
+    try {
+      migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, owned);
+      try {
+        seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+        activateTestStepBlockages(path);
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        throw cause;
+      }
+      try {
+        owned.sqlite = openDatabase(path);
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        throw cause;
+      }
+      let seed: Connection;
+      try {
+        seed = openConnection(path);
+        owned.seed = seed;
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        throw cause;
+      }
+      const db = seed.db;
+      await new UserRepository(db, OPEN).create(
+        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+        wrote,
+      );
+      const defined = await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+        'fixture-legacy-org',
         {
           id: 'st-1',
-          projectId: 'p1',
-          name: 'before',
-          position: 10,
           code: 'before',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
+          name: 'before',
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+          position: 10,
         },
-      ],
-      wrote,
-    );
-    const directory = new DirectoryRepository(db, OPEN);
-    // The first hole: a team the capacity map names and no junction row does.
-    await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
-    // The second: a person on a team and on no work item.
-    await directory.addPerson({ id: 'pp-unassigned', name: 'Ada' }, ['t-platform'], wrote);
-    await directory.addTag({ id: 'tag-1', name: 'urgent' }, wrote);
-    await directory.addService({ id: 'svc-1', name: 'Wiring' }, wrote);
-    await directory.addWorkItemType({ id: 'wit-1', name: 'Task' }, wrote);
-    await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
-    const items = new WorkItemRepository(db, OPEN);
-    await items.insert(
-      {
-        id: 'wi-1',
-        projectId: 'p1',
-        parentId: null,
-        position: 10,
-        name: 'before',
-        notes: '',
-        frozenNumber: null,
-        priority: null,
-        startNoEarlierThan: null,
-        serviceTeamId: null,
-        serviceId: null,
-        maxParallel: 1,
-        startNoEarlierThanReason: null,
-        deadline: null,
-        factStart: null,
-        factEnd: null,
-        readiness: null,
-        hold: null,
-        revision: 0,
-      },
-      [],
-      wrote,
-    );
-    // The junction row, seeded so the mid-capture edit can *remove* it: a
-    // delete needs no audit columns, and the direction is immaterial to what is
-    // being asserted.
-    await items.patch('wi-1', { tagIds: ['tag-1'] }, wrote);
-    seed.close();
-    trace = { statements: [], closes: 0 };
-  });
+        {
+          bindingId: 'capture-st1-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+        wrote,
+      );
+      if (!defined.ok) throw Error('capture fixture step refused ' + defined.reason);
+      await new WorkPackageRepository(db, OPEN).create(
+        // `name` and `estimateMethod` are generation markers for the torn-read
+        // cases below: `before`/`pert` is the seeded state, and the one edit
+        // committed mid-capture moves both.
+        workPackageRow({
+          id: 'p1',
+          name: 'before',
+          projectId: 'fixture-project',
+          estimateMethod: 'pert',
+        }),
+        [],
+        wrote,
+      );
+      const directory = new DirectoryRepository(db, OPEN);
+      // The first hole: a team the capacity map names and no junction row does.
+      await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
+      // The second: a person on a team and on no work item.
+      await directory.addPerson({ id: 'pp-unassigned', name: 'Ada' }, ['t-platform'], wrote);
+      await directory.addTag({ id: 'tag-1', name: 'urgent' }, wrote);
+      await directory.addService({ id: 'svc-1', name: 'Wiring' }, wrote);
+      await directory.addWorkItemType({ id: 'wit-1', name: 'Task' }, wrote);
+      await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
+      const items = new WorkItemRepository(db, OPEN);
+      await items.insert(
+        {
+          id: 'wi-1',
+          workPackageId: 'p1',
+          parentId: null,
+          position: 10,
+          name: 'before',
+          notes: '',
+          frozenNumber: null,
+          priority: null,
+          startNoEarlierThan: null,
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          readiness: null,
+          hold: null,
+          revision: 0,
+        },
+        [],
+        wrote,
+      );
+      // The junction row, seeded so the mid-capture edit can *remove* it: a
+      // delete needs no audit columns, and the direction is immaterial to what is
+      // being asserted.
+      await items.patch('wi-1', { tagIds: ['tag-1'] }, wrote);
+      owned.seedCloseAttempted = true;
+      try {
+        seed.close();
+        owned.seed = null;
+      } catch (cause) {
+        owned.hasUnknownOwner = true;
+        throw cause;
+      }
+      trace = { statements: [], closes: 0 };
+    } catch (cause) {
+      const failures = closeFixture();
+      if (failures.length === 0) throw cause;
+      throw new AggregateError(
+        [cause, ...failures],
+        'capture fixture initialization and cleanup failed',
+        { cause },
+      );
+    }
+  }
+  beforeEach(openFixture);
 
   afterEach(() => {
-    sqlite.close();
-    rmSync(dir, { recursive: true, force: true });
+    const failures = closeFixture();
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, 'capture fixture cleanup failed', { cause: failures[0] });
+  });
+
+  it('retains capture fixture files after reported lower-owner uncertainty', async () => {
+    const owned = fixtureCustody;
+    if (owned === null) throw Error('expected acquired capture fixture');
+    const failures: unknown[] = [];
+    owned.hasUnknownOwner = true;
+    try {
+      expect(closeFixture()).toEqual([]);
+      expect(existsSync(owned.directory)).toBe(true);
+      expect(fixtureCustody).toBe(owned);
+      let refusal: unknown;
+      try {
+        await openFixture();
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(refusal).toMatchObject({ message: 'previous capture fixture settlement is unknown' });
+    } catch (cause) {
+      failures.push(cause);
+    } finally {
+      if (owned.seed === null && owned.sqlite === null) {
+        owned.hasUnknownOwner = false;
+        if (fixtureCustody === owned) {
+          owned.closing = null;
+          failures.push(...closeFixture());
+        }
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, 'capture custody control and cleanup failed', {
+        cause: failures[0],
+      });
   });
 
   const capture = (options: TracingOptions = {}): SavedPlanCaptureRepository =>
@@ -320,23 +469,36 @@ describe('capturing a project’s plan input', () => {
   it('keeps captured node endpoints after step reorder and live relationship removal', async () => {
     const writing = openConnection(path);
     try {
-      await new StepRepository(writing.db, OPEN).add(
+      const defined = await new StepCatalogueRepository(
+        writing.db,
+        OPEN,
+        'owned',
+      ).defineAndBindStep(
+        'fixture-legacy-org',
         {
           id: 'st-2',
-          projectId: 'p1',
-          name: 'Second',
           code: 'second',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
+          name: 'Second',
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+          position: 20,
+        },
+        {
+          bindingId: 'capture-st2-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
         },
         wrote,
       );
+      if (!defined.ok) throw Error('capture fixture second step refused ' + defined.reason);
       await new TypedDependencyRepository(writing.db, OPEN).add(
         {
           id: 'typed-1',
-          projectId: 'p1',
-          predecessor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
-          successor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
+          workPackageId: 'p1',
+          predecessor: { workPackageId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
+          successor: { workPackageId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
           type: 'FS',
         },
         wrote,
@@ -351,13 +513,22 @@ describe('capturing a project’s plan input', () => {
         },
       ]);
       writing.db
-        .update(step)
-        .set({ name: 'after', code: 'after', position: 30 })
-        .where(eq(step.id, 'st-1'))
+        .update(stepDefinition)
+        .set({ name: 'after', code: 'after' })
+        .where(eq(stepDefinition.id, 'st-1'))
         .run();
-      writing.db.update(step).set({ position: 5 }).where(eq(step.id, 'st-2')).run();
+      writing.db
+        .update(stepBinding)
+        .set({ position: 30 })
+        .where(eq(stepBinding.id, 'capture-st1-binding'))
+        .run();
+      writing.db
+        .update(stepBinding)
+        .set({ position: 5 })
+        .where(eq(stepBinding.id, 'capture-st2-binding'))
+        .run();
       expect(
-        (await new ProjectRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
+        (await new WorkPackageRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
       ).toEqual(['st-2', 'st-1']);
       await new TypedDependencyRepository(writing.db, OPEN).remove('typed-1', wrote);
       expect(captured?.typedDependencies[0]?.predecessor).toEqual({
@@ -421,7 +592,7 @@ describe('capturing a project’s plan input', () => {
     for (const [index, date] of ['2026-08-18', '2026-08-20', '2026-08-25'].entries()) {
       const written = await markers.create({
         id: `cm-${String(index)}`,
-        projectId: 'p1',
+        workPackageId: 'p1',
         date,
         name: `Marker ${String(index)}`,
         color: null,
@@ -430,7 +601,7 @@ describe('capturing a project’s plan input', () => {
       expect(written.ok).toBe(true);
     }
     // The rows really are there, so "the hash did not move" is a claim about a
-    // project with markers rather than about a failed write.
+    // work package with markers rather than about a failed write.
     expect(await new CalendarMarkerRepository(writing.db, OPEN).listFor('p1')).toHaveLength(3);
     writing.close();
 
@@ -439,7 +610,7 @@ describe('capturing a project’s plan input', () => {
 
   it('reads everything inside one deferred transaction and closes its connection', async () => {
     // Proof, watched 2026-09-03: with `tx.begin()` moved after the first read —
-    // the shape a maintainer writes when the project probe feels like it
+    // the shape a maintainer writes when the work package probe feels like it
     // belongs outside the block — `statements[0]` is `read`, not
     // `BEGIN DEFERRED`, and this fails on the first assertion. With the
     // transaction dropped altogether the first and last assertions both fail.
@@ -460,7 +631,7 @@ describe('capturing a project’s plan input', () => {
     // id, and the projection's people read is filtered to assigned ids, so both
     // of these rows are named by the plan and captured by nothing the projection
     // does. Proof, watched 2026-09-03: with `listTeams`/`listPeople` dropped from
-    // `readPlanInput` the project still captures, every other assertion in this
+    // `readPlanInput` the work package still captures, every other assertion in this
     // file still passes, and these two expectations go red.
     const read = await capture().readPlanInput('p1');
 
@@ -474,7 +645,7 @@ describe('capturing a project’s plan input', () => {
     expect(read?.workItemTypes.map((each) => each.id)).toContain('wit-1');
   });
 
-  it('answers null for a project it cannot find, and still closes the connection', async () => {
+  it('answers null for a work package it cannot find, and still closes the connection', async () => {
     expect(await capture().readPlanInput('nope')).toBeNull();
     expect(trace.statements.at(0)).toContain('BEGIN DEFERRED');
     expect(trace.statements.at(-1)).toContain('COMMIT');
@@ -567,7 +738,7 @@ describe('capturing a project’s plan input', () => {
    * capture's — the two connections standing in for blue and green.
    *
    * It is spread deliberately across the read order rather than aimed at one
-   * table: the project row (read 1), the work item and the `work_item_tag`
+   * table: the work package row (read 1), the work item and the `work_item_tag`
    * junction folded into it (read 2), a step (read 10), a person and the
    * `person_team` row that cascades with it (read 13), and the `tag` registry
    * (read 16). A capture that tore anywhere between the first read and the last
@@ -577,13 +748,13 @@ describe('capturing a project’s plan input', () => {
    */
   const commitTheEdit = (writer: Drizzle): void => {
     writer.transaction((tx) => {
-      tx.update(project)
+      tx.update(workPackage)
         .set({ name: 'after', estimateMethod: 'pessimistic' })
-        .where(eq(project.id, 'p1'))
+        .where(eq(workPackage.id, 'p1'))
         .run();
       tx.update(workItem).set({ name: 'after' }).where(eq(workItem.id, 'wi-1')).run();
       tx.delete(workItemTag).where(eq(workItemTag.workItemId, 'wi-1')).run();
-      tx.update(step).set({ name: 'after' }).where(eq(step.id, 'st-1')).run();
+      tx.update(stepDefinition).set({ name: 'after' }).where(eq(stepDefinition.id, 'st-1')).run();
       tx.delete(person).where(eq(person.id, 'pp-unassigned')).run();
       tx.update(tag).set({ name: 'after' }).where(eq(tag.id, 'tag-1')).run();
     });
@@ -605,9 +776,9 @@ describe('capturing a project’s plan input', () => {
     const side = (found: boolean, isBefore: boolean): string =>
       !found ? 'missing' : isBefore ? 'before' : 'after';
     return {
-      // read 1 — a rename and a settings change on the project row.
-      projectName: side(true, read.project.name === 'before'),
-      estimateMethod: side(true, read.project.estimateMethod === 'pert'),
+      // read 1 — a rename and a settings change on the work package row.
+      workPackageName: side(true, read.workPackage.name === 'before'),
+      estimateMethod: side(true, read.workPackage.estimateMethod === 'pert'),
       // read 2 — the item, and the junction the labelled row folds in.
       workItemName: side(item !== undefined, item?.name === 'before'),
       tagJunction: side(item !== undefined, item?.tagIds.includes('tag-1') === true),
@@ -652,7 +823,7 @@ describe('capturing a project’s plan input', () => {
       expect(new Set(Object.values(witness)).size).toBe(1);
       // Named separately so a failure says *which* side, and so a capture that
       // lost every marker at once cannot pass by being uniformly `missing`.
-      expect(['before', 'after']).toContain(witness['projectName']);
+      expect(['before', 'after']).toContain(witness['workPackageName']);
       // The edit really did land: the capture's snapshot is a snapshot, not a
       // write that never happened.
       expect(tagNameNow()).toBe('after');

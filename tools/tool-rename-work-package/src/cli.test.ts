@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
+import { HISTORICAL_TREE as REPO } from './historical-tree.spec';
 import { git } from './tree';
 
-const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const CLI = fileURLToPath(new URL('./cli.ts', import.meta.url));
 
 /** A scratch git repository holding `files` (repo-relative path to content), all staged. */
@@ -104,4 +104,42 @@ describe('apply', () => {
     expect(run.stderr.toString()).toContain('apply needs at least one path');
     expect(run.exitCode).toBe(2);
   });
+});
+
+it('refuses a stale required span witness before changing paths or file bytes', () => {
+  const source = readFileSync(join(REPO, 'libs/wbs/domain/domain/src/access-role.ts'), 'utf8');
+  const root = scratchRepo({
+    'libs/wbs/domain/domain/src/access-role.ts': source.replace(
+      'export interface ProjectChain {',
+      'export interface MissingParentChain {',
+    ),
+    'src/project/index.ts': 'export const projectId = 1;\n',
+  });
+  const before = snapshotOf(root);
+  const child = Bun.spawnSync(['bun', CLI, 'apply', '--root', root, 'libs', 'src'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  expect(child.exitCode).toBe(2);
+  expect(child.stderr.toString()).toContain('protected enclosure must occur exactly once');
+  expect(snapshotOf(root)).toEqual(before);
+});
+
+it('apply and check share token protection without hiding a mixed-line residual', () => {
+  const root = scratchRepo({
+    'src/permission.ts': "authorize(principal, 'project.manage_budgets', projectId);\n",
+    'README.md': '[window](../old-project/work-package-windows.md)\n',
+  });
+  const before = runCli(['check', '--root', root]);
+  expect(before.exitCode).toBe(1);
+  expect(before.stdout).toContain('src/permission.ts:1:');
+  expect(before.stdout).toContain('README.md:1:');
+  expect(runCli(['apply', '--root', root, 'src', 'README.md']).exitCode).toBe(0);
+  expect(readFileSync(join(root, 'src/permission.ts'), 'utf8')).toBe(
+    "authorize(principal, 'project.manage_budgets', workPackageId);\n",
+  );
+  expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe(
+    '[window](../old-work-package/work-package-windows.md)\n',
+  );
+  expect(runCli(['check', '--root', root]).exitCode).toBe(0);
 });

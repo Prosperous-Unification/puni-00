@@ -6,7 +6,7 @@ import type { CellElement } from './editable-grid';
 import { LiveField } from './live-editing';
 import { rowOfCellKey, stepOfCellKey } from './use-estimate-drafts';
 
-/** One mounted project's opt-in hold for Plan fields while Board has focus. */
+/** One mounted work package's opt-in hold for Plan fields while Board has focus. */
 export class PlanInteractionScope {
   private faces = new Map<CellElement, LiveField>();
   private suspended = new Map<string, LiveField>();
@@ -39,7 +39,8 @@ export class PlanInteractionScope {
   /** The selector's focus is a view handoff even before the reader activates it. */
   suspendBeforeLeave(field: LiveField, nextFocus: EventTarget | null): void {
     const enteringSelector =
-      nextFocus instanceof Element && nextFocus.closest('[data-project-view-selector]') !== null;
+      nextFocus instanceof Element &&
+      nextFocus.closest('[data-work-package-view-selector]') !== null;
     if (enteringSelector || this.mode === 'board' || field.isSuspended()) {
       this.suspend(field);
     }
@@ -64,7 +65,7 @@ export class PlanInteractionScope {
     return this.mode === 'plan';
   }
 
-  /** Remove holds whose row or project step no longer exists in the delivered tree. */
+  /** Remove holds whose row or work package step no longer exists in the delivered tree. */
   prune(tree: PlanRead): void {
     const rows = new Set(tree.workItems.map((row) => row.id));
     const steps = new Set(tree.steps.map((step) => step.id));

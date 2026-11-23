@@ -90,20 +90,20 @@ describe('the directory load line', () => {
     ]);
   });
 
-  it('says the load is partly unknown when a project could not be read', async () => {
+  it('says the load is partly unknown when a work package could not be read', async () => {
     stubServer({
       [ROUTE]: [
         () =>
           answer(
             200,
-            organization([], [{ projectId: 'p', name: 'Loop', reason: 'engine_unavailable' }]),
+            organization([], [{ workPackageId: 'p', name: 'Loop', reason: 'engine_unavailable' }]),
           ),
       ],
     });
     renderRows();
     expect(
       await screen.findByRole('link', {
-        name: 'Load of Ana: 0 d booked, 0 d overlapping; partly unknown: 1 project unavailable',
+        name: 'Load of Ana: 0 d booked, 0 d overlapping; partly unknown: 1 work package unavailable',
       }),
     ).toBeDefined();
   });

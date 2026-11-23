@@ -8,32 +8,31 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import {
   removeSavedWorkItemStatusFacts,
   restoreWorkItemStatusFacts,
   saveWorkItemStatusFacts,
 } from './work-item-status-facts-rollback';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STATUS_FACTS = '20260928200000_add_work_item_status_facts';
-const BASELINE = readMigrationFolders(FOLDER)
-  .map(({ name }) => name)
-  .filter((name) => name < STATUS_FACTS)
-  .at(-1);
+const BASELINE = '20260928040000_add_email_challenge';
 let directory: string;
 let path: string;
+let folder: string;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-status-facts-rollback-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  folder = copyRecoveryPrefix(directory, STATUS_FACTS);
+  runMigrations(path, folder);
   const sqlite = openDatabase(path);
   try {
     sqlite.run(
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
     );
     sqlite.run(
       "INSERT INTO work_item (id,project_id,parent_id,position,name,revision,hold,readiness) VALUES ('a','p',NULL,1,'A',0,'on_hold','ready'),('b','p',NULL,2,'B',0,'blocked',NULL),('c','p',NULL,3,'C',0,NULL,'draft'),('d','p',NULL,4,'D',0,NULL,NULL)",
@@ -64,6 +63,11 @@ function withSqlite<T>(run: (sqlite: Database) => T): T {
   }
 }
 
+const identities = () =>
+  withSqlite((sqlite) =>
+    sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
+  );
+
 const statements = () =>
   withSqlite((sqlite) =>
     sqlite
@@ -89,9 +93,13 @@ describe('work item status facts rollback', () => {
     expect(statements().every(({ readiness, hold }) => readiness === null && hold === null)).toBe(
       true,
     );
-    if (BASELINE === undefined) throw new Error('no migration below the status facts');
-    expect(rollbackTo(path, FOLDER, BASELINE)).toContain(STATUS_FACTS);
-    runMigrations(path, FOLDER);
+    const expected = readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash }));
+    expect(identities()).toEqual(expected);
+    expect(expected.at(-2)?.name).toBe(BASELINE);
+    expect(rollbackTo(path, folder, BASELINE)).toEqual([STATUS_FACTS]);
+    expect(identities()).toEqual(expected.slice(0, -1));
+    runMigrations(path, folder);
+    expect(identities()).toEqual(expected);
     expect(withConnection((db) => restoreWorkItemStatusFacts(db, saved, 6))).toBe(3);
     expect(statements()).toEqual([
       { id: 'a', readiness: 'ready', hold: 'on_hold' },

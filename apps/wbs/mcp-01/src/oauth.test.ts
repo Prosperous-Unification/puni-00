@@ -2732,8 +2732,8 @@ describe('OAuth client redirects', () => {
 
 describe('MCP write scope, refresh and revocation through the mounted endpoint', () => {
   const RENAME: DerivedTool = {
-    name: 'patchApiProjectsById',
-    description: 'Rename a project',
+    name: 'patchApiWorkPackagesById',
+    description: 'Rename a work package',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' }, name: { type: 'string' } },
@@ -2741,7 +2741,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
       additionalProperties: false,
     },
     method: 'patch',
-    path: '/api/projects/{id}',
+    path: '/api/work-packages/{id}',
     locations: { id: 'path', name: 'body' },
   };
 
@@ -2774,8 +2774,8 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
   }
 
   const EXPORT: DerivedTool = {
-    name: 'getApiProjectsByIdExport',
-    description: 'Export a project',
+    name: 'getApiWorkPackagesByIdExport',
+    description: 'Export a work package',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -2783,7 +2783,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
       additionalProperties: false,
     },
     method: 'get',
-    path: '/api/projects/{id}/export',
+    path: '/api/work-packages/{id}/export',
     locations: { id: 'path' },
   };
 
@@ -2806,7 +2806,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     );
   }
 
-  function exportProject(token: string): Request {
+  function exportWorkPackage(token: string): Request {
     return new Request('https://dev.wbs.bulletpoints.club/mcp', {
       method: 'POST',
       headers: {
@@ -2881,7 +2881,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
     expect(JSON.stringify(await response.json())).not.toContain('insufficient_scope');
     expect(be01Calls).toEqual([
-      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer upstream-okta-token',
+      'PATCH https://dev.wbs.bulletpoints.club/api/work-packages/p-1 Bearer upstream-okta-token',
     ]);
   });
 
@@ -2953,7 +2953,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     const written = await fetchMcp(rename(successor.access_token));
     expect(JSON.stringify(await written.json())).not.toContain('insufficient_scope');
     expect(be01Calls).toEqual([
-      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer refreshed-upstream-token',
+      'PATCH https://dev.wbs.bulletpoints.club/api/work-packages/p-1 Bearer refreshed-upstream-token',
     ]);
   });
 
@@ -3059,7 +3059,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     const be01Calls: string[] = [];
 
     expect(narrowed.scope).toBe('wbs:write');
-    const refused = await endpoint(oauth, be01Calls)(exportProject(narrowed.access_token));
+    const refused = await endpoint(oauth, be01Calls)(exportWorkPackage(narrowed.access_token));
     expect(JSON.stringify(await refused.json())).toContain('does not include wbs:read');
     expect(be01Calls).toEqual([]);
   });

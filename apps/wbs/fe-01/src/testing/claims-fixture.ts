@@ -1,6 +1,6 @@
 import type { ClaimHistoryEventView, ClaimView } from '@/lib/wbs-api';
 
-import { fakeProjectApi } from './fake-project-api';
+import { fakeWorkPackageApi } from './fake-work-package-api';
 
 const MINUTE = 60_000;
 
@@ -30,7 +30,7 @@ type ClaimFields = Omit<ClaimView, 'number' | 'numberIsFrozen' | 'name'>;
  * @param only Which claims the read answers (all by default), by claim id.
  */
 export async function claimedPlan(only?: readonly string[]) {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
   const paint = await api.createWorkItem('p1', {
     parentId: strip.id,
@@ -42,7 +42,7 @@ export async function claimedPlan(only?: readonly string[]) {
   const ada = await api.addPerson('ada', []);
   await api.assignPerson(paint.id, 'step-dev', ada.id);
   const tree = api.tree.bind(api);
-  api.tree = async (projectId) => ({ ...(await tree(projectId)), timezone: 'UTC' });
+  api.tree = async (workPackageId) => ({ ...(await tree(workPackageId)), timezone: 'UTC' });
 
   const holder = (name: string) => ({ personId: `person-${name}`, name });
   const claims = (readAt: number): ClaimFields[] => [

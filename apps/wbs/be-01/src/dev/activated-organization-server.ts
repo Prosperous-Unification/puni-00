@@ -10,7 +10,6 @@ import { openSqliteSource } from '@wbs/store-sqlite';
 import { bootBe01, type RunningBe } from '../boot';
 import { loadMcpServiceSettings } from '../config';
 import { openDatabase } from '../repository/db';
-import { runMigrations } from '../repository/migrate';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import {
   activateOrganizations,
@@ -19,6 +18,7 @@ import {
   insertOrganization,
 } from '../testing/booted-browser-process';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 /** Printed on start so a reader finds this process's banner in mixed logs. */
@@ -101,7 +101,7 @@ async function serveActivatedOrganization({
   const dbPath = join(directory, 'local.db');
   let running: RunningBe | undefined;
   try {
-    runMigrations(dbPath, new URL('../../drizzle', import.meta.url).pathname);
+    migrateOrganizationCatalogueFixture(dbPath);
     running = await bootBe01(
       {
         appOrigin,
@@ -114,7 +114,7 @@ async function serveActivatedOrganization({
         browserSessionAuthority: 'enabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         // Proof: without these settings, `issues an agent's key a token at the local
-        // mcp-01…` (activated-organization-server.test.ts) saw `mcp token` exit 1 on the
+        // mcp-01…` (activated-organization-server.db.test.ts) saw `mcp token` exit 1 on the
         // token endpoint's HTTP 502 server_error; watched 2026-10-29.
         mcpService: loadMcpServiceSettings({
           ...TEST_MACHINE_GRANT_ENV,
@@ -125,7 +125,7 @@ async function serveActivatedOrganization({
       {
         openSource: openSqliteSource,
         // Proof: with Elysia's default listener here, `serves the owner an
-        // activated organization on loopback…` (activated-organization-server.test.ts)
+        // activated organization on loopback…` (activated-organization-server.db.test.ts)
         // reached the server on the host's LAN address; watched 2026-10-24.
         startListener: (server, listenPort, ready) =>
           server.listen({ port: listenPort, hostname: HOSTNAME }, ready),
@@ -137,6 +137,11 @@ async function serveActivatedOrganization({
     try {
       insertOrganization(sqlite, ORGANIZATION);
       insertMembership(sqlite, ORGANIZATION, ownerId, 'super_admin');
+      // This named development owner has an explicit organization grant; membership alone grants no writes.
+      sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-super-admin','route',?)",
+        [crypto.randomUUID(), ORGANIZATION, ORGANIZATION, ownerId, Date.now()],
+      );
       activateOrganizations(sqlite);
     } finally {
       sqlite.close();
@@ -146,7 +151,7 @@ async function serveActivatedOrganization({
     );
   } catch (cause) {
     // Proof: with this cleanup removed, `deletes its database directory when
-    // it cannot start` (activated-organization-server.test.ts) found
+    // it cannot start` (activated-organization-server.db.test.ts) found
     // `wbs-activated-organization-*` left in the child's TMPDIR; watched
     // 2026-10-24.
     await running?.stop();

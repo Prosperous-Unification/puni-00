@@ -32,7 +32,7 @@ describe('isWithin', () => {
   });
 
   it('answers false for an id the index has no row for', () => {
-    // A cross-project id at `canDepend`, or a row a refetch removed while a
+    // A cross-work-package id at `canDepend`, or a row a refetch removed while a
     // drag was in flight. Both ends are read this way.
     expect(isWithin(parentOf, 'someone-elses-row', 'walls')).toBe(false);
     expect(isWithin(parentOf, 'stud', 'someone-elses-row')).toBe(false);

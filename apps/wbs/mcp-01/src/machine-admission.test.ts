@@ -51,13 +51,13 @@ interface ApiCall {
 
 /**
  * be-01: the grant route issues `grant-<n>`, and every `/api` call is answered by `api`, a
- * test's lever (by default a project list), and recorded.
+ * test's lever (by default a work package list), and recorded.
  */
 function fakeBe() {
   const api: ApiCall[] = [];
   let grants = 0;
   const state = {
-    answer: (): Response => Response.json({ projects: [] }),
+    answer: (): Response => Response.json({ workPackages: [] }),
   };
   const fetchImpl: FetchLike = (url, init) => {
     const path = new URL(url).pathname;
@@ -218,7 +218,7 @@ async function mcp(
   };
 }
 
-const read = [{ name: 'getApiProjects' }] as const;
+const read = [{ name: 'getApiWorkPackages' }] as const;
 
 /** A session store that records every method called on it once armed. */
 function spiedStore() {
@@ -254,7 +254,7 @@ describe('a machine token at /mcp', () => {
     expect(be.api).toHaveLength(1);
     const call = be.api.at(0);
     if (call === undefined) throw new Error('be-01 was not asked');
-    expect(call.path).toBe('/api/projects');
+    expect(call.path).toBe('/api/work-packages');
     expect(call.headers.get('authorization')).toBe('Bearer grant-1');
     expect(call.headers.get(MCP_INTERNAL_SECRET_HEADER)).toBe(SECRET);
     expect(call.headers.get('x-internal-auth')).toBeNull();
@@ -285,7 +285,7 @@ describe('a machine token at /mcp', () => {
     const { oauth, handle } = replica(be);
     const token = await accessToken(oauth, { scope: 'wbs:read' });
     expect(decodeJwt(token)['scope']).toBe('wbs:read');
-    const write = await mcp(handle, token, [{ name: 'postApiProjects', args: { name: 'X' } }]);
+    const write = await mcp(handle, token, [{ name: 'postApiWorkPackages', args: { name: 'X' } }]);
     expect(write.results[0]?.text).toContain('insufficient_scope');
     expect(be.api).toHaveLength(0);
     expect((await mcp(handle, token, read)).results[0]?.isError).toBe(false);
@@ -320,7 +320,7 @@ describe('a machine token at /mcp', () => {
     // The revocation commits after be-01 served the first call of the batch.
     be.state.answer = () => {
       served += 1;
-      return served === 1 ? Response.json({ projects: [] }) : refusal(401, 'unknown_identity');
+      return served === 1 ? Response.json({ workPackages: [] }) : refusal(401, 'unknown_identity');
     };
     const batch = await mcp(handle, token, [...read, ...read, ...read]);
     expect(batch.status).toBe(200);
@@ -338,9 +338,9 @@ describe('a machine token at /mcp', () => {
     const fault = await mcp(handle, token, read);
     expect(fault.status).toBe(502);
     expect(faults.map((reported) => reported.message)).toEqual([
-      'be-01 answered a machine call to GET /api/projects HTTP 401 internal_unauthorized',
+      'be-01 answered a machine call to GET /api/work-packages HTTP 401 internal_unauthorized',
     ]);
-    be.state.answer = () => Response.json({ projects: [] });
+    be.state.answer = () => Response.json({ workPackages: [] });
     // Proof: entering the fault into the refused set (`credentialRefused()` in its branch) made
     // this answer 401; watched 2026-10-27.
     const fixed = await mcp(handle, token, read);
@@ -358,7 +358,7 @@ describe('a machine token at /mcp', () => {
       expect(answer.challenge).toContain('error="invalid_token"');
       expect(faults).toEqual([]);
       // Not entered into the refused set: the next call asks be-01 again.
-      be.state.answer = () => Response.json({ projects: [] });
+      be.state.answer = () => Response.json({ workPackages: [] });
       expect((await mcp(handle, token, read)).status).toBe(200);
     }
   });
@@ -498,7 +498,7 @@ function upstreamReplica(organizations: () => Response | Promise<Response>) {
     const path = new URL(url).pathname;
     if (path === '/internal/mcp/organizations') return Promise.resolve(organizations());
     api.push(path);
-    return Promise.resolve(Response.json({ projects: [] }));
+    return Promise.resolve(Response.json({ workPackages: [] }));
   };
   const oauth = new McpOAuthServer(
     config,
@@ -546,7 +546,7 @@ describe('the activation markers check (M13)', () => {
   it('forwards an upstream token while be-01 is not activated either', async () => {
     const { handle, api } = upstreamReplica(() => Response.json({ state: 'pre_activation' }));
     expect((await mcp(handle, 'upstream-token', read)).status).toBe(200);
-    expect(api).toEqual(['/api/projects']);
+    expect(api).toEqual(['/api/work-packages']);
   });
 
   it('answers 502 and reports a fault when be-01 cannot answer the markers check', async () => {

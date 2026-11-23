@@ -1,95 +1,81 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
+import type { StepCatalogueFixture } from '@wbs/conformance';
+import type { WorkItemStore, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { type Drizzle, openDrizzle } from './db';
+import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { organization, person, personOrganization, workItem } from './schema';
-import { UserRepository } from './user';
-import { WorkItemRepository } from './work-item';
+import type { SqliteSource } from './source';
+import { openSqliteStepCatalogueCase } from './testing/step-catalogue-fixture';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-
-let dir: string;
-let ownerId: string;
+let fixture: StepCatalogueFixture<SqliteSource> | undefined;
+let authorId: string;
 let repo: DirectoryRepository;
 let db: Drizzle;
-let workItems: WorkItemRepository;
-let projectId: string;
+let workItems: WorkItemStore;
+let workPackageId: string;
 let stepId: string;
 let otherStepId: string;
 let itemId: string;
 
-/**
- * The stamp every write here carries. The account is the project's owner, which
- * the `created_by` foreign key requires to exist; the owner's own signup carries
- * it too, because a new account authors its own row.
- */
-const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
+/** Every write uses the actual fixture account, with the original deterministic audit instant. */
+const wrote = (): WriteStamp => ({ at: 1, by: authorId });
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'wbs-directory-'));
-  const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  db = openDrizzle(path);
-  repo = new DirectoryRepository(db, OPEN);
-  workItems = new WorkItemRepository(db, OPEN);
-
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote(),
+  fixture = undefined;
+  fixture = await openSqliteStepCatalogueCase(
+    'stepCatalogue.unbindStep:estimate-refusal-and-preview',
   );
-  projectId = crypto.randomUUID();
+  db = fixture.source.db;
+  repo = new DirectoryRepository(db, OPEN);
+  workItems = fixture.source.stores.workItems;
+  authorId = fixture.seed.stamp.by;
+  workPackageId = fixture.seed.workPackageId;
   stepId = crypto.randomUUID();
   otherStepId = crypto.randomUUID();
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
-  });
-  const steps: Step[] = [
-    {
-      id: stepId,
-      projectId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    {
-      id: otherStepId,
-      projectId,
-      name: 'QA',
-      position: 20,
-      code: 'qa',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
+  for (const [id, name, code, position] of [
+    [stepId, 'Dev', 'dev', 10],
+    [otherStepId, 'QA', 'qa', 20],
+  ] as const) {
+    expect(
+      await fixture.source.stores.stepCatalogue.defineAndBindStep(
+        fixture.seed.organizationId,
+        {
+          id,
+          name,
+          code,
+          position,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: id + ':binding',
+          scopeKind: 'project',
+          scopeId: fixture.seed.projectId,
+          workItemTypeId: null,
+          position,
+        },
+        wrote(),
+      ),
+    ).toMatchObject({ ok: true });
+  }
   itemId = crypto.randomUUID();
-  const item: WorkItem = workItemRow({
-    id: itemId,
-    projectId,
-    position: 10,
-    name: 'Strip',
-  });
-  await workItems.insert(item, [], wrote());
+  await workItems.insert(
+    workItemRow({ id: itemId, workPackageId, position: 10, name: 'Strip' }),
+    [],
+    wrote(),
+  );
 });
 
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+afterEach(async () => {
+  const owned = fixture;
+  fixture = undefined;
+  if (owned === undefined) throw new Error('actual directory fixture did not open');
+  await owned.close();
 });
 
 describe('DirectoryRepository', () => {
@@ -161,7 +147,7 @@ describe('DirectoryRepository', () => {
     expect(written).toEqual({
       ok: true,
       team: { id: platform.id, name: 'Platform', serviceIds: [payments.id] },
-      projectIds: [],
+      workPackageIds: [],
     });
   });
 
@@ -225,7 +211,7 @@ describe('DirectoryRepository', () => {
     expect(both).toEqual({
       ok: true,
       person: { id: ada.id, name: 'Ada L', kind: 'agent', teamIds: [platform.id], accountId: null },
-      projectIds: [],
+      workPackageIds: [],
     });
 
     // A patch naming only the kind still writes: the store must not read an
@@ -242,7 +228,7 @@ describe('DirectoryRepository', () => {
         teamIds: [platform.id],
         accountId: null,
       },
-      projectIds: [],
+      workPackageIds: [],
     });
   });
 
@@ -274,7 +260,7 @@ describe('DirectoryRepository', () => {
     await workItems.insert(
       workItemRow({
         id: otherItemId,
-        projectId,
+        workPackageId,
         position: 20,
         name: 'Sand',
       }),
@@ -331,11 +317,11 @@ describe('team removal revision consistency', () => {
       await repo.addTeam({ id: 'zzz', name: 'Second' }, wrote());
       await workItems.patch(itemId, { teamIds: ['aaa', 'zzz'] }, wrote());
       const untouchedId = 'untouched';
-      await workItems.insert(workItemRow({ id: untouchedId, projectId }), [], wrote());
+      await workItems.insert(workItemRow({ id: untouchedId, workPackageId }), [], wrote());
       const before = db.select().from(workItem).where(eq(workItem.id, itemId)).get();
       if (before === undefined) throw new Error('fixture row missing');
       expect(before.serviceTeamId).toBe('aaa');
-      const removalStamp = { at: 42, by: ownerId };
+      const removalStamp = { at: 42, by: authorId };
 
       expect(await repo.removeTeam(removedId, false, removalStamp)).toMatchObject({
         ok: false,
@@ -348,17 +334,19 @@ describe('team removal revision consistency', () => {
       expect(after).toMatchObject({
         revision: before.revision + 1,
         updatedAt: 42,
-        createdBy: ownerId,
+        createdBy: authorId,
         serviceTeamId: removedId === 'aaa' ? null : 'aaa',
       });
-      const labelled = (await workItems.listByProject(projectId)).find((row) => row.id === itemId);
+      const labelled = (await workItems.listByWorkPackage(workPackageId)).find(
+        (row) => row.id === itemId,
+      );
       expect(labelled?.teamIds).toEqual([removedId === 'aaa' ? 'zzz' : 'aaa']);
       expect(db.select().from(workItem).where(eq(workItem.id, untouchedId)).get()).toMatchObject({
         revision: 0,
         updatedAt: 1,
-        createdBy: ownerId,
+        createdBy: authorId,
       });
-      expect(await repo.removeTeam(removedId, true, { at: 99, by: ownerId })).toEqual({
+      expect(await repo.removeTeam(removedId, true, { at: 99, by: authorId })).toEqual({
         ok: false,
         reason: 'not_found',
       });

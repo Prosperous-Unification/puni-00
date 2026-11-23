@@ -1,0 +1,107 @@
+{
+  "scope": "Delivery repair: actual configured Node/Vitest frontend View tier",
+  "observations": {
+    "current": {
+      "phase": "full-view-four-workers-v137",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/full-view-four-workers-v137.receipt.json",
+        "sha256": "a6441438741c702303572b1f3e5505d15d4ef39efc93f2d819971caf1054395e"
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/full-view-four-workers-v137.log",
+        "sha256": "785095f299bc15f0965d90089d3210a1ddaf7331fa1c615a0abc449dcaf8bc03",
+        "bytes": 438371
+      }
+    },
+    "preceding": {
+      "phase": "full-view-native-v135",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/full-view-native-v135.receipt.json",
+        "sha256": "9e76ef30d1282a0cfcda54e97dcf2c29d7145a96a741a6876f1ba6832967b556"
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/full-view-native-v135.log",
+        "sha256": "d3182f6703de694b63aca356fff4ea21535f32cfd4a631c466bbcc94432fa2f4",
+        "bytes": 2166104
+      }
+    },
+    "appFault": {
+      "phase": "app-fault-native-v134",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/chrome/app-fault.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-native-v134.receipt.json",
+        "sha256": "0a2a38895133d73676845a111071c4dedc1e87e6f39c3a8a30b18eb59eba3cfb"
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-native-v134.log",
+        "sha256": "f2cb07116ab37dd412a4a733e3959f4ca11b5e63d207f102b869a79758b461d5",
+        "bytes": 944
+      }
+    }
+  },
+  "source": {
+    "path": "apps/wbs/fe-01/vitest.config.ts",
+    "sha256": "ef3bba226e9eead6ae9841af32a08abb344e4f29e827add57ae1388dbc0bdae8",
+    "note": "Only the adjacent explanatory comment was added after the successful run; worker count, assertions and deadlines are unchanged."
+  },
+  "totals": {
+    "files": 176,
+    "passed": 4270,
+    "failed": 0
+  },
+  "limits": [
+    "Configured Node 24.20.0 launcher on this host; exact-SHA gate hosts remain unverified.",
+    "Browser execution is not established by View or collection-only evidence.",
+    "The prior custom Bun worker/reporter interaction remains unqualified.",
+    "Backend fixtures, hooks, latest-main integration, CI and formal Astra review remain outstanding.",
+    "No push, merge, live migration or broad-goal completion."
+  ]
+}

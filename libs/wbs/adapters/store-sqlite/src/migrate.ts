@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 
 import { assertPragmas, openDatabase } from './db';
+import { createMigrationCleanupFailure } from './sqlite-cleanup';
 
 const FOREIGN_KEYS_OFF_MARKER = '-- foreign-keys-off-rebuild';
 
@@ -192,10 +193,42 @@ function restoreDowngradedOidcIdentities(sqlite: ReturnType<typeof openDatabase>
   }
 }
 
+/**
+ * Applies the folder set while owning its newly opened native connection.
+ * Initial/final validation and migration failures cannot skip the one selected
+ * close(true) attempt. Known-close failures retain their exact first value;
+ * combined failures stay chronological. A close throw retains private native
+ * custody as SqliteCleanupUnknown, even if delegation may have closed it.
+ * Pending step-catalogue storage transition requires its separate atomic apply owner;
+ * this path supplies no initial-access or operator-window admission.
+ */
 export function runMigrations(dbPath: string, migrationsFolder: string): void {
   const sqlite = openDatabase(dbPath);
-  assertPragmas(sqlite);
+  const close: Parameters<typeof createMigrationCleanupFailure>[1] = {
+    client: sqlite,
+    // Boundary: retain the selected native method; apply below uses its recorded receiver and arguments.
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    original: sqlite.close,
+    receiver: sqlite,
+    args: [true],
+    phase: 'migration',
+    state: 'not-entered',
+    cause: undefined,
+  };
+  const operationFailures: unknown[] = [];
+  let isInitiallyValid = false;
   try {
+    assertPragmas(sqlite);
+    isInitiallyValid = true;
+    const applied = appliedMigrationNames(sqlite);
+    const pending = migrationFoldersInOrder(migrationsFolder).filter((name) => !applied.has(name));
+    // Proof: before this guard, `refuses pending catalogue migration through the ordinary public
+    // migrator without an atomic apply owner` in step-catalogue-report.db.test.ts failed with
+    // outcome.rejected false versus true (14 total expects). Actual116 and exact private117
+    // premises passed; the ordinary path applied117 and resolved. This is pending117 admission
+    // evidence, not an observed earlier-prefix or complete-ledger identity validation proof.
+    if (pending.includes('20261115130000_add_step_catalogue'))
+      throw new Error('step catalogue migration requires the explicit atomic apply owner');
     // Two groups rather than one whole-run decision. See
     // {@link pendingNeedingForeignKeysOff} for the fault that makes the
     // difference load-bearing.
@@ -215,8 +248,36 @@ export function runMigrations(dbPath: string, migrationsFolder: string): void {
     // which `rollbackTo` and `migrate-status-cli` both read unguarded.
     migrate(drizzle({ client: sqlite }), { migrationsFolder });
     restoreDowngradedOidcIdentities(sqlite);
+  } catch (cause) {
+    operationFailures.push(cause);
   } finally {
-    assertPragmas(sqlite);
-    sqlite.close();
+    if (isInitiallyValid) {
+      try {
+        assertPragmas(sqlite);
+      } catch (cause) {
+        operationFailures.push(cause);
+      }
+    }
+    try {
+      close.state = 'entered';
+      close.original.apply(close.receiver, close.args);
+      close.state = 'returned';
+    } catch (cause) {
+      close.state = 'threw';
+      close.cause = cause;
+    }
   }
+  if (close.state === 'threw') throw createMigrationCleanupFailure(operationFailures, close);
+  if (operationFailures.length === 1) {
+    // Boundary: preserve the exact caught dependency failure, including an actual thrown undefined.
+    throw operationFailures[0];
+  }
+  if (operationFailures.length > 1)
+    throw new AggregateError(
+      operationFailures,
+      'SQLite migration operation/final validation failed',
+      {
+        cause: operationFailures[0],
+      },
+    );
 }

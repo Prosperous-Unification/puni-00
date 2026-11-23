@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { MOST_COMMANDS_IN_A_BATCH } from './plan-command-values';
+import { canonicalRuntimeRequest1, parseCanonicalRuntimeRequest1 } from './runtime-canonical1';
 import type {
   RuntimeAuthorityRequest,
   RuntimeClaimRequest,
@@ -15,7 +16,7 @@ const identity = type('string > 0');
 const generation = type('number.integer > 0').narrow(Number.isSafeInteger);
 const scopeShape = type({
   organizationId: identity,
-  projectId: identity,
+  workPackageId: identity,
   personId: identity,
 }).onDeepUndeclaredKey('reject');
 const authority = type({ ownerId: identity, generation });
@@ -89,7 +90,8 @@ const operationShape = type({
   .or({ ...common, authority, expectedBasis: /^rb1:[0-9a-f]{64}$/, action })
   .onDeepUndeclaredKey('reject');
 const envelope = type({
-  schemaVersion: '1',
+  // Proof: outgoing1 failed all 'current runtime canonical2 writes renamed <grant|claim|write> scope with unchanged body1' observations.
+  schemaVersion: '2',
   expectedLedgerId: identity,
   scope: scopeShape,
   commandId: identity,
@@ -215,11 +217,12 @@ export function canonicalRuntimeRequest(scope: RuntimeScope, candidate: unknown)
     };
   }
   return JSON.stringify({
-    schemaVersion: 1,
+    // Proof: runtime-canonical-current-envelope changed canonical envelope2 to1; 'current runtime canonical2 writes renamed grant scope with unchanged body1' failed and restored GREEN.
+    schemaVersion: 2,
     expectedLedgerId: operation.expectedLedgerId,
     scope: {
       organizationId: scoped.organizationId,
-      projectId: scoped.projectId,
+      workPackageId: scoped.workPackageId,
       personId: scoped.personId,
     },
     commandId: operation.commandId,
@@ -231,9 +234,28 @@ export function canonicalRuntimeRequest(scope: RuntimeScope, candidate: unknown)
 export function parseCanonicalRuntimeRequest(
   bytes: string,
 ): Readonly<{ scope: RuntimeScope; operation: RuntimeOperation }> {
-  const parsed = envelope.assert(JSON.parse(bytes));
+  const source: unknown = JSON.parse(bytes);
+  if (
+    typeof source === 'object' &&
+    source !== null &&
+    'schemaVersion' in source &&
+    // Proof: runtime-canonical-legacy-dispatch removed the explicit legacy1 decoder dispatch; 'published runtime canonical1 grant reads current meaning without changing original bytes' failed and restored GREEN.
+    source.schemaVersion === 1
+  ) {
+    // Proof: missing dispatch failed each 'published runtime canonical1 <grant|claim|write> reads current meaning without changing original bytes' against the genuine outgoing capture.
+    const historical = parseCanonicalRuntimeRequest1(bytes);
+    return {
+      scope: {
+        organizationId: historical.scope.organizationId,
+        workPackageId: historical.scope.projectId,
+        personId: historical.scope.personId,
+      },
+      operation: historical.operation,
+    };
+  }
+  const parsed = envelope.assert(source);
   const common = {
-    schemaVersion: parsed.schemaVersion,
+    schemaVersion: 1 as const,
     commandId: parsed.commandId,
     expectedLedgerId: parsed.expectedLedgerId,
   };
@@ -253,6 +275,7 @@ export function parseCanonicalRuntimeRequest(
           action: accepted.action,
         };
   // Proof: P3-08 removed recanonicalization; whitespace-corrupt replay resolved instead of throwing.
+  // Proof: runtime-canonical-current-exact-bytes removed current-format exact recanonicalization; 'current runtime canonical2 writes renamed grant scope with unchanged body1' failed and restored GREEN.
   if (canonicalRuntimeRequest(parsed.scope, operation) !== bytes)
     throw new Error('runtime request bytes are not canonical');
   return { scope: parsed.scope, operation };
@@ -298,4 +321,27 @@ export function parseRuntimeWriteRequest(candidate: unknown): RuntimeWriteReques
       }),
     },
   };
+}
+
+/** Encode a validated current semantic scope/request in the explicitly retained identity format. Never infer a format from property presence. */
+export function encodeRuntimeRequestAtVersion(
+  version: 1 | 2,
+  scope: RuntimeScope,
+  candidate: unknown,
+): string {
+  const scoped = scopeShape.assert(scope);
+  switch (version) {
+    case 1:
+      return canonicalRuntimeRequest1(
+        {
+          organizationId: scoped.organizationId,
+          // Proof: runtime-retained-format-encoder substituted the retained-format owner during identity encoding; 'receiver verifies genuine runtime1 grant using original bytes and original receipt' failed and restored GREEN.
+          projectId: scoped.workPackageId,
+          personId: scoped.personId,
+        },
+        candidate,
+      );
+    case 2:
+      return canonicalRuntimeRequest(scoped, candidate);
+  }
 }

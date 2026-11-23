@@ -23,13 +23,13 @@ export function inMemoryDependencies(
    */
   return {
     rows,
-    listByProject: (projectId) =>
-      Promise.resolve(rows.filter((row) => row.projectId === projectId)),
-    listByWorkItems: async (projectId, workItemIds) => {
+    listByWorkPackage: (workPackageId) =>
+      Promise.resolve(rows.filter((row) => row.workPackageId === workPackageId)),
+    listByWorkItems: async (workPackageId, workItemIds) => {
       const requested = new Set(workItemIds);
       const incident = rows.filter(
         (row) =>
-          row.projectId === projectId &&
+          row.workPackageId === workPackageId &&
           (requested.has(row.predecessorId) || requested.has(row.successorId)),
       );
       if (workItems !== undefined && incident.length > 0) {
@@ -39,7 +39,7 @@ export function inMemoryDependencies(
           ),
         ];
         const admitted = new Set(
-          (await workItems.listByIds(projectId, endpointIds)).map(({ id }) => id),
+          (await workItems.listByIds(workPackageId, endpointIds)).map(({ id }) => id),
         );
         const malformed = incident.find(
           ({ predecessorId, successorId }) =>
@@ -47,7 +47,7 @@ export function inMemoryDependencies(
         );
         if (malformed !== undefined) {
           throw new Error(
-            `dependency ${malformed.id} has an endpoint outside project ${projectId}`,
+            `dependency ${malformed.id} has an endpoint outside work package ${workPackageId}`,
           );
         }
       }

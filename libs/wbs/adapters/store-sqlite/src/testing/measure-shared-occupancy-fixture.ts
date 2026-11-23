@@ -1,9 +1,11 @@
 import { constants, copyFileSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
-import { type ClaimStore, clockOf, CREATOR_ADMISSION, type PlanCommand } from '@wbs/core';
+import { type ClaimStore, clockOf, LEGACY_EDIT_ADMISSION, type PlanCommand } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { type } from 'arktype';
@@ -12,10 +14,11 @@ import { type Logger, sql } from 'drizzle-orm';
 import { SqliteCommandAccess } from '../command-access';
 import { type Drizzle, openDatabase, openReadOnlyConnection } from '../db';
 import { MachineCredentialRepository } from '../machine-credential';
-import { runMigrations } from '../migrate';
 import { SqliteOrganizationAccess } from '../organization-access';
 import { openSqliteSource, type SqliteSource } from '../source';
+import { migrateEmptyCatalogueFixture } from './catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
+import { seedOrganizationPackage } from './legacy-package-parent';
 import {
   assertClaim,
   type ClaimReceipt,
@@ -24,18 +27,17 @@ import {
 } from './shared-occupancy-measurement';
 import { activateTestStepBlockages } from './step-blockage-activation';
 
-const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ACCOUNT = 'account-f';
 const ORGANIZATION = 'org-measure';
 const NOW = 1_000;
 const STAMP = { at: NOW, by: ACCOUNT };
-const PROJECTS = 50;
+const WORK_PACKAGES = 50;
 const STANDING = 20;
 const SPARES = 400;
 
 export const RESOURCE = 'resource-host-ram';
 export const STATED = 1_000_000;
-export const OCCUPIED = PROJECTS * STANDING;
+export const OCCUPIED = WORK_PACKAGES * STANDING;
 
 const LIMITS = {
   maxAgentPersons: 100_000,
@@ -45,11 +47,12 @@ const LIMITS = {
 const ACTOR = { id: ACCOUNT, username: ACCOUNT, scopes: ['write'] } as const;
 const ACCESS = {
   kind: 'scoped',
-  scope: { organizationId: ORGANIZATION, userId: ACCOUNT, role: 'admin' },
+  scope: { organizationId: ORGANIZATION, userId: ACCOUNT, cap: null },
+  principal: { id: ACCOUNT },
 } as const;
 
 const Target = type({
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   personId: 'string',
   steps: ['string', 'string'],
@@ -79,7 +82,7 @@ export function openFixture(dbPath: string, minted: number, observation?: Observ
     newId: () => `id-${String(++minted).padStart(8, '0')}`,
   });
   const broadcast = recordingBroadcaster();
-  const options = { clock, broadcast, scheduler: fastScheduler, admission: CREATOR_ADMISSION };
+  const options = { clock, broadcast, scheduler: fastScheduler, admission: LEGACY_EDIT_ADMISSION };
   const graph = servicesOver(source.stores, {
     ...options,
     dependencyContext: createLocalDependencyContext(source.stores),
@@ -97,7 +100,7 @@ export function openFixture(dbPath: string, minted: number, observation?: Observ
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope, announcements, admission) =>
+    batchServices: (scope, announcements, admission, dependencyContext) =>
       servicesOver(
         observation === undefined
           ? scope.stores
@@ -106,14 +109,14 @@ export function openFixture(dbPath: string, minted: number, observation?: Observ
           ...options,
           admission,
           broadcast: announcements,
-          dependencyContext: createLocalDependencyContext(scope.stores),
+          dependencyContext: { kind: 'bound', context: dependencyContext },
         },
       ),
   });
   const read = openReadOnlyConnection(dbPath);
   return {
     source,
-    graph,
+    clock,
     broadcast,
     read: read.db,
     minted: () => minted,
@@ -124,8 +127,8 @@ export function openFixture(dbPath: string, minted: number, observation?: Observ
         await source.close();
       }
     },
-    run: (projectId: string, commands: readonly PlanCommand[]) =>
-      runner.runWithin(projectId, ACTOR, commands, ACCESS),
+    run: (workPackageId: string, commands: readonly PlanCommand[]) =>
+      runner.runWithin(workPackageId, ACTOR, commands, ACCESS),
     directory: (command: PlanCommand) => runner.runDirectoryWithin(ACTOR, [command], ACCESS),
   };
 }
@@ -174,7 +177,7 @@ export function readClaim(db: Drizzle, target: ClaimTarget, reply: ClaimReply): 
 }
 
 export async function releaseClaim(opened: Opened, target: ClaimTarget): Promise<void> {
-  const released = await opened.run(target.projectId, [
+  const released = await opened.run(target.workPackageId, [
     {
       kind: 'releaseWorkItem',
       workItemId: target.workItemId,
@@ -220,7 +223,7 @@ async function seedPeople(source: SqliteSource, personId: string): Promise<void>
 
 async function createLeaves(
   opened: Opened,
-  projectId: string,
+  workPackageId: string,
   steps: [string, string],
   prefix: string,
   count: number,
@@ -232,7 +235,7 @@ async function createLeaves(
     parentId: null,
     afterId: null,
   }));
-  const created = await opened.run(projectId, commands);
+  const created = await opened.run(workPackageId, commands);
   if (!created.ok) throw new Error(`Leaf setup refused: ${JSON.stringify(created)}`);
   const leaves: ClaimTarget[] = [];
   for (const [index, applied] of created.results.entries()) {
@@ -240,13 +243,13 @@ async function createLeaves(
     const workItemId = applied.id;
     const personId = `${prefix}-${String(index)}`;
     await seedPeople(opened.source, personId);
-    leaves.push({ projectId, workItemId, personId, steps });
+    leaves.push({ workPackageId, workItemId, personId, steps });
   }
   if (leaves.length !== count) throw new Error('Fixture did not create every leaf');
   // Finish Dev, start QA, and reopen Dev for rework. Both have real started
   // evidence when the holder subsequently takes the two unfinished steps.
   const prepared = await opened.run(
-    projectId,
+    workPackageId,
     leaves.flatMap(({ workItemId }): PlanCommand[] => [
       { kind: 'setDemand', workItemId, resourceId: RESOURCE, units: 1 },
       { kind: 'setProgress', workItemId, stepId: steps[0], state: 'done' },
@@ -282,31 +285,72 @@ async function seed(opened: Opened) {
     sql`UPDATE organization_activation SET state = 'activated', activated_at = ${NOW} WHERE singleton = 1`,
   );
 
+  const projectId = 'fixture-project';
+  db.run(sql`
+    INSERT INTO project (id, organization_id, name, created_at)
+    VALUES (${projectId}, ${ORGANIZATION}, 'Occupancy', ${NOW})`);
+  db.run(sql`
+    INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at)
+    VALUES ('fixture-admin', ${ORGANIZATION}, 'organization', ${ORGANIZATION}, 'user', ${ACCOUNT}, 'org-admin', 'route', ${NOW})`);
+  await bindFixtureSteps(
+    opened.source,
+    ORGANIZATION,
+    (
+      [
+        ['dev', 'Dev', 10],
+        ['qa', 'QA', 20],
+      ] as const
+    ).map(([code, name, position]) => ({
+      definition: {
+        id: 'fixture-' + code,
+        code,
+        name,
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      binding: {
+        bindingId: 'fixture-binding-' + code,
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position,
+      },
+    })),
+    STAMP,
+  );
+
   const standing: ClaimTarget[] = [];
   const spares: ClaimTarget[] = [];
-  for (let index = 0; index < PROJECTS; index += 1) {
-    const created = await opened.graph.projects.createWithin(`P${String(index)}`, ACCOUNT, ACCESS);
-    if (!created.ok) throw new Error(`Project refused: ${JSON.stringify(created)}`);
-    const { project, steps } = created.value;
+  for (let index = 0; index < WORK_PACKAGES; index += 1) {
+    const { workPackage } = await seedOrganizationPackage(
+      stores.workPackages,
+      opened.clock,
+      ORGANIZATION,
+      projectId,
+      ACCOUNT,
+      `P${String(index)}`,
+    );
+    const steps = await stores.workPackages.stepsOf(workPackage.id);
     const dev = steps.at(0);
     const qa = steps.at(1);
     if (steps.length !== 2 || dev === undefined || qa === undefined)
-      throw new Error('Fixture project should have exactly two workflow steps');
+      throw new Error('Fixture work package should have exactly two workflow steps');
     const stepIds: [string, string] = [dev.id, qa.id];
     for (const target of await createLeaves(
       opened,
-      project.id,
+      workPackage.id,
       stepIds,
       `standing-${String(index)}`,
       STANDING,
     )) {
-      readClaim(opened.read, target, await opened.run(project.id, [commandOf(target)]));
+      readClaim(opened.read, target, await opened.run(workPackage.id, [commandOf(target)]));
       standing.push(target);
     }
     if (index === 0)
       for (let batch = 0; batch < 8; batch += 1)
         spares.push(
-          ...(await createLeaves(opened, project.id, stepIds, `spare-${String(batch)}`, 50)),
+          ...(await createLeaves(opened, workPackage.id, stepIds, `spare-${String(batch)}`, 50)),
         );
   }
   return { standing, spares, minted: opened.minted() };
@@ -318,21 +362,24 @@ function scalar(db: Drizzle, statement: ReturnType<typeof sql>): number {
   return value;
 }
 
-export function journalCount(db: Drizzle, projectId: string): number {
-  return scalar(db, sql`SELECT COUNT(*) AS n FROM command_journal WHERE project_id = ${projectId}`);
+export function journalCount(db: Drizzle, workPackageId: string): number {
+  return scalar(
+    db,
+    sql`SELECT COUNT(*) AS n FROM command_journal WHERE work_package_id = ${workPackageId}`,
+  );
 }
 
 /** Reads the journal head even after the ordinary bounded stack prunes old rows. */
-export function readJournalHead(db: Drizzle, projectId: string) {
+export function readJournalHead(db: Drizzle, workPackageId: string) {
   const head = db
     .all<{ id: string; seq: number }>(
       sql`
     SELECT id, seq FROM command_journal
-    WHERE project_id = ${projectId} AND user_id = ${ACCOUNT}
+    WHERE work_package_id = ${workPackageId} AND user_id = ${ACCOUNT}
     ORDER BY seq DESC LIMIT 1`,
     )
     .at(0);
-  if (head === undefined) throw new Error(`Missing journal head for ${projectId}`);
+  if (head === undefined) throw new Error(`Missing journal head for ${workPackageId}`);
   return head;
 }
 
@@ -345,32 +392,40 @@ export function snapshot(db: Drizzle, fixture: Pick<Fixture, 'standing' | 'spare
   const leaves = new Set(
     [...fixture.standing, ...fixture.spares].map(({ workItemId }) => workItemId),
   );
-  const projects = db.all<{ projectId: string; leaves: number; units: number; steps: number }>(sql`
-    SELECT p.id AS projectId, COUNT(*) AS leaves, SUM(held.units) AS units, SUM(held.steps) AS steps
+  const workPackages = db.all<{
+    workPackageId: string;
+    leaves: number;
+    units: number;
+    steps: number;
+  }>(sql`
+    SELECT p.id AS workPackageId, COUNT(*) AS leaves, SUM(held.units) AS units, SUM(held.steps) AS steps
     FROM (
-      SELECT wi.id, wi.project_id, MAX(co.units) AS units, COUNT(*) AS steps
+      SELECT wi.id, wi.work_package_id, MAX(co.units) AS units, COUNT(*) AS steps
       FROM claim c JOIN work_item wi ON wi.id = c.work_item_id
       JOIN claim_occupancy co ON co.claim_id = c.id
       WHERE co.resource_id = ${RESOURCE}
-      GROUP BY wi.id, wi.project_id
+      GROUP BY wi.id, wi.work_package_id
     ) held
-    JOIN project p ON p.id = held.project_id AND p.owner_id = ${ACCOUNT}
-    JOIN project_organization po ON po.resource_id = p.id AND po.organization_id = ${ORGANIZATION}
+    JOIN work_package p ON p.id = held.work_package_id
+    JOIN access_grant g ON g.scope_kind = 'work_package' AND g.scope_id = p.id
+      AND g.origin = 'creation' AND g.subject_kind = 'user' AND g.subject_id = ${ACCOUNT}
+      AND g.role_id = 'package-manager' AND g.organization_id = ${ORGANIZATION}
+    JOIN work_package_organization po ON po.resource_id = p.id AND po.organization_id = ${ORGANIZATION}
     GROUP BY p.id ORDER BY p.id`);
   if (
     fixture.standing.length !== OCCUPIED ||
     fixture.spares.length !== SPARES ||
     people.size !== OCCUPIED + SPARES ||
     leaves.size !== people.size ||
-    projects.length !== PROJECTS ||
-    projects.some(
+    workPackages.length !== WORK_PACKAGES ||
+    workPackages.some(
       ({ leaves, units, steps }) =>
         leaves !== STANDING || units !== STANDING || steps !== 2 * STANDING,
     ) ||
     scalar(
       db,
-      sql`SELECT COUNT(*) AS n FROM project_organization WHERE organization_id = ${ORGANIZATION}`,
-    ) !== PROJECTS ||
+      sql`SELECT COUNT(*) AS n FROM work_package_organization WHERE organization_id = ${ORGANIZATION}`,
+    ) !== WORK_PACKAGES ||
     scalar(db, sql`SELECT COUNT(*) AS n FROM claim`) !== 2 * OCCUPIED ||
     scalar(db, sql`SELECT COUNT(*) AS n FROM claim_occupancy`) !== 2 * OCCUPIED ||
     scalar(
@@ -401,7 +456,7 @@ export function snapshot(db: Drizzle, fixture: Pick<Fixture, 'standing' | 'spare
   });
   if (fixture.spares.some(({ workItemId }) => claimRows(db, workItemId).length !== 0))
     throw new Error('A spare leaf still has a holder');
-  return { projects, standing };
+  return { workPackages, standing };
 }
 
 export function digestFile(path: string): string {
@@ -409,7 +464,10 @@ export function digestFile(path: string): string {
 }
 
 export async function prepare(dbPath: string, manifestPath: string): Promise<Fixture> {
-  runMigrations(dbPath, MIGRATIONS);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory: dirname(dbPath), reportedAt: NOW },
+    { hasUnknownOwner: false },
+  );
   activateTestStepBlockages(dbPath);
   const opened = openFixture(dbPath, 0);
   const fixture = await (async () => {

@@ -1,62 +1,88 @@
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import type { OrganizationHarness } from './organization-harness';
+import { createFixturePackage, readFixturePackage } from './space-rollup';
 
-interface TransferProject {
-  projectId: string;
+interface TransferWorkPackage {
+  workPackageId: string;
   parentId: string;
   leafId: string;
   tailId: string;
   stepIds: string[];
 }
 
-/** Mounted authored projects and synthetic persistence only; never activates runtime authoring. */
+/** Mounted authored work packages and synthetic persistence only; never activates runtime authoring. */
 export async function connectedTransferFixture(harness: OrganizationHarness) {
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'organization.manage_directory',
+  ]);
   harness.bind('ada', 'org-a');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
-  const create = async (name: string): Promise<TransferProject> => {
-    const created = await harness.call('ada', 'POST', '/api/projects', { name });
-    if (created.status !== 200)
-      throw new Error(`fixture project refused: ${String(created.status)}`);
-    const project = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
-      .get(name);
-    if (project === null) throw new Error('fixture project missing');
+  const remoteId = await createFixturePackage(harness, 'ada', 'Remote');
+  // Remote labels can change independently while the receiving Project keeps its import codes.
+  harness.sqlite.run(
+    "UPDATE step_definition SET name='Remote ' || name,code='remote-' || code WHERE organization_id='org-a'",
+  );
+  const sourceId = await createFixturePackage(harness, 'ada', 'Source');
+  const parent = harness.sqlite
+    .query<{ project_id: string }, [string]>('SELECT project_id FROM work_package WHERE id=?')
+    .get(sourceId);
+  if (parent === null) throw new Error('transfer parent missing');
+  const projectId = parent.project_id;
+  const create = async (name: string, existingId?: string): Promise<TransferWorkPackage> => {
+    if (existingId === undefined) {
+      const created = await harness.call('ada', 'POST', '/api/work-packages', { name, projectId });
+      if (created.status !== 200)
+        throw new Error('fixture work package refused', { cause: created });
+    }
+    const workPackage =
+      existingId === undefined
+        ? harness.sqlite
+            .query<{ id: string }, [string, string]>(
+              'SELECT id FROM work_package WHERE project_id=? AND name=?',
+            )
+            .get(projectId, name)
+        : { id: existingId };
+    if (workPackage === null) throw new Error('fixture work package missing');
     const add = async (rowName: string, parentId: string | null) => {
-      const added = await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
-        commands: [{ kind: 'createWorkItem', name: rowName, parentId }],
-      });
+      const added = await harness.call(
+        'ada',
+        'POST',
+        `/api/work-packages/${workPackage.id}/commands`,
+        {
+          commands: [{ kind: 'createWorkItem', name: rowName, parentId }],
+        },
+      );
       if (added.status !== 200)
         throw new Error(`fixture row refused: ${JSON.stringify(added.body)}`);
       const row = harness.sqlite
         .query<{ id: string }, [string, string]>(
-          'SELECT id FROM work_item WHERE project_id=? AND name=?',
+          'SELECT id FROM work_item WHERE work_package_id=? AND name=?',
         )
-        .get(project.id, rowName);
+        .get(workPackage.id, rowName);
       if (row === null) throw new Error('fixture row missing');
       return row.id;
     };
     const parentId = await add(`${name} parent`, null);
     const leafId = await add(`${name} leaf`, parentId);
     const tailId = await add(`${name} tail`, null);
-    const steps = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
-      .all(project.id);
+    const { steps } = await readFixturePackage(harness, 'ada', workPackage.id);
     if (steps.length < 2) throw new Error('fixture needs distinct steps');
     harness.sqlite
       .query(
-        "UPDATE project SET start_date='2026-10-19',estimate_method='realistic',estimate_rounding='exact' WHERE id=?",
+        "UPDATE work_package SET start_date='2026-10-19',estimate_method='realistic',estimate_rounding='exact' WHERE id=?",
       )
-      .run(project.id);
+      .run(workPackage.id);
     harness.sqlite
       .query(
-        "UPDATE work_item SET readiness='ready' WHERE project_id=? AND id NOT IN (SELECT parent_id FROM work_item WHERE parent_id IS NOT NULL)",
+        "UPDATE work_item SET readiness='ready' WHERE work_package_id=? AND id NOT IN (SELECT parent_id FROM work_item WHERE parent_id IS NOT NULL)",
       )
-      .run(project.id);
+      .run(workPackage.id);
     for (const rowId of [leafId, tailId])
       for (const step of steps)
         harness.sqlite
@@ -65,21 +91,21 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
           )
           .run(rowId, step.id);
     return {
-      projectId: project.id,
+      workPackageId: workPackage.id,
       parentId,
       leafId,
       tailId,
       stepIds: steps.map((step) => step.id),
     };
   };
-  const remote = await create('Remote');
-  const source = await create('Source');
+  const remote = await create('Remote', remoteId);
+  const source = await create('Source', sourceId);
   const downstream = await create('Downstream');
   const unrelated = await create('Unrelated');
   const external = (
     id: string,
-    from: TransferProject,
-    to: TransferProject,
+    from: TransferWorkPackage,
+    to: TransferWorkPackage,
     scope: 'whole' | 'node' | 'descendant-step',
     type: 'FS' | 'SS' | 'FF',
     stepIndex = 0,
@@ -96,12 +122,12 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
       id === 'incoming-descendant' || id === 'incoming-whole' ? to.parentId : to.leafId;
     harness.sqlite
       .query(
-        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES (?,'org-a',?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES (?,'org-a',?,?,?,?,?,?,?,?,?)",
       )
       .run(
         id,
-        from.projectId,
-        to.projectId,
+        from.workPackageId,
+        to.workPackageId,
         scope === 'descendant-step' ? from.parentId : from.leafId,
         successorId,
         scope,
@@ -122,27 +148,28 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
   if (stepId === undefined) throw new Error('fixture local step missing');
   harness.sqlite
     .query(
-      "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,type) VALUES ('internal-node',?,?,?,'node','whole',?,'SS')",
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,type) VALUES ('internal-node',?,?,?,'node','whole',?,'SS')",
     )
-    .run(source.projectId, source.leafId, source.tailId, stepId);
+    .run(source.workPackageId, source.leafId, source.tailId, stepId);
   harness.sqlite
-    .query('INSERT INTO dependency(project_id,predecessor_id,successor_id) VALUES (?,?,?)')
-    .run(source.projectId, source.leafId, source.tailId);
+    .query('INSERT INTO dependency(work_package_id,predecessor_id,successor_id) VALUES (?,?,?)')
+    .run(source.workPackageId, source.leafId, source.tailId);
   const remoteStep = remote.stepIds.at(0);
   if (remoteStep === undefined) throw new Error('fixture remote step missing');
   harness.sqlite
     .query(
-      "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,type) VALUES ('remote-internal',?,?,?,'node','whole',?,'SS')",
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,type) VALUES ('remote-internal',?,?,?,'node','whole',?,'SS')",
     )
-    .run(remote.projectId, remote.leafId, remote.tailId, remoteStep);
+    .run(remote.workPackageId, remote.leafId, remote.tailId, remoteStep);
   harness.sqlite
-    .query('INSERT INTO dependency(project_id,predecessor_id,successor_id) VALUES (?,?,?)')
-    .run(remote.projectId, remote.leafId, remote.tailId);
+    .query('INSERT INTO dependency(work_package_id,predecessor_id,successor_id) VALUES (?,?,?)')
+    .run(remote.workPackageId, remote.leafId, remote.tailId);
   await harness.register('bea');
   harness.sqlite
-    .query('UPDATE project SET restricted=1,owner_id=? WHERE id=?')
-    .run(harness.userId('bea'), remote.projectId);
-  return { remote, source, downstream, unrelated };
+    .query('UPDATE work_package SET restricted=1,created_by=? WHERE id=?')
+    .run(harness.userId('bea'), remote.workPackageId);
+  harness.grant('org-a', 'ada', 'package-contributor', 'work_package', remote.workPackageId);
+  return { projectId, remote, source, downstream, unrelated };
 }
 
 /** Canonical snapshots include WITHOUT ROWID tables and ignore physical retrieval order. */

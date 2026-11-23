@@ -31,8 +31,8 @@ const [RAM, STAGE] = CONFORMANCE_RESOURCES;
 
 /**
  * The ownership the `claims.occupancy:organization-scope` case needs, which
- * no port writes: the seed's first project and RAM belong to `organizationId`,
- * the second project to `otherOrganizationId`, and the stage to none.
+ * no port writes: the seed's first work package and RAM belong to `organizationId`,
+ * the second work package to `otherOrganizationId`, and the stage to none.
  */
 export const SHARED_OCCUPANCY_OWNERSHIP = {
   caseIds: [
@@ -46,7 +46,7 @@ export const SHARED_OCCUPANCY_OWNERSHIP = {
 
 /**
  * Seeds {@link CONFORMANCE_RESOURCES} for a resource case, and for the removal
- * case a demand in the first project and a capacity in the second, through the
+ * case a demand in the first work package and a capacity in the second, through the
  * source's own writers.
  *
  * @throws when a seeding write is refused: the case would assert against a
@@ -63,8 +63,8 @@ export async function seedResourceCase(
     if (!added.ok) throw new Error(`conformance resource ${resource.id} was refused`);
   }
   if (caseId === 'directory.setDirectoryCapacity:state-clear-remove') {
-    // A claim holding RAM through its `resources` alone in each project, no
-    // demand and no capacity: the first project is RAM's organization's and is
+    // A claim holding RAM through its `resources` alone in each work package, no
+    // demand and no capacity: the first work package is RAM's organization's and is
     // announced, the second another organization's and is not (review S3-1).
     const holders = [0, 1].map((index) => ({
       id: `claim-holding-ram-${String(index)}`,
@@ -87,9 +87,14 @@ export async function seedResourceCase(
   if (caseId !== 'directory.removeResource:in-use-cascade') return;
   if ((await stores.demands.set(seed.workItemIds[0][0], RAM.id, 4, seed.stamps[0])) !== 'written')
     throw new Error('conformance demand was refused');
-  const stated = await stores.resourceCapacity.set(seed.projectIds[1], RAM.id, 32, seed.stamps[0]);
+  const stated = await stores.resourceCapacity.set(
+    seed.workPackageIds[1],
+    RAM.id,
+    32,
+    seed.stamps[0],
+  );
   if (!stated.ok) throw new Error('conformance resource capacity was refused');
-  // A claim holding RAM and the stage on the second project's leaf: an
+  // A claim holding RAM and the stage on the second work package's leaf: an
   // occupancy beside RAM's demand and capacity, and the stage's only use
   // (`wbs-resources` R8), so the count is read and refuses on its own.
   const holding = {
@@ -108,7 +113,7 @@ export async function seedResourceCase(
   if (held !== 'written') throw new Error(`conformance occupancy was refused: ${held}`);
 }
 
-/** The shared resource-capacity cases: stated, zero, cleared, per project, and refusals. */
+/** The shared resource-capacity cases: stated, zero, cleared, per work package, and refusals. */
 export function resourceCapacityRegistrations(
   open: OpenCase<'resourceCapacity'>,
 ): readonly CaseRegistration[] {
@@ -118,14 +123,14 @@ export function resourceCapacityRegistrations(
       'resourceCapacity.set:stated-zero-cleared',
       open,
       async ({ port, seed }) => {
-        const [projectA, projectB] = seed.projectIds;
-        expect(await port.set(projectA, RAM.id, 32, seed.stamps[0])).toEqual({ ok: true });
-        expect(await port.set(projectA, STAGE.id, 0, seed.stamps[0])).toEqual({ ok: true });
-        expect(await port.set(projectB, RAM.id, 8, seed.stamps[1])).toEqual({ ok: true });
-        expect(await port.set(projectA, RAM.id, 48, seed.stamps[1])).toEqual({ ok: true });
+        const [workPackageA, workPackageB] = seed.workPackageIds;
+        expect(await port.set(workPackageA, RAM.id, 32, seed.stamps[0])).toEqual({ ok: true });
+        expect(await port.set(workPackageA, STAGE.id, 0, seed.stamps[0])).toEqual({ ok: true });
+        expect(await port.set(workPackageB, RAM.id, 8, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.set(workPackageA, RAM.id, 48, seed.stamps[1])).toEqual({ ok: true });
         expect({
-          a: await port.listFor(projectA),
-          b: await port.listFor(projectB),
+          a: await port.listFor(workPackageA),
+          b: await port.listFor(workPackageB),
         }).toEqual({
           a: [
             { resourceId: RAM.id, units: 48 },
@@ -133,10 +138,10 @@ export function resourceCapacityRegistrations(
           ],
           b: [{ resourceId: RAM.id, units: 8 }],
         });
-        expect(await port.set(projectA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
-        expect(await port.set(projectA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
-        expect(await port.listFor(projectA)).toEqual([{ resourceId: STAGE.id, units: 0 }]);
-        expect(await port.listFor(projectB)).toEqual([{ resourceId: RAM.id, units: 8 }]);
+        expect(await port.set(workPackageA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.set(workPackageA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.listFor(workPackageA)).toEqual([{ resourceId: STAGE.id, units: 0 }]);
+        expect(await port.listFor(workPackageB)).toEqual([{ resourceId: RAM.id, units: 8 }]);
       },
     ),
     storeCase(
@@ -144,22 +149,24 @@ export function resourceCapacityRegistrations(
       'resourceCapacity.set:missing-reference',
       open,
       async ({ port, seed }) => {
-        expect(await port.set('project-missing', RAM.id, 3, seed.stamps[0])).toEqual({
+        expect(await port.set('work-package-missing', RAM.id, 3, seed.stamps[0])).toEqual({
           ok: false,
-          reason: 'unknown_project',
+          reason: 'unknown_work_package',
         });
-        expect(await port.set(seed.projectIds[0], 'resource-missing', 3, seed.stamps[0])).toEqual({
+        expect(
+          await port.set(seed.workPackageIds[0], 'resource-missing', 3, seed.stamps[0]),
+        ).toEqual({
           ok: false,
           reason: 'unknown_resource',
         });
-        expect(await port.listFor(seed.projectIds[0])).toEqual([]);
-        expect(await port.listFor('project-missing')).toEqual([]);
+        expect(await port.listFor(seed.workPackageIds[0])).toEqual([]);
+        expect(await port.listFor('work-package-missing')).toEqual([]);
       },
     ),
   ];
 }
 
-/** The shared demand cases: replace, clear, project scope, refusals, and the work item cascade. */
+/** The shared demand cases: replace, clear, work package scope, refusals, and the work item cascade. */
 export function demandRegistrations(open: OpenCase<'demands'>): readonly CaseRegistration[] {
   return [
     storeCase('demands', 'demands.set:replace-clear-scope', open, async ({ port, seed }) => {
@@ -170,17 +177,17 @@ export function demandRegistrations(open: OpenCase<'demands'>): readonly CaseReg
       expect(await port.set(second, RAM.id, 2, seed.stamps[0])).toBe('written');
       expect(await port.set(other, RAM.id, 16, seed.stamps[1])).toBe('written');
       expect(await port.set(first, RAM.id, 6, seed.stamps[1])).toBe('written');
-      expect(await port.listByProject(seed.projectIds[0])).toEqual([
+      expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([
         { workItemId: first, resourceId: RAM.id, units: 6 },
         { workItemId: first, resourceId: STAGE.id, units: 1 },
         { workItemId: second, resourceId: RAM.id, units: 2 },
       ]);
       expect(await port.set(first, STAGE.id, null, seed.stamps[1])).toBe('written');
-      expect(await port.listByProject(seed.projectIds[0])).toEqual([
+      expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([
         { workItemId: first, resourceId: RAM.id, units: 6 },
         { workItemId: second, resourceId: RAM.id, units: 2 },
       ]);
-      expect(await port.listByProject(seed.projectIds[1])).toEqual([
+      expect(await port.listByWorkPackage(seed.workPackageIds[1])).toEqual([
         { workItemId: other, resourceId: RAM.id, units: 16 },
       ]);
     }),
@@ -188,7 +195,7 @@ export function demandRegistrations(open: OpenCase<'demands'>): readonly CaseReg
       const [first] = seed.workItemIds[0];
       expect(await port.set('work-missing', RAM.id, 1, seed.stamps[0])).toBe('unknown_work_item');
       expect(await port.set(first, 'resource-missing', 1, seed.stamps[0])).toBe('unknown_resource');
-      expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
     }),
   ];
 }
@@ -217,7 +224,7 @@ export function directoryResourceRegistrations(
       expect(patched).toEqual({
         ok: true,
         resource: { ...disk, unitLabel: 'TB' },
-        projectIds: [],
+        workPackageIds: [],
       });
       expect(
         await port.patchResource('resource-missing', { unitLabel: 'x' }, seed.stamps[1]),
@@ -236,7 +243,7 @@ export function directoryResourceRegistrations(
       async ({ port, seed }) => {
         expect(await port.setResourceProvider(RAM.id, null, null, seed.stamps[1])).toEqual({
           ok: true,
-          projectIds: [],
+          workPackageIds: [],
         });
         expect(
           await port.setResourceProvider(RAM.id, 'provider-missing', null, seed.stamps[1]),
@@ -254,7 +261,7 @@ export function directoryResourceRegistrations(
     // stage's capacity; with its removal check ignoring the directory capacity,
     // it removed RAM unconfirmed; with SQLite's usage answering null, the
     // SQLite certification failed the same way. The announce names the
-    // organization's project whose claim holds RAM, not the other
+    // organization's work package whose claim holds RAM, not the other
     // organization's (review S3-1); its fault lines are proven at each
     // store's `setDirectoryCapacity`.
     storeCase(
@@ -273,7 +280,7 @@ export function directoryResourceRegistrations(
           before: null,
           after: 16,
           organizationId: SHARED_OCCUPANCY_OWNERSHIP.organizationId,
-          projectIds: [seed.projectIds[0]],
+          workPackageIds: [seed.workPackageIds[0]],
         });
         expect(await port.setDirectoryCapacity(RAM.id, 0, act('audit-2'))).toMatchObject({
           ok: true,
@@ -316,12 +323,12 @@ export function directoryResourceRegistrations(
           demands: usage.demands,
           capacities: usage.capacities,
           occupancies: usage.occupancies,
-          projects: usage.rows.projects.map(({ id }) => id),
+          workPackages: usage.rows.workPackages.map(({ id }) => id),
         }).toEqual({
           demands: [{ workItemId: seed.workItemIds[0][0], resourceId: RAM.id, units: 4 }],
-          capacities: [{ projectId: seed.projectIds[1], units: 32 }],
+          capacities: [{ workPackageId: seed.workPackageIds[1], units: 32 }],
           occupancies: 1,
-          projects: [seed.projectIds[0]],
+          workPackages: [seed.workPackageIds[0]],
         });
         const refused = await port.removeResource(RAM.id, false, seed.stamps[0]);
         expect(refused.ok).toBe(false);
@@ -338,7 +345,7 @@ export function directoryResourceRegistrations(
           ok: true,
           removal: {
             workItemIds: [seed.workItemIds[0][0]],
-            projectIds: [seed.projectIds[0], seed.projectIds[1]],
+            workPackageIds: [seed.workPackageIds[0], seed.workPackageIds[1]],
           },
         });
         expect(await port.listResources()).toEqual([STAGE]);

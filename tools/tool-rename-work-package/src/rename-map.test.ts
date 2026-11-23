@@ -1,13 +1,13 @@
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-import { protectionOf } from './allow-list';
+import { HISTORICAL_TREE as REPO } from './historical-tree.spec';
+import { isProtectedSpan, readProtectedSpans } from './protection';
 import { constantSpellingOf, NAMED_RENAMES, PATH_MOVES, RENAME_MAP } from './rename-map';
 import { renamePath, renameText } from './rename-text';
 import { git, residualsIn, trackedPaths } from './tree';
-
-const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 describe('the rename map', () => {
   it('gives every key its five spellings, each in its own case family', () => {
@@ -34,7 +34,7 @@ describe('the rename map', () => {
     }
   });
 
-  it('derives both module moves from the map, and both modules exist today', () => {
+  it('derives both module moves from the map, and both modules exist in the historical input', () => {
     for (const { from, to } of PATH_MOVES) {
       expect(renamePath(from)).toBe(to);
       expect(git(REPO, ['ls-files', '--', `${from}/README.md`]).trim()).toBe(`${from}/README.md`);
@@ -44,7 +44,7 @@ describe('the rename map', () => {
   // Proof: before the dated-records glob reached docs/wbs/research, this case named
   // `work_package` and `work-packages` on lines of 2026-10-23-authorization-model.md, written in
   // the new names ahead of the rename (2026-10-25).
-  it('collides with no identifier already in the tree while old words remain', () => {
+  it('adds no collisions beyond the historical migration assertions while old words remain', () => {
     const targets = [...RENAME_MAP.values()].flatMap((spellings) => [
       spellings.sql,
       spellings.identifier,
@@ -53,6 +53,10 @@ describe('the rename map', () => {
       constantSpellingOf(spellings),
     ]);
     const inScope = new Set(trackedPaths(REPO));
+    const documents = new Map<
+      string,
+      { text: string; spans: ReturnType<typeof readProtectedSpans> }
+    >();
     const collisions = [...new Set([...targets, ...NAMED_RENAMES.map(({ to }) => to)])].flatMap(
       (target) => {
         const run = Bun.spawnSync(['git', 'grep', '-n', '-w', '-F', '-e', target], {
@@ -67,15 +71,47 @@ describe('the rename map', () => {
           .toString()
           .split('\n')
           .filter((hit) => {
-            const [path = '', , ...line] = hit.split(':');
-            return inScope.has(path) && protectionOf(line.join(':')) === undefined;
+            const [path = '', ordinal = '', ...line] = hit.split(':');
+            if (!inScope.has(path)) return false;
+            let document = documents.get(path);
+            if (document === undefined) {
+              const text = readFileSync(join(REPO, path), 'utf8');
+              document = { text, spans: readProtectedSpans(text, path) };
+              documents.set(path, document);
+            }
+            const index = Number(ordinal) - 1;
+            if (!Number.isSafeInteger(index) || index < 0) throw new Error('invalid git grep line');
+            const offset =
+              index === 0 ? 0 : document.text.split('\n').slice(0, index).join('\n').length + 1;
+            const text = line.join(':');
+            const word = new RegExp('(?<![A-Za-z0-9_])' + target + '(?![A-Za-z0-9_])', 'g');
+            return [...text.matchAll(word)].some(
+              (match) =>
+                !isProtectedSpan(
+                  document.spans,
+                  offset + match.index,
+                  offset + match.index + target.length,
+                ),
+            );
           })
           .map((hit) => `${target}: ${hit}`);
       },
     );
-    // After the mechanical commit no old word remains and every target is the rename's own.
-    const oldWordsRemain = residualsIn(REPO).length > 0;
-    expect(oldWordsRemain ? collisions : []).toEqual([]);
+    expect(residualsIn(REPO).length).toBeGreaterThan(0);
+    // Historical migration fixtures already assert the new SQL names. Pin every hit;
+    // do not exclude their file or accept arbitrary collisions.
+    expect(collisions).toEqual([
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:31:      '../../../../../openspec/changes/wbs-work-packages/fixtures/rename-before.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:195:      '../../../../../openspec/changes/wbs-work-packages/fixtures/outgoing-store.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:313:      '../../../../../openspec/changes/wbs-work-packages/fixtures/command-json.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:416:      '../../../../../openspec/changes/wbs-work-packages/fixtures/schema-exceptions.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:591:      '../../../../../openspec/changes/wbs-work-packages/fixtures/command-json-duplicates.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:623:      '../../../../../openspec/changes/wbs-work-packages/fixtures/rename-integrity.json',",
+      "work-package: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:40:  directory = mkdtempSync(join(tmpdir(), 'work-package-rename-'));",
+      "work_package_id: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:291:        .query('SELECT COUNT(*) AS n FROM saved_plan WHERE work_package_id=?')",
+      'work_package_id: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:508:        "SELECT abbreviation FROM work_package_abbreviation WHERE work_package_id=\'rename-next\'",',
+      "restricted_work_package_recovery: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:564:      \"INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES('new-recovery','rename-org','rename-owner','restricted_work_package_recovery','work_package','rename-p','{}',2)\",",
+    ]);
   }, 30_000);
 });
 
@@ -135,7 +171,7 @@ describe('the respelling', () => {
     [
       'a.ts',
       "it('[PROJECT-ASSIGNMENT-READS-001] reads project rows')",
-      "it('[PROJECT-ASSIGNMENT-READS-001] reads project rows')",
+      "it('[PROJECT-ASSIGNMENT-READS-001] reads work package rows')",
     ],
   ];
   it.each(cases)('respells %s line %s', (path, before, after) => {
@@ -153,4 +189,36 @@ describe('the respelling', () => {
       'libs/adapters/solver-py/pyproject.toml',
     );
   });
+});
+
+describe('SQL template spellings', () => {
+  it('uses SQL vocabulary in a tagged predicate without SQL statement keywords', () => {
+    expect(renameText("const clause = sql`${row.kind} IN ('project')`;", 'a.ts')).toBe(
+      "const clause = sql`${row.kind} IN ('work_package')`;",
+    );
+  });
+  it('recognizes a generic SQL tag without changing interpolation identifiers to SQL spelling', () => {
+    expect(renameText("sql<Promise<number>>`${projectId} = 'project'`", 'a.ts')).toBe(
+      "sql<Promise<number>>`${workPackageId} = 'work_package'`",
+    );
+  });
+  it('retains the outer SQL site across a nested ordinary template interpolation', () => {
+    expect(renameText("sql`${`planning project ${projectId}`} = 'project'`", 'a.ts')).toBe(
+      "sql`${`planning work package ${workPackageId}`} = 'work_package'`",
+    );
+  });
+  it('leaves an ordinary IN template and an unrelated tag in prose vocabulary', () => {
+    expect(renameText('`IN project`', 'a.ts')).toBe('`IN work package`');
+    expect(renameText('not_sql`${projectId} IN project`', 'a.ts')).toBe(
+      'not_sql`${workPackageId} IN work package`',
+    );
+  });
+});
+
+it('regex backticks cannot leak a template site into later real object literals', () => {
+  const source =
+    "const capture = /^\\| `([^`]+)`/.exec(line);\nconst legacy = {kind: 'project', projectId: 'old'};";
+  expect(renameText(source, 'a.ts')).toBe(
+    "const capture = /^\\| `([^`]+)`/.exec(line);\nconst legacy = {kind: 'work_package', workPackageId: 'old'};",
+  );
 });

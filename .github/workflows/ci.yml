@@ -267,7 +267,8 @@ jobs:
           # the leaf's measured task time plus a finite allowance and a 15-minute reserve
           # (docs/findings/ci-gate-duration.md). The keys must equal HEAVY_TEST_PROJECTS in
           # ci-runtime-partitions.ts; gate-workflow.test.ts holds them equal.
-          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[60,45],"wbs-core":[45,30]}'
+          # Run 45041067883 reached 45 minutes during SQLite conformance with no resource-limit events.
+          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[90,75],"wbs-core":[45,30]}'
           case "$EVENT_NAME" in
             pull_request)
               base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
@@ -1192,6 +1193,20 @@ jobs:
         if: ${{ matrix.project == 'tool-fleet' }}
         run: bash bin/registry-source-test-prerequisites.sh
 
+      # Devsync launches Dash fixtures under its own runner account.
+      # Proof: omitting this step failed the Devsync heavy-leaf check in toolchain-pins.test.ts.
+      - name: Provision unshare for Dash resource tests
+        if: ${{ matrix.project == 'tool-devsync' }}
+        run: |
+          set -euo pipefail
+          # Ubuntu restricts user namespaces through AppArmor. Admit this executable only;
+          # preserve the host-wide restriction and run the probe/tests as the runner account.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/unshare > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/unshare
+          unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
       - name: Heavy leaf — test, lint, typecheck, build
@@ -1895,7 +1910,7 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.backend == 'run' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 165
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -1985,7 +2000,10 @@ jobs:
           phase_started=$SECONDS
           printf 'runtime phase start partition=backend head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s 75m \
+          # Run 45092559956 reached 120m with 99.39% of test time spent in completed cases.
+          # Matching cases to the earlier run projects about 141m for the loaded suite.
+          # The job allows 15m for setup and diagnostics.
+          timeout --signal=TERM --kill-after=30s 150m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts backend "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?
@@ -2630,7 +2648,11 @@ jobs:
       - name: Compose files
         run: |
           set -euo pipefail
-          docker compose -f deploy/dev-src/compose.yml config -q
+          # Render-only fixture selectors; no installation or container is provisioned.
+          # Proof: removing :? made the empty-runner-temp refusal test accept the command.
+          PUNI_INSTALLATION_DIRECTORY="${RUNNER_TEMP:?}/puni-compose-config-only" \
+            PUNI_CONTAINER_EXECUTABLE=/opt/puni-dev/node_modules/puni/dist/puni.mjs \
+            docker compose --env-file /dev/null -f deploy/dev-src/compose.yml config -q
           docker compose -f deploy/compose/base.yml config -q
           docker compose -f deploy/compose/base.yml config --format json |
             jq -e '.networks["aivn-dev-net"].external == true and (.services.caddy.networks | has("aivn-dev-net"))'
@@ -2638,7 +2660,15 @@ jobs:
       - name: Migration lint
         run: |
           set -euo pipefail
-          files="$(git ls-files '*.sql')"
+          # These five frozen SQL-shape specimens are tested by migration-lint.test.ts.
+          # Future SQL remains selected until its role is reviewed explicitly.
+          # Proof: the old all-SQL selector reached five workspace refusals; the exact exclusions retain every migration/down pair.
+          files="$(git ls-files -- '*.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/add-project.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/add-setting-value.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/rename-project-to-work-package.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/space-holds-projects-people-teams.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/widen-organization-audit-projects.sql')"
           if [ -z "$files" ]; then
             echo "no .sql files tracked — nothing to lint"
             exit 0
@@ -3254,6 +3284,11 @@ jobs:
         timeout-minutes: 25
         run: bun run e2e -- --shard=${{ matrix.shard }}/8
 
+      - name: Local quiet-load cohort
+        timeout-minutes: 5
+        if: ${{ matrix.shard == 2 }}
+        run: bunx nx run wbs-fe-01:e2e-local
+
       - name: Activated organization context
         # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
         timeout-minutes: 5
@@ -3278,6 +3313,9 @@ jobs:
           path: |
             apps/wbs/fe-01/test-results/
             apps/wbs/fe-01/playwright-report/
+            apps/wbs/fe-01/test-results-local/
+            apps/wbs/fe-01/playwright-report-local/
+            tmp/junit/wbs-fe-01.browser.local.xml
 
   # Branch protection asks for one stable `pixels` check. The matrix above has
   # changing display names, so this job reduces its aggregate result without

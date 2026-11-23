@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
+import { join } from 'node:path';
 
 import * as ffi from 'bun:ffi';
 import { mock } from 'bun:test';
@@ -11,7 +12,6 @@ const nativeWriteFile = fsPromises.writeFile;
 const nativeRename = fsPromises.rename;
 const nativeOpen = fsPromises.open;
 const nativeDlopen = ffi.dlopen;
-const nativeSpawnSync = Bun.spawnSync;
 let vanishPid: number | undefined;
 let reusedPid: number | undefined;
 let unreadableRecheckPid: number | undefined;
@@ -26,6 +26,23 @@ let armedInventory = false;
 let failedInventory = false;
 let exitedScanPid: string | undefined;
 
+if (fault === 'readiness-hold') {
+  const url = process.env['PUNI_READINESS_FAULT_URL'];
+  const marker = process.env['PUNI_READINESS_FAULT_MARKER'];
+  if (url === undefined || marker === undefined) throw Error('Readiness fault input is absent');
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (...args: Parameters<typeof fetch>): Promise<Response> => {
+      const response = await nativeFetch(...args);
+      if (args[0] !== url || !response.ok) return response;
+      await response.body?.cancel();
+      await nativeWriteFile(marker, 'held');
+      return new Response(null, { status: 503 });
+    },
+    { preconnect: nativeFetch.preconnect },
+  );
+}
+
 if (fault === 'descriptor-cancel-reject') {
   const nativeCancel: unknown = Reflect.get(ReadableStreamDefaultReader.prototype, 'cancel');
   if (typeof nativeCancel !== 'function')
@@ -38,48 +55,39 @@ if (fault === 'descriptor-cancel-reject') {
 }
 
 if (fault?.startsWith('verdict-') === true) {
-  // Test-only Burokrat transport fault in the isolated invocation supervisor.
-  Bun.spawnSync = ((...args: Parameters<typeof Bun.spawnSync>) => {
-    const invocation = nativeSpawnSync(...args);
+  const marker = process.env['PUNI_VERDICT_FAULT_MARKER'];
+  if (marker === undefined) throw Error('Verdict fault marker is absent');
+  const preload = join(process.cwd(), 'verdict-child.preload.ts');
+  const helper = join(import.meta.dir, 'performance-verdict.fault.ts');
+  fs.writeFileSync(
+    preload,
+    'import { injectVerdictFault } from ' +
+      JSON.stringify(helper) +
+      ';\n' +
+      'injectVerdictFault(' +
+      JSON.stringify(fault) +
+      ',' +
+      JSON.stringify(marker) +
+      ');\n',
+    { flag: 'wx', mode: 0o600 },
+  );
+  const nativeSpawn = Bun.spawn;
+  // Test-only native launch seam: preserve the real child and protected startup, injecting only its verdict bytes/status.
+  Bun.spawn = ((...args: Parameters<typeof Bun.spawn>) => {
     const argv = args[0];
-    if (!Array.isArray(argv) || !argv.includes('check')) return invocation;
-    const measured = argv.includes('--performance-evidence');
-    if (measured !== fault.startsWith('verdict-run-')) return invocation;
-    const verdict = JSON.parse((invocation.stdout ?? Buffer.alloc(0)).toString()) as Record<
-      string,
-      unknown
-    >;
-    let altered: Record<string, unknown> | string;
-    switch (fault) {
-      case 'verdict-preflight-empty':
-        altered = '';
-        break;
-      case 'verdict-preflight-malformed':
-        altered = '{';
-        break;
-      case 'verdict-preflight-shape':
-        altered = '{}';
-        break;
-      case 'verdict-run-foreign':
-        altered = { ...verdict, candidate: 'b'.repeat(64) };
-        break;
-      case 'verdict-run-unevaluated':
-        altered = {
-          ...verdict,
-          allowed: false,
-          unevaluated: [{ ruleId: 'PERF-THRESHOLD', reason: 'injected missing measurement' }],
-        };
-        break;
-      default:
-        throw new Error(`Unknown test-only Burokrat verdict fault: ${fault}`);
-    }
-    return {
-      ...invocation,
-      exitCode:
-        typeof altered === 'string' ? invocation.exitCode : altered['allowed'] === false ? 1 : 0,
-      stdout: Buffer.from(typeof altered === 'string' ? altered : JSON.stringify(altered)),
-    };
-  }) as typeof Bun.spawnSync;
+    if (
+      !Array.isArray(argv) ||
+      !argv.includes('check') ||
+      argv.includes('--performance-evidence') !== fault.startsWith('verdict-run-')
+    )
+      return nativeSpawn(...args);
+    const entry = argv.findIndex(
+      (word) => typeof word === 'string' && word.endsWith('/twilight-burokrat/cli/src/cli.ts'),
+    );
+    if (entry < 0) throw Error('Actual Burokrat verdict entry is absent');
+    const injected = [...argv.slice(0, entry), '--preload', preload, ...argv.slice(entry)];
+    return nativeSpawn(injected, args[1]);
+  }) as typeof Bun.spawn;
 }
 
 if (fault === 'unresolved-direct') {
@@ -94,9 +102,25 @@ if (fault === 'unresolved-direct') {
 
 if (fault === 'selection-mutate') {
   const nativeSpawn = Bun.spawn;
+  const tracePath = process.env['PUNI_SELECTION_SPAWN_TRACE'];
+  if (tracePath === undefined || tracePath === '')
+    throw new Error('Selection observation requires its private spawn trace');
   let mutated = false;
-  // Test-only launch boundary: change the supervisor environment after setup starts.
+  // Test-only owned array launches: retain actual argv and only public selection/runtime-custody fields before the existing mutation.
   Bun.spawn = ((...args: Parameters<typeof Bun.spawn>) => {
+    const options = args[1];
+    fs.appendFileSync(
+      tracePath,
+      JSON.stringify({
+        argv: args[0],
+        cwd: options?.cwd ?? null,
+        environment: {
+          CI: options?.env?.['CI'] ?? null,
+          E2E_PORT_SHIFT: options?.env?.['E2E_PORT_SHIFT'] ?? null,
+          E2E_TEST_DATABASE: options?.env?.['E2E_TEST_DATABASE'] ?? null,
+        },
+      }) + '\n',
+    );
     const child = nativeSpawn(...args);
     if (!mutated) {
       mutated = true;

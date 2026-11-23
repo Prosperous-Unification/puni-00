@@ -156,7 +156,7 @@ export function ColumnResizeHandle({
 
 /** What the resize handles on the heading row do with the widths they work out. */
 export function createColumnResize(
-  projectId: string,
+  workPackageId: string,
   widthOverrides: Map<string, number>,
   setWidthOverrides: Dispatch<SetStateAction<Map<string, number>>>,
 ): ColumnResize {
@@ -169,7 +169,7 @@ export function createColumnResize(
     commit: (columnId, width) => {
       const committed = new Map(widthOverrides).set(columnId, width);
       setWidthOverrides(committed);
-      rememberWidthOverrides(projectId, committed);
+      rememberWidthOverrides(workPackageId, committed);
     },
     abandon: () => {
       // A `pointercancel` is the browser taking the gesture — a system gesture,
@@ -177,7 +177,7 @@ export function createColumnResize(
       // render saw rather than a half-finished one. Re-read from storage
       // rather than remembered in a ref: the storage is the last committed
       // answer by construction.
-      setWidthOverrides(rememberedWidthOverrides(projectId).value);
+      setWidthOverrides(rememberedWidthOverrides(workPackageId).value);
     },
   };
 }

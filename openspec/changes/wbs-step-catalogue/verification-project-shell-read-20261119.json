@@ -1,0 +1,444 @@
+{
+  "date": "2026-11-19",
+  "scope": "Existing project-shell read parity for project steps, preserving same-owner authority and hidden-project concealment.",
+  "qualification": "Root authored; Astra review pending at previously recorded account usage limit. Full original goal remains incomplete. Historical project-step read record is superseded only for its blanket CP17 concealment prose.",
+  "source": {
+    "path": "/tmp/puni-catalogue-project-shell-source-live-v1/source-pins.json",
+    "sha256": "f026362060397dda005e5a599fef297c3a2cb58042076d0329959101886f6bee",
+    "bytes": 5205528,
+    "mode": 384
+  },
+  "first": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-project-shell-first-live-v1/projectShell/native.receipt.json",
+      "sha256": "1ffca708f1e9f1f8a4c601b70a25788a5fed819e60cc0eae6abaa85426fb64b2",
+      "bytes": 1557,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-project-shell-first-live-v1/projectShell/native.log",
+      "sha256": "519a687a9049b7e0999e4e504fffcc49fec0608ce0577ac2ca8a7435ec5d0a36",
+      "bytes": 3357,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-project-shell-first-live-v1/projectShell/native.validation.json",
+      "sha256": "61cc6e0f2196963362ddb059e72fdd6548f6c2eda7706a29452491e13ce1c146",
+      "bytes": 2005,
+      "mode": 384
+    },
+    "exitCode": 1
+  },
+  "firstObserved": "Two real mounted regressions fail403expected404received after healthy fixtures and actual dedicated project read premises;49assertions. No production code changed before RED.",
+  "controls": {
+    "globalCatalogueHttp": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/globalCatalogueHttp/native.receipt.json",
+        "sha256": "d9566cebddc4d6161847fe58e0be9273658097e79fbd0ae88cd72d7f56966bda",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/globalCatalogueHttp/native.log",
+        "sha256": "ac9d0926d0f290b0e3112426715786b552933b569d502523fecbedc2873758fe",
+        "bytes": 3052,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/globalCatalogueHttp/native.validation.json",
+        "sha256": "0340a1c656a85da6b64a7b89f53c355087e49429a99c0e7854a3cda51374eb64",
+        "bytes": 2029,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "authorize": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/authorize/native.receipt.json",
+        "sha256": "ae4cced0a49b9fdf36ce4de463b4304dc7f584117b158a07075a2e84653de9df",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/authorize/native.log",
+        "sha256": "ecd65fd1abf15786e7563ded2be9a851baf36f0c627fcb04b3d619cd38acbcea",
+        "bytes": 854,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/authorize/native.validation.json",
+        "sha256": "b627883ff5fd807391f84dc83c4a5068960bdd99209f8e6a5224358bf5aa352f",
+        "bytes": 1998,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "backendTypes": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/backendTypes/native.receipt.json",
+        "sha256": "bc67e03cd4f66c4476251832576cb5d7788cc1ffd7aa1822151f1cff555e2256",
+        "bytes": 1375,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/backendTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-shell-source-live-v1/backendTypes/native.validation.json",
+        "sha256": "820c8df488c364e36af288ca75ddf37148659a22d5af5b9767b5baf0966dcf68",
+        "bytes": 2005,
+        "mode": 384
+      },
+      "exitCode": 0
+    }
+  },
+  "counts": {
+    "httpCases": 25,
+    "httpAssertions": 1135,
+    "authorizationCases": 8,
+    "authorizationAssertions": 17
+  },
+  "proofPlan": {
+    "path": "/tmp/puni-project-shell-proof-plan-v1/plan.json",
+    "sha256": "49df5d869f0cf120669e6f18ed9804941c98c3d0df6ecfa94f2c597706ea8b93",
+    "bytes": 4634,
+    "mode": 384
+  },
+  "proofEngine": {
+    "path": "/tmp/puni-project-shell-proofs-engine-root-v1.ts",
+    "sha256": "d6733921d5da1ada81fbdb4d69ed28f53696bae3e86405f44e67f832b04d95dd",
+    "bytes": 9271,
+    "mode": 384
+  },
+  "proofs": [
+    {
+      "id": "SHELL_VISIBLE",
+      "observed": "Actual project detail premise403. Disabling readable-child shell detection changes step read403to404;1fail24assertions.",
+      "credit": "Visible shell refusal only; type-tail checks run normally after restore.",
+      "plan": {
+        "path": "/tmp/puni-project-shell-proof-shell_visible-v1/plan.json",
+        "sha256": "7c323880d65f3d46b5bf7a30861d9da90d44d0eda9ce2024f75a216074d4a26a",
+        "bytes": 3490,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/baseline/native.receipt.json",
+          "sha256": "b99c3b3d195ca6fa308819103117688fc2e4c3d6267300fd07efc17173590fa0",
+          "bytes": 1555,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/baseline/native.log",
+          "sha256": "fefe38d97f39e30fd5e8faa616db4cf67d51edfb01cbcd22dfae630bc50dfa18",
+          "bytes": 308,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/baseline/native.validation.json",
+          "sha256": "53f78c4f62ce9bff9c2be38941957e26c309b090b3c0e7ae640bd7238f6ffcda",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/fault/native.receipt.json",
+          "sha256": "3fda41f8f770f8b807cc0cb617bad2869f50f293a8f05395b9ebba258da4b573",
+          "bytes": 1550,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/fault/native.log",
+          "sha256": "08a29009c9407c128c59f288a96ff6388217848fa6d78e3090882a8a14a570d6",
+          "bytes": 1731,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/fault/native.validation.json",
+          "sha256": "0516afa5c1cd0801047e26a61065b6fb7bd04d2016de6232b04ff66950945794",
+          "bytes": 679,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-shell-proof-shell_visible-v1/restored.json",
+        "sha256": "64f57d37efc430f050f9c7ee13da7b05e70ad2c546be2bd27521f07225cb3005",
+        "bytes": 490,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/after/native.receipt.json",
+          "sha256": "6868f5bd72c080ac686ea72d730b4afd381f02990402f58a0d1330927f7afd1f",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/after/native.log",
+          "sha256": "0fccffb7717f7c2995921eba5d90ad7c7aafc5cd2115525ccaa18ab17f92effd",
+          "bytes": 308,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_visible-v1/after/native.validation.json",
+          "sha256": "0cf43ddce777bad3957c601b59b9bf270bc8fbef903cc68c69ff3694c0c93c32",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "SHELL_HIDDEN",
+      "observed": "Actual project detail premise404. Using any readable package rather than actual project-child intersection changes hidden project404to403;1fail24assertions.",
+      "credit": "Actual unrelated-child concealment only.",
+      "plan": {
+        "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/plan.json",
+        "sha256": "d0ac5764184e9e28ae219852401630d1919e7f662509d39cadbf6c58d0d8eeaf",
+        "bytes": 3512,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/baseline/native.receipt.json",
+          "sha256": "de872570b23867a55ded0db35da2222696816ee5570055f02c6a0d3b951ed41e",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/baseline/native.log",
+          "sha256": "c2cfa42cbf6cd473a6807e7985ae9c07dcd283ff85bc58b06895b94001d28a71",
+          "bytes": 322,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/baseline/native.validation.json",
+          "sha256": "1f00568175b0015407b7c73354f3e0f184a4f820ac4e8ffbc8b9811ffd0ccd34",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/fault/native.receipt.json",
+          "sha256": "6f26e3a8abe0d16d1c01acc960babb90d432b43c0a6ce5d3fbbab417a70d8e3c",
+          "bytes": 1562,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/fault/native.log",
+          "sha256": "da73b23abaab5bf12d43fc83f937434aaace3c981e14004f2db326f097534081",
+          "bytes": 1692,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/fault/native.validation.json",
+          "sha256": "728447eb8803d46f713b7eede4f2c347f6dfb3d6c59b000555bdabbe2ffaf960",
+          "bytes": 677,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/restored.json",
+        "sha256": "4e994356ce28eb838ab4b7d8f4505f8339165e46e52f979de10b4fd80b670a08",
+        "bytes": 489,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/after/native.receipt.json",
+          "sha256": "1171378b380b839ec1155fdac64ee0d8463cf0337df7b408bd7ab8c5957225d2",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/after/native.log",
+          "sha256": "c62ee757c5e3dd6b20d7b8a11a6998b7575ec5f1eaded44626c7706848e6457d",
+          "bytes": 322,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_hidden-v1/after/native.validation.json",
+          "sha256": "e3c584b65fa2f3a7f517825ced3e6dbe49265507db392ca3ff2100db7cdd5645",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "SHELL_PERMISSION",
+      "observed": "Actual project detail premise403. Bypassing denial publishes catalogue metadata as200 instead of403;1fail24assertions.",
+      "credit": "Package-only reader denial first oracle only, not every context/permission.",
+      "plan": {
+        "path": "/tmp/puni-project-shell-proof-shell_permission-v1/plan.json",
+        "sha256": "4d3ac434aa321a5a72c90ecc96be9ac465742599c2af04f3aac95b07016ecab4",
+        "bytes": 3481,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/baseline/native.receipt.json",
+          "sha256": "7fb18dab3505082dff142b4f931e35bb7bc0b33f18914ec8e3a5bad38ab7f883",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/baseline/native.log",
+          "sha256": "858f77ff85ca4f152fbfa116d2190105b05a68fb4cb22583997a2ba6cb45c9b1",
+          "bytes": 308,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/baseline/native.validation.json",
+          "sha256": "e18705af220c56e6a13b19e4639418468de19cbab0d9cfaf0f653d3123aabcf3",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/fault/native.receipt.json",
+          "sha256": "988b18fd2c4d6eda0f7e396e14d9604b2337c8109de1604a7366a1d552a6190d",
+          "bytes": 1556,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/fault/native.log",
+          "sha256": "2d59da3ff98b98d21a78fffa003eef7337e8714e6a933543a0c5b8b305c825ed",
+          "bytes": 2139,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/fault/native.validation.json",
+          "sha256": "de5876b8c787069c20a2b27110699bae3cd20c69f8fb41aa32079888a4f0f7ac",
+          "bytes": 685,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-shell-proof-shell_permission-v1/restored.json",
+        "sha256": "c1ec1f731ddc7ae68a4e95223367197cb44cd85850107d01b179cd2678ad1939",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/after/native.receipt.json",
+          "sha256": "0769d61b3e62a9867a8c14fe9d163e5e65fe4ec1df7bbf4e0b7ba31876b4a095",
+          "bytes": 1555,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/after/native.log",
+          "sha256": "2c1ac5ce4c3b720684644e3e146de5e40a38adbca730f8821fbef0f82014cef7",
+          "bytes": 308,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-shell_permission-v1/after/native.validation.json",
+          "sha256": "c26ca9f11b58d14711fae57bbaa754f025b97a4d4f98eda24be0349e585b599b",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "REQUIRED_ACCESS",
+      "observed": "Removing extracted required-port check changes modeled absent-port Error to incidental TypeError on effectiveRoleAt;1fail1assertion.",
+      "credit": "Existing actual Memory UoW absent-port boundary only; no unreadability or malformed-port claim.",
+      "plan": {
+        "path": "/tmp/puni-project-shell-proof-required_access-v1/plan.json",
+        "sha256": "39496f678d60e633f63760edadfdfe597d3de27687d195a62df6515a4cd38e71",
+        "bytes": 3469,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/baseline/native.receipt.json",
+          "sha256": "77615f8ac8807d0c2013025a05b342f138b99016de73d88679975b0ca1df2a00",
+          "bytes": 1498,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/baseline/native.log",
+          "sha256": "eb5601b3e9634e68365ef149d858916e3a865121c8e9db7640ede2a42813f7de",
+          "bytes": 257,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/baseline/native.validation.json",
+          "sha256": "028ae96b16307abfd42eb37c7a34efc776f02ad6ada02749f4b16d81800e99d9",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/fault/native.receipt.json",
+          "sha256": "6ef493385099a6bef750775fd630a984a41da4305dc9941eb1c8190d2fa7c6f7",
+          "bytes": 1492,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/fault/native.log",
+          "sha256": "39b400fd81798db89846e320978d0c3ae11653ed4c0f4918513d2ea5f25b70a0",
+          "bytes": 783,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/fault/native.validation.json",
+          "sha256": "42f84722d107230d47d3e43aab4d0949ae9d28215e95c8b26ba35e65b3c3c488",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-shell-proof-required_access-v1/restored.json",
+        "sha256": "82ed8a181ea57599280f6add1d83acde61c9198d873838a8cfa4af06ac00bf7a",
+        "bytes": 478,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/after/native.receipt.json",
+          "sha256": "a8df9dbf5fbf95eaf88242a9b0edcd9558c422698386287fea69f3923bd3ed9b",
+          "bytes": 1492,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/after/native.log",
+          "sha256": "bb21734b4710adef47216a632c9320965a81fcc8dba255bf096328032e40e99a",
+          "bytes": 256,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-shell-proof-required_access-v1/after/native.validation.json",
+          "sha256": "d600d1535247963ff6e9941883af1639509520a6bc848f4781490cdd7147a464",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    }
+  ],
+  "semantics": "No project.read plus at least one currently readable actual child returns403project.read before type lookup. Only unrelated readable packages, invisible/foreign/absent projects return404. Same admitted UoW resolves context, actual project, current grants, current readable IDs and actual structural children. No independent public-reader observation, role-name inference or writes. Full DB and announcements preserved in normal cases.",
+  "remaining": [
+    "Usage and revision-bound manifest routes and offline Burokrat integration.",
+    "Complete editable settings UI and full thirteen-family/history/import/scheduler/migration qualification.",
+    "Astra follow-up, protected CLI archive source fix, full Bun/client surface closure, clean combined integration and host gates."
+  ]
+}

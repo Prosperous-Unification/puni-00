@@ -1,0 +1,1253 @@
+{
+  "schema": "puni-step-binding-ui-v1",
+  "recordedAt": "2026-11-20T00:54:48.624Z",
+  "scope": "Organization → Steps binding management and reusable own-scope browser mechanism. Real space/project settings owners, inherited resolution/provenance, old browser surface removal and whole original goal remain open.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+      "sha256": "91e755ae5c88691268180acaf19f02fa9cd54f8097a61b1aaaab1f5c621ca3a2",
+      "bytes": 22836,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-binding-management.test.tsx",
+      "sha256": "faab59c38e4d34bfa61d9089fafbca5d03cbb7ed4754534b23a70f15ed8755dc",
+      "bytes": 25361,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+      "sha256": "5c3d4dc67d71020cf2d3281391e00150de5120a26ea82a3c40c7120e7259df68",
+      "bytes": 2298,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+      "sha256": "a2f5b1e545dc4e2b73c7c2170df52ddb91cd916045a500a4a93265e8300c4f32",
+      "bytes": 12734,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+      "sha256": "68146b198f8e558ddf92b3ddedc3714b50846cea79c8d0f0822f99d37ee7874b",
+      "bytes": 5619,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+      "sha256": "9e963011be708b2ba61697c35ce8c5114fefc2745aee040442924225ca14cfab",
+      "bytes": 13097,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/organization-step-catalogue.test.tsx",
+      "sha256": "70b969caa3b507b81d98148fe8aec60f03b5931747152d36f5e516493e023335",
+      "bytes": 9298,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "The organization panel now reads actual work-item types and binds existing active definitions to a selected real type or explicitly every type. It uses current bindCatalogueStep with no define body and no package-local definition call. Initial position10 is explicit and uses current stable ties; it does not claim append semantics.",
+    "Own-scope bindings are sorted by position and binary binding ID, showing type names and authored/migration origin. Type views change drawing only; each reorder sends the full own-scope census across every type. Other-kind and sibling-scope bindings stay out. No optimistic ordering replaces a refused server order.",
+    "Removal first sends DELETE with body{dryRun:true}; only a200clear preview exposes explicit confirmation. Applying sends body{dryRun:false} and requires204. Late409protection replaces confirmation with current count/pairs. Both paths retain actual binding identity. Protocol mode mismatches become precise trusted faults, not successful removal.",
+    "Protected rows display server count, capped sample and actual fact kinds, with links to their actual work package. Tests cover201count/200pairs and a late apply refusal. These are browser projection tests, not proof that the client itself admits or rejects stored facts.",
+    "One synchronous pending owner serializes binding writes. Refresh or scope-kind/id change replaces the editor lifetime and fences late callbacks. A separate type read has its own withdrawal fence. A failed directory read stays visible with retry. Missing definitions in the single catalogue snapshot throw; a type missing from the separately observed directory is explicitly labeled stale instead of becoming every-type.",
+    "Filter option identities are tagged so valid type ids all and null cannot alias UI sentinels or null every-type bindings. The shared metadata/refusal mapper moved from StepDefinitions into step-catalogue-access without changing its supported wire failures; the actual relocated membership-loss path has a fresh negative."
+  ],
+  "verification": {
+    "red": {
+      "name": "step-binding-ui-red-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-red-v1.receipt.json",
+        "sha256": "48340e0da37fc5e0c5c601f966a3be76466efea607c05d5b2cdbe5981153af3e",
+        "bytes": 1491,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-red-v1.log",
+        "sha256": "631f9b301fc07e2676cd1336fa5a4dba24316c411fa08beca0debc545591966e",
+        "bytes": 384063,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "src/components/organization/step-binding-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "redModes": {
+      "name": "step-binding-ui-red-modes-v2",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-red-modes-v2.receipt.json",
+        "sha256": "400a2df3e61b8b4dbaa4ff77ead07ceccd53bbeaada2b02c19ff22f7f1448885",
+        "bytes": 1580,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-red-modes-v2.log",
+        "sha256": "4a854442355654a0fadaf746babfdf51076b4ef17274fcc13dfce95ece5775f6",
+        "bytes": 75307,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "--testNamePattern",
+          "wrong removal|whose definition is missing",
+          "src/components/organization/step-binding-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "allIdentityRed": {
+      "name": "step-binding-ui-special-type-red-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-special-type-red-v1.receipt.json",
+        "sha256": "0ac435da9e14a1154fb30c900e8bda75ca2b11dba4a93253a4e94f150ebcae7a",
+        "bytes": 1572,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-special-type-red-v1.log",
+        "sha256": "d61d217f3e8c925fe56a0f8d10ca05c53490e16c8f3d58c0f1e528538c8c344a",
+        "bytes": 4364,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "--testNamePattern",
+          "type whose id is all",
+          "src/components/organization/step-binding-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "nullIdentityRed": {
+      "name": "step-binding-ui-null-type-red-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-null-type-red-v1.receipt.json",
+        "sha256": "663364f0ae3e946fd2d475d4d07e69858403eb219172d14dda34140413b6cb8a",
+        "bytes": 1567,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-null-type-red-v1.log",
+        "sha256": "999c363afa01c82b7ce85dc1d42442d7022d00363f938c42d7c98ac5fb2b78c6",
+        "bytes": 4629,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "--testNamePattern",
+          "type whose id is null",
+          "src/components/organization/step-binding-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "initialGreenAttempt": {
+      "name": "step-binding-ui-green-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v1.receipt.json",
+        "sha256": "ce95eefabd92e0278dea659ca0a9f556e5dec541a279b5b0f17bdd6bdd6fdd8c",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v1.log",
+        "sha256": "a21fc84a9d393f6a7e90b272e4a332420fc03ee6d34b8150fab883593079ee71",
+        "bytes": 32820,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "src/components/organization/step-binding-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "green100": {
+      "name": "step-binding-ui-green-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v2.receipt.json",
+        "sha256": "d22660a7d63ab287f64ea872bc43258c98812887bef9c6074d5839e96ec8b5c3",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v2.log",
+        "sha256": "255d44e3f832785fbfd179d7ab38f44976f1d35338795b3908739596f187f1cf",
+        "bytes": 15590,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "green102": {
+      "name": "step-binding-ui-green-v3",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v3.receipt.json",
+        "sha256": "9df5b8299ccff11041f757126cfa8474ff5cda04b88f091410903ca0a9d8b537",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-green-v3.log",
+        "sha256": "489d51a58d25a4b84faad4615e2a4330407afa4f0788d1bbbc424f7065c99563",
+        "bytes": 15859,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "baseline": {
+      "name": "step-binding-ui-proof-baseline-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-proof-baseline-v1.receipt.json",
+        "sha256": "8cb87b6e093001c8f85bad171cacb04e4c7ca453376e2fde1bf2a58c4abd1df3",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-proof-baseline-v1.log",
+        "sha256": "e24372638056b9c3db3a31803ca7587ef8b9fd0b639e64cd11f642a70d34e601",
+        "bytes": 16029,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "final": {
+      "name": "step-binding-ui-final-tests-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-tests-v1.receipt.json",
+        "sha256": "76c1e3a4ccc50c3b91c0159749123cc8e35e625ed13434dc974e82ef9d12ed14",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-tests-v1.log",
+        "sha256": "08faa9ecfde3a8f7a5c7b8465be4a6989e0c7837458b7b4ca552bbf410caff5f",
+        "bytes": 16027,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "summary": {
+      "passed": 103,
+      "failed": 0,
+      "files": 6,
+      "newBindingTests": 23,
+      "existingRegressionTests": 80
+    },
+    "initialTypes": {
+      "name": "step-binding-ui-initial-types-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-initial-types-v1.receipt.json",
+        "sha256": "75ab612b3b535e447d7937935b8407ac1e07a44d8a6aae44920c591d79ea6b78",
+        "bytes": 1416,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-initial-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.app.json",
+          "apps/wbs/fe-01/tsconfig.spec.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "fixtureTypes": {
+      "name": "step-binding-ui-types-v2",
+      "exit": 2,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-types-v2.receipt.json",
+        "sha256": "3a4bf63d27549b0dd0a30645ba162347e41560cc89b0ed4086dc97557ae06a26",
+        "bytes": 1402,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-types-v2.log",
+        "sha256": "faaaf13d3973913241abb8ff2f703754831bbc1590451676d702ef962fc3dd7f",
+        "bytes": 652,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.app.json",
+          "apps/wbs/fe-01/tsconfig.spec.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "types": {
+      "name": "step-binding-ui-final-types-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-types-v1.receipt.json",
+        "sha256": "58120cf7bf51f84e30860519f2a94e50681f907fcbc1892233134fb10796498c",
+        "bytes": 1412,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.app.json",
+          "apps/wbs/fe-01/tsconfig.spec.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "initialLint": {
+      "name": "step-binding-ui-lint-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-lint-v1.receipt.json",
+        "sha256": "4ba0b6edfb9d590fa3af2d2c8505b2713beb5cc2603ddf43cdfff170a5491e9d",
+        "bytes": 1852,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-lint-v1.log",
+        "sha256": "f68f1f7c252fda4f524a632c9ac4c68682b29be23336313711e1774a0d3a701d",
+        "bytes": 3464,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-binding-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/organization-step-catalogue.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "lintFix": {
+      "name": "step-binding-ui-lint-fix-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-lint-fix-v2.receipt.json",
+        "sha256": "f9b80ad0b135aa56b471d45b404587e594e6c6cc9225ece89ac49a12167f2f30",
+        "bytes": 1872,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-lint-fix-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--fix",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-binding-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/organization-step-catalogue.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "lint": {
+      "name": "step-binding-ui-final-lint-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-lint-v1.receipt.json",
+        "sha256": "89abfeda7920dc7b39f581378a919786e41ed90a3cfddad4d34978e59d9876e6",
+        "bytes": 1861,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-binding-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/organization-step-catalogue.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "sourceFormat": {
+      "name": "step-binding-ui-source-format-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-source-format-v2.receipt.json",
+        "sha256": "a5bd360c502026cc1e6057cee16e8464589e3df9706ff7aae6d6afeb7d5b344e",
+        "bytes": 1865,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-source-format-v2.log",
+        "sha256": "ad79f112018188209b990917f302bac47ffd6f8a050455bc2564e6cc46fdc013",
+        "bytes": 581,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-binding-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/organization-step-catalogue.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "qualification": "Actual StepsPanel/React/provider, current resource client, shared API validators, real WorkPackageApi/writer regressions; HTTP transport is controlled. The generic project/scope-change tests supply explicit component owner inputs and do not claim an existing routed ProjectPage, real server grants or Source state. Initial14tests failed on absent controls, three further mode/metadata owners failed before implementation. First implementation14pass1fail was an ambiguous Story option query across two selects; scoping the query preserves the intended retry oracle. All/null identity failures were actual production filter collisions. The intermediate compiler exit2 was test fixture literal widening, corrected with precise Binding types; no cast/production relaxation. Lint fixes add callback blocks, numeric string conversion, explicit null handling and a typed optional neighbor lookup. Current expected optional/stale values render explicitly. Final10file format/OpenSpec/state checks live with the continuation state."
+  },
+  "proofs": {
+    "manifest": {
+      "path": "/tmp/puni-step-binding-ui-proofs-v1/effects.json",
+      "sha256": "2df87ba791cdd3fc9b6394de6ad0c148dd8541487fd9481430481b7e19f06a8b",
+      "bytes": 26618,
+      "mode": 384
+    },
+    "effects": [
+      {
+        "id": "scope-kind",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "binding.scopeKind === scope.scopeKind && binding.scopeId === scope.scopeId",
+        "to": "binding.scopeId === scope.scopeId",
+        "test": "^draws only the actual organization bindings with current type names and origin$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/scope-kind.mutant.txt",
+          "sha256": "fdb2ef25858b64fee08ca4ac26c398c57c70f41c21b9b96d8ef1092bb1a80610",
+          "bytes": 21019,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-kind-v1.receipt.json",
+          "sha256": "575e41503e5ce6b16e2770b417f61fc353e052c97f27dd856acfe763989f6801",
+          "bytes": 1631,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-kind-v1.log",
+          "sha256": "0958c278da28ebcefe7a70b7664ce656ac54d16f8efa62e6e71ad98547f8ce94",
+          "bytes": 4766,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "scope-id",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "binding.scopeKind === scope.scopeKind && binding.scopeId === scope.scopeId",
+        "to": "binding.scopeKind === scope.scopeKind",
+        "test": "^keeps inherited and sibling bindings out of a project scope reorder$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/scope-id.mutant.txt",
+          "sha256": "4ae3982b21404bce180058da0dee8bd33e77b5afa106aec7c8a21e07a7e0ade2",
+          "bytes": 21023,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-id-v1.receipt.json",
+          "sha256": "b11a671ca9997cfaee62815f0d34f15acb4ecd3bd5e64c1fc3d53d5c3a990316",
+          "bytes": 1616,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-id-v1.log",
+          "sha256": "0b8bef9b4fe2e07170bec8dbfb94f105c969cfb8df3beaec32328bb035a6241c",
+          "bytes": 4858,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "complete-census",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "const ids = ownBindings.map((candidate) =>",
+        "to": "const ids = ownBindings.filter(binding => filter === 'all' || (filter === '' ? binding.workItemTypeId === null : binding.workItemTypeId !== null && `type:${binding.workItemTypeId}` === filter)).map((candidate) =>",
+        "test": "^reorders the complete own-scope census across types even while filtered to Story$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/complete-census.mutant.txt",
+          "sha256": "692637d8e405503132a5dcf0c8d2ed5cd9efa76a5f5797977928a3aef1f4423d",
+          "bytes": 21230,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-complete-census-v1.receipt.json",
+          "sha256": "06703f93a9fe96ae008093ab14e4d1657420a65711147f7e7b17187a3110557f",
+          "bytes": 1643,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-complete-census-v1.log",
+          "sha256": "8f1772689a2553c57d5c1f24d6ff8ffe6b1016d33dfa13c0aa103e748d45ca16",
+          "bytes": 4894,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "pending",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "    if (pending.current) return;",
+        "to": "",
+        "test": "^admits one binding write across repeated pending submissions$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/pending.mutant.txt",
+          "sha256": "69459e37adea156c5439692aaf50839143ee3597f4bb9a9ec746e588e7b0ff2f",
+          "bytes": 21028,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-pending-v1.receipt.json",
+          "sha256": "3555347f58ec2a80616aa1ba970d666510f02f5b07b9bb9d1c8321ff0bb1ecd8",
+          "bytes": 1608,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-pending-v1.log",
+          "sha256": "c634698a6a0185324119cb7d7e3e30968e3ff232af527568dc9b8a6552560363",
+          "bytes": 19071,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "late-write",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "      if (!live.current) return;",
+        "to": "",
+        "test": "^ignores a late preview refusal after refresh replaces the binding editor$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/late-write.mutant.txt",
+          "sha256": "8c4c4d953b9bd555209f9318c2058c0838ff2b794309128e361ed6851e99d38d",
+          "bytes": 21028,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-late-write-v1.receipt.json",
+          "sha256": "0c4fe4975b64956a5e605f06d9b09a58c0a9328370ad7222fc8b6b304019ce43",
+          "bytes": 1625,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-late-write-v1.log",
+          "sha256": "0261f4da3457151b97128fa42c0ec855e44536bc4f9730b7de8d5873bad3be2a",
+          "bytes": 4772,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "late-read",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "      if (!isCurrent) return;",
+        "to": "",
+        "test": "^ignores a late types refusal after refresh replaces the binding editor$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/late-read.mutant.txt",
+          "sha256": "1a817222ca480606cb1440ec7b1a745823498c239c21f3adf6188afb20a44a92",
+          "bytes": 21031,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-late-read-v1.receipt.json",
+          "sha256": "cb142c1554b7800fd5787c010670395c048706f85a4dd3bcfa13326869d956d1",
+          "bytes": 1621,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-late-read-v1.log",
+          "sha256": "d8e042f27ed1f6b63db7e62ad365409ee79d546657132bf410bbcf9d30a6a0eb",
+          "bytes": 4770,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "scope-lifetime",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": " key={`${props.scope.scopeKind}:${props.scope.scopeId}`}",
+        "to": "",
+        "test": "^replaces the binding draft and callback owner on scope ",
+        "failures": 2,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/scope-lifetime.mutant.txt",
+          "sha256": "7fda943f06f68a51bcfd2502eb8db1147d75fe805020bf06629ab2de613b2944",
+          "bytes": 21004,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-lifetime-v1.receipt.json",
+          "sha256": "c9b7322a0135b62facbc739bd38c7cbde679c3161d808624057aaf8c76fa8b68",
+          "bytes": 1615,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-scope-lifetime-v1.log",
+          "sha256": "d99491d93cc775b70385a31d417d65143177ad63241170530de53ace875f6198",
+          "bytes": 5797,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "preview-mode",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "            if (reply.status !== 200)\n              throw new Error('Step binding preview requires a 200 response');",
+        "to": "",
+        "test": "^refuses a successful HTTP response for the wrong removal preview mode$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/preview-mode.mutant.txt",
+          "sha256": "bb91c67d4528dae1f38f8ee4557a18f8f6db75dda8d1f79a753993fcaff6f6cd",
+          "bytes": 20944,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-preview-mode-v1.receipt.json",
+          "sha256": "2a1c2a281c017833cc5f38ea977a891fb1722c61f252cc630322ef4f12163fbf",
+          "bytes": 1626,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-preview-mode-v1.log",
+          "sha256": "7e5ee295a28b21838b137d9588567edad6f634ca0ea8b439ce8d9e3d6a5bccbc",
+          "bytes": 4784,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "apply-mode",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "            if (job.kind === 'remove' && reply.status !== 204)\n              throw new Error('Step binding removal requires a 204 response');",
+        "to": "",
+        "test": "^refuses a successful HTTP response for the wrong removal apply mode$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/apply-mode.mutant.txt",
+          "sha256": "dd5d863ded8b3c8c083a6426ac19f1089102c838e19ca39303169b93aeb724b8",
+          "bytes": 20919,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-apply-mode-v1.receipt.json",
+          "sha256": "9c156ae62be0865d70be783751f43fb1f859439237a3b21dadd9150b1bb7073b",
+          "bytes": 1621,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-apply-mode-v1.log",
+          "sha256": "75ea9fb4d03d57986545f0b04e662c9f6f419b30440cf5f85c4c987a81b7424f",
+          "bytes": 32862,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "definition",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "    if (definition === undefined)\n      throw new Error(\n        `Step binding names a missing active definition: ${binding.bindingId} / ${binding.stepId}`,\n      );",
+        "to": "",
+        "test": "^refuses an active binding whose definition is missing without guessing a label$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/definition.mutant.txt",
+          "sha256": "e31b5d167b3cff83961e194cce3eaa10c3c2ad8d32635182945fa563f24f7601",
+          "bytes": 20895,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-definition-v1.receipt.json",
+          "sha256": "6018b41c107ebdea69713c08044155d9b94debdb779ad5bf4dd1b0b7d458d3ca",
+          "bytes": 1631,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-definition-v1.log",
+          "sha256": "5bebe6ee0dc5c7532beb60a518248fcc53b541473b35600d571acdc50cc00151",
+          "bytes": 4836,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "selection",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "    if (stepId === '') {",
+        "to": "    if (false) {",
+        "test": "^requires an active definition selection before binding$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/selection.mutant.txt",
+          "sha256": "72acda68a3a4b6053bba09d6a3b398f32e3633fc713eb5919099ae6d32954449",
+          "bytes": 21052,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-selection-v1.receipt.json",
+          "sha256": "2ee8ba350c44c6b869b482df7b0d1a8d3d14541d191ab3efa49275f9c2962df5",
+          "bytes": 1605,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-selection-v1.log",
+          "sha256": "bc0eadf19773f485f8d92b1168647d21ca426e0134b3758067402e3b3ab23c48",
+          "bytes": 4869,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "type-identity",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "value={`type:${type.id}`}",
+        "to": "value={type.id}",
+        "test": "^keeps a type whose id is (all|null) distinct from the all-types filter$",
+        "failures": 2,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/type-identity.mutant.txt",
+          "sha256": "a691b3ac143490f74c6e50a360e3051d4c466bc0559298367c8b693295845b02",
+          "bytes": 21050,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-type-identity-v1.receipt.json",
+          "sha256": "b10c5dbb5d56821b559a824df594323325cc436e433e4e88fc3d22bcedd962f2",
+          "bytes": 1630,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-type-identity-v1.log",
+          "sha256": "5cec5b3eff96f7ab6e3c3b75d0e97c6ef1d760df4fe3ac7f883e4341ff9fa9d8",
+          "bytes": 26130,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "typed-null",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "binding.workItemTypeId !== null && `type:${binding.workItemTypeId}` === filter",
+        "to": "`type:${binding.workItemTypeId}` === filter",
+        "test": "^keeps a type whose id is null distinct from the all-types filter$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/typed-null.mutant.txt",
+          "sha256": "44fd6715ca8c72dc6e044d134a83421683244e694b86310b4db06ca4b2965253",
+          "bytes": 21025,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-typed-null-v1.receipt.json",
+          "sha256": "281f5ae609b34bdc2b9742be239f10e8d2e23eb12bf13abe815d3d6a65c0ffba",
+          "bytes": 1617,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-typed-null-v1.log",
+          "sha256": "f8c85a84fcc66837e977b1737b240f07d2a0028574080a50df3ce5991ae56017",
+          "bytes": 4789,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "membership",
+        "target": "apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+        "from": "    case 'not_a_member':\n",
+        "to": "",
+        "test": "^withdraws organization access on a real definition write refusal$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "sha256": "c139ceced968c84388759e2b99d18b83c70eb74942f12d099c9084cce8d85e90",
+          "bytes": 2285,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/membership.mutant.txt",
+          "sha256": "e6c95862cf7f870b95b0269c974374bc25aba93cdc7fd821cbba4f1f0767ed79",
+          "bytes": 2260,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-membership-v1.receipt.json",
+          "sha256": "04d0f1b32e46fb977bc850d90834678dd5e237edbd767ca14dc4c3a6e99737b3",
+          "bytes": 1620,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-membership-v1.log",
+          "sha256": "2d2733fbb082947f87593b0899425a8d30eea4ab905b47d1d0cd1efd0f9f9b77",
+          "bytes": 5523,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "preview-body",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "body: { dryRun: job.kind === 'preview' }",
+        "to": "body: { dryRun: false }",
+        "test": "^requires a successful preview and explicit confirmation before actual binding removal$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/preview-body.mutant.txt",
+          "sha256": "26597e2b0fe88f708a87c489f5f6e30d1f5927465beb74a2670b674b6310d9a6",
+          "bytes": 21043,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-preview-body-v1.receipt.json",
+          "sha256": "f6fdf2b33c205add909443bc7e700acd6bb98b8d2b48f0af29a0966f0fa69708",
+          "bytes": 1642,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-preview-body-v1.log",
+          "sha256": "6c13c9eb15213dface277ebb242873e3af1cfe458efea96bed9b85b6da014b4a",
+          "bytes": 5017,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "apply-body",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "body: { dryRun: job.kind === 'preview' }",
+        "to": "body: { dryRun: true }",
+        "test": "^requires a successful preview and explicit confirmation before actual binding removal$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/apply-body.mutant.txt",
+          "sha256": "c1ed005ac1fc7042f3e11e6f392d8ff898444a862c07bd05857266fe8bcb9300",
+          "bytes": 21042,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-apply-body-v1.receipt.json",
+          "sha256": "49b1125f6a3f1c1ac52dd45ae1047902dcf7962527a67c0f66f9bb56839e269c",
+          "bytes": 1638,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-apply-body-v1.log",
+          "sha256": "a05fb434a91d8b557da20d3dedd1759ff25060306c6ee9f48dd595ee342f3274",
+          "bytes": 5077,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "tie-break",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "  return left.bindingId < right.bindingId ? -1 : left.bindingId > right.bindingId ? 1 : 0;",
+        "to": "  return 0;",
+        "test": "^keeps binary binding-id order for tied positions independently of locale and response order$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/tie-break.mutant.txt",
+          "sha256": "a8c25279bbfebaf4c232c7f4eec16bb123cb4f382df45ae4b0cf0cce15f4f2ed",
+          "bytes": 20981,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-tie-break-v1.receipt.json",
+          "sha256": "cf908a63fa9c1cd077c6a040b540f076b2cc935c9c3173f245aeb515f76b41a1",
+          "bytes": 1642,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-tie-break-v1.log",
+          "sha256": "4cb53c71fbc78bbdeecdf33947e5e3b44179d3c7e90574d129e9851795c1c0d0",
+          "bytes": 4528,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "locale-order",
+        "target": "apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "from": "  return left.bindingId < right.bindingId ? -1 : left.bindingId > right.bindingId ? 1 : 0;",
+        "to": "  return left.bindingId.localeCompare(right.bindingId);",
+        "test": "^keeps binary binding-id order for tied positions independently of locale and response order$",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+          "bytes": 21060,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-binding-ui-proofs-v1/locale-order.mutant.txt",
+          "sha256": "a82c90f4a76d30f5332923aa5adfda298ba849293dc01892f25b0dd37ea88604",
+          "bytes": 21025,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-locale-order-v1.receipt.json",
+          "sha256": "6a121dfc04a7bfbc1616c490eb36927531b787af302a404fd3df19cf69b9a7a5",
+          "bytes": 1648,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-binding-ui-fault-locale-order-v1.log",
+          "sha256": "5d55723d42cb5d86b7c27adee523a83cc7db274e35aae4f235c9b0aa95c6e65a",
+          "bytes": 4528,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      }
+    ],
+    "independentFaults": 18,
+    "selectedFailures": 20,
+    "productionEmissions": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+        "canonicalSource": "c8f4ca596321b8f795da4d6437da251068d7b7b9e860c7899dd466a9bfa256d2",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-bindings.tsx",
+          "sha256": "91e755ae5c88691268180acaf19f02fa9cd54f8097a61b1aaaab1f5c621ca3a2",
+          "bytes": 22836,
+          "mode": 436
+        },
+        "canonicalEmission": "a5108597c5964fd501053edca5ec63924099b1cc93620b3b3c3d36ac7a7e764d",
+        "currentEmission": "a5108597c5964fd501053edca5ec63924099b1cc93620b3b3c3d36ac7a7e764d"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+        "canonicalSource": "c139ceced968c84388759e2b99d18b83c70eb74942f12d099c9084cce8d85e90",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-catalogue-access.ts",
+          "sha256": "5c3d4dc67d71020cf2d3281391e00150de5120a26ea82a3c40c7120e7259df68",
+          "bytes": 2298,
+          "mode": 436
+        },
+        "canonicalEmission": "14c6818e767dc7baa299116856ac47ca675e8c8543a9a0d3b9708888279f4e3b",
+        "currentEmission": "14c6818e767dc7baa299116856ac47ca675e8c8543a9a0d3b9708888279f4e3b"
+      }
+    ],
+    "qualification": "Each native actor is terminal/reaped/descriptors closed before exact restoration. Scope kind/id, full census, pending admission, late write/read, scope lifetime, preview/apply response modes, missing definition identity, empty selection message, type tag/null separation, relocated membership, preview/apply request bodies and both missing/locale tie-break faults all fail their selected oracles.20selected failures across18faults are not20unique healthy cases. Mode/identity owners require their precise expected diagnostic so a later unrelated TypeError is not a passing guard proof. Local selection omission still fails lower request validation; no browser authority or stored-state mutation is inferred. Both emitted production modules match the finite canonical after adjacent Proof comments and formatting."
+  },
+  "assumptions": [
+    "Continue the existing authorized whole-scope OpenSpec design without a new interview/approval pause.",
+    "Organization is the first routed owner. The binding component accepts only a supplied observed scope; it contains no arbitrary scope-id input. Its reusable project mechanism is not a substitute for actual space/project settings integration.",
+    "An explicit complete scope order controls all type views; a displayed type filter must never narrow reorder admission. Initial creation/bind position10 remains an explicit form choice under stable ties."
+  ],
+  "pending": [
+    "Keep tasks4.1.1-5/parent4.1 unchecked. Wire real space/project settings owners and selected-type definition creation; inspect actual readSpace/project/selected-package metadata and route ownership, including virtual all space, before wiring. Do not invent a free-form scope selector or grant from membership display roles.",
+    "Actual inherited/project resolved reads must display every matching provenance binding. Current new table shows own-scope origins; generic widget fixture tests do not complete actual project settings UI.",
+    "Retire real old WbsApi/facade/toolbar/work-package definition add/rename/remove methods and fake/demo/unmounted legacy models after replacement flows exist. Preserve package allowance/unit edits and unsaved/busy/refusal behavior.",
+    "Per-leaf type-conflict/resolution/preflight and actual Playwright/product checks remain. No screenshot, live browser, mounted server, full frontend or installed CLI test was run here.",
+    "Core/backend/MCP/CLI production is unchanged and those full checks were not rerun. Prior full core2062pass29fail remains failed. Original15historical guarantees, all13Source move/bypass/preview/lifetime/concurrency/cleanup, original entity/settings/spaces/PUNI/Bun inventory/install/exactSHAhost/release requirements remain open.",
+    "Astra review remains unavailable until recordedNov22,2026 10:09AM, timezone unspecified. No retry/spawn/substitute review."
+  ],
+  "publicActions": "No install, public commit, push, PR update, merge or deploy. Original inventories/user HEAD/index and rejected CLI archive source remain protected."
+}

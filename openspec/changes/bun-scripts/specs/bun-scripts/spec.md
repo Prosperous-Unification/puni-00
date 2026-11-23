@@ -1,0 +1,453 @@
+## ADDED Requirements
+
+### Requirement: The inventory accounts for executable first-party scripts and their consumers
+
+The migration SHALL inventory executable entrypoints, generated/embedded script bodies and active package/Nx/CI/container/infrastructure/runbook callers. Each entry SHALL name runtime, owner, client exposure, replacement and verification. Historical/browser/configuration classifications SHALL be explicit. Unknown extensions or new directories SHALL NOT hide executable first-party scripts.
+
+#### Scenario: An unclassified entrypoint prevents acceptance
+
+- **WHEN** a first-party shell or Node entrypoint or generated script is introduced through a new path, package command or CI consumer
+- **THEN** acceptance refuses and names the unclassified executable/consumer rather than accepting the existing inventory count
+
+#### Scenario: Compose service execution cannot disappear from the inventory
+
+- **WHEN** a standard Compose filename, including an override in a new or hidden directory, declares service command, entrypoint, post_start or pre_stop bodies
+- **THEN** discovery records their structural locations, exact string/null/vector forms and complete captured configuration without evaluating interpolation or substituting host files for container paths
+- **AND** image inheritance and include-only configurations remain explicit unresolved references; a declaration naming a PUNI replacement cannot qualify their image, mounts or merge semantics
+- **AND** malformed service/hook/command shapes and missing or null required hook commands throw rather than becoming an empty inventory
+
+#### Scenario: Docker build and image execution remain visible
+
+- **WHEN** a captured Dockerfile or Containerfile, including prefix/suffix variants in a new or hidden directory, contains build or runtime execution
+- **THEN** discovery retains the entire exact file and ordinary RUN, CMD, ENTRYPOINT, HEALTHCHECK and ONBUILD instruction spans, including continued physical lines
+- **AND** heredocs, escape directives and custom frontends retain the complete file as an opaque unresolved boundary rather than inventing sites from embedded lines
+- **AND** build stages, copied files, image inheritance and frontend semantics remain unqualified; a Bun declaration cannot certify them or resolve image paths against host programs
+- **AND** selected build files with other names still require caller discovery; these collectors alone do not prove exhaustive container coverage
+
+### Requirement: First-party script logic executes on Bun
+
+First-party script and test-orchestration logic SHALL run on Bun with explicit argv, replacing shell/Node implementations rather than wrapping them. This includes gates, CI/dev operations, remote payloads and generated helpers. Bun-supported standard-library imports SHALL NOT imply a Node executable dependency. Third-party tools, declarative configuration and immutable historical artifacts remain outside conversion.
+
+#### Scenario: Converted operations run without shell or Node dispatch
+
+- **WHEN** a converted operation executes from a path containing spaces with quoted/metacharacter arguments and no shell or Node executable available
+- **THEN** it retains its expected output and effects without evaluating those arguments as code
+
+#### Scenario: Adversarial fixture bytes do not become active scripts
+
+- **WHEN** a trust test supplies historical or hostile shell/Node bytes as a modeled specimen
+- **THEN** Bun test orchestration verifies their detection or historical compatibility without classifying a whole fixture directory as exempt or shipping the specimen as an active client implementation
+
+### Requirement: Client operations are embedded in the PUNI CLI
+
+First-party operations advertised to clients, emitted into their integrations or shipped as executable toolkit assets SHALL execute through the owning PUNI namespace from the installed artifact. Internal automation performing those operations SHALL share their implementation. Client coverage SHALL be demonstrated against concrete advertised and generated entrypoints rather than inferred from the root executable's existence.
+
+#### Scenario: A client operation has no hidden checkout script dependency
+
+- **WHEN** a documented client operation and a generated integration execute from the installed package outside the checkout
+- **THEN** both reach the embedded operation with Bun, and removing a required packaged asset makes the covering operation fail
+
+### Requirement: Gate and deployment safety remains enforced after conversion
+
+Converted gates/deploys SHALL retain host admission/locking, bounded waits, exact-SHA checkout under lock, frozen dependencies, full checks, dirty-tree/mode refusals, full migration-ledger capture, ownership, cancellation/signals, cleanup and exit contracts. Missing tools or malformed/unreadable trusted state SHALL fail. Required runtime/recovery evidence SHALL NOT be replaced by an unverified result.
+
+#### Scenario: Contending gates cannot check out outside admission
+
+- **WHEN** a converted gate runs while another holder owns admission, or receives a different requested SHA or dirty gate tree
+- **THEN** it preserves the specified queue/refusal behavior and only checks out and reports the verified SHA while admitted
+
+#### Scenario: A converted deploy aborts with the full ledger restored
+
+- **WHEN** a controlled ordinary additive deploy fails after applying migrations, including a failure injected into rollback
+- **THEN** it reverses exactly the captured additions and compares the full original name/hash ledger, or reports rollback failure loudly with the pinned manual completion command
+
+#### Scenario: A stop-the-world window restores its snapshot and matching code
+
+- **WHEN** a controlled approved stop-the-world migration window fails after applying its non-additive migration
+- **THEN** writers remain excluded while the verified snapshot and matching previous code are restored in the specified order, using its documented window recovery rather than ordinary additive reversal, and recovery failure is reported loudly
+
+### Requirement: Every changed guard has observed failure evidence
+
+Each changed safety check SHALL have a negative test through its production call path, observed failing with the check removed or dependency broken, plus an adjacent `Proof:` comment and verification receipt naming the fault/test/outcome. A language port SHALL NOT reduce existing behavior tests to source-text matching or treat an exit code as proof beyond the invoked tool's contract.
+
+#### Scenario: A removed production guard is detected
+
+- **WHEN** a converted guard is removed or its guarded dependency is deliberately broken
+- **THEN** its named production-path test fails, and restoration makes that test pass before acceptance
+
+### Requirement: Foreground lock operations share a typed installed Dash owner
+
+The installed PUNI CLI SHALL provide `puni dash ops lock status` and `puni dash ops lock run ... -- <argv...>` through the same typed Bun operation used by repository callers. Production SHALL select the canonical host lock without a caller-controlled pathname override. Status SHALL remain observational. An admitted run SHALL report arrival count and elapsed whole seconds before invoking its exact payload argv with caller cwd/environment and native stdin/stdout/stderr.
+
+#### Scenario: Admission precedes an uninterpreted payload
+
+- **WHEN** an admitted installed lock operation runs a payload whose arguments contain spaces, empty values and shell metacharacters
+- **THEN** admission reporting precedes payload entry, the arguments remain exact, the native mutex remains held through foreground completion and cleanup, and the operation preserves the payload exit/signal status
+
+#### Scenario: A holder-targeted signal preserves foreground settlement
+
+- **WHEN** SIGINT or SIGTERM reaches a queued or active foreground lock owner
+- **THEN** queued work withdraws without payload entry, while already entered foreground work settles under ownership before the owner returns the first interruption status; the owner does not infer descendant absence from leader or holder death
+
+#### Scenario: Detached compute retains its independent owner
+
+- **WHEN** a Dash frontend ends while its existing detached hold-file owner still protects admitted compute or watch settlement
+- **THEN** frontend death does not release that hold, and explicit holder death remains lost authority rather than proof that compute descendants ended
+
+#### Scenario: Native wait failure retains unconfirmed authority
+
+- **WHEN** native wait failure cannot confirm foreground termination
+- **THEN** the owner reports that unconfirmed state within its diagnostic budget and retains its queue callback, native lock, listeners and referenced wait until trustworthy termination or operator intervention; neither cancellation nor the wait failure itself produces successful completion or automatic release
+
+#### Scenario: Repository compatibility decoding enters the same bounded owner
+
+- **WHEN** the Bun compatibility entry receives exactly status or -- followed by payload argv
+- **THEN** it decodes once to the installed Dash lock request, preserves literal payload argv and optional unset/empty legacy queue defaults, selects the same canonical mutex, and reports decoding failures through the bounded native owner
+- **AND** wait seconds are canonical nonnegative safe decimal integers, while poll seconds are canonical decimal integers from one through thirty; malformed arithmetic expressions are refused with usage status without quoting operand text
+
+#### Scenario: Refusal identifies its observed contention
+
+- **WHEN** admission refuses after its wait budget
+- **THEN** a refusal behind earlier tickets names their captured labels and PIDs, explicitly describing vanished tickets, while a refusal with no earlier ticket reports the observed holder record or its unknown publication state
+- **AND** diagnostic observations confer no proof of current native ownership; unreadable or malformed trusted state remains a failure
+
+### Requirement: Durable host holders survive their frontend
+
+Dash's durable host hold SHALL use a fixed private versioned operation in the selected protected installed PUNI artifact. The controller SHALL exclusively reserve one owner-only physical log generation and pass its immutable full PID/boot/start identity as typed operands. The child SHALL inherit that same descriptor for both outputs and publish its own complete immutable birth token before queueing. Diagnostic bytes and frontend liveness SHALL NOT establish ownership or authorize release.
+
+#### Scenario: Ready and cancellation have one exclusive decision
+
+- **WHEN** pending admission is cancelled while the child may enter the canonical mutex
+- **THEN** controller cancellation and child readiness compete by exclusive publication of the same decision pathname, with their respective exact complete identities
+- **AND** a cancellation winner withdraws promptly without accelerating the configured claim-poll interval, retains its decision until confirmed native child termination, and preserves the first timeout or interruption reason
+- **AND** a Ready winner survives frontend interruption and death; the handoff additionally requires the matching live child birth, original token/readiness evidence and canonical holder PID/label
+
+#### Scenario: The frontend dies before helper startup
+
+- **WHEN** the frontend ends after reserving the physical log and spawning its selected helper, before that helper validates its inherited generation or publishes its token
+- **THEN** the helper can finish starting and acquire ownership independently, using the pinned controller identity without requiring the controller to remain alive
+- **AND** later release requires the existing compute-ledger authorization rather than frontend disconnection
+
+#### Scenario: Uncorroborated readiness is bounded and retained
+
+- **WHEN** a complete child Ready decision lacks the expected canonical holder PID or label through the admission observation deadline
+- **THEN** acquisition refuses with an explicit unconfirmed retained state, without killing the Ready winner or removing its tokens or generation
+
+#### Scenario: Native termination is independent from numeric wait status
+
+- **WHEN** native termination is missing or erroneous, or the separately observed numeric wait status fails or contradicts an error-free native termination
+- **THEN** numeric observation alone never grants cleanup authority or successful completion, and missing or erroneous native termination retains ownership and metadata
+- **AND** an error-free native termination permits independently attempted authorized cleanup while numeric observation failure or contradiction still fails completion
+- **AND** diagnostic reporting failure does not bypass that authorized terminal cleanup; every original observation, report and cleanup failure remains preserved
+
+#### Scenario: A fast refusal ends before live token observation
+
+- **WHEN** the selected protected helper publishes its complete token and exits before the controller can observe its live birth
+- **THEN** cleanup may derive identity only from that helper's exclusively reserved unchanged initially empty physical generation after an error-free native-end notification, requiring the exact child PID/controller boot and any captured birth match
+- **AND** cleanup preserves exact full token identity, inode and bytes; unrelated decisions, replaced known tokens or replaced/unreadable generations refuse and retain state
+- **AND** this post-termination producer evidence never authorizes live admission or restart adoption
+
+#### Scenario: Optional diagnostics become unreadable after handoff
+
+- **WHEN** a correctly admitted holder's diagnostic bytes become unavailable
+- **THEN** diagnostic access returns an explicit unavailable outcome while the native mutex continues protecting the work; diagnostic text never grants or withdraws authority
+
+#### Scenario: A retained evidence failure settles only with authorization
+
+- **WHEN** readiness or token evidence becomes malformed, replaced or unreadable while the child retains the native mutex
+- **THEN** the child reports and retains that failure until verified absence of its original hold token or explicit native operator interruption permits settlement, then preserves the failure instead of returning success
+
+#### Scenario: Two watchers record the same admitted guard
+
+- **WHEN** a second watcher records the already recorded live guard with the same complete PID/boot/start identity and canonical mutex pathname
+- **THEN** recording succeeds idempotently without replacing its original since time or releasing the shared admitted holder
+- **AND** a different live identity or mutex remains a refused competing record
+
+#### Scenario: New admission differs from legacy continuity
+
+- **WHEN** a live previously recorded legacy guard still has its canonical PID/label but lacks the current complete Ready decision
+- **THEN** existing admitted work retains its continuity assessment while new admission waits for a qualified current holder, and preparation rechecks current readiness before creating the job scope
+- **AND** a different full Ready birth is refused as inconsistent trusted state; queued demand alone does not prevent retiring an unready legacy guard after all its existing compute settles
+
+#### Scenario: Unready retirement preserves a crash-recoverable full identity
+
+- **WHEN** a recorded legacy guard lacks current Ready evidence and has no unreleased admitted compute, even though work remains queued
+- **THEN** the controller rechecks that condition inside the admission write fence, exclusively publishes a Retired decision naming the exact helper birth, and removes only its unchanged child hold token
+- **AND** a competing Ready winner remains admitted; the child checks token withdrawal and Retired before publishing Ready, including immediate callback entry
+- **AND** Retired remains available through confirmed helper termination and authorized physical cleanup
+
+#### Scenario: Watch shutdown owns its pending handoff
+
+- **WHEN** watch stops during queued acquisition or after the helper publishes Ready but before the parent records it
+- **THEN** shutdown awaits controlled withdrawal or records the complete admitted Ready handoff before closing the ledger
+- **AND** a Ready helper continues protecting its work after frontend exit; a later watcher can adopt it without a second helper or loss of its original record instant
+
+#### Scenario: A dead guard does not settle compute
+
+- **WHEN** the full recorded guard birth has ended while admitted compute remains charged
+- **THEN** recovery commits first lost-authority attribution to every unreleased job before cleaning that guard generation, preserving every compute state and reservation
+- **AND** the matching full database record remains until physical cleanup succeeds; afterward a replacement Ready guard may be recorded without claiming the old work has ended
+- **AND** a zombie leader with surviving threads, unreadable inspection or a different current record does not authorize that cleanup
+
+#### Scenario: Cleanup retains a final identity witness through failure and retry
+
+- **WHEN** a qualified ended helper's log generation is cleaned and one cleanup step fails or the controller exits
+- **THEN** cleanup removes the log before its final complete helper witness and retains that witness if a prerequisite fails
+- **AND** restart can repeat the qualified cleanup using retained Ready, Retired or the original child hold; legacy log-only cleanup requires its matching dead database record under the write fence
+- **AND** an unidentifiable log-only reservation remains visibly blocked; completed overlapping cleanup is tolerated only after confirmed termination and never weakens live handoff evidence
+
+#### Scenario: A healthy queued helper retains its turn after frontend death
+
+- **WHEN** the native helper is queued behind another canonical owner, its frontend ends, and queued demand remains while another watcher starts
+- **THEN** the watcher retains that pending helper and its queue position without publishing retirement merely because its frontend ended
+- **AND** after the blocker releases, the helper publishes Ready and the watcher records the same full birth; a pending generation with no remaining demand can instead be retired under the settled-release fence
+
+### Requirement: Gate checkout is an admitted owned transaction
+
+The internal Bun checkout transaction SHALL accept an already-available immutable full commit and a captured trusted Git executable/lookup environment, bind Git's effective working-tree root to its selected canonical directory and verify actual HEAD before work. It SHALL retain a referenced executable owner through work, launched direct-child termination, owned IO, recovery and release/report settlement. Native admission SHALL remain through required work, recovery and IO inside the admitted callback; post-release reporting SHALL NOT imply continued mutex ownership. Dirty state SHALL refuse65 without deletion. Tracked regular files SHALL have others-read, and tracked directories others-read/search, or refuse66 unless explicit no-follow tracked-only repair succeeds. Controlled Git discovery/checkout/status/recovery SHALL disable executable hooks/fsmonitor and ambient overrides and refuse effective executable filters and unsupported committed original/target gitlinks before helper-sensitive operations. Failed exact restoration SHALL return74 and preserve independent failures. A release failure after settlement SHALL remain nonpassing without Git mutation outside ownership. This primitive SHALL NOT imply protected installed-worker, full process-tree, default-cutover or host qualification.
+
+#### Scenario: Selected directory differs from Git's effective tree
+
+- **WHEN** a canonical directory is a repository subdirectory or Git configuration redirects its effective working tree elsewhere
+- **THEN** the operation refuses before status or candidate checkout without changing either tree; required or malformed root-query failures do not select a fallback
+- **AND** legitimate spaced pathnames retain their exact identity
+
+#### Scenario: Candidate Git helpers cannot execute before certification
+
+- **WHEN** effective executable filters or committed original/target gitlinks are present
+- **THEN** the transaction refuses before helper-sensitive status/checkout, while controlled Git settings disable configured hooks/fsmonitor and remove ambient redirection
+- **AND** submodule-ignored status does not claim recursive or independent index validation
+
+#### Scenario: Pending work has no other native event-loop handle
+
+- **WHEN** admitted work or an owned report remains unresolved with no active child or independently referenced event-loop handle
+- **THEN** the operation remains referenced until controlled settlement, retaining native admission for work/reports inside the admitted callback; it cannot exit successfully or leave required recovery unperformed merely because the event loop became empty
+- **AND** a pending report about late admission cleanup remains process-owned without claiming that an already-closed mutex is still held
+
+#### Scenario: Work finishes before its direct child
+
+- **WHEN** admitted work returns or throws after launching a direct child without trustworthy native termination
+- **THEN** the launch capability closes and the transaction keeps admission, postponing recovery until that child supplies trustworthy termination; numeric completion or a deadline cannot release it
+- **AND** this grants no descendant-absence inference
+
+#### Scenario: The original branch moves or disappears
+
+- **WHEN** the saved symbolic branch changes before restoration
+- **THEN** recovery preserves that branch change, attempts to leave the saved commit detached and returns74 with original work and recovery causes retained
+
+#### Scenario: Admission cleanup fails after settlement
+
+- **WHEN** successful keep-mode work settles and admission cleanup then fails
+- **THEN** the selected checkout remains, completion reports70 with its release cause and no Git recovery begins after release
+- **AND** restore-mode success restores before that same late failure; a restoration74 plus release failure retains74 and both causes
+
+#### Scenario: First interruption coexists with work or late-release failure
+
+- **WHEN** work exits37 or restoration fails74 while a native interruption is recorded
+- **THEN** the modeled outcome preserves37 or74 respectively and exposes that first recorded native interruption independently
+- **AND** a first interruption recorded only after callback settlement returns130/143 when no higher-priority failure exists, keeps the already-settled tree and causes no Git operation after release
+- **AND** independent external cancellation retains its original reason without being relabeled a native signal
+
+#### Scenario: Explicit repair stays within tracked ownership
+
+- **WHEN** inaccessible supported tracked files/directories are found and repair is explicitly enabled
+- **THEN** repair binds inspected physical entries without following symlinks, preserves untracked targets and rechecks required mode bits before work
+- **AND** the caller's original umask is restored after settlement
+
+#### Scenario: The final admitted checkpoint records the first interruption
+
+- **WHEN** successful keep-mode work has finished and the final checkpoint still inside the admitted callback records the first interruption
+- **THEN** the owner rechecks one-shot recovery and restores the saved commit/reference before callback capture and native release
+- **AND** an actual restoration failure retains74 over reporting failure; callback settlement is not moved earlier to avoid required recovery
+
+#### Scenario: A later failed child remains independent evidence
+
+- **WHEN** work returns37 with a tracked child42, or work returns0 with tracked children42 and43
+- **THEN** the final failure list retains every child observation while status remains37 or42 respectively, until a higher-priority operational/report/recovery failure applies
+
+### Requirement: The gate executable owns control before asynchronous preflight through settlement
+
+The standalone checkout SHALL construct one native/external control owner before its first asynchronous preflight and retain a referenced operation until work, IO, children, recovery, admission release and reporting settle. Native INT/TERM and external cancellation SHALL retain separate provenance. External cancellation SHALL retain the original reason by identity. The queue-wake signal SHALL confer neither native provenance nor child-settlement authority. The executable facade SHALL dispose its owner; borrowed work SHALL NOT dispose it.
+
+#### Scenario: Native TERM arrives during controlled asynchronous preflight
+
+- **WHEN** the standalone executable is paused before queue entry and observes native TERM
+- **THEN** it remains referenced until the pause settles, cancels without checkout/work, preserves native TERM independently of the queue wake, and retires its listeners after settlement
+
+#### Scenario: Newly observed events differ from subscription replay
+
+- **WHEN** a subscriber joins after the first event and another same-kind signal or external cancellation is newly observed
+- **THEN** replay uses the original first-event sequence and identity, each new observation has a fresh sequence, and first kind/reason remains unchanged
+
+#### Scenario: Queue wake subscribes during the first control dispatch
+
+- **WHEN** a queue-wake observer subscribes while the first control is being dispatched
+- **THEN** it receives the first-event replay once without a duplicate dispatch of that same sequence
+
+#### Scenario: Recovery reporting observes INT followed by TERM
+
+- **WHEN** native INT then TERM arrive while admitted restoration reporting is pending
+- **THEN** the executable and native lock remain owned until reporting settles, its independent interruption remains INT, and an existing work failure keeps its numeric priority
+
+#### Scenario: Subscription and executable ownership retire
+
+- **WHEN** a subscription is removed or the executable finishes all owned settlement and disposes its control owner
+- **THEN** removed subscriptions receive no later controls, executable native/external listeners retire, and no referenced operation keeps the process alive after controlled completion
+
+#### Scenario: Reentrant cancellation preserves observation order
+
+- **WHEN** native TERM wakes a queue listener that aborts the independent external input, or an earlier control observer aborts that input during event1 delivery
+- **THEN** observation allocates sequences and latches first control immediately, while FIFO delivery finishes the current event cohort before delivering nested event2
+- **AND** first native TERM remains143, native INT remains130, and the external event retains its original reason object
+
+#### Scenario: A registration joins while nested delivery is pending
+
+- **WHEN** a new subscriber joins during wake or notification with another observed event still pending
+- **THEN** it synchronously receives the original first event object once and receives each applicable later observation once according to the cohort captured at observation
+- **AND** an event observed before that registration joined is not replayed as history
+
+#### Scenario: Removal retires only its own undelivered notifications
+
+- **WHEN** a registration is removed during queue wake or an earlier observer notification
+- **THEN** every notification not yet delivered to that registration is suppressed, including its captured current-event notification
+- **AND** separate subscribe calls using the same function retain independent registration tokens, so removing one preserves the other
+
+#### Scenario: The owning executable closes an already captured control cohort
+
+- **WHEN** the executable facade owns its control, has no borrowed work pending, and disposes during queue wake before a captured registration is notified
+- **THEN** that undelivered registration is retired without receiving the captured notification
+- **AND** this disposal authority belongs to the executable owner rather than borrowed stage/work code
+
+#### Scenario: Independent cancellation already exists before admission
+
+- **WHEN** the standalone checkout is called with an already-aborted independent signal
+- **THEN** its queue wake observes that cancellation and returns cancelled before admission with the original external reason
+
+### Requirement: Private checkout authority follows the awaited native admission callback
+
+The private checkout core SHALL accept only a currently registered provider-private admission identity minted inside the actual held local queue callback. The registry SHALL own immutable admission metadata; ordinary timing fields SHALL NOT confer authority. Invalid or retired entry SHALL throw before transaction effects and outside modeled checkout recovery. Trusted composition SHALL await the complete core operation before its admission callback settles. The adapter SHALL retire identity in callback finally on completion or failure before holder/native cleanup.
+
+#### Scenario: Forged or stale identity attempts core entry
+
+- **WHEN** a caller supplies ordinary queue metadata, an unregistered value, or a genuine identity retained beyond its completed or failed callback
+- **THEN** core entry rejects before umask selection, reports, Git or work
+
+#### Scenario: Private admission remains live across awaited work
+
+- **WHEN** an actual queue callback awaits its admitted operation
+- **THEN** its registry identity and immutable metadata remain valid until that callback settles and a competing native owner remains excluded
+- **AND** callback completion or failure retires identity before release cleanup
+
+#### Scenario: Core borrows executable cancellation access
+
+- **WHEN** the private core runs under the standalone executable's existing owner
+- **THEN** it receives only a fresh signal/readStatus projection and cannot dispose that owner through the borrowed object
+- **AND** core completion leaves listener retirement and first-interruption projection with the executable facade
+
+#### Scenario: A finalizer fails after admitted completion was captured
+
+- **WHEN** early cancellation or final admitted work captures completion and subsequent umask restoration throws
+- **THEN** the facade retains the captured completion and attaches cleanup/report causes using existing restoration-origin priority
+- **AND** numeric work74 alone grants no restoration authority and no recovery Git runs after release
+
+### Requirement: Gated host payloads use the selected Bun artifact
+
+Dash SHALL launch its keeper as the hidden versioned operation in the same selected protected PUNI artifact, preserving catalogue/profile/original argv, native IO, cwd and run records. The keeper SHALL own a non-detached direct payload child and remain through actual native termination, exit sampling/container observation and controller acknowledgement. Direct-child end SHALL NOT establish descendant/container/reservation settlement.
+
+#### Scenario: Start and private environment jointly admit one payload
+
+- **WHEN** FD3 receives exact `start\n` and FD5 receives one complete bounded v1 frame followed by actual EOF
+- **THEN** exactly one payload may start; earlier EOF/cancellation, malformed/duplicate commands, early done or malformed/missing/trailing environment bytes refuse rather than authorize entry
+- **AND** pre-start protocol refusal is125, while qualified pre-child executable refusal remains127/126 without fabricating a native child
+
+#### Scenario: The complete post-jobEnvironment snapshot is private and payload-only
+
+- **WHEN** an admitted job is composed before asynchronous lock waits
+- **THEN** original argv, selected helper/cwd and all defined caller environment values plus established job/unit assignments are captured; own-property-safe maps preserve names such as `__proto__`
+- **AND** FD5 alone transports four big-endian length bytes, fatal-UTF8 JSON `[1,[[name,value],...]]` and EOF under the8MiB encoded-body bound, with strict tuple/version/entry/name/value/duplicate/trailing validation
+- **AND** the helper retains protected startup and never restores private values into its process.env or copies them into argv, environment stashes, diagnostics or disk; only payload spawn receives the decoded map, with native normalization/E2BIG still observable
+
+#### Scenario: Native evidence precedes status and keeper retirement
+
+- **WHEN** the payload ends or a numeric/callback observation becomes inconsistent
+- **THEN** only qualified native outcome plus required numeric correspondence permits canonical0..255 decimal status plus LF and actual FD4 EOF; unknown native authority retains referenced ownership and reports boundedly
+- **AND** normal completion awaits post-status `done\n` plus EOF, or actual controller EOF after native settlement; controller death never manufactures payload termination
+- **AND** final control admission is the helper's exclusive NONBLOCK observation after async reads join, without cross-FD atomicity or a wall-clock peer-send-before-EOF guarantee
+
+#### Scenario: Native transport owns pressure, cancellation and ambiguous close
+
+- **WHEN** inherited3/4/5 endpoints experience fragmentation, real EOF/half-close, larger-than-buffer transfer, stalled peers, cancellation or IO/close failure
+- **THEN** exclusive operations join before one-shot endpoint close; ambiguous failure retains uncertainty and never authorizes a retry or successful synthetic end
+- **AND** original private endpoint identities are not inherited by the payload, irrespective of numeric descriptor reuse
+- **AND** real systemd availability, other-platform behavior and actual kernel errors require their own evidence rather than direct-process, projected-platform or emulated-error qualification
+
+### Requirement: Qualified payload outcome survives subsequent native keeper signal loss
+
+A canonical FD4 payload status followed by independently observed native keeper signal loss SHALL preserve payload status while recording helper death, acknowledgement/telemetry failure and incomplete attribution. ACK EPIPE alone SHALL NOT establish native termination. Unqualified status and normal-exit contradiction refuse infrastructure70; independent native/descendant/container/resource evidence still governs release.
+
+#### Scenario: Native helper death precedes parent FD4 delivery
+
+- **WHEN** genuine canonical payload3 bytes and EOF were written before helper SIGKILL but parent delivery remains queued
+- **THEN** the controller joins actual bounded FD4 classification rather than synthesizing absent status from native helper exit, preserving qualified3 with explicit keeper/telemetry loss
+
+#### Scenario: A real reader remains unconfirmed after native helper exit
+
+- **WHEN** FD4 observation has not settled within its1000ms post-native-end observation budget
+- **THEN** one report is attempted and the actual reader/job/hold remain owned until stream settlement; expiry proves no writer/descendant/resource absence and authorizes no synthetic success
+- **AND** empty EOF, malformed/partial/duplicate bytes, read failure and close-before-end remain distinct from that unconfirmed state
+
+### Requirement: Host job operations may borrow executable control
+
+Run and calibration SHALL optionally borrow a provider-private GateControl subscription while standalone operations retain INT/TERM/HUP ownership. Borrowing SHALL convey cancellation information only, add no native listeners and retire only its registration after required native/FD4/resource/legacy-hold settlement.
+
+#### Scenario: Prior control prevents preflight and preserves provenance
+
+- **WHEN** a borrowed subscription replays prior external cancellation
+- **THEN** the operation refuses130 before catalogue/toolchain/runtime IO with a fixed redacted diagnostic and the parent retains the identical opaque reason
+- **AND** native prestart INT/TERM and standalone HUP retain130/143/129 respectively
+
+#### Scenario: Poststart transport preserves independent outcome authority
+
+- **WHEN** a borrowed operation receives a new control after start
+- **THEN** one current recipient receives each newer sequence once, external control uses TERM transport and the first reason stays stable
+- **AND** the operation preserves qualified FD4 payload status rather than rewriting it to parent cancellation status
+
+#### Scenario: Pending observation retains the borrowed registration
+
+- **WHEN** native or FD4 settlement remains unresolved or synchronous forwarding/reporting fails
+- **THEN** the operation retains its registration through required joins, never throws synchronously into GateControl, and reports retained causes after settlement
+
+#### Scenario: Retirement failure preserves independent operation and delivery causes
+
+- **WHEN** the operation's one retirement attempt throws after required joins
+- **THEN** retained delivery causes are still collected and a sole cause is rethrown unchanged, while concurrent original causes are aggregated by identity
+- **AND** retirement is never retried and the borrowed executable owner is not disposed
+
+#### Scenario: Missing native-lock cancellation provenance withdraws only the known unlaunched admission
+
+- **WHEN** the native-lock dependency returns cancelled without observed control after admission but before preparation or launch
+- **THEN** the operation retains its loud missing-control failure and withdraws only that known unprepared admission through the existing checked API
+- **AND** concurrent withdrawal failure retains both causes; an acquisition throw or unknown native ownership grants no new release authority
+
+### Requirement: Current source startup retains explicit PUNI authority
+
+The current source startup branch SHALL require the explicit wbs-source-cold-v2 profile, closed version2 pins, a canonical version2 manifest and exact independently digest-pinned PUNI selection contents. Its manifest SHALL bind the whole read-only external installation mapping and selected relative entrypoint. Current requests SHALL be retained through initial handoff, dependency exclusion, source inputs, database binding and container restoration without inference from container state. The historical version1 request and decoder SHALL retain their existing closed shape and launch rules.
+
+#### Scenario: Current request reaches the complete source boundary
+
+- **WHEN** a current request supplies its explicit profile, canonical manifest and matching independent selection pin
+- **THEN** the complete request decoder retains the current branch and detached selection bytes, while physical/native admission remains owned by its subsequent consumers
+
+#### Scenario: Historical and current source placement cannot be conflated
+
+- **WHEN** current pins omit their complete explicit current request, or a container substitutes another installation mount or mapped entrypoint
+- **THEN** the source boundary refuses instead of inferring a profile or a PUNI directory
+
+### Requirement: Supervisor source identity covers executed dependencies
+
+Before admitting a successor PUNI parent after frozen install, Forge SHALL re-observe its retained compiler-resolved source closure and explicit runtime/asset manifest. It SHALL refuse an unknown required lazy/native/data edge or changed loaded input. A directory-only source fingerprint SHALL NOT be represented as full loaded closure.
+
+#### Scenario: Frozen install changes a captured loaded input
+
+- **WHEN** an owned SDK or runtime asset changes after the supervisor captured its execution identity and before the next parent would start
+- **THEN** Forge refuses that successor and records no successor launch

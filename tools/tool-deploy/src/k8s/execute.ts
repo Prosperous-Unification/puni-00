@@ -950,8 +950,8 @@ export interface KubectlSettings {
   stateDir: string;
   /** Overlay the local profile applies when reconciling desired state. */
   overlay: string;
-  /** Expected answer from an unauthenticated `GET /api/projects`: 200 local, 401 OIDC. */
-  anonymousProjectsStatus: 200 | 401;
+  /** Expected answer from an unauthenticated `GET /api/work-packages`: 200 local, 401 OIDC. */
+  anonymousWorkPackagesStatus: 200 | 401;
   rolloutTimeoutSeconds: number;
   jobTimeoutSeconds: number;
   drainTimeoutMs: number;
@@ -1349,10 +1349,10 @@ export function backendTaskJob(
 
 /** Script the smoke Job runs with the gateway image against every tier's Service. */
 export const SMOKE_SCRIPT = String.raw`
-const expectAnonymous = Number(process.env.EXPECT_ANONYMOUS_PROJECTS);
+const expectAnonymous = Number(process.env.EXPECT_ANONYMOUS_WORK_PACKAGES);
 const checks = [
   ['backend health', process.env.BACKEND_URL + '/health', (r) => r.status === 200],
-  ['backend auth', process.env.BACKEND_URL + '/api/projects', (r) => r.status === expectAnonymous],
+  ['backend auth', process.env.BACKEND_URL + '/api/work-packages', (r) => r.status === expectAnonymous],
   ['gateway health', process.env.GATEWAY_URL + '/health', (r) => r.status === 200],
   ['frontend index', process.env.FRONTEND_URL + '/', (r, body) => r.status === 200 && body.includes('<div id="root"')],
   ['mcp readiness', process.env.MCP_URL + '/health/readiness', (r) => r.status === 200],
@@ -1381,7 +1381,7 @@ if (failed > 0) process.exit(1);
 `;
 
 export function smokeJob(
-  settings: Pick<KubectlSettings, 'namespaces' | 'anonymousProjectsStatus'>,
+  settings: Pick<KubectlSettings, 'namespaces' | 'anonymousWorkPackagesStatus'>,
   name: string,
   image: string,
 ): Record<string, unknown> {
@@ -1420,8 +1420,8 @@ export function smokeJob(
                 { name: 'FRONTEND_URL', value: `http://wbs-frontend.${app}.svc.cluster.local:80` },
                 { name: 'MCP_URL', value: `http://wbs-mcp.${app}.svc.cluster.local:3300` },
                 {
-                  name: 'EXPECT_ANONYMOUS_PROJECTS',
-                  value: String(settings.anonymousProjectsStatus),
+                  name: 'EXPECT_ANONYMOUS_WORK_PACKAGES',
+                  value: String(settings.anonymousWorkPackagesStatus),
                 },
               ],
               resources: { requests: { cpu: '20m', memory: '64Mi' }, limits: { memory: '256Mi' } },

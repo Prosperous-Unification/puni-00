@@ -1,16 +1,17 @@
-import type { PlanInputReads } from './saved-plan-capture-values';
+import type { ResolvedPlanInputReads } from './saved-plan-capture-values';
 export type {
   CapturedDependency,
   CapturedNamedValue,
   CapturedPerson,
-  CapturedProject,
   CapturedStep,
   CapturedTeam,
   CapturedWorkItem,
+  CapturedWorkPackage,
   PlanInputReads,
+  ResolvedPlanInputReads,
 } from './saved-plan-capture-values';
 
-/** A coherent source snapshot of one project's saved-plan input. */
+/** A coherent source snapshot of one work package's saved-plan input. */
 export interface SavedPlanCaptureStore {
-  readPlanInput(projectId: string): Promise<PlanInputReads | null>;
+  readPlanInput(workPackageId: string): Promise<ResolvedPlanInputReads | null>;
 }

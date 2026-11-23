@@ -1,8 +1,8 @@
 import type { RefusalWords } from '@/lib/refusal';
 import type {
-  ProjectOptimizationPatch,
   ScheduleEngineView,
   ScheduleObjectiveView,
+  WorkPackageOptimizationPatch,
 } from '@/lib/wbs-api';
 
 import { OBJECTIVE_SENTENCE } from './optimization-words';
@@ -16,7 +16,7 @@ export interface OptimizationSettingsValue {
 
 export interface OptimizationSettingsProps {
   readonly value: OptimizationSettingsValue;
-  readonly setSettings: (patch: ProjectOptimizationPatch) => Promise<void>;
+  readonly setSettings: (patch: WorkPackageOptimizationPatch) => Promise<void>;
   readonly onChanged: () => Promise<void>;
   /** Recovery after a failure whose commit outcome is unknown. */
   readonly onRefused?: (thrown: unknown) => Promise<void>;
@@ -29,7 +29,7 @@ const OPTIMIZATION_REFUSALS: RefusalWords = {
   otherwise: () => 'That optimization change did not land. Try again.',
 };
 
-/** Project-owned optimizer controls. Every checked value comes from the latest plan read. */
+/** WorkPackage-owned optimizer controls. Every checked value comes from the latest plan read. */
 export function OptimizationSettingsPanel({
   value,
   setSettings,
@@ -47,7 +47,7 @@ export function OptimizationSettingsPanel({
     ...(onRefused === undefined ? {} : { onRefused }),
   });
 
-  function write(patch: ProjectOptimizationPatch): void {
+  function write(patch: WorkPackageOptimizationPatch): void {
     void section.attempt(() => setSettings(patch));
   }
 
@@ -57,9 +57,9 @@ export function OptimizationSettingsPanel({
     <div aria-busy={section.busy} className="space-y-4">
       {/* No heading of its own: the selected tab names the section, as for the other five (ui-review F-122). */}
       <p className="text-muted-foreground text-sm">
-        Compute priority-first and finish-first schedules for this project in the background. Fast
-        stays on screen until somebody switches, and the toolbar cue says when one of them would
-        land the plan earlier.
+        Compute priority-first and finish-first schedules for this work package in the background.
+        Fast stays on screen until somebody switches, and the toolbar cue says when one of them
+        would land the plan earlier.
       </p>
 
       <SectionProblem problem={section.problem} />

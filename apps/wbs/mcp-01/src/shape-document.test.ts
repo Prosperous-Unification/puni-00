@@ -17,7 +17,7 @@ import { readDocument, toolsFromDocument } from './openapi-tools';
 
 const commands = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/commands',
+  path: '/api/work-packages/:id/commands',
   operationId: 'applyPlanCommands',
   policies: [],
   params: requestSchema(type({ id: 'string' })),
@@ -74,7 +74,7 @@ it('derives the named MCP tool with all path/query/body inputs and exclusions fr
   const tools = deriveTools();
   expect(tools.map((tool) => tool.name)).toEqual(['applyPlanCommands']);
   const tool = tools[0];
-  expect(tool.path).toBe('/api/projects/{id}/commands');
+  expect(tool.path).toBe('/api/work-packages/{id}/commands');
   expect(tool.method).toBe('post');
   expect(tool.description).toBe('Apply plan commands');
   expect(tool.locations).toEqual({ id: 'path', preview: 'query', commands: 'body', label: 'body' });
@@ -109,9 +109,9 @@ it('keeps both nested command alternatives usable in the derived MCP input schem
 
 it('carries production command descriptors through the generated MCP input', () => {
   const tool = toolsFromDocument(documentFromShapes(httpShapes)).find(
-    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+    (candidate) => candidate.name === 'postApiWorkPackagesByIdCommands',
   );
-  if (tool === undefined) throw new Error('Generated project command tool missing');
+  if (tool === undefined) throw new Error('Generated work package command tool missing');
   const branches = (
     tool.inputSchema.properties['commands'] as {
       items: {

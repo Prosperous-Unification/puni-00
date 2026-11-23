@@ -27,6 +27,7 @@ import {
   projectId,
 } from '../record-codecs';
 import type { ScopedAttemptGuard } from '../run-store';
+import { mapCurrentScope } from '../runtime-codecs';
 import { bootstrapSqliteStores, openSqliteStores } from '../sqlite/open-stores';
 import { createManifest, createRun, FixtureClock, unwrapReply } from './fixtures';
 
@@ -170,7 +171,7 @@ try {
     writer.artifacts,
     runtime,
     { ownership, scope, expectedRevision: 0 },
-    canonicalRuntimeRequest(scope, {
+    canonicalRuntimeRequest(mapCurrentScope(scope), {
       schemaVersion: 1,
       kind: 'authority',
       commandId: 'authority',

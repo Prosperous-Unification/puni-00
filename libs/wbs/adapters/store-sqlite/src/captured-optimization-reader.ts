@@ -43,12 +43,13 @@ function readCapturedOptimization(
   ask: OptimizedScheduleAsk,
 ): OptimizedScheduleRead {
   const key: OptimizedCacheKey = {
-    projectId: ask.projectId,
+    workPackageId: ask.workPackageId,
     inputHash: scheduleInputHash(ask.input),
     contractVersion: options.contractVersion,
     budgetMs: options.budgetMs,
   };
-  const generation = readGeneration(db, ask.projectId, options.contractVersion)?.generation ?? null;
+  const generation =
+    readGeneration(db, ask.workPackageId, options.contractVersion)?.generation ?? null;
   const pair = readOptimizedPair(db, key);
   const now = options.now();
   const live = (objective: SolverObjectiveName): boolean =>

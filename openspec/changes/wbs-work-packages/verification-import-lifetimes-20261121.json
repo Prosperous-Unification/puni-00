@@ -1,0 +1,904 @@
+{
+  "schema": "puni-import-lifetimes-v122",
+  "recordedAt": "2026-11-21T19:35:46.637Z",
+  "classification": "progress",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v121.json",
+    "sha256": "f88c7b7d3a6aeb88fd4e968e1aa46808f07cf157fa5f7af8c3e8f56a68c06d2e",
+    "bytes": 12129,
+    "mode": 384
+  },
+  "parentStagedTree": "0663116e6c0e910a0a5ec8ab93a2430ea4df736d",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/use-plan-import.ts",
+      "sha256": "818e40661d7752b3fb9f9faf1a3cb9e0a34ebdcd997f3596abe3800ad1e9957e",
+      "bytes": 10965,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/use-plan-import.test.tsx",
+      "sha256": "b8e5853c064f9864d2f71bffab3e92c5a0de4a317b9a71e50ac3adac1101b5bf",
+      "bytes": 4802,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/projects/project-picker.test.tsx",
+      "sha256": "9da609775f469509cf7117904324913c0c31a75dc02d4e8d638631ff70725a13",
+      "bytes": 17063,
+      "mode": 436
+    }
+  ],
+  "behavior": "An admitted import retains its captured engagement project and definition consent while visible destination selection changes. Consent and stale callbacks belong to the selected choice; one file read and busy state belong to the catalog/publication. Catalog or callback replacement, withdrawn currentness and unmount retire publication effects. An obsolete finally cannot clear a newer admission on the same actual input element.",
+  "verification": {
+    "files": 3,
+    "pass": 220,
+    "fail": 0,
+    "seconds": 39.03,
+    "picker": 13,
+    "hook": 5,
+    "page": 202,
+    "finiteFlights": 15,
+    "productionFrontendTypes": true,
+    "changedRootTypes": true,
+    "scopedLint": true,
+    "scopedFormat": true,
+    "openspecAll": true
+  },
+  "checks": [
+    {
+      "name": "import-final-regression-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-final-regression-v122.receipt.json",
+        "sha256": "0e33c1122beb1cb8791b4a0435398fd520c881a4c9712b38be935bf247994582",
+        "bytes": 1620,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-final-regression-v122.log",
+        "sha256": "ffa1426461b5b6c61e30247d36052b790fa45cf7aae0d38a0b760348be7f270c",
+        "bytes": 61437,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-final-regression-v122.validation.json",
+        "sha256": "014a97a9bf385b9b184952496f62e91c669242159ca2814266257faa2404dfc7",
+        "bytes": 490,
+        "mode": 384
+      }
+    },
+    {
+      "name": "import-lint-final-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-lint-final-v122.receipt.json",
+        "sha256": "021d3a87a38828fb72474b7bf604f3f303bb068cf0a02889fa487e6027511b29",
+        "bytes": 1266,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-lint-final-v122.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-lint-final-v122.validation.json",
+        "sha256": "c45938524a8eb00236e530056ab6992fb043f6c56706306f35d98899f4bd86e1",
+        "bytes": 474,
+        "mode": 384
+      }
+    },
+    {
+      "name": "import-types-final-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-types-final-v122.receipt.json",
+        "sha256": "257241b7e135875d0e48a8a5cef83261f11e5d96b5be7ddf3bf968b775bc6237",
+        "bytes": 1310,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-types-final-v122.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-types-final-v122.validation.json",
+        "sha256": "922bd8e944f86a0d055d63640c137ac3b26f861e8f180bde90e372f19f75daff",
+        "bytes": 476,
+        "mode": 384
+      }
+    },
+    {
+      "name": "import-frontend-production-types-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-frontend-production-types-v122.receipt.json",
+        "sha256": "0e4cb06388af35ff030162bf08a78c6a6b7e9641fe1e9402ff54f538af70decf",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-frontend-production-types-v122.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-frontend-production-types-v122.validation.json",
+        "sha256": "befbebe84fa04b5f651ddde954fa37852438b9c0aedc4b8e09f577428adb651c",
+        "bytes": 504,
+        "mode": 384
+      }
+    },
+    {
+      "name": "import-format-check-final-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-format-check-final-v122.receipt.json",
+        "sha256": "23966bf8fb00696baa7fc2949237924edfe6d73364a2884309cddc60ae5575ad",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-format-check-final-v122.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-format-check-final-v122.validation.json",
+        "sha256": "5496c64b1113eaa02b35816f11f4ca8272ba22f852e4a8f5571ed800d2eb31f1",
+        "bytes": 491,
+        "mode": 384
+      }
+    },
+    {
+      "name": "import-openspec-all-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-openspec-all-v122.receipt.json",
+        "sha256": "c22616b9da8eb643de3b1f81f76bd5c4be99e475a24ea49edacd423eecb7be74",
+        "bytes": 1327,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-openspec-all-v122.log",
+        "sha256": "9067283dd1d15b049b23a89c3b116fde4d828ccb61bfc79114eb8c5efb3551c7",
+        "bytes": 349167,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-openspec-all-v122.validation.json",
+        "sha256": "25622edc182b653e365bb57e8afb0bd6f752d4e95e92927f93ac789070a26cdf",
+        "bytes": 483,
+        "mode": 384
+      }
+    },
+    {
+      "name": "reporter-jsdom-probe-v122",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-jsdom-probe-v122.receipt.json",
+        "sha256": "d1a29e13f2a87a6393c6b4c33ba8b802bf471b43abd7c50fb2c0185b9a21a7fc",
+        "bytes": 1267,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-jsdom-probe-v122.log",
+        "sha256": "b44c1650683830c4e8cf4eea954ccc2c4df63976c297a1b64d1d99a2993eea0e",
+        "bytes": 3742,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-jsdom-probe-v122.validation.json",
+        "sha256": "5e36bc1c7f61f6000e20a5a2d2469cf66ffcd100eab16255e322e4a710447b90",
+        "bytes": 483,
+        "mode": 384
+      }
+    }
+  ],
+  "finiteFlights": [
+    {
+      "name": "publication-project-key",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-publication-project-key-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-project-key-v122b.receipt.json",
+          "sha256": "47d1de543a2e1b4c766668490efac5a1a6a8488f7c5f36979eab378f8b8ef638",
+          "bytes": 1544,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-project-key-v122b.log",
+          "sha256": "985a9f964da10f27fbbd0965bfcf4e6cbcdd84ea7e3314481ee61764e8cce8d4",
+          "bytes": 3219,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-publication-project-key-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-project-key-v122b-restored.receipt.json",
+          "sha256": "02d2a3b56a4816f9fd671979d6b7379d357d3895ecb9bf1c90230930530b4005",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-project-key-v122b-restored.log",
+          "sha256": "9e9ff43139d94d57c7a0f030765f87909b37eda7947be93295687861dc258165",
+          "bytes": 974,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "publication-catalog-key",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-publication-catalog-key-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-catalog-key-v122b.receipt.json",
+          "sha256": "4f2c7e6c618b57a37958832f8216aa7ddb004b8db9750daf5da2419160544b38",
+          "bytes": 1557,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-catalog-key-v122b.log",
+          "sha256": "ec0a03807295acb2a46f0701c1e202725eab5c114f430315aca12096b559c93a",
+          "bytes": 12818,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-publication-catalog-key-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-catalog-key-v122b-restored.receipt.json",
+          "sha256": "9dd0d15da497b50ad638709fa6fc9ef46ab90692bad4766bad83105371386c24",
+          "bytes": 1573,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-catalog-key-v122b-restored.log",
+          "sha256": "cb8f6727a21ef6feef7a12e1cf061ead9164e561a8c9a2b40f3e3211f66bdb03",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "publication-callback-key",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-publication-callback-key-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-callback-key-v122b.receipt.json",
+          "sha256": "7b3e41924eeb993f03eaab8fb41460397e9f989fc0a0db1e55029ea755b894c5",
+          "bytes": 1575,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-callback-key-v122b.log",
+          "sha256": "cb78d8b68ccded552b319cf798f9ca7715e19e9c6913d8b10247d430bbfbe004",
+          "bytes": 12853,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-publication-callback-key-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-callback-key-v122b-restored.receipt.json",
+          "sha256": "0ab2d84d4fb5f65c37d33740b208173561364e10c41e864fde77b137760824bb",
+          "bytes": 1591,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-callback-key-v122b-restored.log",
+          "sha256": "8527de31cf1bb81e3f507f4fd59d53eb92e5eab12b4e89e2f542cf429bbfc272",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-project-key",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-project-key-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-key-v122b.receipt.json",
+          "sha256": "a042e9dcd5626e12510dd5cf3f798c3ef65a22af69f4b333174cfd543d4c7b5d",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-key-v122b.log",
+          "sha256": "c7edf0e09fa6571cb7700c8c6aea809ad3e06affb299f52f89cdd4902b796e84",
+          "bytes": 2243,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-project-key-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-key-v122b-restored.receipt.json",
+          "sha256": "337f2359a6a79f6db233add820a7d2c10eebf179978b0737458594108e65140a",
+          "bytes": 1551,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-key-v122b-restored.log",
+          "sha256": "99e51a418d19cc25986bee6c80737de11b2d2dd53e180cb8c2272854dd62681e",
+          "bytes": 955,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-view",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-view-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-view-v122b.receipt.json",
+          "sha256": "2ea43e42a4c7ec497c545b12bed55b547b01c53284049bbeb08a236fa5ed7db1",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-view-v122b.log",
+          "sha256": "81ebe765e233fb86a29c1fa5f80efbd4e01d75705141bb3ed5eae1979a60af0f",
+          "bytes": 2243,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-view-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-view-v122b-restored.receipt.json",
+          "sha256": "6db0dea05da1f1060d82e318a6a54a524ee87fc8d0cf1fff634a911a70070159",
+          "bytes": 1537,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-view-v122b-restored.log",
+          "sha256": "804a491d1cbf30f679b3a580e000044b6c3cee1b62b25c3aaf938710f0093fb2",
+          "bytes": 955,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "publication-scope",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-publication-scope-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-scope-v122b.receipt.json",
+          "sha256": "fc6483dc4f38843e29104476fe1d64b228b736f0f03ddbddd499167bbd626a47",
+          "bytes": 1545,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-scope-v122b.log",
+          "sha256": "a76c8ee698353c62c7f391dedb4f855ea8d90e449a521ebd18f17b1483435543",
+          "bytes": 12818,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-publication-scope-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-scope-v122b-restored.receipt.json",
+          "sha256": "ce9e83dfada355b09636cf0090ad290152bad353fd6e7960d504fabd297a0d15",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-scope-v122b-restored.log",
+          "sha256": "4c0e92d0034134e3765975a2d41ecdf2595c54cbb5ac4f55acb947faae2482d1",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "publication-current",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-publication-current-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-current-v122b.receipt.json",
+          "sha256": "a76a9baba558ea7fc99aaabe7f536df13f2bacd41a19206f429c6bc5cb563323",
+          "bytes": 1554,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-current-v122b.log",
+          "sha256": "308d6119a519386db8ef50821977c225f8adfff8784494b9fe73952b0918df98",
+          "bytes": 12841,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-publication-current-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-current-v122b-restored.receipt.json",
+          "sha256": "765f945026ffae26da694784ca893f7ce2de2c64ce0769e04294a7fa5c737104",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-publication-current-v122b-restored.log",
+          "sha256": "27fab7f222b39266a9be13126ee186d11e07cccbcae05aef612cb9c44abc8be6",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-setter",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-setter-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-setter-v122b.receipt.json",
+          "sha256": "9c6753e835580a2c0cd764d0178a651c6aae5932c4e3ac68a4d9678b710ebbfc",
+          "bytes": 1524,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-setter-v122b.log",
+          "sha256": "0efaaadf07df1228fc3c91ed29841465d7d668f0821e2552badf17e757b61859",
+          "bytes": 2100,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-setter-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-setter-v122b-restored.receipt.json",
+          "sha256": "2fb877230cdf3c6b36cec733f21050510fbb56ebf0b5ede375cfb790f6b59c07",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-setter-v122b-restored.log",
+          "sha256": "a7a48985d4ce436f4060e798838bf478b4a41494426cf1834e238222a58a37a0",
+          "bytes": 955,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-file",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-file-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-file-v122b.receipt.json",
+          "sha256": "82e62fd143d5e67d6029649bcaa83570aceb8528cc532cd4e926774d7bff0e9c",
+          "bytes": 1530,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-file-v122b.log",
+          "sha256": "45471b9b2ae480e768d3105a96b05cc80d1f63f0bb0408e343f6633a9c1b8625",
+          "bytes": 2216,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-file-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-file-v122b-restored.receipt.json",
+          "sha256": "070e026fd4bd86c3e58a177efd9efcc2f2eeee2d69f7f98f62586988c96a245d",
+          "bytes": 1547,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-file-v122b-restored.log",
+          "sha256": "a25fe3ed28631599b7b392d494c7410d23a876413d109c1da19ba38d17fa4405",
+          "bytes": 955,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-project-admission",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-project-admission-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-admission-v122b.receipt.json",
+          "sha256": "f1b15712ad0f13a5ce93a85ca758935be35ac9f6ff8995bf9328af4a6e4d4e48",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-admission-v122b.log",
+          "sha256": "ad83374bb8e50dc443175f4456897c6ad83d4dc90b61b434f84bc0487f9efb88",
+          "bytes": 2130,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-project-admission-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-admission-v122b-restored.receipt.json",
+          "sha256": "8e75ab4699cc59b5de6b37c6ee883453bf4e56cb3d2f4d4607470b43ebfc6114",
+          "bytes": 1558,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-project-admission-v122b-restored.log",
+          "sha256": "d13c949aedb40856dafab4a6cf669fec2cbd34a13ff5e6a98c476385ae2db95c",
+          "bytes": 955,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "choice-busy",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122b.json",
+        "sha256": "8bbf8283e4985ab013ea4867c3d4d4d37af32115231f57569d9f89e68d5f1aa1",
+        "bytes": 2622,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-choice-busy-v122b",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-busy-v122b.receipt.json",
+          "sha256": "4ad257202c9d86ee67912145e3375445b554e5b50af88dd19b7f6375b2e40a8a",
+          "bytes": 1544,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-busy-v122b.log",
+          "sha256": "bf2ce41e8cc000d3c4de559a182f53ec62bbc18a4e97b839c5dd0a02a0c1a9f6",
+          "bytes": 2152,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-choice-busy-v122b-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-busy-v122b-restored.receipt.json",
+          "sha256": "b1431d7a17e417e4e432828fa40adfe151663fdc0f2c6402bf0ffc55bbf134f8",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-choice-busy-v122b-restored.log",
+          "sha256": "2ca6583d91326151e1758b423c805d4f387ce96999b3db2943e129d5a8462564",
+          "bytes": 965,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "file-admission",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122c.json",
+        "sha256": "e07d59b8257f0cdc5ae333edc34b3d4a25a12c9af01e48ec143587e4568cbf75",
+        "bytes": 718,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-file-admission-v122c",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-file-admission-v122c.receipt.json",
+          "sha256": "52498544da03a07eef01180df926bb8a3e622326685f0285294ce4872dde8975",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-file-admission-v122c.log",
+          "sha256": "66ad29dfa6c5377aadd25ea6fd20dba5b1f7c102861a3c0fc0fa9e9e22192785",
+          "bytes": 2909,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-file-admission-v122c-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-file-admission-v122c-restored.receipt.json",
+          "sha256": "f29ee29084e6650570a12fdd664094152aac6f627a85d88533c1b964227ab35f",
+          "bytes": 1560,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-file-admission-v122c-restored.log",
+          "sha256": "b0562e0fdfff23d884c0c205e3f210b65b047a8a9b49733f73a67c108048066e",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "unmount-release",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122c.json",
+        "sha256": "e07d59b8257f0cdc5ae333edc34b3d4a25a12c9af01e48ec143587e4568cbf75",
+        "bytes": 718,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-unmount-release-v122c",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-unmount-release-v122c.receipt.json",
+          "sha256": "e37b4f6663354288e95e91b5f43449b7880dd7c9950723fb29195cdb745061f9",
+          "bytes": 1551,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-unmount-release-v122c.log",
+          "sha256": "beac6398bfdb9ac8d39b10de7f5e1442ced4771f5deeb7283725035e46f886cf",
+          "bytes": 12827,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-unmount-release-v122c-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-unmount-release-v122c-restored.receipt.json",
+          "sha256": "12aa258af14fd734dacefd175446c780445693675884936cccea5168f58f74c9",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-unmount-release-v122c-restored.log",
+          "sha256": "597e7dd906e1a057a908af0baf9679cc99cc26aa0abd4be4ecde4840c7a3825c",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "busy-view",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-fault-state-v122c.json",
+        "sha256": "e07d59b8257f0cdc5ae333edc34b3d4a25a12c9af01e48ec143587e4568cbf75",
+        "bytes": 718,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-fault-busy-view-v122c",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-busy-view-v122c.receipt.json",
+          "sha256": "62c7b8d34fbff645143c4096c9b7b57e8c381eb8d5aaf5dd473319efce1cb74b",
+          "bytes": 1533,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-busy-view-v122c.log",
+          "sha256": "7b8db0021f0a540a5a4401b898c79a43177fef447d4491ee7158cda9deebd8d0",
+          "bytes": 2870,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-fault-busy-view-v122c-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-busy-view-v122c-restored.receipt.json",
+          "sha256": "f4c4793145d8d2dd136074d512bbf7a1a846ad374399d9fcd67373d54c0c0f04",
+          "bytes": 1550,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-fault-busy-view-v122c-restored.log",
+          "sha256": "ffe3943ff8e1b34fc35fd475920874024a609a81627da09fdbd9726dfe533948",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "finally-owner",
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-finally-fault-state-v122e.json",
+        "sha256": "b0cb99f22f378f16b69ff7842f987fc8f55076323698e65e24946dd7c2e97c9d",
+        "bytes": 183,
+        "mode": 384
+      },
+      "negative": {
+        "name": "import-finally-fault-v122e",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-finally-fault-v122e.receipt.json",
+          "sha256": "ed4f2da1e879126581b39c34cca1a1717c3ddffa6d329e139643084e5bacbc54",
+          "bytes": 1552,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-finally-fault-v122e.log",
+          "sha256": "05dd8860d94148771ebcaf25ba5243fdd6149129a02ffadb44951aa9ef7cf712",
+          "bytes": 3043,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "import-finally-fault-v122e-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-finally-fault-v122e-restored.receipt.json",
+          "sha256": "e8e8f2060749d9e3b559f5172c2bb828e8a92fc4a67deea82c0fa4d0107354dc",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/import-finally-fault-v122e-restored.log",
+          "sha256": "decd44e9fb1e75f53a565f4e1773a28ec12c6151ff683197bc3db1fa5f23ec46",
+          "bytes": 973,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    }
+  ],
+  "sourceBridge": {
+    "path": "/tmp/puni-combined-proposal-v1/control/import-source-bridge-v122b.json",
+    "sha256": "b33b12eb00dea82eec3b986bded2ca4464da0f63efac95657ff3addfbd0737a3",
+    "bytes": 2871,
+    "mode": 384
+  },
+  "excludedEvidence": [
+    {
+      "name": "import-faults-v122",
+      "reason": "Ambiguous seam rejected before any source mutation; not a negative proof."
+    },
+    {
+      "name": "import-faults-v122b",
+      "reason": "The first 11 pairs qualify individually. The following file-admission edit caused a parse failure and the outer driver exits 1; its parse failure is excluded. Source was restored before the driver stopped."
+    },
+    {
+      "name": "import-finally-fault-owner-v122",
+      "reason": "The older page case passed with the finally owner comparison removed. Source was exactly restored; surviving case is excluded. The later direct same-hook/same-input V122e witness fails the input-value assertion and passes restored."
+    },
+    {
+      "name": "import-source-bridge-v122",
+      "reason": "Superseded by V122b, which includes unary operators/declaration flags, parse diagnostics and only the 15 qualified completed flights."
+    }
+  ],
+  "remainingFrontendFailure": {
+    "owner": "apps/wbs/fe-01/src/components/chrome/app-fault.test.tsx",
+    "case": "never invokes an accessor to read the chart’s sentence",
+    "previousEvidence": {
+      "path": "/tmp/puni-combined-proposal-v1/control/frontend-final-state-v121.json",
+      "sha256": "53cbdb8a96317e6ae168e7bd477c9996053e93e3c3d96c40e09ef2b3e7b0d2f5",
+      "bytes": 27837,
+      "mode": 384
+    },
+    "currentSourceUnchanged": true,
+    "qualification": "V121 actual zero-getter failure remains unresolved. V122 standalone native/VM/jsdom probes all observe zero getters and do not reproduce the exact Vitest interaction. No production selector, dependency, assertion or runtime runner changed."
+  },
+  "review": {
+    "status": "pending-astra",
+    "retryAfterRecorded": "2026-11-22 10:09AM",
+    "timezone": "unspecified",
+    "noRetryOrSubstitute": true,
+    "questions": [
+      {
+        "topic": "Import destination and consent lifetimes",
+        "evidence": "V122 separate lifetimes implemented; 220 affected tests pass; 15 qualified finite production-hook omissions fail their own assertion then pass after exact restoration. Formal Astra review remains pending.",
+        "candidateDirection": "Separate the catalog/isCurrent publication owner from the project-specific consent owner. Capture projectId and defineMissing before FileReader; serialize busy/file admission under the publication owner across destination changes. Keep stale setters bound to the consent owner and replacement/unmount/currentness fences under the publication owner. Prove captured A/true, new B/false, one admitted read, withdrawal/cancel and cleanup before acceptance.",
+        "applied": true
+      },
+      {
+        "topic": "Hostile error message getter under Bun/Vitest",
+        "evidence": "The actual zero-getter assertion fails inside caught-object-report-json15.hasPropertyWithoutReading. Scoped Vitest/jsdom probes show own-property,Reflect.has,in and own-name enumeration each invoke the message getter; message-descriptor lookup does not. The same native primitives and actual reporter in plain Bun, a plain node:vm context and fixed/message Error.prepareStackTrace-hook probes invoke no getter. A minimal framework-independent reproducer is not established.",
+        "candidateDirection": "Preserve the assertion and production selector/reporting implementation until the exact environment interaction is understood. Review an upstream no-invoke fix versus a fixture that materializes its ordinary stack before installing the hostile message accessor; any fixture change must still fail when the actual Gantt selector reads thrown.message. Changing runners to bypass Bun is not accepted.",
+        "applied": false
+      }
+    ]
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": "Finite hook tests use the real catalog with controlled FileReader/API completions. They do not prove server grants, every async comparison, actual browser/session authority, complete UI success, full entity/catalogue acceptance or production CLI installation. V120 storage/core evidence and V119 fixture limits remain unchanged. No full gate, public commit, push, PR update, merge, deployment, activation or goal completion."
+}

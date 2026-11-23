@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { DirectoryRead, InstalledClaims, RefreshResource } from '@/lib/plan-refresh';
 import type { CalendarMarkerView, PlanRead, StepView } from '@/lib/wbs-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 
 import type { PlanFeedDelivery } from './contract';
 import {
@@ -478,7 +478,7 @@ const commandsArb = fc.commands<PlanModel, PlanWorld, false>(
 );
 
 async function buildPool(): Promise<Pool> {
-  const read = await fakeProjectApi().tree('p1');
+  const read = await fakeWorkPackageApi().tree('p1');
   const directory = (): DirectoryRead => ({
     teams: [],
     tags: [],
@@ -500,7 +500,7 @@ async function buildPool(): Promise<Pool> {
  * The delivered plan, run against a reference fold.
  *
  * The record this executes is section 3.3 of
- * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-project-prerequisites.md`.
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-work-package-prerequisites.md`.
  */
 describe('the delivered plan, against a reference model', () => {
   it('folds every publication exactly as the model does, and changes only when it must', async () => {

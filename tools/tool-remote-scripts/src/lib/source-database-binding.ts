@@ -29,12 +29,12 @@ import {
   observeSourceDevInputs,
   type SourceDevInputObservation,
 } from './source-dev-inputs';
+import { assertSourceDeadline } from './source-startup-manifest';
 import {
-  assertSourceDeadline,
-  decodeSourceDevPins,
-  decodeSourceStartupManifest,
-  type SourceDevPins,
-} from './source-startup-manifest';
+  type CurrentSourceStartupRequest,
+  selectSourceStartup,
+  type SourceStartupPins,
+} from './source-startup-profile';
 
 /** Fresh read-only identities under constituent scopes. No field grants activation authority. */
 export interface SourceDatabaseBindings {
@@ -269,11 +269,12 @@ export async function observeSourceDatabaseBindings(
   layouts: SolverLayouts,
   source: SourceDevExclusion,
   solver: SolverExclusion,
-  suppliedPins: SourceDevPins,
+  suppliedPins: SourceStartupPins,
   manifestContents: string,
   runDocker: RunDocker,
   deadline: number,
   execDocker: DockerExec = runDockerExec,
+  startup?: CurrentSourceStartupRequest,
 ): Promise<SourceDatabaseBindings> {
   let configuration: Awaited<ReturnType<typeof retainConfiguration>> | undefined;
   try {
@@ -283,8 +284,9 @@ export async function observeSourceDatabaseBindings(
     // Proof: entry source-guard omission ran nested queries with a shorter original source budget; zero-query mismatch negative failed.
     assertSourceDevExclusionDeadline(owner, source, deadline);
     layouts = structuredClone(layouts);
-    const pins = decodeSourceDevPins(suppliedPins);
-    const manifest = decodeSourceStartupManifest(manifestContents, pins);
+    const profile = selectSourceStartup(suppliedPins, manifestContents, startup);
+    const pins = profile.pins,
+      manifest = profile.manifest;
     if (layouts.prod.env !== 'prod' || layouts.dev.env !== 'dev') refuse();
     await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
     await assertDependencyOwner(owner, layouts.dev, pins.sourceSha);
@@ -296,6 +298,7 @@ export async function observeSourceDatabaseBindings(
       manifestContents,
       runDocker,
       deadline,
+      profile.current,
     );
     const prodBefore = await inspectBackendFenceUnderOwner(
       owner,
@@ -347,7 +350,7 @@ export async function observeSourceDatabaseBindings(
         deadline,
       );
       return {
-        member: decodeSourceDev(raw, layouts.dev),
+        member: decodeSourceDev(raw, layouts.dev, profile.current),
         identity: identifySourceInventory(inventory, raw),
       };
     }

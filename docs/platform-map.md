@@ -189,8 +189,8 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
 - **CI** (`.github/workflows/ci.yml`): PRs run `nx affected` or document checks from the
   validated synthetic merge parent; push, merge_group and dispatch run the full gate; an unmapped
   event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
-  workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet 90 min, tool-devsync
-  and wbs-store-sqlite 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
+  workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet and wbs-store-sqlite
+  90 min, tool-devsync 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
   scope with `MemoryMax=12G`, `TasksMax=4096` and `AllowedCPUs=0-2`, A-CI-LEAF-MEMORYMAX-1 and -2;
   the tool-fleet leaf also keeps one living comment on issue #963 every 45 s, A-CI-LEAF-RECORDER-2,
   and refuses an AWS-hosted runner with exit 78 and a marker artifact, A-CI-LEAF-AWS-1),
@@ -228,7 +228,9 @@ images to the self-hosted registry, `release.json`), remote scripts install, the
 release, an unbuilt executor bundle, incomplete env files, local auth or a failed MCP preflight.
 The swap starts the idle colour, health-gates it, repoints Caddy, drains WebSockets, stops the
 old colour, runs smoke. Backend: all writers stopped and proven stopped, `VACUUM INTO` backup,
-the applied-migration set captured before migrate, step-code backfill before exposure; recovery
+the applied-migration set captured before migrate and post-stop vocabulary admission before
+exposure. Current catalogue codes belong to explicit report/apply; the predecessor code
+backfill remains an explicit historical tool. Recovery
 after exposure is attended. [runbook-prod-deploy.md](runbook-prod-deploy.md). Never build on
 h1claw.
 

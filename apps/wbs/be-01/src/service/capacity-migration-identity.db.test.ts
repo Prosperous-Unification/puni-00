@@ -1,48 +1,34 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { bindFixtureSteps, type FixtureStepBinding } from '@wbs/core/testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
-import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
-import { inMemoryBudgets } from '@wbs/store-memory/budget-fixture';
-import { inMemoryMeasureEstimates } from '@wbs/store-memory/measure-estimate-fixture';
-import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
-import { inMemorySteps } from '@wbs/store-memory/step-fixture';
-import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
-import { testResourceStores } from '@wbs/store-memory/testing/service-fixtures';
-import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
+import type { StoredDependency, WorkItem, WorkPackage, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { rollbackTo } from '../repository/migrate-down';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures, memoryMeasureTable } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { withSnappedRollUps } from '../testing/snapped-roll-ups';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { fastScheduler } from './optimizer-wiring';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 /** The pre-C5 tip: `main@050fd45`'s schema, and the state the migration runs against. */
 const PRE_C5 = '20260812100001_add_max_parallel';
 /**
@@ -67,7 +53,7 @@ interface CapturedRow {
 }
 
 interface CapturedPlan {
-  projectId: string;
+  workPackageId: string;
   stepIds: string[];
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
@@ -91,7 +77,7 @@ interface Oracle {
 const oracle = captured as unknown as Oracle;
 
 /**
- * The pre-`capacity-per-project` identity differential: **Claim B** of that
+ * The pre-`capacity-per-work-package` identity differential: **Claim B** of that
  * change's `design.md` D7, and — since `team-sets` (2026-08-14) — of that
  * change's D5 as well.
  *
@@ -106,7 +92,7 @@ const oracle = captured as unknown as Oracle;
  * either on its own reads like the whole thing and is not:
  *
  * - **Claim A**, in `repository/migrate.test.ts`: the migration writes one row per
- *   (existing project, sized team) carrying that team's global number.
+ *   (existing work package, sized team) carrying that team's global number.
  * - **Claim B**, here: those numbers produce the answer be-01 gave before the
  *   change — every field of every work item and every slice.
  *
@@ -186,8 +172,8 @@ describe('every plan schedules identically across the migration', () => {
       'notBefore',
       'person',
       'predecessor',
-      'projectStart',
       'stepOrder',
+      'workPackageStart',
     ]);
     expect(slices.filter((slice) => slice.boundBy === 'capacity')).toHaveLength(25);
     expect(
@@ -227,7 +213,7 @@ describe('every plan schedules identically across the migration', () => {
     // rejects — would leave this green **on a database with work items in it**:
     // every date in the corpus is identical under it, because a pair labelling
     // nothing spends no slots. That is exactly D2's point, and exactly why the
-    // promise needs `migrate.test.ts`'s `seeds every project that existed…` and
+    // promise needs `migrate.test.ts`'s `seeds every workPackage that existed…` and
     // the third test in this file, not this one alone.
     //
     // **Reasoned, not watched, and this comment claimed otherwise until the
@@ -244,7 +230,7 @@ describe('every plan schedules identically across the migration', () => {
       // `.at`, so a fixture with fewer answers than plans throws here rather than
       // spreading `undefined` into the comparison and passing against nothing.
       const answer = oracle.answers.at(at);
-      if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
+      if (answer === undefined) throw new Error(`no captured answer for ${plan.workPackageId}`);
       const tree = await replay(plan, seeded);
       // `teamIds` is lifted off every row before the comparison and asserted on
       // its own below, because the oracle predates the field and a payload that
@@ -351,9 +337,27 @@ describe('every plan schedules identically across the migration', () => {
             nodeResources,
             blockages,
             blockageCauses,
+            steps,
             charged,
             ...row
           }) => {
+            expect(steps).toEqual(
+              row.rolledUp
+                ? undefined
+                : tree.steps.map(({ id, name }) => ({
+                    stepId: id,
+                    name,
+                    code: suggestStepCode(name, new Set()),
+                    via: [
+                      {
+                        bindingId: id + ':identity-binding',
+                        scopeKind: 'project',
+                        scopeId: PARENT_PROJECT_ID,
+                        workItemTypeId: null,
+                      },
+                    ],
+                  })),
+            );
             // Native charges are new wire fields. Their workday values must equal
             // finalDays, which the unchanged historical oracle pins below.
             // Proof: returning empty charged from production finalsOf failed this
@@ -487,7 +491,7 @@ describe('every plan schedules identically across the migration', () => {
                   ),
             );
             // The capture predates blockage fields. An unstated leaf has no facts and an empty
-            // cause list for every project step; parents expose neither field.
+            // cause list for every work package step; parents expose neither field.
             // Proof (2026-10-14): phantom facts, omitted step causes and parent field leakage
             // each failed both historical oracle suites through the production tree projection.
             expect(blockages).toEqual(row.rolledUp ? undefined : {});
@@ -523,15 +527,15 @@ describe('every plan schedules identically across the migration', () => {
       // row in this corpus it is about and why 1e-9 cannot hide a real move.
       const narrow = (document: Record<string, unknown>): Record<string, unknown> =>
         withSnappedRollUps(document);
-      expect(narrow({ project: plan.projectId, ...lifted })).toEqual(
+      expect(narrow({ workPackage: plan.workPackageId, ...lifted })).toEqual(
         narrow({
-          project: plan.projectId,
+          workPackage: plan.workPackageId,
           ...answer,
           // The one key the capture could not carry, because it did not exist:
           // `teamCapacities` is this change's own addition to the payload. Its
           // *values* are the seeded numbers, which is the thing under test, so it is
           // asserted here rather than deleted from the comparison.
-          teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
+          teamCapacities: [...(seeded.get(plan.workPackageId) ?? new Map<string, number>())]
             .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
             .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
           // The second key the capture predates, added by `priority-bands`. Its
@@ -539,7 +543,7 @@ describe('every plan schedules identically across the migration', () => {
           // differential: the ladder is read into the payload and passed to
           // nothing, so every date, every slice and every other field is
           // byte-identical to the answer captured at `050fd45`. The claim in the
-          // other direction — that a project which has **re-cut** its ladder
+          // other direction — that a work package which has **re-cut** its ladder
           // schedules identically too — is `priority-band-identity.test.ts`, and
           // it is that change's to make rather than this file's.
           priorityBands: DEFAULT_PRIORITY_BANDS,
@@ -548,8 +552,8 @@ describe('every plan schedules identically across the migration', () => {
     }
   });
 
-  it('gives every project the same numbers, which is what makes the identity hold', async () => {
-    // Why the differential can pass at all: before the change, two projects
+  it('gives every work package the same numbers, which is what makes the identity hold', async () => {
+    // Why the differential can pass at all: before the change, two work packages
     // labelled `Platform` were each told they had all of it, and after it each was
     // seeded with that same number. The identity is not a property of the engine —
     // it is a property of the **seeding**, and this is that property stated on its
@@ -562,8 +566,8 @@ describe('every plan schedules identically across the migration', () => {
       (team): team is (typeof oracle.teams)[number] & { size: number } => team.size !== null,
     );
     for (const plan of oracle.plans) {
-      const slots = seeded.get(plan.projectId);
-      if (slots === undefined) throw new Error(`${plan.projectId} was seeded nothing at all`);
+      const slots = seeded.get(plan.workPackageId);
+      if (slots === undefined) throw new Error(`${plan.workPackageId} was seeded nothing at all`);
       for (const team of sized) expect(slots.get(team.id)).toBe(team.size);
       // The unsized team is seeded nowhere, so it is absent — which is unstated,
       // which is what it was before the migration.
@@ -581,7 +585,7 @@ describe('every plan schedules identically across the migration', () => {
   });
 
   /**
-   * The oracle's teams and projects written the way the release being replaced
+   * The oracle's teams and work packages written the way the release being replaced
    * wrote them, then migrated forward — and the numbers `slotsFor` reads back.
    *
    * The `INSERT`s are written out rather than built through drizzle, exactly as
@@ -591,8 +595,7 @@ describe('every plan schedules identically across the migration', () => {
   async function slotsAfterTheMigration(): Promise<Map<string, Map<string, number>>> {
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-identity-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    rollbackTo(path, FOLDER, PRE_C5);
+    runMigrations(path, copyRecoveryPrefix(dir, PRE_C5));
     const before = openDatabase(path);
     try {
       before.run(
@@ -602,7 +605,7 @@ describe('every plan schedules identically across the migration', () => {
         before.run(
           'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
             ` VALUES (?, ?, 'u', 0, ?, ?, 0, 1)`,
-          [plan.projectId, `Plan ${plan.projectId}`, plan.estimateMethod, plan.startDate],
+          [plan.workPackageId, `Plan ${plan.workPackageId}`, plan.estimateMethod, plan.startDate],
         );
       }
       for (const team of oracle.teams) {
@@ -616,12 +619,40 @@ describe('every plan schedules identically across the migration', () => {
       before.close();
     }
 
-    runMigrations(path, FOLDER);
+    const organizationPrefix = join(dir, 'organization-prefix');
+    mkdirSync(organizationPrefix);
+    runMigrations(
+      path,
+      copyRecoveryPrefix(organizationPrefix, '20260927130000_add_organization_ownership'),
+    );
+    const mapping = openDatabase(path);
+    try {
+      mapping.run(
+        "INSERT INTO organization(id,name,legacy,created_at) VALUES('oracle-legacy','Oracle legacy',1,1)",
+      );
+      for (const plan of oracle.plans)
+        mapping.run(
+          "INSERT INTO project_organization(resource_id,organization_id) VALUES(?,'oracle-legacy')",
+          [plan.workPackageId],
+        );
+    } finally {
+      mapping.close();
+    }
+
+    // This historical capacity/ladder seed oracle finishes through the modern
+    // work-package columns at 116. Current catalogue replay uses the separate
+    // actual Memory Source; this SQL seed makes no 117 apply/window claim.
+    const readerPrefix = join(dir, 'reader-prefix');
+    mkdirSync(readerPrefix);
+    runMigrations(
+      path,
+      copyRecoveryPrefix(readerPrefix, '20261115120000_add_step_migration_report'),
+    );
 
     const store = new CapacityRepository(openDrizzle(path), OPEN);
     const seeded = new Map<string, Map<string, number>>();
     for (const plan of oracle.plans)
-      seeded.set(plan.projectId, await store.slotsFor(plan.projectId));
+      seeded.set(plan.workPackageId, await store.slotsFor(plan.workPackageId));
     return seeded;
   }
 
@@ -630,65 +661,70 @@ describe('every plan schedules identically across the migration', () => {
     plan: CapturedPlan,
     seeded: ReadonlyMap<string, ReadonlyMap<string, number>>,
   ): Promise<NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>> {
-    const projects = inMemoryProjects();
-    const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-      workItems.listByProject(projectId),
+    const { source } = await createLegacyWorkPackageFixture(
+      STAMP.by,
+      'identity-fixture-legacy',
+      PARENT_PROJECT_ID,
     );
-    const workItems = inMemoryWorkItems(directory);
-    const estimates = inMemoryEstimates(workItems);
-    const actuals = inMemoryActuals(workItems);
-    const measureTable = memoryMeasureTable();
-    const measures = inMemoryMeasures(workItems, measureTable);
-    const progress = inMemoryProgress(workItems);
-    const dependencies = inMemoryDependencies();
-    const resourceStores = testResourceStores(workItems);
-    const service = new WorkItemService({
-      dependencyContext: createLocalDependencyContext({
-        projects: projects,
-        workItems: workItems,
-        estimates: estimates,
-        dependencies: dependencies,
-        typedDependencies: inMemoryTypedDependencies(),
-      }),
-      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
-      scheduler: fastScheduler,
-      clock: testClock,
+    const {
+      workPackages,
+      directory,
       workItems,
-      projects,
       estimates,
       actuals,
       measures,
-      measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
-      budgets: inMemoryBudgets(workItems),
       progress,
-      attempts: inMemoryAttempts(workItems),
-      blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
-      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
+      typedDependencies,
+      measureEstimates,
+      budgets,
+      attempts,
+      blockages,
+      stepParallels,
+      subtrees,
+      journal,
+      demands,
+      resourceCapacity,
+    } = source.stores;
+    const service = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        workPackages: workPackages,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
+      admission: LEGACY_EDIT_ADMISSION,
+      scheduler: fastScheduler,
+      clock: testClock,
+      workItems,
+      workPackages,
+      estimates,
+      actuals,
+      measures,
+      measureEstimates,
+      budgets,
+      progress,
+      attempts,
+      blockages,
+      stepParallels,
+      dependencies,
+      typedDependencies,
       directory,
       capacity: inMemoryCapacity({
-        [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
+        [plan.workPackageId]: Object.fromEntries(seeded.get(plan.workPackageId) ?? []),
       }),
-      ...resourceStores,
+      demands,
+      resourceCapacity,
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({
-        workItems,
-        estimates,
-        actuals,
-        measures,
-        progress,
-        dependencies,
-        directory,
-        demands: resourceStores.demands,
-      }),
-      journal: inMemoryCommandJournal(),
+      subtrees,
+      journal,
       broadcast: recordingBroadcaster(),
     });
 
     // The id and the name and nothing else: a team has no size to add since
-    // `capacity-per-project`, and the captured `size` is deliberately left in
+    // `capacity-per-work-package`, and the captured `size` is deliberately left in
     // the oracle rather than carried in here — a fixture that spread it would
     // be handing a build that still fell back to the global column the numbers
     // that make the fallback look right. The type refuses that spread now.
@@ -696,10 +732,10 @@ describe('every plan schedules identically across the migration', () => {
       await directory.addTeam({ id: team.id, name: team.name }, STAMP);
     for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
-    const project: Project = projectRow({
-      id: plan.projectId,
-      name: `Plan ${plan.projectId}`,
-      ownerId: 'owner',
+    const workPackage: WorkPackage = workPackageRow({
+      id: plan.workPackageId,
+      name: `Plan ${plan.workPackageId}`,
+      projectId: PARENT_PROJECT_ID,
       estimateMethod: plan.estimateMethod,
       estimateRounding: 'exact',
       // The oracle was captured at a tip whose engine had no reach at all and
@@ -710,20 +746,31 @@ describe('every plan schedules identically across the migration', () => {
       depReach: 'anchor-slice',
       startDate: plan.startDate,
     });
-    const steps: Step[] = plan.stepIds.map((id, place) => ({
-      id,
-      projectId: plan.projectId,
-      name: `Step ${String(place)}`,
-      code: `step-${String(place)}`,
-      position: (place + 1) * STEP_POSITION_STEP,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
+    const bindings: FixtureStepBinding[] = plan.stepIds.map((id, place) => ({
+      definition: {
+        id,
+        code: 'step-' + String(place),
+        name: 'Step ' + String(place),
+        position: (place + 1) * STEP_POSITION_STEP,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      binding: {
+        bindingId: id + ':identity-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position: (place + 1) * STEP_POSITION_STEP,
+      },
     }));
-    await projects.create(project, steps, STAMP);
+    await bindFixtureSteps(source, 'identity-fixture-legacy', bindings, STAMP);
+    const created = await workPackages.create(workPackage, [], STAMP);
+    if (typeof created === 'string')
+      throw new Error('Identity fixture package creation refused: ' + created);
     for (const row of plan.rows) {
       const stored: WorkItem = workItemRow({
         id: row.id,
-        projectId: plan.projectId,
+        workPackageId: plan.workPackageId,
         parentId: row.parentId,
         position: row.position,
         name: row.name,
@@ -746,7 +793,7 @@ describe('every plan schedules identically across the migration', () => {
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {
           id: `${predecessorId}->${row.id}`,
-          projectId: plan.projectId,
+          workPackageId: plan.workPackageId,
           predecessorId,
           successorId: row.id,
         };
@@ -754,8 +801,8 @@ describe('every plan schedules identically across the migration', () => {
       }
     }
 
-    const tree = await service.tree(plan.projectId);
-    if (tree === null) throw new Error(`${plan.projectId} vanished on replay`);
+    const tree = await service.tree(plan.workPackageId);
+    if (tree === null) throw new Error(`${plan.workPackageId} vanished on replay`);
     return tree;
   }
 

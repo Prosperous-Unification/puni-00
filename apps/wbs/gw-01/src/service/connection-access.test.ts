@@ -3,10 +3,10 @@ import { describe, expect, it } from 'bun:test';
 import { ConnectionAccess } from './connection-access';
 import {
   ACCESS_CHECK_DEADLINE_MS,
-  type CheckProjectAccess,
+  type CheckWorkPackageAccess,
   LEASE_RENEW_MS,
-  type ProjectAccessVerdict,
-} from './project-access';
+  type WorkPackageAccessVerdict,
+} from './work-package-access';
 
 /** A clock that moves only when the test says so. */
 class ManualTimers {
@@ -48,7 +48,7 @@ async function flush(): Promise<void> {
   for (let turn = 0; turn < 100; turn += 1) await Promise.resolve();
 }
 
-function harness(check: CheckProjectAccess) {
+function harness(check: CheckWorkPackageAccess) {
   const timers = new ManualTimers();
   const connection = new AbortController();
   const revoked: { subscription: string; at: number }[] = [];
@@ -91,7 +91,7 @@ describe('ConnectionAccess', () => {
       onUnauthenticated: () => undefined,
       onUnavailable: () => undefined,
     });
-    access.hold('project:p', 'p');
+    access.hold('work-package:p', 'p');
     await timers.advanceTo(20_000);
 
     expect(removal.at).not.toBeNull();
@@ -103,7 +103,7 @@ describe('ConnectionAccess', () => {
     );
   });
 
-  it('keeps the bound and serves a subscribe with five held projects and a slow be-01', async () => {
+  it('keeps the bound and serves a subscribe with five held work packages and a slow be-01', async () => {
     const timers = new ManualTimers();
     let readable = true;
     const revoked: { subscription: string; at: number }[] = [];
@@ -125,7 +125,7 @@ describe('ConnectionAccess', () => {
       onUnavailable: () => undefined,
     });
     for (const index of [1, 2, 3, 4, 5])
-      access.hold(`project:p${String(index)}`, `p${String(index)}`);
+      access.hold(`work-package:p${String(index)}`, `p${String(index)}`);
 
     // The first round starts at 3000 and has answered granted by 4400.
     await timers.advanceTo(4_400);
@@ -158,9 +158,9 @@ describe('ConnectionAccess', () => {
     const timers = new ManualTimers();
     const checked: string[] = [];
     const access = new ConnectionAccess({
-      check: (projectId) =>
+      check: (workPackageId) =>
         new Promise((resolve) => {
-          checked.push(projectId);
+          checked.push(workPackageId);
           timers.schedule(1_400, () => {
             resolve('granted');
           });
@@ -171,7 +171,7 @@ describe('ConnectionAccess', () => {
       onUnauthenticated: () => undefined,
       onUnavailable: () => undefined,
     });
-    access.hold('project:held', 'held');
+    access.hold('work-package:held', 'held');
     // Seven subscribes keep the queue busy from 2900 to 12700, across three
     // lease cadences (3000, 6000, 9000).
     await timers.advanceTo(2_900);
@@ -184,10 +184,10 @@ describe('ConnectionAccess', () => {
     // Proof: dropping the `rounding` guard queued a round per cadence, so
     // `held` was checked more than once by 14200 (2026-10-11).
     await timers.advanceTo(12_699);
-    const heldChecksBy12699 = checked.filter((projectId) => projectId === 'held').length;
+    const heldChecksBy12699 = checked.filter((workPackageId) => workPackageId === 'held').length;
     await timers.advanceTo(14_200);
     expect(heldChecksBy12699).toBe(0);
-    expect(checked.filter((projectId) => projectId === 'held')).toHaveLength(1);
+    expect(checked.filter((workPackageId) => workPackageId === 'held')).toHaveLength(1);
   });
 
   it('closes as unavailable when a check outlives its deadline', async () => {
@@ -200,7 +200,7 @@ describe('ConnectionAccess', () => {
   });
 
   it('applies a subscription change only after the one queued before it', async () => {
-    let answer: (verdict: ProjectAccessVerdict) => void = () => undefined;
+    let answer: (verdict: WorkPackageAccessVerdict) => void = () => undefined;
     const { access } = harness(
       () =>
         new Promise((resolve) => {
@@ -229,7 +229,7 @@ describe('ConnectionAccess', () => {
       checks += 1;
       return Promise.resolve('granted');
     });
-    access.hold('project:p', 'p');
+    access.hold('work-package:p', 'p');
     await timers.advanceTo(LEASE_RENEW_MS);
     connection.abort();
 
@@ -257,7 +257,7 @@ it('reports a rejected asynchronous revocation and retires its lease', async () 
       reported.push(caught);
     },
   });
-  access.hold('project:held', 'held');
+  access.hold('work-package:held', 'held');
   await timers.advanceTo(LEASE_RENEW_MS);
   expect(reported).toEqual([failure]);
   expect(timers.pendingCount).toBe(0);

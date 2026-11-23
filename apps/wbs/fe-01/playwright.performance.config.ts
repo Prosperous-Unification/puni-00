@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { ordinaryContextPaths } from './ordinary-context-paths';
 import { parseOrdinaryPortShift } from './playwright.ordinary-servers';
 
+const contextPaths = ordinaryContextPaths(process.env['E2E_TEST_DATABASE']);
 const portShift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT'], true);
 
 /** The isolated suite selected only by the Performance level adapter. */
@@ -9,12 +11,14 @@ const portShift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT'], true);
 // wbs-fe-01:lint Nx target fail; direct ESLint named this file at 3:26.
 export default defineConfig({
   testDir: './e2e-performance',
+  globalSetup: './ordinary-global-setup.ts',
   testMatch: /.*\.perf\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   retries: 0,
   timeout: 120_000,
   use: {
+    storageState: contextPaths.storageStatePath,
     baseURL: `http://localhost:${String(4200 + portShift)}`,
     viewport: { width: 1400, height: 900 },
     locale: 'en-US',

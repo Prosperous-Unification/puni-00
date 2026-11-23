@@ -25,6 +25,13 @@ const GPU: MeasureDefinition = {
   currency: null,
 };
 const GPU_IN_B: MeasureDefinition = { ...GPU, id: 'measure-facts-gpu-b' };
+const FOREIGN_GPU_IN_B: MeasureDefinition = {
+  ...GPU,
+  id: 'measure-facts-foreign-gpu-b',
+  key: 'foreign_gpu_minutes',
+  name: 'Foreign GPU minutes',
+  order: 7,
+};
 
 /** A trio both estimate seeds write. */
 const THREE_POINTS = { optimistic: 10, realistic: 20, pessimistic: 30 } as const;
@@ -55,19 +62,20 @@ const CARD_B = { currency: 'USD', rateCardDigest: 'card-b' } as const;
 
 /**
  * Whether a case needs the measure fact seed (`wbs-measure-budgets` task 1.3):
- * both {@link CONFORMANCE_MEASURE_ORGANIZATIONS}, the seed's first project
- * owned by the legacy one, and {@link seedMeasureFactCase}. The adapter maps
- * the project in its own way (SQLite's `project_organization`, memory's map).
+ * both {@link CONFORMANCE_MEASURE_ORGANIZATIONS}, both seed work packages below
+ * projects owned by the legacy organization, and {@link seedMeasureFactCase}.
+ * The adapter retains its actual project/package ownership graph.
  */
 export function isMeasureFactCase(caseId: string): boolean {
   return (FACT_CASES as readonly string[]).includes(caseId);
 }
 
 /**
- * Defines `gpu_minutes` in both organizations and, for the usage case, writes
- * a `gpu_minutes` and a `token_actual` fact on the first project's first work
+ * Defines `gpu_minutes` in both organizations and a foreign-only key in the other;
+ * for the usage case, writes
+ * a `gpu_minutes` and a `token_actual` fact on the first work package's first work
  * item. Runs after the adapter created the organizations and mapped the
- * project.
+ * work package.
  *
  * @throws when a store refuses the seed.
  */
@@ -79,10 +87,18 @@ export async function seedMeasureFactCase(
   for (const [organizationId, definition] of [
     [A, GPU],
     [B, GPU_IN_B],
+    [B, FOREIGN_GPU_IN_B],
   ] as const) {
     const added = await stores.directory.addMeasure(organizationId, definition, seed.stamps[0]);
-    if (!added.ok) throw new Error(`gpu_minutes was refused in ${organizationId}: ${added.reason}`);
+    if (!added.ok)
+      throw new Error(`${definition.key} was refused in ${organizationId}: ${added.reason}`);
   }
+  // Proof: omitting this foreign-only seed failed this independent read before
+  // any fact refusal was credited (owned-measure-effect-foreign-definition-prerequisite-v1).
+  const foreign = (await stores.directory.listMeasures(B)).find(
+    ({ id }) => id === FOREIGN_GPU_IN_B.id,
+  );
+  expect(foreign).toEqual(FOREIGN_GPU_IN_B);
   const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
   if (caseId === 'directory.usageOfMeasure:estimates')
     await stores.measureEstimates.set(
@@ -119,9 +135,9 @@ export async function seedMeasureFactCase(
 export function measureFactRegistrations(open: OpenCase<'measures'>): readonly CaseRegistration[] {
   return [
     // `tokens` and `token_actual` (and `hours`/`hours_actual`) name one row
-    // in every store method (design D18), whoever owns the project.
+    // in every store method (design D18), whoever owns the work package.
     storeCase('measures', 'measures.set:alias-one-row', open, async ({ port, seed }) => {
-      const [projectId] = seed.projectIds;
+      const [workPackageId] = seed.workPackageIds;
       const workItemId = seed.workItemIds[0][0];
       const stepId = seed.stepIds[0][0];
       const fact = { workItemId, stepId, recordedAt: 1 };
@@ -129,19 +145,20 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
       await port.set({ ...fact, metric: 'token_actual', value: 4 }, seed.stamps[0]);
       await port.set({ ...fact, metric: 'hours_actual', value: 1.5 }, seed.stamps[0]);
       await port.set({ ...fact, metric: 'hours', value: 2.5 }, seed.stamps[0]);
-      expect(await port.listByProject(projectId)).toEqual([
+      expect(await port.listByWorkPackage(workPackageId)).toEqual([
         { ...fact, metric: 'hours_actual', value: 2.5 },
         { ...fact, metric: 'token_actual', value: 4 },
       ]);
       await port.remove(workItemId, stepId, 'tokens', seed.stamps[1]);
       await port.remove(workItemId, stepId, 'hours', seed.stamps[1]);
-      expect(await port.listByProject(projectId)).toEqual([]);
+      expect(await port.listByWorkPackage(workPackageId)).toEqual([]);
     }),
     storeCase('measures', 'measures.set:defined-key', open, async ({ port, seed }) => {
-      const [owned, unowned] = seed.projectIds;
+      const [owned, sibling] = seed.workPackageIds;
       const workItemId = seed.workItemIds[0][0];
       const stepId = seed.stepIds[0][0];
-      expect((await port.definitionsFor(owned))?.map(({ key }) => key)).toEqual([
+      const definitions = await port.definitionsFor(owned);
+      expect(definitions?.map(({ key }) => key)).toEqual([
         'time',
         'tokens',
         'hours',
@@ -149,7 +166,8 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
         'agent_minutes',
         'gpu_minutes',
       ]);
-      expect(await port.definitionsFor(unowned)).toBeNull();
+      expect(await port.definitionsFor(sibling)).toEqual(definitions);
+      expect(await port.definitionsFor('absent-measure-package')).toBeNull();
       await port.set(
         { workItemId, stepId, metric: 'gpu_minutes', value: 3, recordedAt: 1 },
         seed.stamps[0],
@@ -166,7 +184,7 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
         { workItemId, stepId, metric: 'gpu_minutes', value: 4, recordedAt: 2 },
         { workItemId, stepId, metric: 'token_actual', value: 5, recordedAt: 1 },
       ];
-      expect(await port.listByProject(owned)).toEqual(read);
+      expect(await port.listByWorkPackage(owned)).toEqual(read);
       expect(await port.listByWorkItems(owned, [workItemId])).toEqual(read);
       // A key the owning organization does not define is a caller fault.
       expect(
@@ -180,14 +198,14 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
             (err: unknown) => (err instanceof Error ? err.message : 'not an Error'),
           ),
       ).toContain(UNDEFINED_KEY);
-      // And so is any defined key on a project no organization owns.
+      // A definition held only by another organization cannot reach this sibling.
       expect(
         await port
           .set(
             {
               workItemId: seed.workItemIds[1][0],
               stepId: seed.stepIds[1][0],
-              metric: 'gpu_minutes',
+              metric: FOREIGN_GPU_IN_B.key,
               value: 1,
               recordedAt: 3,
             },
@@ -198,9 +216,18 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
             (err: unknown) => (err instanceof Error ? err.message : 'not an Error'),
           ),
       ).toContain(UNDEFINED_KEY);
+      const siblingFact = {
+        workItemId: seed.workItemIds[1][0],
+        stepId: seed.stepIds[1][0],
+        metric: 'gpu_minutes',
+        value: 1,
+        recordedAt: 3,
+      };
+      await port.set(siblingFact, seed.stamps[1]);
+      expect(await port.listByWorkPackage(sibling)).toEqual([siblingFact]);
       await port.remove(workItemId, stepId, 'story_points', seed.stamps[1]);
       await port.remove(workItemId, stepId, 'gpu_minutes', seed.stamps[1]);
-      expect(await port.listByProject(owned)).toEqual([read[1]]);
+      expect(await port.listByWorkPackage(owned)).toEqual([read[1]]);
     }),
     // A legacy token estimate written over a three-point tokens trio replaces
     // it with the single figure, and its removal takes the trio (design D28).
@@ -209,16 +236,16 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
       'measures.set:legacy-estimate-replaces-trio',
       open,
       async ({ port, seed, readers }) => {
-        const [owned] = seed.projectIds;
+        const [owned] = seed.workPackageIds;
         const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
-        expect(await readers.measureEstimates.listByProject(owned)).toEqual([
+        expect(await readers.measureEstimates.listByWorkPackage(owned)).toEqual([
           { ...node, key: 'tokens', ...THREE_POINTS, singlePoint: false },
         ]);
         await port.set(
           { ...node, metric: 'token_estimate', value: 40, recordedAt: 1 },
           seed.stamps[1],
         );
-        expect(await readers.measureEstimates.listByProject(owned)).toEqual([
+        expect(await readers.measureEstimates.listByWorkPackage(owned)).toEqual([
           {
             ...node,
             key: 'tokens',
@@ -229,20 +256,20 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
           },
         ]);
         await port.remove(node.workItemId, node.stepId, 'token_estimate', seed.stamps[1]);
-        expect(await readers.measureEstimates.listByProject(owned)).toEqual([]);
+        expect(await readers.measureEstimates.listByWorkPackage(owned)).toEqual([]);
       },
     ),
     // A money fact keeps the basis it was priced with, a rewrite replaces it,
     // and a fact in any other measure carries none (design D43).
     storeCase('measures', 'measures.set:basis', open, async ({ port, seed }) => {
-      const [owned] = seed.projectIds;
+      const [owned] = seed.workPackageIds;
       const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
       await port.set(
         { ...node, metric: 'cost', value: 7, recordedAt: 1, basis: CARD_A },
         seed.stamps[0],
       );
       await port.set({ ...node, metric: 'token_actual', value: 5, recordedAt: 1 }, seed.stamps[0]);
-      expect(await port.listByProject(owned)).toEqual([
+      expect(await port.listByWorkPackage(owned)).toEqual([
         { ...node, metric: 'cost', value: 7, recordedAt: 1, basis: CARD_A },
         { ...node, metric: 'token_actual', value: 5, recordedAt: 1 },
       ]);
@@ -255,7 +282,7 @@ export function measureFactRegistrations(open: OpenCase<'measures'>): readonly C
         { ...node, metric: 'token_actual', value: 5, recordedAt: 1 },
       ]);
       await port.set({ ...node, metric: 'cost', value: 9, recordedAt: 3 }, seed.stamps[1]);
-      const unpriced = (await port.listByProject(owned)).at(0);
+      const unpriced = (await port.listByWorkPackage(owned)).at(0);
       expect(unpriced).toEqual({ ...node, metric: 'cost', value: 9, recordedAt: 3 });
       expect(unpriced !== undefined && 'basis' in unpriced).toBe(false);
     }),
@@ -308,12 +335,12 @@ export function measureEstimateRegistrations(
       'measureEstimates.set:defined-key',
       open,
       async ({ port, seed }) => {
-        const [owned, unowned] = seed.projectIds;
+        const [owned, sibling] = seed.workPackageIds;
         const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
         const gpu = { ...node, key: 'gpu_minutes', ...THREE_POINTS, singlePoint: false };
         expect(await port.set(gpu, seed.stamps[0])).toBe('written');
         expect(await port.set({ ...gpu, pessimistic: 45 }, seed.stamps[1])).toBe('written');
-        expect(await port.listByProject(owned)).toEqual([{ ...gpu, pessimistic: 45 }]);
+        expect(await port.listByWorkPackage(owned)).toEqual([{ ...gpu, pessimistic: 45 }]);
         const thrown = (estimate: typeof gpu) =>
           port.set(estimate, seed.stamps[1]).then(
             () => 'written',
@@ -321,14 +348,17 @@ export function measureEstimateRegistrations(
           );
         expect(await thrown({ ...gpu, key: 'story_points' })).toContain(UNDEFINED_KEY);
         const elsewhere = { workItemId: seed.workItemIds[1][0], stepId: seed.stepIds[1][0] };
-        // An unowned project estimates tokens alone (design D19).
-        expect(await thrown({ ...gpu, ...elsewhere })).toContain(UNDEFINED_KEY);
+        expect(await thrown({ ...gpu, ...elsewhere, key: FOREIGN_GPU_IN_B.key })).toContain(
+          UNDEFINED_KEY,
+        );
+        const siblingGpu = { ...gpu, ...elsewhere };
+        expect(await port.set(siblingGpu, seed.stamps[1])).toBe('written');
         const tokens = { ...elsewhere, key: 'tokens', ...THREE_POINTS, singlePoint: false };
         expect(await port.set(tokens, seed.stamps[1])).toBe('written');
-        expect(await port.listByProject(unowned)).toEqual([tokens]);
+        expect(await port.listByWorkPackage(sibling)).toEqual([siblingGpu, tokens]);
         await port.remove(node.workItemId, node.stepId, 'gpu_minutes', seed.stamps[1]);
         await port.remove(node.workItemId, node.stepId, 'story_points', seed.stamps[1]);
-        expect(await port.listByProject(owned)).toEqual([]);
+        expect(await port.listByWorkPackage(owned)).toEqual([]);
       },
     ),
     storeCase(
@@ -336,7 +366,7 @@ export function measureEstimateRegistrations(
       'measureEstimates.set:three-point-clears-flag',
       open,
       async ({ port, seed, readers }) => {
-        const [owned] = seed.projectIds;
+        const [owned] = seed.workPackageIds;
         const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
         const single = {
           ...node,
@@ -347,17 +377,17 @@ export function measureEstimateRegistrations(
           singlePoint: true,
         };
         expect(await port.set(single, seed.stamps[0])).toBe('written');
-        expect(await port.listByProject(owned)).toEqual([single]);
+        expect(await port.listByWorkPackage(owned)).toEqual([single]);
         // The single-point trio is the legacy token estimate the old release reads.
-        expect(await readers.measures.listByProject(owned)).toEqual([
+        expect(await readers.measures.listByWorkPackage(owned)).toEqual([
           { ...node, metric: 'token_estimate', value: 40, recordedAt: seed.stamps[0].at },
         ]);
         const ranged = { ...node, key: 'tokens', ...THREE_POINTS, singlePoint: false };
         expect(await port.set(ranged, seed.stamps[1])).toBe('written');
-        expect(await port.listByProject(owned)).toEqual([ranged]);
-        expect(await readers.measures.listByProject(owned)).toEqual([]);
+        expect(await port.listByWorkPackage(owned)).toEqual([ranged]);
+        expect(await readers.measures.listByWorkPackage(owned)).toEqual([]);
         await port.remove(node.workItemId, node.stepId, 'tokens', seed.stamps[1]);
-        expect(await port.listByProject(owned)).toEqual([]);
+        expect(await port.listByWorkPackage(owned)).toEqual([]);
       },
     ),
     storeCase(
@@ -365,7 +395,7 @@ export function measureEstimateRegistrations(
       'measureEstimates.moveAll:every-key',
       open,
       async ({ port, seed }) => {
-        const [owned] = seed.projectIds;
+        const [owned] = seed.workPackageIds;
         const [from, to] = seed.workItemIds[0];
         const stepId = seed.stepIds[0][0];
         await port.set(
@@ -377,22 +407,22 @@ export function measureEstimateRegistrations(
           seed.stamps[0],
         );
         await port.moveAll(from, to, seed.stamps[1]);
-        expect(await port.listByProject(owned)).toEqual([
+        expect(await port.listByWorkPackage(owned)).toEqual([
           { workItemId: to, stepId, key: 'gpu_minutes', ...THREE_POINTS, singlePoint: false },
           { workItemId: to, stepId, key: 'tokens', ...THREE_POINTS, singlePoint: false },
         ]);
       },
     ),
     storeCase('measureEstimates', 'measureEstimates.set:basis', open, async ({ port, seed }) => {
-      const [owned] = seed.projectIds;
+      const [owned] = seed.workPackageIds;
       const node = { workItemId: seed.workItemIds[0][0], stepId: seed.stepIds[0][0] };
       const cost = { ...node, key: 'cost', ...THREE_POINTS, singlePoint: false };
       await port.set({ ...cost, basis: CARD_A }, seed.stamps[0]);
-      expect(await port.listByProject(owned)).toEqual([{ ...cost, basis: CARD_A }]);
+      expect(await port.listByWorkPackage(owned)).toEqual([{ ...cost, basis: CARD_A }]);
       await port.set({ ...cost, basis: CARD_B }, seed.stamps[1]);
-      expect(await port.listByProject(owned)).toEqual([{ ...cost, basis: CARD_B }]);
+      expect(await port.listByWorkPackage(owned)).toEqual([{ ...cost, basis: CARD_B }]);
       await port.set(cost, seed.stamps[1]);
-      const unpriced = (await port.listByProject(owned)).at(0);
+      const unpriced = (await port.listByWorkPackage(owned)).at(0);
       expect(unpriced !== undefined && 'basis' in unpriced).toBe(false);
     }),
   ];
@@ -405,7 +435,7 @@ export function measureEstimateRegistrations(
 export function budgetRegistrations(open: OpenCase<'budgets'>): readonly CaseRegistration[] {
   return [
     storeCase('budgets', 'budgets.set:defined-key', open, async ({ port, seed }) => {
-      const [owned, unowned] = seed.projectIds;
+      const [owned, sibling] = seed.workPackageIds;
       const gpu = {
         workItemId: seed.workItemIds[0][0],
         key: 'gpu_minutes',
@@ -414,22 +444,25 @@ export function budgetRegistrations(open: OpenCase<'budgets'>): readonly CaseReg
         holdPerAttempt: 10,
       };
       await port.set(gpu, seed.stamps[0]);
-      expect(await port.listByProject(owned)).toEqual([gpu]);
+      expect(await port.listByWorkPackage(owned)).toEqual([gpu]);
       const thrown = (budget: typeof gpu) =>
         port.set(budget, seed.stamps[1]).then(
           () => 'written',
           (err: unknown) => (err instanceof Error ? err.message : 'not an Error'),
         );
       expect(await thrown({ ...gpu, key: 'story_points' })).toContain(UNDEFINED_KEY);
-      // An unowned project budgets the seeded four alone (design D19).
       const elsewhere = seed.workItemIds[1][0];
-      expect(await thrown({ ...gpu, workItemId: elsewhere })).toContain(UNDEFINED_KEY);
+      expect(await thrown({ ...gpu, workItemId: elsewhere, key: FOREIGN_GPU_IN_B.key })).toContain(
+        UNDEFINED_KEY,
+      );
+      const siblingGpu = { ...gpu, workItemId: elsewhere };
+      await port.set(siblingGpu, seed.stamps[1]);
       const tokens = { ...gpu, workItemId: elsewhere, key: 'tokens', holdPerAttempt: null };
       await port.set(tokens, seed.stamps[1]);
-      expect(await port.listByProject(unowned)).toEqual([tokens]);
+      expect(await port.listByWorkPackage(sibling)).toEqual([siblingGpu, tokens]);
     }),
     storeCase('budgets', 'budgets.set:replace-remove', open, async ({ port, seed }) => {
-      const [owned] = seed.projectIds;
+      const [owned] = seed.workPackageIds;
       const [first, second] = seed.workItemIds[0];
       const budget = (workItemId: string, key: string, cap: number): StoredBudget => ({
         workItemId,
@@ -449,10 +482,10 @@ export function budgetRegistrations(open: OpenCase<'budgets'>): readonly CaseReg
       ].sort((left, right) =>
         left.workItemId < right.workItemId ? -1 : left.workItemId > right.workItemId ? 1 : 0,
       );
-      expect(await port.listByProject(owned)).toEqual(sorted);
+      expect(await port.listByWorkPackage(owned)).toEqual(sorted);
       await port.remove(first, 'tokens', seed.stamps[1]);
       await port.remove(first, 'kwh', seed.stamps[1]);
-      expect(await port.listByProject(owned)).toEqual(
+      expect(await port.listByWorkPackage(owned)).toEqual(
         sorted.filter((each) => !(each.workItemId === first && each.key === 'tokens')),
       );
     }),

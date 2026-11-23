@@ -14,7 +14,7 @@ import { schedule } from './schedule';
  * assigned to would time the pass that already existed.
  *
  * The 20 were called *phases* until `steps-not-phases`, where the word became
- * the project's own spelling of what a slice is under. They are top-level work
+ * the work package's own spelling of what a slice is under. They are top-level work
  * items and never were a step, so they are `parent` here rather than collapsing
  * into the inner loop's name — which is exactly what a blind rename did. The
  * inner `stepIds.forEach((stepId, step) => …)` shadows both, and the fixture's

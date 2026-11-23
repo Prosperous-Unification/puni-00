@@ -10,7 +10,7 @@ import type {
  * The three figures a measure column can show, in the order they render.
  *
  * `fact` is what was recorded, `estimate` the expected figure folded from the
- * trio by the project's PERT weights, `variance` the fact less the expected.
+ * trio by the work package's PERT weights, `variance` the fact less the expected.
  */
 export const MEASURE_FACETS = ['estimate', 'fact', 'variance'] as const;
 export type MeasureFacet = (typeof MEASURE_FACETS)[number];

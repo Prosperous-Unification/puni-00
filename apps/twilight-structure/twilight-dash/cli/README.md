@@ -1,14 +1,15 @@
-# Twilight Dash
+# PUNI Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes the local commands below, plus the managed resource runtime:
+and exposes the commands below through `puni dash` (alias `puni d`), plus the managed resource runtime.
+Use the selected installed [PUNI executable](../../../puni/cli/README.md).
 
 | Command                                                                                                                                                                   | What it does                                                                                                                                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bootstrap-authority <repository>`                                                                                                                                        | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                                            |
 | `inspect-authority <repository> [--session <id>]`                                                                                                                         | prints the authority state, read-only                                                                                                                                                                                    |
 | `recover-publication <repository> --integration-id <id>`                                                                                                                  | finishes an interrupted publication from its durable record                                                                                                                                                              |
-| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                                                                      | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)                                    |
+| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                                                                      | freezes a bound packet's candidate and prints its submission report; judges the packet through PUNI Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)                                        |
 | `render-observation-units <layout.json> <new-dir>`                                                                                                                        | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md)                         |
 | `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>`                                          | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                                          |
 | `bootstrap-observation`, `migrate-observation`                                                                                                                            | create or migrate the observation store; see [observation store](#observation-store)                                                                                                                                     |
@@ -27,13 +28,12 @@ and exposes the local commands below, plus the managed resource runtime:
 | `ops job render-audit-units --config <path> --bun <path> --dash <path> --checkout <path> --output-directory <dir>`                                                        | writes the weekly systemd user timer and service for `ops job audit`; installs nothing; see [calibration](docs/resources.md#calibration-proposal-and-audit-slice-4)                                                      |
 | `ops pool init --config <path>`, `ops pool inspect --config <path>`                                                                                                       | initialize the host pool (the resource ledger and its run records), or print it as JSON; see [host jobs](docs/resources.md#ops-pool-and-ops-job-slice-3)                                                                 |
 
-`twilight-dash --help`, `twilight-dash help <command>` and `twilight-dash <command> --help` print
-help generated from the [command-line parser](src/cli-parser.ts) on stdout and exit 0;
-`twilight-dash completion bash|zsh|fish` prints a shell completion script. Every command's grammar
-is typed there and refused before any handler runs, so a refused line reads no file and opens no
-store or connection. A refused command line prints one `error: ` line on stderr and exits 1 (64
-for an `ops` command other than `ops release`): `Unsupported Dash command: <name>`, or the usage of the deepest command it
-names (`usage: twilight-dash resources cleanup …`) with the reason, which never quotes an operand.
+`puni dash --help` and `puni dash <command> --help` print generated help on stdout.
+The [PUNI parser](../../../puni/cli/src/cli-parser.ts) composes the typed
+[Dash grammar](src/cli-parser.ts); `puni completion bash|zsh|fish` prints shell completion
+definitions. Invalid arguments are refused before loading the provider runtime. They exit 1,
+or 64 for an `ops` command other than `ops release`. Diagnostics use the canonical
+`usage: puni dash (…)` prefix and redact operands.
 Options accept `--flag=value` as well as `--flag value`, in any order around the positional
 operands: the generated usage lists options first, while the table above and the runbooks show the
 operands first, and both parse.
@@ -64,7 +64,7 @@ lock with the admission authority
 ([ADR 0051](../../../../docs/adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
 Its observation service polls GitHub for ready candidates on a timer, and the review invoker's
 runtime ([`src/review/invoker.ts`](src/review/invoker.ts)) spawns review harnesses and writes their
-invocation journals. Both reach Twilight Burokrat only through `@twilight-burokrat/judge`;
+invocation journals. Both reach PUNI Burokrat only through `@twilight-burokrat/judge`;
 Burokrat keeps `validate-review-provenance`.
 
 ## Activation checks
@@ -100,7 +100,7 @@ digest, eligibility checks and execution admission; see
 [fleet identities and ownership](../../../../docs/infra/fleet.md) and
 [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
 
-From the repository root, supply a desired fleet, its complete observation, an
+Supply a desired fleet, its complete observation, an
 exact observed unenrolled node and cluster, and the SHA-256 values of the reviewed
 inventory, Ansible variables and SSH known-hosts artifacts. Set the three digest
 variables below to those reviewed hexadecimal values. Choose an unused output
@@ -108,7 +108,7 @@ path; the command creates an owner-only plan and refuses to replace an existing
 file.
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts plan-enrollment \
+puni dash plan-enrollment \
   --fleet /path/to/desired.yaml \
   --observation /path/to/observation.json \
   --output /path/to/new-enrollment-plan.json \
@@ -136,11 +136,12 @@ This local facade does not relocate lease authority.
 ## Checks
 
 The declared [Nx project](project.json) runs its real dispatcher and entrypoint
-tests with the ordinary acceptance targets. The CLI runs from source. `build`
-bundles only the observation launcher, a second composition root that the
+tests with the ordinary acceptance targets. This provider’s `build` target
+bundles the observation launcher, a second composition root that the
 observation service unit pins, into
 `dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs` and prints
-its SHA-256 ([build.ts](src/packaging/build.ts)).
+its SHA-256 ([build.ts](src/packaging/build.ts)). The [PUNI package build](../../../puni/cli/src/packaging/build.ts)
+assembles the installed client executable and its provider assets.
 
 ```sh
 bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache
@@ -160,7 +161,7 @@ separate requirements.
 Record explicit operator assertions against a supplied plan reference and task export:
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts record-progress \
+puni dash record-progress \
   --entries /path/to/entries.json \
   --plan-reference /path/to/plan-reference.json \
   --tasks /path/to/tasks.json \
@@ -207,7 +208,7 @@ through WBS's MCP endpoint with its API key, as every machine calls WBS
 `401 machine_bearer_not_accepted`):
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
+puni dash report-capacity --config /path/to/reporter.json
 ```
 
 The configuration is the binding; WBS holds only the provider instance id on the resource. It
@@ -314,7 +315,7 @@ the server's `headersHelper` at every connection, and again after a 401 or 403, 
 expired, or that a grant key rotation invalidated, is replaced on the retry.
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token \
+puni dash mcp token \
   --resource https://wbs.example/mcp --key-file ~/.config/wbs/agent.key [--run <id>]
 ```
 
@@ -354,8 +355,10 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token \
 
 ### Claude Code for a headless agent swarm
 
-**Today the helper needs a checkout of this repository with `bun install` run** on the host that
-runs the agents: it is started from `entrypoint.ts`, not a published binary or bundle.
+Use an absolute path to the selected installed PUNI executable on the host that runs the agents.
+The example below uses `/opt/puni/bin/puni`; replace it with that executable’s actual path.
+For a pool, `puni dash pool import` generates each agent’s helper with the protected
+installed launch prefix. The helper does not need a source checkout.
 
 Put the key of each agent person in its own `0600` file on the host that runs the agents, then
 configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude -p`):
@@ -366,7 +369,7 @@ configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude
     "wbs": {
       "type": "http",
       "url": "https://wbs.example/mcp",
-      "headersHelper": "bun /srv/puni-00/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token --resource https://wbs.example/mcp --key-file /home/agent/.config/wbs/agent.key"
+      "headersHelper": "/opt/puni/bin/puni dash mcp token --resource https://wbs.example/mcp --key-file /home/agent/.config/wbs/agent.key"
     }
   }
 }
@@ -385,7 +388,7 @@ configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude
 - For an agent pool, [`pool import`](#pool-import) writes each agent's key file and a
   `--mcp-config` file with its own run.
 
-For a long-lived Node or Bun process using the MCP SDK directly with a workload token,
+For a long-lived Bun process using the MCP SDK directly with a workload token,
 [`WorkloadJwtBearerProvider`](src/mcp/workload-provider.ts) is the `authProvider`: it keeps its
 token in memory, drops it on a 401, rereads the workload token for every request, and needs no
 dynamic registration. Pass its `tokenFetch(fetch)` as the transport's `fetch` so a token
@@ -400,12 +403,11 @@ that file into one key file, one MCP config and one run per agent.
 
 ```sh
 chmod 600 ~/Downloads/pool-<id>.keys.json
-twilight-dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
+puni dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
 ```
 
-`twilight-dash` stands for `bun <checkout>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts`
-(the [checkout requirement](#claude-code-for-a-headless-agent-swarm)). The store directory
-documented here, `~/.config/wbs/pools`, is a convention: `--store` has no default.
+The store directory documented here, `~/.config/wbs/pools`, is a convention:
+`--store` has no default. Run the import through the selected installed PUNI executable.
 
 - **The file must be owned by you with mode `0600`.** A browser saves it `0644`; the command
   refuses that, as `--key-file` does, and names the fix with your path:
@@ -426,15 +428,15 @@ documented here, `~/.config/wbs/pools`, is a convention: `--store` has no defaul
   per pool a link `pool-<poolId>` to the current generation, with:
   - `<personId>.key`: the agent's key, `0600`, for `mcp token --key-file`;
   - `<personId>.mcp.json`: a config for `claude --mcp-config` whose `headersHelper` runs
-    `mcp token --resource <mcpResource> --key-file <that key> --run <its run>` with the `bun`
-    and checkout that ran the import (the [checkout requirement](#claude-code-for-a-headless-agent-swarm)
-    applies);
+    `puni dash mcp token --resource <mcpResource> --key-file <that key> --run <its run>`
+    through the protected launch prefix captured by the importing PUNI executable;
   - `pool.json`: the agents, their runs and paths; no key.
 
-  The configs name the `bun` binary that ran the import (`process.execPath`). **After a Bun
-  upgrade** that moves it (a version manager installs each version at its own path), the
-  helpers fail to start: re-key the pool in WBS and import the new document (the old one was
-  deleted, and keys are shown once), or correct the `bun` path in each `<personId>.mcp.json`.
+  The configs retain the absolute Bun executable and installed PUNI entrypoint selected by
+  the import, including their startup controls and canonical `dash` namespace. Keep both
+  paths available while those configs are in use. If an upgrade moves either path, regenerate
+  the configs by re-keying the pool in WBS and importing the newly downloaded document.
+  Keys are shown once; remove the downloaded file after the import.
 
 - **Each agent has its own run**, `pool-<poolId>/<personId>`, so its claims and leases are
   scoped to it (M15). The run does not change on a re-key, so a running agent's next token after
@@ -457,10 +459,10 @@ Turn one period's harness logs into an [efficiency breakdown](../../../../docs/t
 money per accepted outcome, with its evidence and its remainder.
 
 ```sh
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts account-outcomes \
+puni dash account-outcomes \
   --repository /path/to/checkout-with-main \
   --since 2026-10-15T00:00:00Z --until 2026-10-22T00:00:00Z \
-  --rate-card apps/twilight-structure/twilight-dash/cli/rate-cards/2026-10-22-list-prices.json \
+  --rate-card /path/to/reviewed-rate-card.json \
   --claude-projects ~/.claude/projects/-home-df-wd-puni-puni-00 \
   --codex-sessions ~/.codex/sessions \
   --output /path/to/new-directory

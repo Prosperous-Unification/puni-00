@@ -13,7 +13,7 @@ import {
   type RuntimeContext,
   type RuntimeObservation,
 } from '@wbs/core/module/plan-commands/runtime-state';
-import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
 import type { ResourceAccess } from '@wbs/core/ports/organization-access';
 import type { Decision, Scope, UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -21,6 +21,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
@@ -30,14 +31,16 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const access: ResourceAccess = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 };
-const context: RuntimeContext = { actor, access, projectId: 'a1', personId: 'agent' };
+const context: RuntimeContext = { actor, access, workPackageId: 'a1', personId: 'agent' };
 const stamp = { at: 2, by: 'ada' };
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -61,31 +64,34 @@ async function seeded() {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
+  expect(
+    sqlite.db.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND scope_id='a1' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.db.run(
-    `INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)`,
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-key','org-a','organization','org-a','machine_credential','key-1','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
-  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
+  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent', stamp);
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  await source.stores.steps.add(
-    {
-      id: 'dev',
-      projectId: 'a1',
-      name: 'Dev',
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays',
-    },
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [['dev', 'Dev']],
     stamp,
   );
-  await source.stores.workItems.insert(workItemRow({ id: 'leaf', projectId: 'a1' }), [], stamp);
+  await source.stores.workItems.insert(workItemRow({ id: 'leaf', workPackageId: 'a1' }), [], stamp);
   await source.stores.directory.addExternalSystem({ id: 'runtime-pr', name: 'Runtime PR' }, stamp);
   const broadcast = recordingBroadcaster();
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -125,8 +131,8 @@ async function seeded() {
       {
         ledgerId: 'trusted-ledger',
         organizationId: observation.scope.organizationId,
-        projectId: observation.scope.projectId,
-        projectRevision: observation.projectRevision,
+        workPackageId: observation.scope.workPackageId,
+        workPackageRevision: observation.workPackageRevision,
         workItems: observation.workItems,
       },
       nodeDigest,
@@ -142,19 +148,19 @@ describe('admitted runtime observation', () => {
       `INSERT INTO work_item_external_ref (id, work_item_id, system_id, url, name, position) VALUES ('ref','leaf','runtime-pr','https://github.com/example/repo/pull/1','PR',0)`,
     );
     await source.stores.workItems.insert(
-      workItemRow({ id: 'child', projectId: 'a1', parentId: 'leaf' }),
+      workItemRow({ id: 'child', workPackageId: 'a1', parentId: 'leaf' }),
       [],
       stamp,
     );
     await source.stores.workItems.insert(
-      workItemRow({ id: 'foreign-row', projectId: 'b1' }),
+      workItemRow({ id: 'foreign-row', workPackageId: 'b1' }),
       [],
       stamp,
     );
     const observation = await observe();
     expect(observation.scope).toEqual({
       organizationId: 'org-a',
-      projectId: 'a1',
+      workPackageId: 'a1',
       personId: 'agent',
     });
     expect([...observation.workItems].sort((left, right) => (left.id < right.id ? -1 : 1))).toEqual(
@@ -183,8 +189,8 @@ describe('admitted runtime observation', () => {
         {
           ledgerId: 'ledger-a',
           organizationId: 'org-a',
-          projectId: 'project-a',
-          projectRevision: 2,
+          workPackageId: 'project-a',
+          workPackageRevision: 2,
           workItems: [
             { id: 'b', revision: 4 },
             { id: 'a', revision: 3 },
@@ -195,12 +201,12 @@ describe('admitted runtime observation', () => {
     ).toBe('rb1:4888e63baed32cb0eb96fafb546a0f09a69f40cb2c7c7ede4847af251368186d');
   });
 
-  it('refuses legacy, foreign project, unknown person and an unbound person', async () => {
+  it('refuses legacy, foreign work package, unknown person and an unbound person', async () => {
     const { runtime, source } = await seeded();
     expect(
       await runtime.captureRuntimeObservation({ ...context, access: { kind: 'legacy' } }),
     ).toEqual({ ok: false, reason: 'runtime_scope_unavailable' });
-    expect(await runtime.captureRuntimeObservation({ ...context, projectId: 'b1' })).toEqual({
+    expect(await runtime.captureRuntimeObservation({ ...context, workPackageId: 'b1' })).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -211,7 +217,8 @@ describe('admitted runtime observation', () => {
     await source.stores.directory.patchPerson('agent', { accountId: null }, stamp);
     expect(await runtime.captureRuntimeObservation(context)).toEqual({
       ok: false,
-      reason: 'person_not_bound',
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
     });
   });
 
@@ -225,14 +232,14 @@ describe('admitted runtime observation', () => {
     expect(
       await source.stores.directory.patchPerson('foreign', { accountId: 'ada' }, stamp),
     ).toMatchObject({ ok: true });
-    await source.stores.directory.mapInOrganization('people', 'foreign', 'org-b', 'Foreign');
+    await source.stores.directory.mapInOrganization('people', 'foreign', 'org-b', 'Foreign', stamp);
     expect(await runtime.captureRuntimeObservation({ ...context, personId: 'foreign' })).toEqual({
       ok: false,
       reason: 'unknown_person',
     });
   });
 
-  it('refuses a removed member despite valid project and bound person', async () => {
+  it('refuses a removed member despite valid work package and bound person', async () => {
     const { runtime, sqlite } = await seeded();
     sqlite.db.run(
       `DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='ada'`,
@@ -248,9 +255,11 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     expect(await runtime.captureRuntimeObservation(context)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
   });
 
@@ -260,9 +269,14 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const staleAdmin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        principal: { id: 'ada' },
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+      },
     };
     expect(await runtime.captureRuntimeObservation(staleAdmin)).toHaveProperty(
       'scope.personId',
@@ -274,6 +288,7 @@ describe('admitted runtime observation', () => {
       sqlite.db.run(
         `UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'`,
       );
+      sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
       reached.resolve(undefined);
       await released.promise;
       return { commit: true, value: undefined };
@@ -282,7 +297,11 @@ describe('admitted runtime observation', () => {
     const pending = runtime.captureRuntimeObservation(staleAdmin);
     released.resolve(undefined);
     await demotion;
-    expect(await pending).toEqual({ ok: false, reason: 'person_not_bound' });
+    expect(await pending).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
+    });
   });
 
   it('enforces real credential pins even for an admin', async () => {
@@ -295,6 +314,7 @@ describe('admitted runtime observation', () => {
     sqlite.db.run(
       `UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'`,
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18): an
     // upstream pair pins nothing since the operator links retired.
     const pinnedTo = (personId: string): RuntimeContext => ({
@@ -320,12 +340,12 @@ describe('admitted runtime observation', () => {
         (cause: unknown) => cause,
       );
     expect(failure).toBeInstanceOf(Error);
-    expect(failure).toMatchObject({ message: 'runtime project scope resolver is missing' });
+    expect(failure).toMatchObject({ message: 'runtime work package scope resolver is missing' });
   });
 
-  it('throws when the admitted project read contradicts fresh resolution', async () => {
+  it('throws when the admitted work package read contradicts fresh resolution', async () => {
     const { source } = await seeded();
-    // Only the borrowed project-read boundary is broken; source admission, current
+    // Only the borrowed work-package-read boundary is broken; source admission, current
     // membership/person authorization and transaction coordination stay real.
     const broken: UnitOfWork = {
       run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
@@ -334,7 +354,7 @@ describe('admitted runtime observation', () => {
             ...scope,
             stores: {
               ...scope.stores,
-              projects: new Proxy(scope.stores.projects, {
+              workPackages: new Proxy(scope.stores.workPackages, {
                 get(target, key, receiver) {
                   if (key === 'findInOrganization') return () => Promise.resolve(null);
                   const member: unknown = Reflect.get(target, key, receiver);
@@ -353,25 +373,24 @@ describe('admitted runtime observation', () => {
         (cause: unknown) => cause,
       );
     expect(failure).toBeInstanceOf(Error);
-    expect(failure).toMatchObject({ message: 'admitted runtime project disappeared' });
+    expect(failure).toMatchObject({ message: 'admitted runtime work package disappeared' });
   });
 
-  it('throws for unreadable local facts and malformed current role', async () => {
+  it('ignores an unused compatibility label and throws for unreadable local facts', async () => {
     const { sqlite, runtime } = await seeded();
     sqlite.db.run(`PRAGMA ignore_check_constraints=ON`);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+    try {
+      sqlite.db.run(
+        `UPDATE organization_membership SET role='invalid-role' WHERE organization_id='org-a' AND user_id='ada'`,
+      );
+    } finally {
+      sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
+    }
+    expect(await runtime.captureRuntimeObservation(context)).toHaveProperty(
+      'scope.personId',
+      'agent',
     );
-    const malformed = await runtime.captureRuntimeObservation(context).then(
-      () => null,
-      (cause: unknown) => cause,
-    );
-    expect(malformed).toBeInstanceOf(Error);
-    sqlite.db.run(
-      `UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'`,
-    );
-    sqlite.db.run(`PRAGMA ignore_check_constraints=OFF`);
-    sqlite.db.run(`ALTER TABLE step RENAME TO unavailable_step`);
+    sqlite.db.run(`ALTER TABLE step_definition RENAME TO unavailable_step_definition`);
     const unreadable = await runtime.captureRuntimeObservation(context).then(
       () => null,
       (cause: unknown) => cause,
@@ -417,7 +436,7 @@ describe('admitted runtime observation', () => {
     }
   });
 
-  it.each(['project', 'person', 'actor', 'organization', 'credential'])(
+  it.each(['work_package', 'person', 'actor', 'organization', 'credential'])(
     'retains the original %s while queued on the real source',
     async (field) => {
       const { source, runtime, observe } = await seeded();
@@ -428,7 +447,7 @@ describe('admitted runtime observation', () => {
         stamp,
       );
       const mutable = {
-        projectId: 'a1',
+        workPackageId: 'a1',
         personId: 'agent',
         actor: {
           ...actor,
@@ -439,8 +458,14 @@ describe('admitted runtime observation', () => {
           },
         },
         access: {
+          principal: { id: 'ada' },
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: 'ada',
+            role: 'member' as const,
+          },
         },
       };
       const reached = Promise.withResolvers<undefined>();
@@ -453,8 +478,8 @@ describe('admitted runtime observation', () => {
       await reached.promise;
       const pending = runtime.captureRuntimeObservation(mutable);
       switch (field) {
-        case 'project':
-          mutable.projectId = 'b1';
+        case 'work_package':
+          mutable.workPackageId = 'b1';
           break;
         case 'person':
           mutable.personId = 'absent';
@@ -483,7 +508,7 @@ describe('admitted runtime observation', () => {
     const reached = Promise.withResolvers<undefined>();
     const released = Promise.withResolvers<undefined>();
     const writer = source.uow.run(async ({ stores }) => {
-      await stores.workItems.insert(workItemRow({ id: 'staged', projectId: 'a1' }), [], stamp);
+      await stores.workItems.insert(workItemRow({ id: 'staged', workPackageId: 'a1' }), [], stamp);
       reached.resolve(undefined);
       await released.promise;
       return { commit: false, value: undefined };

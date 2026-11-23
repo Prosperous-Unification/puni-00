@@ -12,7 +12,7 @@ import {
 } from '@/modules/plan-feed/delivered-plan-store';
 import { createBusy } from '@/modules/plan-writer/busy-store';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
-import type { ProjectRuntime } from '@/modules/project/contract';
+import type { WorkPackageRuntime } from '@/modules/work-package/contract';
 import { planRead, workItemView } from '@/testing/views';
 
 import { createStepBoardAction } from './step-board-action';
@@ -41,8 +41,8 @@ function publish(plan: DeliveredPlanStore, delivery: Partial<PlanFeedDelivery>):
 function runtime(plan: DeliveredPlanStore) {
   const reread = vi.fn(() => Promise.resolve(true));
   const owner = refreshOwner();
-  const project: Pick<ProjectRuntime, 'projectId' | 'plan' | 'isCurrent' | 'reread'> = {
-    projectId: 'p1',
+  const workPackage: Pick<WorkPackageRuntime, 'workPackageId' | 'plan' | 'isCurrent' | 'reread'> = {
+    workPackageId: 'p1',
     plan,
     isCurrent: () => true,
     reread,
@@ -56,14 +56,14 @@ function runtime(plan: DeliveredPlanStore) {
   });
   const action = createStepBoardAction({
     plan,
-    isCurrent: project.isCurrent,
+    isCurrent: workPackage.isCurrent,
     writer,
     commands: {
       setProgress: () => Promise.resolve(),
       clearProgress: () => Promise.resolve(),
     },
   });
-  return { project, reread, action };
+  return { workPackage, reread, action };
 }
 
 function refreshOwner(): PlanRefresh {
@@ -152,10 +152,10 @@ function writableRuntime(initialProgress: Record<string, StepState> = { qa: 'don
     },
   };
   const action = createStepBoardAction({ plan, isCurrent: () => true, writer, commands });
-  const project = { projectId: 'p1', plan, isCurrent: () => true, reread };
+  const workPackage = { workPackageId: 'p1', plan, isCurrent: () => true, reread };
   deliverTree();
   return {
-    project,
+    workPackage,
     action,
     calls,
     plan,
@@ -172,8 +172,8 @@ function writableRuntime(initialProgress: Record<string, StepState> = { qa: 'don
 describe('StepBoardView', () => {
   it('loads, then draws cards from the selected runtime plan', () => {
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     expect(screen.getByText('Loading board…')).toBeDefined();
 
     publish(plan, {
@@ -198,8 +198,8 @@ describe('StepBoardView', () => {
 
   it('renders all three columns in order with counts and separate work-item status', () => {
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       tree: {
         generation: 1,
@@ -257,8 +257,8 @@ describe('StepBoardView', () => {
 
   it('shows a first tree failure and retries through the current runtime', () => {
     const plan = createDeliveredPlan();
-    const { project, reread, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, reread, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       staleResources: ['tree'],
       treeFailure: { cause: new Error('engine_unavailable') },
@@ -274,8 +274,8 @@ describe('StepBoardView', () => {
 
   it('shows a stale warning when the feed marks tree stale without a failure cause', () => {
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     publish(plan, { staleResources: ['tree'] });
     expect(screen.getByRole('alert').textContent).toContain(
       'This plan may be out of date — the last refresh failed.',
@@ -283,14 +283,16 @@ describe('StepBoardView', () => {
     expect(screen.queryByText('Loading board…')).toBeNull();
   });
 
-  it('distinguishes an empty project from work with no project steps', () => {
+  it('distinguishes an empty work package from work with no work package steps', () => {
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
+    const { workPackage, action } = runtime(plan);
     const onReturnToPlan = vi.fn();
-    render(<StepBoardView project={project} action={action} onReturnToPlan={onReturnToPlan} />);
+    render(
+      <StepBoardView workPackage={workPackage} action={action} onReturnToPlan={onReturnToPlan} />,
+    );
     publish(plan, { tree: { generation: 1, value: planRead() } });
     expect(screen.getByText('No work items')).toBeDefined();
-    expect(screen.queryByText('No project steps')).toBeNull();
+    expect(screen.queryByText('No work package steps')).toBeNull();
 
     publish(plan, {
       tree: {
@@ -298,15 +300,15 @@ describe('StepBoardView', () => {
         value: planRead({ workItems: [workItemView({ id: 'leaf', name: 'Build' })] }),
       },
     });
-    expect(screen.getByText('No project steps')).toBeDefined();
+    expect(screen.getByText('No work package steps')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Return to Plan' }));
     expect(onReturnToPlan).toHaveBeenCalledOnce();
   });
 
   it('keeps last delivered cards visibly stale after a failed read and shows disconnection', () => {
     const plan = createDeliveredPlan();
-    const { project, reread, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, reread, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       tree: {
         generation: 1,
@@ -352,8 +354,8 @@ describe('StepBoardView', () => {
 
   it('does not combine separately delivered newer steps with an older tree', () => {
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
-    render(<StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />);
+    const { workPackage, action } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />);
     const leaf = workItemView({ id: 'leaf', name: 'Build' });
     publish(plan, {
       tree: {
@@ -398,10 +400,10 @@ describe('StepBoardView', () => {
   it('sends invalid delivered progress to the visible app error boundary', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const plan = createDeliveredPlan();
-    const { project, action } = runtime(plan);
+    const { workPackage, action } = runtime(plan);
     render(
       <AppFaultBoundary>
-        <StepBoardView project={project} action={action} onReturnToPlan={vi.fn()} />
+        <StepBoardView workPackage={workPackage} action={action} onReturnToPlan={vi.fn()} />
       </AppFaultBoundary>,
     );
     publish(plan, {
@@ -421,7 +423,9 @@ describe('StepBoardView', () => {
 describe('writable StepBoardView with one real action', () => {
   it('names duplicate titles by number, moves delivered progress, preserves the other step and clears to absence', async () => {
     const at = writableRuntime();
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const move = screen.getByRole('button', { name: 'Move 010 Build / Development to Done' });
     expect(move.className).toContain('min-h-11');
     fireEvent.keyDown(screen.getByRole('button', { name: 'Drag 010 Build / Development' }), {
@@ -471,7 +475,9 @@ describe('writable StepBoardView with one real action', () => {
     const at = writableRuntime();
     const request = deferred<undefined>();
     at.holdRequest(request.promise);
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const move = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Move 010 Build / Development to Done',
     });
@@ -509,7 +515,7 @@ describe('writable StepBoardView with one real action', () => {
     at.holdRequest(request.promise);
     render(
       <AppFaultBoundary>
-        <StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />
+        <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />
       </AppFaultBoundary>,
     );
     const move = screen.getByRole<HTMLButtonElement>('button', {
@@ -545,7 +551,9 @@ describe('writable StepBoardView with one real action', () => {
   it('exposes missing adjacent move controls from click and Enter without moving focus', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const at = writableRuntime();
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const card = screen.getByRole('button', { name: 'Drag 010 Build / Development' });
     const parent = card.parentElement;
     if (parent === null) throw new Error('Step card parent missing in test');
@@ -583,7 +591,9 @@ describe('writable StepBoardView with one real action', () => {
     const at = writableRuntime();
     const request = deferred<undefined>();
     at.holdRequest(request.promise);
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const move = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Move 010 Build / Development to Done',
     });
@@ -610,7 +620,7 @@ describe('writable StepBoardView with one real action', () => {
     const request = deferred<undefined>();
     old.holdRequest(request.promise);
     const { rerender } = render(
-      <StepBoardView project={old.project} action={old.action} onReturnToPlan={vi.fn()} />,
+      <StepBoardView workPackage={old.workPackage} action={old.action} onReturnToPlan={vi.fn()} />,
     );
     const move = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Move 010 Build / Development to Done',
@@ -622,7 +632,7 @@ describe('writable StepBoardView with one real action', () => {
     const replacement = writableRuntime({ dev: 'done', qa: 'done' });
     rerender(
       <StepBoardView
-        project={replacement.project}
+        workPackage={replacement.workPackage}
         action={replacement.action}
         onReturnToPlan={vi.fn()}
       />,
@@ -642,7 +652,9 @@ describe('writable StepBoardView with one real action', () => {
     const at = writableRuntime();
     const request = deferred<undefined>();
     at.holdRequest(request.promise);
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const source = screen.getByRole('button', { name: 'Drag 010 Build / Development' });
     const unknown = screen.getByRole('region', { name: 'Unknown' });
     const done = screen.getByRole('region', { name: 'Done' });
@@ -679,7 +691,9 @@ describe('writable StepBoardView with one real action', () => {
 
   it('rejects a captured drag after a peer changes its progress before drop', () => {
     const at = writableRuntime();
-    render(<StepBoardView project={at.project} action={at.action} onReturnToPlan={vi.fn()} />);
+    render(
+      <StepBoardView workPackage={at.workPackage} action={at.action} onReturnToPlan={vi.fn()} />,
+    );
     const source = screen.getByRole('button', { name: 'Drag 010 Build / Development' });
     fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
     at.deliverPeer({ qa: 'done', dev: 'done' });

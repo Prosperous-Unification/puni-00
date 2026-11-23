@@ -13,7 +13,9 @@ import {
   TRUSTED_WORKLOAD_NAMESPACE,
   updateForgeAdmission,
 } from './forge-admission';
+import * as legacyAdmission from './forge-admission-legacy';
 import { claimLease, claimLeaseNames, decodeClaimLease, requireOwnClaim } from './forge-claims';
+import { readForgeInstallation, verifyForgeHostInstallation } from './forge-installation';
 import {
   createNamespace,
   deleteNamespace,
@@ -21,16 +23,19 @@ import {
   namespaceAccess,
   readNamespace,
 } from './forge-namespace';
-import { INSTALL_REQUIRED } from './forge-supervisor';
+import { INSTALL_REQUIRED } from './forge-supervisor-state';
 
-type DevEnvironmentAction = 'up' | 'down' | 'status';
-
-export interface DevEnvironmentRequest {
-  readonly action: DevEnvironmentAction;
+export type DevEnvironmentRequest = {
   readonly slug: string;
   readonly cluster: string;
   readonly worktree?: string;
-}
+} & (
+  | {
+      readonly action: 'up';
+      readonly puniSelection: { readonly path: string; readonly sha256: string };
+    }
+  | { readonly action: 'down' | 'status' }
+);
 
 /**
  * The k3d lab record written by `tools/tool-fleet/src/k3d-lab.ts` (`K3dLabRecord`). It is
@@ -59,7 +64,32 @@ const LabRecord = type({
     .atLeastLength(1),
   '+': 'reject',
 });
-export type LabRecord = typeof LabRecord.infer;
+const PuniLabRecord = type({
+  schemaVersion: '2',
+  labId: 'string>0',
+  profile: "'app'|'platform'|'fleet'",
+  network: 'string>0',
+  registry: { host: 'string>0', hostPort: 'number.integer>0', '+': 'reject' },
+  httpPort: 'number.integer>0',
+  worktreeRoot: 'string>0',
+  worktreeRootIdentity: /^\d+:\d+$/,
+  solverRuntime: 'string>0',
+  puniInstallationRoot: 'string>0',
+  puniInstallationRootIdentity: /^\d+:\d+$/,
+  clusters: type({
+    name: 'string>0',
+    role: "'platform'|'workers'",
+    clusterId: 'string>0',
+    context: 'string>0',
+    kubeconfig: 'string>0',
+    apiPort: 'number.integer>0',
+    '+': 'reject',
+  })
+    .array()
+    .atLeastLength(1),
+  '+': 'reject',
+});
+export type LabRecord = typeof LabRecord.infer | typeof PuniLabRecord.infer;
 type LabCluster = LabRecord['clusters'][number];
 
 /** What the host says about a requested worktree, gathered before any cluster call. */
@@ -94,6 +124,13 @@ export interface EnvironmentBinding {
   /** The worktree owner; the Pod runs as them so files it writes stay theirs. */
   readonly ownerUid: number;
   readonly ownerGid: number;
+  readonly puni: {
+    readonly installationNodePath: string;
+    readonly entrypoint: string;
+    readonly selection: string;
+    readonly sha256: string;
+    readonly directoryIdentity: string;
+  };
 }
 
 type ManifestObject = Record<string, unknown>;
@@ -106,6 +143,7 @@ export const SLUG_LABEL = 'puni.dev/dev-slug';
 const LAB_LABEL = 'puni.dev/lab-id';
 const WORKTREE_ANNOTATION = 'puni.dev/worktree';
 const RECREATE_ANNOTATION = 'puni.dev/recreate-inputs';
+const PUNI_SELECTION_ANNOTATION = 'puni.dev/puni-selection-sha256';
 const POD_SPEC_ANNOTATION = 'puni.dev/pod-spec';
 
 const SLUG = /^[a-z](?:[a-z0-9-]{0,18}[a-z0-9])?$/;
@@ -133,7 +171,7 @@ function takeFlag(arguments_: readonly string[], position: number): string {
   return value;
 }
 
-/** Decode `up|down|status --slug <slug> --cluster <lab cluster> [--worktree <path>]`. */
+/** Decode explicit up selection/digest and preserve legacy down/status request syntax. */
 export function parseDevEnvironmentRequest(arguments_: readonly string[]): DevEnvironmentRequest {
   const action = arguments_.at(0);
   if (action !== 'up' && action !== 'down' && action !== 'status') {
@@ -142,7 +180,16 @@ export function parseDevEnvironmentRequest(arguments_: readonly string[]): DevEn
   const flags = new Map<string, string>();
   for (let position = 1; position < arguments_.length; position += 2) {
     const flag = arguments_.at(position);
-    if (flag === undefined || !['--slug', '--worktree', '--cluster'].includes(flag)) {
+    if (
+      flag === undefined ||
+      ![
+        '--slug',
+        '--worktree',
+        '--cluster',
+        '--puni-selection',
+        '--puni-selection-sha256',
+      ].includes(flag)
+    ) {
       throw new Error(`Unexpected dev-env argument: ${flag ?? 'missing'}`);
     }
     if (flags.has(flag)) throw new Error(`Duplicate dev-env flag: ${flag}`);
@@ -163,7 +210,25 @@ export function parseDevEnvironmentRequest(arguments_: readonly string[]): DevEn
     );
   }
   const worktree = flags.get('--worktree');
-  if (action === 'up' && worktree === undefined) throw new Error('dev-env up requires --worktree');
+  const selection = flags.get('--puni-selection'),
+    sha256 = flags.get('--puni-selection-sha256');
+  if (action === 'up') {
+    if (worktree === undefined) throw new Error('dev-env up requires --worktree');
+    if (selection === undefined || sha256 === undefined)
+      throw new Error('dev-env up requires --puni-selection and --puni-selection-sha256');
+    if (!isAbsolute(selection)) throw new Error('dev-env --puni-selection must be absolute');
+    if (!/^[0-9a-f]{64}$/.test(sha256))
+      throw new Error('dev-env selection sha256 must be 64 lowercase hex digits');
+    return {
+      action,
+      slug,
+      cluster,
+      worktree: resolve(worktree),
+      puniSelection: { path: selection, sha256 },
+    };
+  }
+  if (selection !== undefined || sha256 !== undefined)
+    throw new Error('PUNI selection flags are accepted only by dev-env up');
   return {
     action,
     slug,
@@ -174,7 +239,9 @@ export function parseDevEnvironmentRequest(arguments_: readonly string[]): DevEn
 
 /** Validate `lab.json` at its boundary; a malformed record is refused, never repaired. */
 export function decodeLabRecord(text: string): LabRecord {
-  const decoded = LabRecord(JSON.parse(text));
+  const input: unknown = JSON.parse(text);
+  const decoded =
+    isRecord(input) && input['schemaVersion'] === 2 ? PuniLabRecord(input) : LabRecord(input);
   if (decoded instanceof type.errors) throw new Error(`lab.json is malformed: ${decoded.summary}`);
   return decoded;
 }
@@ -444,6 +511,29 @@ function bindPod(
   const container = containers[0];
   if (!isRecord(container)) throw new Error('dev overlay container is not an object');
   container['image'] = binding.image;
+  container['command'] = [
+    '/usr/bin/env',
+    '-u',
+    'BUN_OPTIONS',
+    '-u',
+    'BUN_INSPECT_PRELOAD',
+    '-u',
+    'NODE_OPTIONS',
+    '-u',
+    'BUN_BE_BUN',
+    'bun',
+    '--no-env-file',
+    '--config=/dev/null',
+    binding.puni.entrypoint,
+    'dash',
+    'dev-env',
+    'supervise',
+    '--repository',
+    '/src',
+    '--termination-log',
+    '/dev/termination-log',
+  ];
+  delete container['args'];
   // Proof: with this refusal removed, `refuses to run as root` failed; the forge admission would
   // deny the Pod only after the lab parameters had been rewritten.
   if (binding.ownerUid === 0 || binding.ownerGid === 0) {
@@ -458,7 +548,22 @@ function bindPod(
   const bound: Record<string, string> = {
     APP_ORIGIN: binding.origin,
     MCP_PUBLIC_URL: `${binding.origin}/mcp`,
+    PUNI_EXECUTABLE: binding.puni.entrypoint,
+    PUNI_INSTALLATION_DIRECTORY: '/opt/puni-dev',
+    PUNI_SELECTION: binding.puni.selection,
+    PUNI_SELECTION_SHA256: binding.puni.sha256,
   };
+  for (const name of [
+    'PUNI_EXECUTABLE',
+    'PUNI_INSTALLATION_DIRECTORY',
+    'PUNI_SELECTION',
+    'PUNI_SELECTION_SHA256',
+  ]) {
+    if (
+      environment.filter((variable) => isRecord(variable) && variable['name'] === name).length !== 1
+    )
+      throw new Error('dev overlay requires exactly one ' + name + ' variable');
+  }
   for (const variable of environment) {
     if (isRecord(variable) && typeof variable['name'] === 'string' && variable['name'] in bound) {
       variable['value'] = bound[variable['name']];
@@ -468,7 +573,7 @@ function bindPod(
   const byName = new Map(
     volumes.filter(isRecord).map((volume) => [String(volume['name']), volume]),
   );
-  const expected = ['data', 'solver-runtime', 'worktree'];
+  const expected = ['data', 'solver-runtime', 'worktree', 'puni-installation'];
   if (
     volumes.length !== expected.length ||
     !expected.every((volumeName) => byName.has(volumeName))
@@ -482,15 +587,41 @@ function bindPod(
       hostPath: { path: binding.solverNodePath, type: 'Directory' },
     },
     data: { name: 'data', persistentVolumeClaim: { claimName: `dev-${binding.slug}-data` } },
+    'puni-installation': {
+      name: 'puni-installation',
+      hostPath: { path: binding.puni.installationNodePath, type: 'Directory' },
+    },
   };
   recordAt(pod, 'spec')['volumes'] = expected.map((volumeName) => replacements[volumeName]);
+  const mounts = arrayAt(container, 'volumeMounts');
+  const puniMounts = mounts.filter(
+    (mount) => isRecord(mount) && mount['name'] === 'puni-installation',
+  );
+  if (puniMounts.length !== 1) throw new Error('dev overlay requires one PUNI installation mount');
+  const puniMount = puniMounts.at(0);
+  if (
+    !isRecord(puniMount) ||
+    puniMount['mountPath'] !== '/opt/puni-dev' ||
+    puniMount['readOnly'] !== true ||
+    Object.hasOwn(puniMount, 'subPath') ||
+    Object.hasOwn(puniMount, 'subPathExpr')
+  )
+    throw new Error('dev overlay PUNI installation mount must be complete and read-only');
   metadata['labels'] = { ...(isRecord(metadata['labels']) ? metadata['labels'] : {}), ...labels };
   const annotations = recordAt(pod, 'metadata', 'annotations');
   annotations[RECREATE_ANNOTATION] = binding.recreateInputs;
+  annotations[PUNI_SELECTION_ANNOTATION] = binding.puni.sha256;
+  annotations['puni.dev/puni-installation-identity'] = binding.puni.directoryIdentity;
   annotations[POD_SPEC_ANNOTATION] = createHash('sha256')
     .update(JSON.stringify(pod['spec']))
     .update(binding.recreateInputs)
+    .update(binding.puni.directoryIdentity)
     .digest('hex');
+}
+
+/** Bind the source recreate fingerprint to the independently selected installation record. */
+export function digestEnvironmentInputs(source: string, selection: string): string {
+  return createHash('sha256').update(source).update('\0').update(selection).digest('hex');
 }
 
 /** Digest the recreate inputs as `path\0sha256` lines in path order. */
@@ -505,7 +636,7 @@ export function digestRecreateInputs(
 
 /**
  * The supervisor's install failure, if the container's current or last termination reported one
- * through its termination message (`forge-supervisor.ts`).
+ * through the installed PUNI supervisor termination message.
  */
 export function installFailureOf(pod: unknown): string | undefined {
   for (const state of ['state', 'lastState']) {
@@ -889,7 +1020,10 @@ export function requireMountedRoot(recorded: string, observed: string, root: str
   }
 }
 
-async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
+async function up(
+  root: string,
+  request: Extract<DevEnvironmentRequest, { readonly action: 'up' }>,
+): Promise<void> {
   if (request.worktree === undefined) throw new Error('dev-env up requires --worktree');
   const cluster = await connect(root, request.cluster);
   await requireNoLegacyResources(cluster, request.slug);
@@ -908,6 +1042,20 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     rootCommits: repositoryRoots,
   });
   const worktree = inspection.realpath;
+  if (cluster.record.schemaVersion !== 2)
+    throw new Error(
+      'current PUNI Forge startup requires a lab with an explicit installation mount; recreate the legacy lab',
+    );
+  const installation = await readForgeInstallation(
+    request.puniSelection,
+    {
+      directory: cluster.record.puniInstallationRoot,
+      identity: cluster.record.puniInstallationRootIdentity,
+    },
+    worktree,
+  );
+  const store = admissionStore(cluster);
+  decodeForgeAdmission(await store.read(), cluster.record.labId);
   requireUniqueEnvironment(request.slug, worktree, await runningEnvironments(cluster));
   await requireSeededWorktree(worktree);
   const owner = { slug: request.slug, labId: cluster.record.labId, worktree };
@@ -916,7 +1064,10 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   await claimEnvironment(cluster, request.slug, worktree);
   await createNamespace(cluster, owner);
 
-  const recreateInputs = await readRecreateInputs(worktree);
+  const recreateInputs = digestEnvironmentInputs(
+    await readRecreateInputs(worktree),
+    installation.sha256,
+  );
   const image = await publishForgeImage(worktree, cluster, request.slug);
   const origin = `http://${request.slug}.localhost:${String(cluster.record.httpPort)}`;
   const rendered = Bun.YAML.parse(
@@ -935,6 +1086,13 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     recreateInputs,
     ownerUid: inspection.ownerUid,
     ownerGid: inspection.ownerGid,
+    puni: {
+      installationNodePath: installation.nodeDirectory,
+      entrypoint: installation.containerEntrypoint,
+      selection: new TextDecoder('utf-8', { fatal: true }).decode(installation.bytes),
+      sha256: installation.sha256,
+      directoryIdentity: installation.directoryIdentity,
+    },
   });
   const pod = bound.find((object) => object['kind'] === 'Pod');
   if (pod === undefined) throw new Error('bound dev overlay has no Pod');
@@ -943,12 +1101,16 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     ...bound.filter((object) => object !== pod),
   ];
 
-  const store = admissionStore(cluster);
+  await verifyForgeHostInstallation(installation, {
+    directory: cluster.record.puniInstallationRoot,
+    identity: cluster.record.puniInstallationRootIdentity,
+  });
   const { before } = await updateForgeAdmission(store, cluster.record.labId, {
     kind: 'claim',
     slug: request.slug,
     root: worktreeNodePath,
     image,
+    installationRoot: installation.nodeDirectory,
   });
   const podName = `dev-${request.slug}`;
   try {
@@ -984,6 +1146,10 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
     if (current !== wanted) {
       // The forge Role grants Pod creation to the controller service account only; creating as
       // it proves the environment would start without cluster-admin.
+      await verifyForgeHostInstallation(installation, {
+        directory: cluster.record.puniInstallationRoot,
+        identity: cluster.record.puniInstallationRootIdentity,
+      });
       await cluster.kubectl(['create', '--as', FORGE_CONTROLLER, '-f', '-'], {
         input: JSON.stringify(pod),
       });
@@ -1025,7 +1191,9 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
   // Proof: with the read after the deletes, a live `down` against parameters without the lab
   // label deleted dev-beta and then refused, leaving its root admitted (2026-09-18).
   await store.read().then((configMap) => {
-    decodeForgeAdmission(configMap, cluster.record.labId);
+    if (cluster.record.schemaVersion === 1)
+      legacyAdmission.decodeForgeAdmission(configMap, cluster.record.labId);
+    else decodeForgeAdmission(configMap, cluster.record.labId);
   });
   const namespace = await readNamespace(cluster, {
     slug: request.slug,
@@ -1037,10 +1205,16 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
   // when the Pod was already gone.
   // Proof: with the release gated on a running Pod, a live `down` after dev-beta's Pod was deleted
   // by hand left its root admitted; by slug, the next `down` removed it (k3s-platform verify.md).
-  await updateForgeAdmission(store, cluster.record.labId, {
-    kind: 'release',
-    slug: request.slug,
-  });
+  if (cluster.record.schemaVersion === 1)
+    await legacyAdmission.updateForgeAdmission(store, cluster.record.labId, {
+      kind: 'release',
+      slug: request.slug,
+    });
+  else
+    await updateForgeAdmission(store, cluster.record.labId, {
+      kind: 'release',
+      slug: request.slug,
+    });
   await cluster.kubectl([
     'delete',
     'lease',
@@ -1086,7 +1260,14 @@ async function status(root: string, request: DevEnvironmentRequest): Promise<voi
   const recorded = field(pod, 'metadata', 'annotations', RECREATE_ANNOTATION);
   if (typeof worktree !== 'string')
     throw new Error(`dev-${request.slug} lacks its worktree annotation`);
-  const drift = (await readRecreateInputs(worktree)) !== recorded;
+  let currentInputs = await readRecreateInputs(worktree);
+  if (cluster.record.schemaVersion === 2) {
+    const selection = field(pod, 'metadata', 'annotations', PUNI_SELECTION_ANNOTATION);
+    if (typeof selection !== 'string' || !/^[0-9a-f]{64}$/.test(selection))
+      throw new Error('current Forge Pod lacks its retained PUNI selection digest');
+    currentInputs = digestEnvironmentInputs(currentInputs, selection);
+  }
+  const drift = currentInputs !== recorded;
   const phase = field(pod, 'status', 'phase');
   const ready = field(pod, 'status', 'containerStatuses', '0', 'ready');
   const restarts = field(pod, 'status', 'containerStatuses', '0', 'restartCount');

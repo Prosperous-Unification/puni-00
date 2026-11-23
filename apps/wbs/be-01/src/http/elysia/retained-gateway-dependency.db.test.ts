@@ -8,6 +8,7 @@ import { OPEN } from '../../repository/gate';
 import { admitDependencyClient } from '../../runtime/dependency-client';
 import { TEST_JWT_KEY } from '../../testing/auth-fixture';
 import { OrganizationHarness } from '../../testing/organization-harness';
+import { createFixturePackage } from '../../testing/space-rollup';
 
 // Bun's constructor includes forwarded headers; DOM declarations shadow that overload.
 const CookieSocket = WebSocket as unknown as new (
@@ -69,15 +70,15 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
   const backendPort = backend.port;
   try {
     await harness.register('ada');
-    const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Retained' });
-    expect(created.status).toBe(200);
-    const projectId = (created.body as { project: { id: string } }).project.id;
-    const subscription = `project:${projectId}`;
+    const workPackageId = await createFixturePackage(harness, 'ada', 'Retained');
+    const subscription = `work-package:${workPackageId}`;
     gateway = Bun.spawn(
       [
         process.execPath,
-        new URL('../../../../gw-01/src/testing/cross-project-delivery-gateway.ts', import.meta.url)
-          .pathname,
+        new URL(
+          '../../../../gw-01/src/testing/cross-work-package-delivery-gateway.ts',
+          import.meta.url,
+        ).pathname,
         `http://localhost:${String(backendPort)}`,
         TEST_JWT_KEY,
         'x'.repeat(32),
@@ -108,9 +109,8 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
       );
       return { socket, frames };
     };
-    const replayProject = await harness.call('ada', 'POST', '/api/projects', { name: 'Replay' });
-    expect(replayProject.status).toBe(200);
-    const replaySubscription = `project:${(replayProject.body as { project: { id: string } }).project.id}`;
+    const replayWorkPackageId = await createFixturePackage(harness, 'ada', 'Replay');
+    const replaySubscription = `work-package:${replayWorkPackageId}`;
     const pushing = await connect(subscription);
     const replaying = await connect(replaySubscription);
     const sentinel = await new DrizzleEventLogStore(connection.db, OPEN).recordEvent(

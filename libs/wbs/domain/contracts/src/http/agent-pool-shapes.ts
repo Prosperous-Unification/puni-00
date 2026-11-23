@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -58,8 +59,22 @@ const common = [
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
-  // A member or a viewer: only an admin makes, re-keys or revokes a pool.
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  // Current directory permission, independent of the stored membership label.
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: pool-schema-permission: omitting the required catalog permission schema.
+        // requires the catalog permission vocabulary at getApiOrganizationAgent-pools
+        // requires the catalog permission vocabulary at postApiOrganizationAgent-pools
+        // requires the catalog permission vocabulary at postApiOrganizationAgent-poolsByIdRekey
+        // requires the catalog permission vocabulary at deleteApiOrganizationAgent-poolsById
+        // Named RED with this fault; restored GREEN (task-2.4b pool receipt).
+        permission: type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
 ] as const;
 const malformed = {
   status: 400,
@@ -71,7 +86,7 @@ const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found
 /** A pool's keys are answered once: no cache on the way may keep them. */
 const noStore = [['cache-control', 'no-store']] as const;
 
-/** Lists the active organization's agent pools, revoked ones included, for its admins. */
+/** Lists the active organization's agent pools, revoked ones included, for current directory-permission holders. */
 export const listAgentPools = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/agent-pools',
@@ -90,7 +105,7 @@ export const listAgentPools = defineEndpointShape({
 });
 
 /**
- * Creates a pool in one act, for an admin's browser session only: `size` (1
+ * Creates a pool in one act, for a directory-permission holder's browser session only: `size` (1
  * to 100) agent persons named `<name>-1` … `<name>-<size>`, bound to the
  * caller's account, and one API key each issued by the caller, answered once
  * as {@link agentPoolKeys}. `name` is 1 to 60 characters and never shaped like
@@ -161,6 +176,7 @@ export const rekeyAgentPool = defineEndpointShape({
     ...common,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     { status: 409, schema: responseSchema(type({ error: "'pool_changed' | 'pool_expired'" })) },
   ],
   document: { summary: 'Re-key an agent pool for its existing persons, shown once.' },
@@ -195,10 +211,27 @@ export const revokeAgentPool = defineEndpointShape({
     ...common,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     {
       status: 409,
       schema: responseSchema(
-        type({ error: "'persons_not_removed'", poolId: 'string', revokedCredentials: 'number' }),
+        type({
+          error: "'persons_not_removed'",
+          poolId: 'string',
+          revokedCredentials: 'number',
+          'cause?': "'last_super_admin'",
+        }).or(
+          type({
+            error: "'persons_not_removed'",
+            poolId: 'string',
+            revokedCredentials: 'number',
+            cause: "'forbidden'",
+            // Proof: pool-schema-partial-permission: omitting the required catalog permission schema.
+            // requires a catalog permission only for a forbidden pool cleanup cause
+            // Named RED with this fault; restored GREEN (task-2.4b pool receipt).
+            permission: type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+          }),
+        ),
       ),
     },
   ],

@@ -28,17 +28,17 @@ export function inspectStore(path: string) {
     return {
       activation: database
         .query<{ state: string }, []>(
-          'SELECT state FROM cross_project_dependency_activation WHERE id=1',
+          'SELECT state FROM cross_work_package_dependency_activation WHERE id=1',
         )
         .get(),
       authorityRows: database
         .query<{ id: number; state: string }, []>(
-          'SELECT id,state FROM cross_project_dependency_activation ORDER BY id',
+          'SELECT id,state FROM cross_work_package_dependency_activation ORDER BY id',
         )
         .all(),
       receipts: database
         .query<{ id: number; receipt: string }, []>(
-          'SELECT id,receipt FROM cross_project_dependency_activation_receipt ORDER BY id',
+          'SELECT id,receipt FROM cross_work_package_dependency_activation_receipt ORDER BY id',
         )
         .all(),
       ledger: database

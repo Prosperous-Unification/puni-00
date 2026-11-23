@@ -30,14 +30,18 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { buildServices, type OptimizerRuntime } from './services';
 import { testApp } from './testing/app-fixture';
 import { testLocalAuthService } from './testing/auth-fixture';
+import { refusingProjectRead } from './testing/project-fixture';
 import { trackReadObservations } from './testing/read-observation.fixture';
+import { refusingSpaceRead } from './testing/space-fixture';
+import { refusingWorkPackageObservation } from './testing/work-package-fixture';
 
 type ConnectedSolverRequest = Extract<ReservedSpawnRequest, { kind: 'connected' }>['request'];
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -49,6 +53,9 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
   let bound: ReturnType<SqliteSource['bindLivePlans']> | undefined;
   const bind = source.bindLivePlans.bind(source);
   const services = buildServices({
+    createSpaceRead: () => refusingSpaceRead,
+    projectRead: refusingProjectRead,
+    createWorkPackageObservation: () => refusingWorkPackageObservation,
     source: {
       ...source,
       bindLivePlans: (options) => {
@@ -92,9 +99,9 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
       () => 12,
     ),
   });
-  const tree = async (mounted = app, projectId = 'a1') => {
+  const tree = async (mounted = app, workPackageId = 'a1') => {
     const response = await mounted.handle(
-      new Request(`http://localhost/api/projects/${projectId}/work-items`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/work-items`, {
         headers: { 'X-WBS-Expected-Organization': 'org-a' },
       }),
     );
@@ -118,6 +125,28 @@ function stream(bytes: string) {
     },
   });
 }
+function bindBuildStep(sqlite: ReturnType<typeof openDatabase>, workPackage: string) {
+  const project = 'project-' + workPackage;
+  const step = workPackage + '-s';
+  sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+    [project, project],
+  );
+  sqlite.run('UPDATE work_package SET project_id=? WHERE id=?', [project, workPackage]);
+  sqlite.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,0,'project',?,'authored')",
+    [step, step, 'Build ' + workPackage, project],
+  );
+  sqlite.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,0,'authored')",
+    ['binding-' + step, project, step],
+  );
+  sqlite.run(
+    "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+    [workPackage, step],
+  );
+}
+
 async function fixture() {
   const folder = mkdtempSync(join(tmpdir(), 'connected-composition-'));
   const path = await openSpaceDatabase(folder);
@@ -125,11 +154,14 @@ async function fixture() {
   const sqlite = openDatabase(path);
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
   sqlite.run(
-    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['connected-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
   );
-  sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
+  sqlite.run("UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-05'");
   sqlite.run("UPDATE organization SET shared_people=? WHERE id='org-a'", [0]);
-  sqlite.run("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
+  sqlite.run(
+    "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
+  );
   const launched: ReservedSpawnRequest[] = [];
   const probe = Object.assign(trackReadObservations(), { writerReads: [] as number[] });
   const source = openSqliteSource({
@@ -175,47 +207,40 @@ async function fixture() {
   sqlite.run('DELETE FROM external_dependency');
   sqlite.run('DELETE FROM estimate');
   sqlite.run('DELETE FROM work_item');
-  sqlite.run('DELETE FROM step');
-  sqlite.run("UPDATE project SET schedule_objective='pri' WHERE id='a1'");
-  for (const project of ['a1', 'a2']) {
-    sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [project, project]);
+  sqlite.run("UPDATE work_package SET schedule_objective='pri' WHERE id='a1'");
+  for (const workPackage of ['a1', 'a2']) {
+    sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
     sqlite.run(
       "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
-      [project, project],
+      [workPackage, workPackage],
     );
-    sqlite.run('INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES(?,?,1)', [
-      project,
-      project,
-    ]);
-    sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,0)', [
-      project + '-s',
-      project,
-      'Build',
-    ]);
-    for (const [position, suffix] of (project === 'a1'
+    sqlite.run(
+      'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
+      [workPackage, workPackage],
+    );
+    bindBuildStep(sqlite, workPackage);
+    for (const [position, suffix] of (workPackage === 'a1'
       ? ['long', 'short']
       : ['foreign']
     ).entries()) {
-      const id = project + '-' + suffix;
+      const id = workPackage + '-' + suffix;
       const days = suffix === 'long' ? 2 : 1;
-      sqlite.run('INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)', [
-        id,
-        project,
-        position,
-        id,
-      ]);
-      sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, project]);
+      sqlite.run(
+        'INSERT INTO work_item(id,work_package_id,position,name,priority) VALUES(?,?,?,?,1)',
+        [id, workPackage, position, id],
+      );
+      sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, workPackage]);
       sqlite.run(
         'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
-        [id, project + '-s', days, days, days],
+        [id, workPackage + '-s', days, days, days],
       );
     }
   }
   sqlite.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2-foreign','a1-long','whole','whole','FS')",
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2-foreign','a1-long','whole','whole','FS')",
   );
   sqlite.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('short-edge','org-a','a2','a1','a2-foreign','a1-short','whole','whole','FS')",
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('short-edge','org-a','a2','a1','a2-foreign','a1-short','whole','whole','FS')",
   );
   const placement = async () => {
     const observed = await composed.bound.stores.livePlans?.read('a1', access);
@@ -289,7 +314,7 @@ async function drain(f: Awaited<ReturnType<typeof fixture>>) {
 }
 function retry(f: Awaited<ReturnType<typeof fixture>>, inputHash: string) {
   return f.app.handle(
-    new Request('http://localhost/api/projects/a1/optimization/retry', {
+    new Request('http://localhost/api/work-packages/a1/optimization/retry', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
       body: JSON.stringify({ inputHash, objective: 'pri' }),
@@ -333,13 +358,13 @@ test('mounted child publishes improved durable ready candidate and replays exact
     const stored = JSON.parse(row.result_json) as {
       dtoVersion: number;
       publication: string;
-      scope: { kind: string; projectId: string };
+      scope: { kind: string; workPackageId: string };
       response: { offsets: Record<string, number> };
     };
     expect(stored).toMatchObject({
-      dtoVersion: 2,
+      dtoVersion: 3,
       publication: 'optimized',
-      scope: { kind: 'connected-stage', projectId: 'a1' },
+      scope: { kind: 'connected-stage', workPackageId: 'a1' },
       response: { offsets: { 'a1-long\u0000a1-s': 96, 'a1-short\u0000a1-s': 48 } },
     });
   }
@@ -353,7 +378,7 @@ test('mounted child publishes improved durable ready candidate and replays exact
   ]);
   expect(selected.combined.slices.get('a2-foreign\u0000a2-s')?.earliestFinish).toBe(1);
   expect(
-    selected.stages.find((selection) => selection.stage.projectId === 'a1')?.chosen?.chosen,
+    selected.stages.find((selection) => selection.stage.workPackageId === 'a1')?.chosen?.chosen,
   ).toBe('optimized');
   const events = f.sqlite
     .query("SELECT message FROM event_log WHERE message LIKE '%schedule_optimized%' ORDER BY seq")
@@ -471,73 +496,65 @@ async function fractionalFixture(shortUnits: 8 | 9) {
   f.sqlite.run('DELETE FROM external_dependency');
   f.sqlite.run('DELETE FROM estimate');
   f.sqlite.run('DELETE FROM work_item');
-  f.sqlite.run('DELETE FROM step');
-  f.sqlite.run('DELETE FROM project_rank');
-  f.sqlite.run("UPDATE project SET schedule_engine='fast',optimization_enabled=0");
+  f.sqlite.run('DELETE FROM work_package_rank');
+  f.sqlite.run("UPDATE work_package SET schedule_engine='fast',optimization_enabled=0");
   f.sqlite.run(
-    "UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
+    "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
   );
-  for (const [rank, project] of ['a2', 'a3', 'a1'].entries()) {
+  for (const [rank, workPackage] of ['a2', 'a3', 'a1'].entries()) {
     f.sqlite.run(
-      "INSERT INTO project_rank(project_id,organization_id,position,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
-      [project, rank],
+      "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+      [workPackage, rank],
     );
-    if (project === 'a3') {
-      f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [project, project]);
+    if (workPackage === 'a3') {
+      bindBuildStep(f.sqlite, workPackage);
+      f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
       f.sqlite.run(
         "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
-        [project, project],
+        [workPackage, workPackage],
       );
       f.sqlite.run(
-        'INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES(?,?,1)',
-        [project, project],
+        'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
+        [workPackage, workPackage],
       );
     }
-    f.sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,0)', [
-      project + '-s',
-      project,
-      'Build',
-    ]);
   }
-  for (const [project, suffix, position, days, priority] of [
+  for (const [workPackage, suffix, position, days, priority] of [
     ['a2', 'anchor', 0, 0.1, 1],
     ['a1', 'dep', 0, 3 / 48, 1],
     ['a1', 'short', 1, 5 / 48, 2],
     ['a3', 'long', 0, 1, 1],
     ['a3', 'short', 1, shortUnits / 48, 1],
   ] as const) {
-    const id = project + '-' + suffix;
-    f.sqlite.run('INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,?)', [
-      id,
-      project,
-      position,
-      id,
-      priority,
-    ]);
-    f.sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, project]);
+    const id = workPackage + '-' + suffix;
+    f.sqlite.run(
+      'INSERT INTO work_item(id,work_package_id,position,name,priority) VALUES(?,?,?,?,?)',
+      [id, workPackage, position, id, priority],
+    );
+    f.sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, workPackage]);
     f.sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
-      [id, project + '-s', days, days, days],
+      [id, workPackage + '-s', days, days, days],
     );
   }
-  for (const [id, predecessorProject, successorProject, predecessor, successor] of [
+  for (const [id, predecessorWorkPackage, successorWorkPackage, predecessor, successor] of [
     ['anchor-dep', 'a2', 'a1', 'a2-anchor', 'a1-dep'],
     ['dep-long', 'a1', 'a3', 'a1-dep', 'a3-long'],
   ])
     f.sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a',?,?,?,?,'whole','whole','FS')",
-      [id, predecessorProject, successorProject, predecessor, successor],
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a',?,?,?,?,'whole','whole','FS')",
+      [id, predecessorWorkPackage, successorWorkPackage, predecessor, successor],
     );
   return f;
 }
 
 async function fractionalQuestion(f: Awaited<ReturnType<typeof fixture>>, shortUnits: 8 | 9) {
   const stage = await f.capture();
-  expect(stage.projectId).toBe('a1');
+  expect(stage.workPackageId).toBe('a1');
   expect(stage.mode).toBe('isolated');
   expect(stage.input.order.kind).toBe('connected');
   if (stage.input.order.kind !== 'connected') throw Error('captured ownership missing');
-  expect([...stage.input.order.projectIdByWorkItem]).toEqual([
+  expect([...stage.input.order.workPackageIdByWorkItem]).toEqual([
     ['a2-anchor', 'a2'],
     ['a3-long', 'a3'],
     ['a3-short', 'a3'],
@@ -548,9 +565,9 @@ async function fractionalQuestion(f: Awaited<ReturnType<typeof fixture>>, shortU
     stage.relationships.map(({ id, type, predecessor, successor }) => [
       id,
       type,
-      predecessor.projectId,
+      predecessor.workPackageId,
       predecessor.workItemId,
-      successor.projectId,
+      successor.workPackageId,
       successor.workItemId,
     ]),
   ).toEqual([
@@ -560,7 +577,7 @@ async function fractionalQuestion(f: Awaited<ReturnType<typeof fixture>>, shortU
   expect(stage.input.slices.find(({ workItemId }) => workItemId === 'a3-short')?.days).toBe(
     shortUnits / 48,
   );
-  expect(stage.projects.map(({ projectId, rank }) => [projectId, rank])).toEqual([
+  expect(stage.workPackages.map(({ workPackageId, rank }) => [workPackageId, rank])).toEqual([
     ['a2', 1],
     ['a3', 2],
     ['a1', 3],
@@ -579,10 +596,13 @@ async function fractionalQuestion(f: Awaited<ReturnType<typeof fixture>>, shortU
   if (built.kind !== 'request') throw Error('genuine fractional question is not a request');
   const request = built.request;
   expect(request.scope).toMatchObject({
-    projectId: stage.projectId,
+    projectId: stage.workPackageId,
     inputHash: prepared.questions.pri.inputHash,
     questionHash: prepared.questions.pri.questionHash,
-    projects: stage.projects,
+    projects: stage.workPackages.map(({ workPackageId, ...placement }) => ({
+      projectId: workPackageId,
+      ...placement,
+    })),
   });
   expect(request.scope.fixed.find(({ key }) => key === 'a3-long\u0000a3-s')?.start).toBe(
     shortUnits / 48,
@@ -714,17 +734,21 @@ for (const shortUnits of [8, 9] as const) {
       const encoded = (rows: readonly unknown[]) => rows.map((row) => JSON.stringify(row)).sort();
       const notifications: { subscription: string; message: string }[] = [];
       const elsewhere = () =>
-        ['a2', 'a3'].map((projectId) => ({
-          subscription: 'project:' + projectId,
-          message: JSON.stringify({ type: 'elsewhere_changed', projectId, causeProjectId: 'a1' }),
+        ['a2', 'a3'].map((workPackageId) => ({
+          subscription: 'work-package:' + workPackageId,
+          message: JSON.stringify({
+            type: 'elsewhere_changed',
+            workPackageId,
+            causeWorkPackageId: 'a1',
+          }),
         }));
       notifications.push(...elsewhere());
       for (const objective of ['pri', 'time'] as const) {
         notifications.push({
-          subscription: 'project:a1',
+          subscription: 'work-package:a1',
           message: JSON.stringify({
             type: 'schedule_optimization_failed',
-            projectId: 'a1',
+            workPackageId: 'a1',
             generation: 1,
             inputHash: request.scope.inputHash,
             objective,
@@ -733,7 +757,7 @@ for (const shortUnits of [8, 9] as const) {
             failureReason: 'invalid-output',
           }),
         });
-        notifications.push(...elsewhere(), ...elsewhere());
+        notifications.push(...elsewhere());
       }
       const sequences = new Map<string, number>();
       const events = notifications.map((event, index) => {
@@ -753,7 +777,7 @@ for (const shortUnits of [8, 9] as const) {
         ...before,
         optimization_generation: encoded([
           {
-            project_id: 'a1',
+            work_package_id: 'a1',
             contract_version: request.contractVersion,
             generation: 1,
             input_hash: request.scope.inputHash,
@@ -764,7 +788,7 @@ for (const shortUnits of [8, 9] as const) {
         ]),
         optimized_schedule_cache: encoded(
           ['pri', 'time'].map((objective) => ({
-            project_id: 'a1',
+            work_package_id: 'a1',
             input_hash: request.scope.inputHash,
             objective,
             contract_version: request.contractVersion,
@@ -778,11 +802,11 @@ for (const shortUnits of [8, 9] as const) {
         ),
         event_log: encoded(events),
         event_sequencer: encoded([
-          { subscription: 'project:a1', next_seq: 2 },
-          { subscription: 'project:a2', next_seq: 5 },
-          { subscription: 'project:a3', next_seq: 5 },
+          { subscription: 'work-package:a1', next_seq: 2 },
+          { subscription: 'work-package:a2', next_seq: 3 },
+          { subscription: 'work-package:a3', next_seq: 3 },
         ]),
-        sqlite_sequence: encoded([{ name: 'event_log', seq: 12 }]),
+        sqlite_sequence: encoded([{ name: 'event_log', seq: 8 }]),
       });
     } else {
       expect(
@@ -835,7 +859,7 @@ async function outgoingFixture() {
 test('mounted outgoing terminal survives recompose and an authored successor edit without losing Q1', async () => {
   const f = await outgoingFixture();
   const q1Stage = await f.capture();
-  expect(q1Stage.projects.map(({ projectId, rank }) => [projectId, rank])).toEqual([
+  expect(q1Stage.workPackages.map(({ workPackageId, rank }) => [workPackageId, rank])).toEqual([
     ['a2', 1],
     ['a3', 2],
     ['a1', 3],
@@ -885,35 +909,39 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
     expect(row.input_hash).toBe(q1.questions[row.objective].inputHash);
     expect(JSON.parse(row.certificate_json)).toMatchObject({
       kind: 'boundary-infeasible',
-      scope: { kind: 'connected-stage', projectId: 'a1' },
+      scope: { kind: 'connected-stage', workPackageId: 'a1' },
       identity,
       evidence: { kind: 'contradictory-bounds', lower: 10, upper: 9 },
     });
   }
-  expect(
-    f.sqlite
-      .query('SELECT message FROM event_log ORDER BY id')
-      .all()
-      .map((row) => (JSON.parse((row as { message: string }).message) as { type: string }).type),
-  ).toEqual([
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'schedule_optimization_boundary_infeasible',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'schedule_optimization_boundary_infeasible',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
+  const notifications = f.sqlite
+    .query<{ message: string }, []>('SELECT message FROM event_log ORDER BY id')
+    .all()
+    .map(({ message }) => {
+      const event = JSON.parse(message) as {
+        type: string;
+        workPackageId: string;
+        causeWorkPackageId?: string;
+        objective?: string;
+      };
+      return [event.type, event.workPackageId, event.causeWorkPackageId ?? event.objective];
+    });
+  const neighbors = [
+    ['elsewhere_changed', 'a2', 'a1'],
+    ['elsewhere_changed', 'a3', 'a1'],
+  ];
+  expect(notifications).toEqual([
+    ...neighbors,
+    ['schedule_optimization_boundary_infeasible', 'a1', 'pri'],
+    ...neighbors,
+    ['schedule_optimization_boundary_infeasible', 'a1', 'time'],
+    ...neighbors,
   ]);
   const terminal = {
     optimization: {
       inputHash: q1.questions.pri.inputHash,
       displayed: 'fast',
-      scope: { kind: 'connected-stage', projectId: 'a1', mode: 'isolated', quantum: 48 },
+      scope: { kind: 'connected-stage', workPackageId: 'a1', mode: 'isolated', quantum: 48 },
       variants: {
         pri: {
           state: 'boundary-infeasible',
@@ -975,7 +1003,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
   };
   const edit = async (days: number) => {
     const response = await restarted.app.handle(
-      new Request('http://localhost/api/projects/a3/commands', {
+      new Request('http://localhost/api/work-packages/a3/commands', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({
@@ -997,7 +1025,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
   const refuseQ1 = async () => {
     const before = wholeStore(f.sqlite);
     const response = await restarted.app.handle(
-      new Request('http://localhost/api/projects/a1/optimization/retry', {
+      new Request('http://localhost/api/work-packages/a1/optimization/retry', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({ inputHash: q1.questions.pri.inputHash, objective: 'pri' }),
@@ -1024,7 +1052,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
       new Bun.CryptoHasher('sha256').update(bytes).digest('hex'),
     );
     expect(q2Stage.relationships).toEqual(q1Stage.relationships);
-    expect(q2Stage.projects).toEqual(q1Stage.projects);
+    expect(q2Stage.workPackages).toEqual(q1Stage.workPackages);
     expect(q2Stage.finishes.get('a2-anchor\u0000a2-s')).toBe(0.19999999999999998);
     expect(q2Stage.starts.get('a3-long\u0000a3-s')).toBe(1.25);
     expect(q2.questions.pri.inputHash).not.toBe(q1.questions.pri.inputHash);
@@ -1068,7 +1096,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
       .all(q2.questions.pri.inputHash);
     expect(storedQ2).toHaveLength(2);
     for (const row of storedQ2)
-      expect(JSON.parse(row.result_json)).toMatchObject({ dtoVersion: 2, publication: 'baseline' });
+      expect(JSON.parse(row.result_json)).toMatchObject({ dtoVersion: 3, publication: 'baseline' });
     const fixedSuccessor = await restarted.tree(restarted.app, 'a3');
     expect(
       fixedSuccessor.slices.map(({ id, earliestStart, earliestFinish }) => [
@@ -1091,7 +1119,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
     expect(launches).toHaveLength(2);
     const q2Generation = f.sqlite.query('SELECT * FROM optimization_generation').all();
     expect(q2Generation).toMatchObject([
-      { project_id: 'a1', input_hash: q2.questions.pri.inputHash, generation: 2 },
+      { work_package_id: 'a1', input_hash: q2.questions.pri.inputHash, generation: 2 },
     ]);
     await edit(1.2);
     expect(f.sqlite.query('SELECT * FROM optimization_generation').all()).toEqual(q2Generation);
@@ -1100,7 +1128,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
     const generation = f.sqlite.query('SELECT * FROM optimization_generation').all();
     const beforeRetry = wholeStore(f.sqlite);
     const refused = await restarted.app.handle(
-      new Request('http://localhost/api/projects/a1/optimization/retry', {
+      new Request('http://localhost/api/work-packages/a1/optimization/retry', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({ inputHash: q1.questions.pri.inputHash, objective: 'pri' }),

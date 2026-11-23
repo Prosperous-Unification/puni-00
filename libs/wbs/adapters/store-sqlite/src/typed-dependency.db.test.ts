@@ -4,26 +4,29 @@ import { join } from 'node:path';
 
 import type { StoredTypedDependency, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { type Drizzle, openDatabase, openDrizzle } from './db';
+import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { workItem } from './schema';
+import { StepCatalogueRepository } from './step-catalogue';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { seedPackageParent } from './testing/legacy-package-parent';
 import { TypedDependencyRepository } from './typed-dependency';
-import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const ORGANIZATION = 'fixture-legacy-org';
+const PROJECT = 'fixture-project';
+let owner: { hasUnknownOwner: boolean; connection?: Connection };
 let dir: string;
 let path: string;
 let db: Drizzle;
 let repo: TypedDependencyRepository;
 let ownerId: string;
-let projectId: string;
+let workPackageId: string;
 let workItems: WorkItemRepository;
 let devStepId: string;
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
@@ -31,45 +34,58 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-repo-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  db = openDrizzle(path);
+  owner = { hasUnknownOwner: false };
+  ownerId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
+  devStepId = crypto.randomUUID();
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: ORGANIZATION,
+      projectId: PROJECT,
+      stamp: wrote(),
+      definitions: [
+        {
+          id: devStepId,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    owner,
+  );
+  const connection = openConnection(path);
+  owner.connection = connection;
+  db = connection.db;
   repo = new TypedDependencyRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote(),
-  );
-  projectId = crypto.randomUUID();
-  devStepId = crypto.randomUUID();
-  await new ProjectRepository(db, OPEN).create(
-    projectRow({ id: projectId, ownerId }),
-    [
-      {
-        id: devStepId,
-        projectId,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    wrote(),
-  );
+  await createPackage(workPackageId, PROJECT);
 });
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  owner.connection?.close();
+  if (!owner.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
+
+async function createPackage(id: string, projectId: string) {
+  const packages = new WorkPackageRepository(db, OPEN);
+  expect(await packages.create(workPackageRow({ id, projectId }), [], wrote())).toMatchObject({
+    id,
+    projectId,
+  });
+}
 
 async function addWorkItem(
   name: string,
   parentId: string | null = null,
-  inProject: string = projectId,
+  inWorkPackage: string = workPackageId,
 ): Promise<string> {
   const id = crypto.randomUUID();
   await workItems.insert(
-    workItemRow({ id, projectId: inProject, parentId, position: 10, name }),
+    workItemRow({ id, workPackageId: inWorkPackage, parentId, position: 10, name }),
     [],
     wrote(),
   );
@@ -78,9 +94,9 @@ async function addWorkItem(
 
 const link = (predecessorId: string, successorId: string): StoredTypedDependency => ({
   id: crypto.randomUUID(),
-  projectId,
-  predecessor: { projectId, scope: 'whole', workItemId: predecessorId },
-  successor: { projectId, scope: 'whole', workItemId: successorId },
+  workPackageId,
+  predecessor: { workPackageId, scope: 'whole', workItemId: predecessorId },
+  successor: { workPackageId, scope: 'whole', workItemId: successorId },
   type: 'FS',
 });
 
@@ -98,7 +114,7 @@ function revision(id: string): number {
  * The message a promise rejected with, or a marker when it resolved.
  *
  * `.rejects.toThrow` returns void under Bun's types and cannot be awaited, and
- * an assertion nobody awaits passes whatever happens (`project.db.test.ts`).
+ * an assertion nobody awaits passes whatever happens (`work-package.db.test.ts`).
  */
 async function rejection(promise: Promise<unknown>): Promise<string> {
   try {
@@ -133,50 +149,61 @@ describe('TypedDependencyRepository', () => {
     ).toEqual(
       [internal, outgoing, incoming].sort((left, right) => left.id.localeCompare(right.id)),
     );
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
     expect(revision(a)).toBe(revisions.get(a) ?? -1);
     expect(revision(b)).toBe(revisions.get(b) ?? -1);
     expect(revision(c)).toBe((revisions.get(c) ?? 0) + 1);
     expect(revision(d)).toBe((revisions.get(d) ?? 0) + 1);
   });
 
-  it('refuses an endpoint outside the project or in the wrong shape', async () => {
-    const otherProject = crypto.randomUUID();
+  it('refuses an endpoint outside the work package or in the wrong shape', async () => {
+    const otherWorkPackage = crypto.randomUUID();
     const otherStep = crypto.randomUUID();
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: otherProject, ownerId }),
-      [
-        {
-          id: otherStep,
-          projectId: otherProject,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    const siblingProject = 'sibling-project';
+    seedPackageParent(path, ORGANIZATION, siblingProject);
+    const bound = await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+      ORGANIZATION,
+      {
+        id: otherStep,
+        name: 'Review',
+        code: 'review',
+        position: 10,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: 'review-binding',
+        scopeKind: 'project',
+        scopeId: siblingProject,
+        workItemTypeId: null,
+        position: 10,
+      },
       wrote(),
     );
+    expect(bound.ok).toBe(true);
+    await createPackage(otherWorkPackage, siblingProject);
+    expect(
+      (await new WorkPackageRepository(db, OPEN).stepsOf(otherWorkPackage)).map((step) => step.id),
+    ).toEqual([otherStep]);
     const leaf = await addWorkItem('Leaf');
     const parent = await addWorkItem('Parent');
     await addWorkItem('Child', parent);
-    const foreign = await addWorkItem('Foreign', null, otherProject);
+    const foreign = await addWorkItem('Foreign', null, otherWorkPackage);
     const refusals: [string, StoredTypedDependency, string][] = [
-      ['foreign work item', link(foreign, leaf), 'outside project'],
+      ['foreign work item', link(foreign, leaf), 'outside work package'],
       [
         'foreign step',
         {
           ...link(leaf, parent),
-          predecessor: { projectId, scope: 'node', workItemId: leaf, stepId: otherStep },
+          predecessor: { workPackageId, scope: 'node', workItemId: leaf, stepId: otherStep },
         },
-        'outside project',
+        'outside work package',
       ],
       [
         'node on a parent',
         {
           ...link(leaf, parent),
-          successor: { projectId, scope: 'node', workItemId: parent, stepId: devStepId },
+          successor: { workPackageId, scope: 'node', workItemId: parent, stepId: devStepId },
         },
         'a parent',
       ],
@@ -184,7 +211,12 @@ describe('TypedDependencyRepository', () => {
         'descendant-step on a leaf',
         {
           ...link(leaf, parent),
-          predecessor: { projectId, scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
+          predecessor: {
+            workPackageId,
+            scope: 'descendant-step',
+            workItemId: leaf,
+            stepId: devStepId,
+          },
         },
         'a leaf',
       ],
@@ -192,7 +224,7 @@ describe('TypedDependencyRepository', () => {
     for (const [name, row, message] of refusals) {
       expect(await rejection(repo.add(row, wrote())), name).toContain(message);
     }
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('adds, lists, updates and removes a link while bumping both endpoints', async () => {
@@ -203,21 +235,24 @@ describe('TypedDependencyRepository', () => {
     const beforeA = revision(a);
     const beforeB = revision(b);
     await repo.add(row, wrote());
-    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([row]);
     expect(revision(a)).toBe(beforeA + 1);
     expect(revision(b)).toBe(beforeB + 1);
     expect(await rejection(repo.add({ ...row, id: crypto.randomUUID() }, wrote()))).toContain(
       'Failed query',
     );
-    const changed = { ...row, successor: { projectId, scope: 'whole' as const, workItemId: c } };
+    const changed = {
+      ...row,
+      successor: { workPackageId, scope: 'whole' as const, workItemId: c },
+    };
     await repo.update(changed, wrote());
-    expect(await repo.listByProject(projectId)).toEqual([changed]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([changed]);
     expect(revision(a)).toBe(beforeA + 2);
     expect(revision(b)).toBe(beforeB + 2);
     const beforeC = revision(c);
     expect(beforeC).toBeGreaterThanOrEqual(1);
     await repo.remove(row.id, wrote());
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
     expect(revision(a)).toBe(beforeA + 3);
     expect(revision(c)).toBe(beforeC + 1);
   });
@@ -231,7 +266,7 @@ describe('TypedDependencyRepository', () => {
     expect(await rejection(repo.update({ ...row, id: 'missing' }, wrote()))).toContain(
       'does not exist',
     );
-    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([row]);
     expect([revision(a), revision(b)]).toEqual(revisions);
   });
 
@@ -242,38 +277,36 @@ describe('TypedDependencyRepository', () => {
     await repo.add(row, wrote());
     const revisions = [revision(a), revision(b)];
     expect(await rejection(repo.remove('missing', wrote()))).toContain('does not exist');
-    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([row]);
     expect([revision(a), revision(b)]).toEqual(revisions);
   });
 
-  it('refuses moving a typed dependency to another project without changing rows or revisions', async () => {
+  it('refuses moving a typed dependency to another work package without changing rows or revisions', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
     const row = link(a, b);
     await repo.add(row, wrote());
-    const otherProject = crypto.randomUUID();
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: otherProject, ownerId }),
-      [
-        {
-          id: crypto.randomUUID(),
-          projectId: otherProject,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote(),
+    const otherWorkPackage = crypto.randomUUID();
+    await createPackage(otherWorkPackage, PROJECT);
+    const destinationPredecessor = await addWorkItem(
+      'Destination predecessor',
+      null,
+      otherWorkPackage,
     );
-    const destinationPredecessor = await addWorkItem('Destination predecessor', null, otherProject);
-    const destinationSuccessor = await addWorkItem('Destination successor', null, otherProject);
+    const destinationSuccessor = await addWorkItem('Destination successor', null, otherWorkPackage);
     const proposed: StoredTypedDependency = {
       ...row,
-      projectId: otherProject,
-      predecessor: { projectId: otherProject, scope: 'whole', workItemId: destinationPredecessor },
-      successor: { projectId: otherProject, scope: 'whole', workItemId: destinationSuccessor },
+      workPackageId: otherWorkPackage,
+      predecessor: {
+        workPackageId: otherWorkPackage,
+        scope: 'whole',
+        workItemId: destinationPredecessor,
+      },
+      successor: {
+        workPackageId: otherWorkPackage,
+        scope: 'whole',
+        workItemId: destinationSuccessor,
+      },
     };
     const endpointIds = [a, b, destinationPredecessor, destinationSuccessor];
     const revisions = endpointIds.map(revision);
@@ -286,8 +319,8 @@ describe('TypedDependencyRepository', () => {
       expect(await rejection(repo.update(proposed, { ...wrote(), at: 2 }))).toContain(
         'cannot move',
       );
-      expect(await repo.listByProject(projectId)).toEqual([row]);
-      expect(await repo.listByProject(otherProject)).toEqual([]);
+      expect(await repo.listByWorkPackage(workPackageId)).toEqual([row]);
+      expect(await repo.listByWorkPackage(otherWorkPackage)).toEqual([]);
       expect(sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all()).toEqual(
         physicalBefore,
       );
@@ -307,13 +340,13 @@ describe('TypedDependencyRepository', () => {
     try {
       for (const type of ['SS', 'FF'])
         sqlite.run(
-          'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-          [type, projectId, a, 'whole', b, 'whole', type],
+          'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+          [type, workPackageId, a, 'whole', b, 'whole', type],
         );
     } finally {
       sqlite.close();
     }
-    expect((await repo.listByProject(projectId)).map(({ type }) => type).sort()).toEqual([
+    expect((await repo.listByWorkPackage(workPackageId)).map(({ type }) => type).sort()).toEqual([
       'FF',
       'SS',
     ]);
@@ -332,13 +365,13 @@ describe('TypedDependencyRepository', () => {
     try {
       sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
-        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['future-type', projectId, a, 'whole', b, 'whole', 'SF'],
+        'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+        ['future-type', workPackageId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
     }
-    expect(await rejection(repo.listByProject(projectId))).toContain(
+    expect(await rejection(repo.listByWorkPackage(workPackageId))).toContain(
       'unknown relationship type SF',
     );
   });
@@ -350,8 +383,8 @@ describe('TypedDependencyRepository', () => {
     try {
       sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
-        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['future-type', projectId, a, 'whole', b, 'whole', 'SF'],
+        'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+        ['future-type', workPackageId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
@@ -375,31 +408,33 @@ describe('TypedDependencyRepository', () => {
     const sqlite = openDatabase(path);
     try {
       const step = sqlite
-        .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ?')
-        .get(projectId);
-      if (step === null) throw new Error('project step is missing');
+        .query<{ id: string }, [string]>(
+          'SELECT step_id AS id FROM work_package_step WHERE work_package_id = ?',
+        )
+        .get(workPackageId);
+      if (step === null) throw new Error('work package step is missing');
       sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
-        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['bad-scope', projectId, a, 'other', b, 'whole', 'FS'],
+        'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+        ['bad-scope', workPackageId, a, 'other', b, 'whole', 'FS'],
       );
-      expect(await rejection(repo.listByProject(projectId))).toContain(
+      expect(await rejection(repo.listByWorkPackage(workPackageId))).toContain(
         'unknown predecessor scope other',
       );
       sqlite.run("DELETE FROM typed_dependency WHERE id='bad-scope'");
       sqlite.run(
-        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?,?)',
-        ['bad-pair', projectId, a, 'whole', step.id, b, 'whole', 'FS'],
+        'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?,?)',
+        ['bad-pair', workPackageId, a, 'whole', step.id, b, 'whole', 'FS'],
       );
-      expect(await rejection(repo.listByProject(projectId))).toContain(
+      expect(await rejection(repo.listByWorkPackage(workPackageId))).toContain(
         'whole predecessor with a step',
       );
       sqlite.run("DELETE FROM typed_dependency WHERE id='bad-pair'");
       sqlite.run(
-        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['missing-step', projectId, a, 'node', b, 'whole', 'FS'],
+        'INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+        ['missing-step', workPackageId, a, 'node', b, 'whole', 'FS'],
       );
-      expect(await rejection(repo.listByProject(projectId))).toContain(
+      expect(await rejection(repo.listByWorkPackage(workPackageId))).toContain(
         'node predecessor without a step',
       );
     } finally {
@@ -408,28 +443,28 @@ describe('TypedDependencyRepository', () => {
   });
 });
 
-it('refuses absent endpoint project state during typed authoring admission', async () => {
+it('refuses absent endpoint work package state during typed authoring admission', async () => {
   const dependency = link('a', 'b');
   expect(
     await rejection(
       repo.hasDeletingEndpoint({
         ...dependency,
-        predecessor: { projectId: 'absent-project', workItemId: 'a', scope: 'whole' },
+        predecessor: { workPackageId: 'absent-work-package', workItemId: 'a', scope: 'whole' },
       }),
     ),
-  ).toContain('missing endpoint project absent-project');
+  ).toContain('missing endpoint work package absent-work-package');
 });
 
-it('refuses unreadable endpoint project state during typed authoring admission', async () => {
+it('refuses unreadable endpoint work package state during typed authoring admission', async () => {
   const native = openDatabase(path);
   try {
     native.run(
-      'ALTER TABLE project RENAME COLUMN optimization_delete_pending_at TO broken_pending_at',
+      'ALTER TABLE work_package RENAME COLUMN optimization_delete_pending_at TO broken_pending_at',
     );
   } finally {
     native.close();
   }
   expect(await rejection(repo.hasDeletingEndpoint(link('a', 'b')))).toContain(
-    'unreadable endpoint project deletion state',
+    'unreadable endpoint work package deletion state',
   );
 });

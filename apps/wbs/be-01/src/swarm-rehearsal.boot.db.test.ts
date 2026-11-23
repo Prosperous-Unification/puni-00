@@ -5,6 +5,7 @@ import { JwksTokenVerifier } from '@wbs/auth';
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { readOrganizationActivation } from '@wbs/store-sqlite';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
+import { applyHistoricalCatalogueFixture } from '@wbs/store-sqlite/testing/historical-catalogue';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
@@ -14,6 +15,7 @@ import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
 import { callForwarded, forwardingMachineGrants, requestGrant } from './testing/mcp-forwarded-call';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
+import { createFixturePackage } from './testing/space-rollup';
 
 /**
  * The swarm rehearsal: `wbs-team-claims` and `wbs-resources` working together for two fleets
@@ -95,7 +97,7 @@ let onResolved: (() => void) | undefined;
 
 /** Ids minted by the operator's setup, by the names the rehearsal gives them. */
 const ids = {
-  projectId: '',
+  workPackageId: '',
   organizationId: '',
   steps: { dev: '', qa: '', review: '' },
   resources: { ram: '', disk: '', staging: '' },
@@ -111,6 +113,7 @@ const sessions = new Map<string, Record<string, string>>();
 const fleetCredentials = new Map<Fleet, string>();
 /** Each fleet's whole API key, as its harness holds it. */
 const fleetKeys = new Map<Fleet, string>();
+const cleanup: (() => Promise<void>)[] = [];
 
 function cli(script: string, args: readonly string[], dbPath = h.databasePath()) {
   const run = Bun.spawnSync([process.execPath, 'run', join(APP_ROOT, 'src', script), ...args], {
@@ -131,6 +134,9 @@ beforeAll(async () => {
     fetch: () =>
       Response.json({ keys: [{ ...publicJwk, alg: 'RS256', kid: 'swarm', use: 'sig' }] }),
   });
+  cleanup.unshift(async () => {
+    await jwks.stop(true);
+  });
   h = OrganizationHarness.openComposedWith({
     sessionBinding: true,
     machineGrants: await forwardingMachineGrants(),
@@ -144,17 +150,18 @@ beforeAll(async () => {
       groupPrefix: 'dev',
       groupsClaim: 'wbs_groups',
     },
-    // From an empty file through the operator's migration CLI, as a host's first deploy does.
+    // The catalogue owner prepares migration 117; the operator CLI applies the pending additive migrations.
     migrate: (dbPath) => {
+      applyHistoricalCatalogueFixture(dbPath, dirname(dbPath), {});
       const migrated = cli('migrate-cli.ts', [], dbPath);
       if (migrated.exitCode !== 0) throw new Error(`migrate-cli.ts failed: ${migrated.stderr}`);
     },
   });
+  cleanup.unshift(() => h.closeComposed());
 });
 
 afterAll(async () => {
-  h.close();
-  await jwks.stop(true);
+  for (const close of cleanup) await close();
 });
 
 async function send(
@@ -245,7 +252,7 @@ function keyOf(workItemId: string): string {
 }
 
 const commandsAs = (actor: string, commands: unknown[]) =>
-  send(sessionOf(actor), 'POST', `/api/projects/${ids.projectId}/commands`, { commands });
+  send(sessionOf(actor), 'POST', `/api/work-packages/${ids.workPackageId}/commands`, { commands });
 
 const directoryAs = (headers: Record<string, string>, commands: unknown[]) =>
   send(headers, 'POST', '/api/directory/commands', { commands });
@@ -380,7 +387,7 @@ async function startableFor(actor: string, fleet: Fleet): Promise<StartableRead>
   const answer = await send(
     sessionOf(actor),
     'GET',
-    `/api/projects/${ids.projectId}/startable?team=${ids.teams[fleet]}`,
+    `/api/work-packages/${ids.workPackageId}/startable?team=${ids.teams[fleet]}`,
   );
   if (answer.status !== 200) throw new Error(`startable refused: ${JSON.stringify(answer)}`);
   return answer.body as StartableRead;
@@ -400,7 +407,7 @@ function expectStartableAgrees(read: StartableRead, fleet: Fleet): void {
     if (capacity === undefined) throw new Error(`no capacity was stated for ${resourceId}`);
     return capacity - (usage[resourceId] ?? 0);
   };
-  expect(read.occupancyScope).toBe('project');
+  expect(read.occupancyScope).toBe('work_package');
   expect(
     read.resources.map(({ resourceId, capacity, occupied: units, free: left }) => ({
       resourceId,
@@ -474,27 +481,10 @@ function expectStartableAgrees(read: StartableRead, fleet: Fleet): void {
 describe('a swarm of two fleets on one plan', () => {
   test('1. the operator plans, activates organizations and credentials the fleets', async () => {
     for (const username of ['dany', 'ada']) await h.register(username);
-    const local = { authorization: `Bearer ${h.token('dany')}` };
-    const project = await send(local, 'POST', '/api/projects', { name: 'Swarm rehearsal' });
-    expect(project.status).toBe(200);
-    ids.projectId = (project.body as { project: { id: string } }).project.id;
-    const review = await send(local, 'POST', `/api/projects/${ids.projectId}/steps`, {
-      name: 'Review',
-    });
-    expect(review.status).toBe(200);
-    const read = await send(local, 'GET', `/api/projects/${ids.projectId}`);
-    const steps = (read.body as { steps: { id: string; name: string }[] }).steps;
-    const stepNamed = (name: string) => {
-      const found = steps.find((each) => each.name === name);
-      if (found === undefined) throw new Error(`the project has no step ${name}`);
-      return found.id;
-    };
-    ids.steps = { dev: stepNamed('Dev'), qa: stepNamed('QA'), review: stepNamed('Review') };
-    expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
-
+    const legacy = { authorization: `Bearer ${h.token('dany')}` };
     // `resource-directory`: resources are directory entities with a kind and a unit.
     const directory = mintedIds(
-      await directoryAs(local, [
+      await directoryAs(legacy, [
         {
           kind: 'createResource',
           name: 'h2puni ram',
@@ -522,94 +512,6 @@ describe('a swarm of two fleets on one plan', () => {
     ids.teams = { claire: nth(directory, 3), claude: nth(directory, 4) };
     for (const [index, name] of [...AGENTS, 'ada-agent', 'kat'].entries())
       ids.persons.set(name, nth(directory, index + 5));
-
-    // The plan: one subtree per fleet, labelled by team (inherited by its four leaves), every
-    // step estimated so no leaf folds to `done`, a demand on each leaf and the project's
-    // capacities (`resource-directory`, `schedule-resources`).
-    const tree = mintedIds(
-      await send(local, 'POST', `/api/projects/${ids.projectId}/commands`, {
-        commands: [
-          { kind: 'createWorkItem', ref: 'claire', parentId: null, name: 'Claire fleet work' },
-          { kind: 'createWorkItem', ref: 'claude', parentId: null, name: 'Claude Code fleet work' },
-          ...LEAVES.map((leaf) => ({
-            kind: 'createWorkItem',
-            ref: leaf.key,
-            parentRef: leaf.fleet,
-            name: `Leaf ${leaf.key}`,
-          })),
-          // Outside both allotments: another account's hotfix, which step 4 uses to take units.
-          { kind: 'createWorkItem', parentId: null, name: 'Hotfix' },
-        ],
-      }),
-    );
-    ids.subtrees = { claire: nth(tree, 0), claude: nth(tree, 1) };
-    for (const [index, leaf] of LEAVES.entries()) ids.leaves.set(leaf.key, nth(tree, index + 2));
-    ids.leaves.set(HOTFIX, nth(tree, -1));
-    const planned = await send(local, 'POST', `/api/projects/${ids.projectId}/commands`, {
-      commands: [
-        ...(['claire', 'claude'] as const).flatMap((fleet) => [
-          {
-            kind: 'patchWorkItem',
-            workItemId: ids.subtrees[fleet],
-            patch: { teamIds: [ids.teams[fleet]] },
-          },
-          { kind: 'setCapacity', teamId: ids.teams[fleet], size: fleet === 'claire' ? 2 : 3 },
-        ]),
-        { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units: RAM_CAPACITY },
-        { kind: 'setResourceCapacity', resourceId: ids.resources.disk, units: 100 },
-        { kind: 'setResourceCapacity', resourceId: ids.resources.staging, units: 1 },
-        // QA and review are ongoing work whose claims continue existing execution. New
-        // unfinished successors still refuse admission; the companion prerequisite test
-        // proves that boundary (`local all-step claims keep atomic meaning` in
-        // cross-project-startable.controller.db.test.ts).
-        ...[HOTFIX, ...LEAVES.map((leaf) => leaf.key)].flatMap((key) =>
-          [ids.steps.qa, ids.steps.review].map((stepId) => ({
-            kind: 'setProgress',
-            workItemId: leafOf(key),
-            stepId,
-            state: 'in_progress',
-          })),
-        ),
-        ...Object.values(ids.steps).map((stepId) => ({
-          kind: 'setEstimate',
-          workItemId: leafOf(HOTFIX),
-          stepId,
-          days: { optimistic: 1, realistic: 1, pessimistic: 1 },
-        })),
-        { kind: 'setDemand', workItemId: leafOf(HOTFIX), resourceId: ids.resources.ram, units: 1 },
-        ...LEAVES.flatMap((leaf) => [
-          ...Object.values(ids.steps).map((stepId) => ({
-            kind: 'setEstimate',
-            workItemId: leafOf(leaf.key),
-            stepId,
-            days: { optimistic: 1, realistic: 2, pessimistic: 3 },
-          })),
-          {
-            kind: 'setDemand',
-            workItemId: leafOf(leaf.key),
-            resourceId: ids.resources.ram,
-            units: leaf.ram,
-          },
-          {
-            kind: 'setDemand',
-            workItemId: leafOf(leaf.key),
-            resourceId: ids.resources.disk,
-            units: 10,
-          },
-          ...(leaf.needsStaging
-            ? [
-                {
-                  kind: 'setDemand',
-                  workItemId: leafOf(leaf.key),
-                  resourceId: ids.resources.staging,
-                  units: 1,
-                },
-              ]
-            : []),
-        ]),
-      ],
-    });
-    expect(planned.status).toBe(200);
 
     // `organization-activation-cli.ts` without --apply rehearses and rolls back: nothing written.
     const snapshot = () =>
@@ -662,15 +564,143 @@ describe('a swarm of two fleets on one plan', () => {
       members: { username: string; role: string }[];
       mappedRoots: Record<string, number>;
     };
-    expect(activated).toMatchObject({ mode: 'applied', mappedRoots: { project: 1, resource: 3 } });
+    expect(activated).toMatchObject({
+      mode: 'applied',
+      mappedRoots: { work_package: 0, resource: 3, person: 9, service_team: 2 },
+    });
     expect(activated.members.map(({ username, role }) => [username, role]).toSorted()).toEqual([
       ['ada', 'member'],
       ['dany', 'super_admin'],
     ]);
     expect(activation()).toBe('activated');
     ids.organizationId = activated.organization.id;
+    h.grant(ids.organizationId, 'dany', 'org-super-admin');
+    h.grant(ids.organizationId, 'ada', 'project-contributor');
     sessions.set('dany', await select(h.token('dany'), ids.organizationId));
     sessions.set('ada', await select(h.token('ada'), ids.organizationId));
+
+    const local = sessionOf('dany');
+    ids.workPackageId = await createFixturePackage(
+      h,
+      'dany',
+      'Swarm rehearsal',
+      (method, path, body) => send(local, method, path, body),
+    );
+    const created = await send(local, 'GET', `/api/work-packages/${ids.workPackageId}`);
+    expect(created.status).toBe(200);
+    const projectId = (created.body as { workPackage: { projectId: string } }).workPackage
+      .projectId;
+    const review = await send(local, 'POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position: 30,
+      define: {
+        code: 'review',
+        name: 'Review',
+        position: 30,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowanceBps: 0,
+      },
+    });
+    expect(review.status).toBe(201);
+    const read = await send(local, 'GET', `/api/work-packages/${ids.workPackageId}`);
+    const steps = (read.body as { steps: { id: string; name: string }[] }).steps;
+    const stepNamed = (name: string) => {
+      const found = steps.find((each) => each.name === name);
+      if (found === undefined) throw new Error(`the work package has no step ${name}`);
+      return found.id;
+    };
+    ids.steps = { dev: stepNamed('Dev'), qa: stepNamed('QA'), review: stepNamed('Review') };
+    expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
+
+    // The plan: one subtree per fleet, labelled by team (inherited by its four leaves), every
+    // step estimated so no leaf folds to `done`, a demand on each leaf and the work package's
+    // capacities (`resource-directory`, `schedule-resources`).
+    const tree = mintedIds(
+      await send(local, 'POST', `/api/work-packages/${ids.workPackageId}/commands`, {
+        commands: [
+          { kind: 'createWorkItem', ref: 'claire', parentId: null, name: 'Claire fleet work' },
+          { kind: 'createWorkItem', ref: 'claude', parentId: null, name: 'Claude Code fleet work' },
+          ...LEAVES.map((leaf) => ({
+            kind: 'createWorkItem',
+            ref: leaf.key,
+            parentRef: leaf.fleet,
+            name: `Leaf ${leaf.key}`,
+          })),
+          // Outside both allotments: another account's hotfix, which step 4 uses to take units.
+          { kind: 'createWorkItem', parentId: null, name: 'Hotfix' },
+        ],
+      }),
+    );
+    ids.subtrees = { claire: nth(tree, 0), claude: nth(tree, 1) };
+    for (const [index, leaf] of LEAVES.entries()) ids.leaves.set(leaf.key, nth(tree, index + 2));
+    ids.leaves.set(HOTFIX, nth(tree, -1));
+    const planned = await send(local, 'POST', `/api/work-packages/${ids.workPackageId}/commands`, {
+      commands: [
+        ...(['claire', 'claude'] as const).flatMap((fleet) => [
+          {
+            kind: 'patchWorkItem',
+            workItemId: ids.subtrees[fleet],
+            patch: { teamIds: [ids.teams[fleet]] },
+          },
+          { kind: 'setCapacity', teamId: ids.teams[fleet], size: fleet === 'claire' ? 2 : 3 },
+        ]),
+        { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units: RAM_CAPACITY },
+        { kind: 'setResourceCapacity', resourceId: ids.resources.disk, units: 100 },
+        { kind: 'setResourceCapacity', resourceId: ids.resources.staging, units: 1 },
+        // QA and review are ongoing work whose claims continue existing execution. New
+        // unfinished successors still refuse admission; the companion prerequisite test
+        // proves that boundary (`local all-step claims keep atomic meaning` in
+        // cross-work-package-startable.controller.db.test.ts).
+        ...[HOTFIX, ...LEAVES.map((leaf) => leaf.key)].flatMap((key) =>
+          [ids.steps.qa, ids.steps.review].map((stepId) => ({
+            kind: 'setProgress',
+            workItemId: leafOf(key),
+            stepId,
+            state: 'in_progress',
+          })),
+        ),
+        ...Object.values(ids.steps).map((stepId) => ({
+          kind: 'setEstimate',
+          workItemId: leafOf(HOTFIX),
+          stepId,
+          days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        })),
+        { kind: 'setDemand', workItemId: leafOf(HOTFIX), resourceId: ids.resources.ram, units: 1 },
+        ...LEAVES.flatMap((leaf) => [
+          ...Object.values(ids.steps).map((stepId) => ({
+            kind: 'setEstimate',
+            workItemId: leafOf(leaf.key),
+            stepId,
+            days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+          })),
+          {
+            kind: 'setDemand',
+            workItemId: leafOf(leaf.key),
+            resourceId: ids.resources.ram,
+            units: leaf.ram,
+          },
+          {
+            kind: 'setDemand',
+            workItemId: leafOf(leaf.key),
+            resourceId: ids.resources.disk,
+            units: 10,
+          },
+          ...(leaf.needsStaging
+            ? [
+                {
+                  kind: 'setDemand',
+                  workItemId: leafOf(leaf.key),
+                  resourceId: ids.resources.staging,
+                  units: 1,
+                },
+              ]
+            : []),
+        ]),
+      ],
+    });
+    expect(planned.status).toBe(200);
 
     // `machine-credentials`: an admin binds every agent person to the operator's account.
     const bound = await directoryAs(sessionOf('dany'), [
@@ -704,12 +734,16 @@ describe('a swarm of two fleets on one plan', () => {
       const { id, key } = issued.body as { id?: string; key?: string };
       if (issued.status !== 201 || id === undefined || key === undefined)
         throw new Error(`the ${fleet} key was refused: ${JSON.stringify(issued)}`);
+      h.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'machine_credential',?,'project-contributor','route',1)",
+        ['fleet-' + id, ids.organizationId, ids.organizationId, id],
+      );
       fleetCredentials.set(fleet, id);
       fleetKeys.set(fleet, key);
       // `wbs-mcp-agent-surface` M9: the key itself is no `/api` bearer.
-      expect(await send({ authorization: `Bearer ${key}` }, 'GET', '/api/projects')).toMatchObject(
-        MACHINE_BEARER_NOT_ACCEPTED,
-      );
+      expect(
+        await send({ authorization: `Bearer ${key}` }, 'GET', '/api/work-packages'),
+      ).toMatchObject(MACHINE_BEARER_NOT_ACCEPTED);
       sessions.set(fleet, await grantHeadersOf(key));
     }
     expect(usersTable()).toEqual(usersBefore);
@@ -886,7 +920,7 @@ describe('a swarm of two fleets on one plan', () => {
       send(
         sessionOf('dany'),
         'GET',
-        `/api/projects/${ids.projectId}/people/${personOf(person)}/work`,
+        `/api/work-packages/${ids.workPackageId}/people/${personOf(person)}/work`,
       );
     const kat = await work('kat');
     expect(kat.status).toBe(200);
@@ -966,7 +1000,11 @@ describe('a swarm of two fleets on one plan', () => {
     });
 
     // Undo of that claim removes the claim and the assignment together.
-    const undone = await send(sessionOf(held.fleet), 'POST', `/api/projects/${ids.projectId}/undo`);
+    const undone = await send(
+      sessionOf(held.fleet),
+      'POST',
+      `/api/work-packages/${ids.workPackageId}/undo`,
+    );
     expect(undone.status).toBe(200);
     const after = (await work(reviewer)).body as typeof reviewing;
     expect(onHeld(after.assignments)).toEqual([]);
@@ -1029,7 +1067,11 @@ describe('a swarm of two fleets on one plan', () => {
     const claimsBeforeUndo = h.sqlite.query('SELECT * FROM claim ORDER BY id').all();
     // Undo is per acting person (`undo-per-acting-person`): the release is on the claire
     // fleet's own stack, so the fleet undoes it, not dany.
-    const undone = await send(sessionOf('claire'), 'POST', `/api/projects/${ids.projectId}/undo`);
+    const undone = await send(
+      sessionOf('claire'),
+      'POST',
+      `/api/work-packages/${ids.workPackageId}/undo`,
+    );
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     expect((undone.body as { detail: string }).detail).toStartWith('resources_exhausted:');
     expect(occupied()).toEqual(occupiedBeforeUndo);
@@ -1098,7 +1140,7 @@ describe('a swarm of two fleets on one plan', () => {
       const answer = await send(
         sessionOf('dany'),
         'GET',
-        `/api/projects/${ids.projectId}/resources`,
+        `/api/work-packages/${ids.workPackageId}/resources`,
       );
       return (
         answer.body as { demands: { workItemId: string; resourceId: string; units: number }[] }
@@ -1134,7 +1176,8 @@ describe('a swarm of two fleets on one plan', () => {
 
     // Undoing the first child moves claim and demand back to the parent.
     expect(
-      (await send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/undo`)).status,
+      (await send(sessionOf('dany'), 'POST', `/api/work-packages/${ids.workPackageId}/undo`))
+        .status,
     ).toBe(200);
     expect(claimsOn(parent)).toEqual(held);
     expect(await demandsOn(parent)).toEqual(demanded);
@@ -1190,8 +1233,10 @@ describe('a swarm of two fleets on one plan', () => {
     // activated refuses replaying it `step_blockage_inactive` whatever the claims do, so the
     // authority is enabled here as the attended activation would.
     activateTestStepBlockages(h.databasePath());
-    const undo = () => send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/undo`);
-    const redo = () => send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/redo`);
+    const undo = () =>
+      send(sessionOf('dany'), 'POST', `/api/work-packages/${ids.workPackageId}/undo`);
+    const redo = () =>
+      send(sessionOf('dany'), 'POST', `/api/work-packages/${ids.workPackageId}/redo`);
     expect((await undo()).status).toBe(200);
     expect(claimsOn(child)).toEqual(held);
     expect(claimsOn(parent)).toEqual([]);
@@ -1227,15 +1272,15 @@ describe('a swarm of two fleets on one plan', () => {
     // `machine-credentials`: its very next request, under the grant it already holds and when
     // mcp-01 asks for a new one with the key.
     expect(
-      await send(sessionOf('claude'), 'GET', `/api/projects/${ids.projectId}/startable`),
+      await send(sessionOf('claude'), 'GET', `/api/work-packages/${ids.workPackageId}/startable`),
     ).toMatchObject({ status: 401, body: { error: 'unknown_identity' } });
     const key = fleetKeys.get('claude');
     if (key === undefined) throw new Error('the claude fleet holds no key');
     expect(
-      await callForwarded(h, key, 'GET', `/api/projects/${ids.projectId}/startable`),
+      await callForwarded(h, key, 'GET', `/api/work-packages/${ids.workPackageId}/startable`),
     ).toMatchObject({ status: 401, body: { error: 'unknown_identity' } });
     expect(usersTable()).toEqual(before);
     // The account's other credential still works.
-    expect((await startableFor('claire', 'claire')).occupancyScope).toBe('project');
+    expect((await startableFor('claire', 'claire')).occupancyScope).toBe('work_package');
   });
 });

@@ -6,21 +6,29 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { rowsChanged } from './changes';
 import { openDrizzle } from './db';
-import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let db: ReturnType<typeof openDrizzle>;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-changes-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   db = openDrizzle(path);
 });
 
 afterEach(() => {
+  // Proof: sqlite-pilot-v226-changes omitted/restored: after real close returned
+  // then reported uncertainty, omission deleted this directory; restoration
+  // retained it. This did not inject a leaked native handle.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -29,7 +37,7 @@ function seedEvents(howMany: number): void {
   for (let at = 0; at < howMany; at += 1) {
     db.run(
       `INSERT INTO event_log (subscription, seq, message, created_at)
-       VALUES ('project:a', ${String(at)}, '{}', ${String(100 + at)})`,
+       VALUES ('work_package:a', ${String(at)}, '{}', ${String(100 + at)})`,
     );
   }
 }
@@ -59,7 +67,7 @@ describe('how many rows the last statement changed', () => {
 
     db.run(`DELETE FROM event_log WHERE seq < 3`);
     db.run(`INSERT INTO event_log (subscription, seq, message, created_at)
-            VALUES ('project:b', 0, '{}', 200)`);
+            VALUES ('work_package:b', 0, '{}', 200)`);
 
     // Three rows went and one arrived, and `changes()` says **one**: it is not
     // the delete's count any more.
@@ -69,10 +77,10 @@ describe('how many rows the last statement changed', () => {
   it('answers a delete inside one transaction, whatever ran before it', () => {
     seedEvents(5);
     db.run(`INSERT INTO event_log (subscription, seq, message, created_at)
-            VALUES ('project:b', 0, '{}', 200)`);
+            VALUES ('work_package:b', 0, '{}', 200)`);
 
     const deleted = db.transaction((tx) => {
-      tx.run(`DELETE FROM event_log WHERE subscription = 'project:a'`);
+      tx.run(`DELETE FROM event_log WHERE subscription = 'work_package:a'`);
       return rowsChanged(tx, 'deleting from event_log');
     });
 

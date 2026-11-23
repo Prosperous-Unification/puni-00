@@ -7,11 +7,27 @@ temporarily skipped while no external activation archive is configured. The
 consumer workflow template remains active. The local launcher and pre-commit hook
 remain available:
 
+Set `PUNI_EXECUTABLE` to the absolute entrypoint of a separately provisioned, reviewed
+current PUNI installation outside the candidate. The adapter does not search PATH for PUNI,
+install a package, choose a registry version or fall back to checkout provider source. The exact
+artifact pin and its provisioning remain operator prerequisites; this example selects no default.
+
 ```sh
-bash bin/tool-wiki-lint.sh working . HEAD
+/usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts working . HEAD
 ```
 
-Without `TOOL_WIKI_ACTIVATION_ROOT`, this command reports `status: inactive` and
+The Nx and staged-hook routes use this same protected first launch. The adapter imports only
+the selected delivered root's `main` export in the current Bun process and invokes `bur lint`
+with the original selection, repository and revision operands. The root retains toolkit, placement,
+activation, Git and native-lifetime admission. Missing selection, unreadable installation or an
+unusable export fails with a provisioning instruction. The executable makes one bounded
+terminal diagnostic attempt and exits1; a closed/stalled diagnostic is not a successful result,
+nor a promise of flush or cleanup of arbitrary module-created resources. Cancellation during module
+import has not yet been observed by an owning control; no new signal-forwarding owner is added.
+Historical hashed shell launcher/release examples below are retained as history; this does not
+resume the disabled CI vectors or provision their authority.
+
+With a verified current PUNI installation and without `TOOL_WIKI_ACTIVATION_ROOT`, this command reports `status: inactive` and
 `certified: false`; that is not a Tool Wiki certification. To restore CI admission,
 provision the archive below, remove the temporary `if: false` conditions from the
 repository workflows, and rerun the affected PR checks.

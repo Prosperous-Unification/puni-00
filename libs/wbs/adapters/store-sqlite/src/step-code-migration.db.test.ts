@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The one below it, which is where every rollback here stops. */
@@ -25,11 +26,13 @@ const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-code-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, PREFIX);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -67,17 +70,17 @@ function readStepIndexSql(): (string | null)[] {
 }
 
 /**
- * A user and two projects, written as raw SQL because drizzle is the new
+ * A user and two work packages, written as raw SQL because drizzle is the new
  * release: the point of every case here is what an older writer sends.
  */
-function seedProjects(sqlite: Database): void {
+function seedWorkPackages(sqlite: Database): void {
   sqlite.run(
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
   );
   for (const id of ['p', 'q']) {
     sqlite.run(
       'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-        ` VALUES ('${id}', 'Project ${id}', 'u', 0, 'pert', NULL, 0, 1)`,
+        ` VALUES ('${id}', 'Work package ${id}', 'u', 0, 'pert', NULL, 0, 1)`,
     );
   }
 }
@@ -96,7 +99,7 @@ describe(STEP_CODE, () => {
     // them is `code`: the row must land, and land NULL, which the store reads
     // as the modeled uncoded state until the post-swap backfill.
     withDatabase((sqlite) => {
-      seedProjects(sqlite);
+      seedWorkPackages(sqlite);
       sqlite.run("INSERT INTO step (id, project_id, name) VALUES ('s1', 'p', 'Design')");
       sqlite.run("INSERT INTO step (id, project_id, name) VALUES ('s2', 'p', 'Build')");
       const codes = sqlite
@@ -109,11 +112,11 @@ describe(STEP_CODE, () => {
   /**
    * Proof: with `CREATE UNIQUE INDEX` made `CREATE INDEX` in `migration.sql`,
    * this case failed on `Received function did not throw` — the third insert
-   * gave a second step in project `p` the code `qa`; watched 2026-09-27.
+   * gave a second step in work package `p` the code `qa`; watched 2026-09-27.
    */
-  it('refuses a code already held in the project, and allows it in another project', () => {
+  it('refuses a code already held in the work package, and allows it in another work package', () => {
     withDatabase((sqlite) => {
-      seedProjects(sqlite);
+      seedWorkPackages(sqlite);
       sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'QA', 'qa')");
       sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s2', 'q', 'QA', 'qa')");
       expect(() =>
@@ -126,7 +129,7 @@ describe(STEP_CODE, () => {
 
   it('rolls back the index and the column and re-applies onto the rolled-back file', () => {
     withDatabase((sqlite) => {
-      seedProjects(sqlite);
+      seedWorkPackages(sqlite);
       sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'Dev', 'dev')");
     });
     expect(readStepColumns()).toContainEqual({
@@ -136,7 +139,9 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+    expect(rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -220,7 +225,7 @@ describe(STEP_CODE, () => {
       withDatabase((sqlite) => sqlite.query<{ id: string }, []>('SELECT id FROM step').all()),
     ).toEqual([{ id: 's1' }]);
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(readStepColumns().map((column) => column.name)).toEqual(before);
     expect(
       withDatabase((sqlite) =>
@@ -246,6 +251,6 @@ describe(STEP_CODE, () => {
   it('refuses to roll back a schema whose code index is already gone', () => {
     withDatabase((sqlite) => sqlite.run('DROP INDEX step_project_code'));
 
-    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow('step_project_code');
+    expect(() => rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toThrow('step_project_code');
   });
 });

@@ -45,7 +45,7 @@ const pilotPaths = [
   'libs/wbs/application/core/src/module/plan-history/README.md',
   'libs/wbs/application/core/src/module/plan-import/README.md',
   'libs/wbs/application/core/src/module/priority-band/README.md',
-  'libs/wbs/application/core/src/module/project/README.md',
+  'libs/wbs/application/core/src/module/work-package/README.md',
   'libs/wbs/application/core/src/module/realtime/README.md',
   'libs/wbs/application/core/src/module/saved-plans/README.md',
   'libs/wbs/application/core/src/module/step/README.md',
@@ -72,7 +72,7 @@ const pilotPaths = [
   'apps/wbs/fe-01/src/modules/plan-feed/README.md',
   'apps/wbs/fe-01/src/modules/plan-writer/README.md',
   'apps/wbs/fe-01/src/modules/preferences/README.md',
-  'apps/wbs/fe-01/src/modules/project/README.md',
+  'apps/wbs/fe-01/src/modules/work-package/README.md',
   'apps/twilight-structure/twilight-burokrat/cli/README.md',
 ] as const;
 const scratch: string[] = [];

@@ -9,7 +9,7 @@ import {
   sliceKey,
 } from '@wbs/domain';
 
-import type { PlanInputReads } from '../ports/saved-plan-capture-values';
+import type { ResolvedPlanInputReads } from '../ports/saved-plan-capture-values';
 import type { ElsewhereHolderLabel } from '../ports/shared-people-values';
 import type { LivePlanRead } from '../ports/shared-people-values';
 import {
@@ -21,19 +21,19 @@ export type { ConnectedTreeEndpoint } from './connected-endpoints';
 import type { ConnectedOptimizationSelection } from './connected-optimization';
 import {
   type ConnectedOptimizationView,
-  projectConnectedOptimization,
+  deriveConnectedOptimizationView,
 } from './connected-optimization-view';
-import { selectConnectedProject } from './connected-plan-projection';
+import { selectConnectedWorkPackage } from './connected-plan-projection';
 import type { ConnectedReadiness } from './connected-readiness';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 type ConnectedMetadata =
-  ConnectedRead['metadataByProject'] extends ReadonlyMap<string, infer M> ? M : never;
+  ConnectedRead['metadataByWorkPackage'] extends ReadonlyMap<string, infer M> ? M : never;
 
 /** Authored incident links include outgoing constraints without leaking unrelated component edges. */
 export interface ConnectedTreeDependency {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly type: RelationshipType;
   readonly predecessor: ConnectedTreeEndpoint;
   readonly successor: ConnectedTreeEndpoint;
@@ -52,10 +52,10 @@ export interface RemoteBlockageLabel {
  */
 export interface ConnectedTreeProjection {
   readonly kind: 'connected';
-  readonly reads: PlanInputReads;
+  readonly reads: ResolvedPlanInputReads;
   readonly metadata: ConnectedMetadata;
   readonly readiness: ConnectedReadiness;
-  readonly placement: ReturnType<typeof selectConnectedProject>;
+  readonly placement: ReturnType<typeof selectConnectedWorkPackage>;
   /** Exact target boundary and objective comparisons; final dates still come only from placement. */
   readonly optimization: ConnectedOptimizationSelection | null;
   /** Detached public-view prerequisite; not attached to the HTTP tree yet. */
@@ -88,18 +88,21 @@ function requireLabel(value: string | null | undefined, name: string): string {
  * endpoint facts. The producer owns authorization and observation lifetime;
  * this function accepts no capability with which to reread either.
  */
-export function projectConnectedTree(
+export function workPackageConnectedTree(
   captured: ConnectedRead,
-  projectId: string,
+  workPackageId: string,
 ): ConnectedTreeProjection {
-  const { projection, readiness, metadataByProject } = captured;
-  const placement = selectConnectedProject(projection, projectId);
+  const { projection, readiness, metadataByWorkPackage } = captured;
+  const placement = selectConnectedWorkPackage(projection, workPackageId);
   validateConnectedMetadata(captured);
   const member = requireEvidence(
-    projection.capture.projects.find((candidate) => candidate.projectId === projectId),
-    `member ${projectId}`,
+    projection.capture.workPackages.find((candidate) => candidate.workPackageId === workPackageId),
+    `member ${workPackageId}`,
   );
-  const metadata = requireEvidence(metadataByProject.get(projectId), `metadata ${projectId}`);
+  const metadata = requireEvidence(
+    metadataByWorkPackage.get(workPackageId),
+    `metadata ${workPackageId}`,
+  );
   const rowIds = new Set(metadata.workItems.map((row) => row.id));
   const leaves = indexTree(metadata.workItems).leafIds;
   const targetReadiness: ConnectedReadiness = {
@@ -165,16 +168,19 @@ export function projectConnectedTree(
       ]),
     ),
   };
-  const numbersByProject = new Map<string, ReadonlyMap<string, string>>();
-  const projectEndpoint = createConnectedEndpointProjector(metadataByProject, numbersByProject);
-  const holders = projectPersonHolders(captured, projectId, numbersByProject);
+  const numbersByWorkPackage = new Map<string, ReadonlyMap<string, string>>();
+  const workPackageEndpoint = createConnectedEndpointProjector(
+    metadataByWorkPackage,
+    numbersByWorkPackage,
+  );
+  const holders = workPackagePersonHolders(captured, workPackageId, numbersByWorkPackage);
   return {
     kind: 'connected',
-    remoteBlockageLabels: projectBlockageLabels(
+    remoteBlockageLabels: workPackageBlockageLabels(
       captured,
-      projectId,
+      workPackageId,
       targetReadiness,
-      projectEndpoint,
+      workPackageEndpoint,
     ),
     ...holders,
     reads: member.reads,
@@ -184,47 +190,47 @@ export function projectConnectedTree(
     optimization:
       projection.placement.kind === 'scheduled'
         ? (projection.placement.stages.find(
-            (selection) => selection.stage.projectId === projectId,
+            (selection) => selection.stage.workPackageId === workPackageId,
           ) ?? null)
         : null,
     // Proof: replacing this call with null failed nine producer-path view tests
     // including scoped comparisons, terminal evidence and absent-label refusal.
-    optimizationView: projectConnectedOptimization(captured, projectId),
+    optimizationView: deriveConnectedOptimizationView(captured, workPackageId),
     dependencies: projection.capture.relationships
-      // Proof: replacing the incident predicate with true exposed unrelated bc to A and failed `projects incoming and outgoing incident labels`.
+      // Proof: replacing the incident predicate with true exposed unrelated bc to A and failed `workPackages incoming and outgoing incident labels`.
       .filter(
         (relationship) =>
-          relationship.predecessor.projectId === projectId ||
-          relationship.successor.projectId === projectId,
+          relationship.predecessor.workPackageId === workPackageId ||
+          relationship.successor.workPackageId === workPackageId,
       )
-      .map(({ id, projectId: ownerId, type, predecessor, successor }) => ({
+      .map(({ id, workPackageId: ownerId, type, predecessor, successor }) => ({
         id,
-        projectId: ownerId,
+        workPackageId: ownerId,
         type,
-        predecessor: projectEndpoint(predecessor),
-        successor: projectEndpoint(successor),
+        predecessor: workPackageEndpoint(predecessor),
+        successor: workPackageEndpoint(successor),
       })),
   };
 }
 
 /** Resolve direct display blockers from complete detached placement, never from authored links. */
-function projectPersonHolders(
+function workPackagePersonHolders(
   captured: ConnectedRead,
-  projectId: string,
-  numbersByProject: Map<string, ReadonlyMap<string, string>>,
+  workPackageId: string,
+  numbersByWorkPackage: Map<string, ReadonlyMap<string, string>>,
 ): Pick<ConnectedTreeProjection, 'foreignPersonHolders' | 'elsewhereHolders'> {
   const foreignPersonHolders = new Map<string, ElsewhereHolder>();
   const labels = new Map<string, ElsewhereHolderLabel>();
-  const { projection, metadataByProject } = captured;
+  const { projection, metadataByWorkPackage } = captured;
   const placement = projection.placement;
   if (placement.kind !== 'scheduled') return { foreignPersonHolders, elsewhereHolders: [] };
   const target = requireEvidence(
-    placement.byProject.get(projectId),
-    `holder target schedule ${projectId}`,
+    placement.byWorkPackage.get(workPackageId),
+    `holder target schedule ${workPackageId}`,
   );
   const member = requireEvidence(
-    projection.capture.projects.find((candidate) => candidate.projectId === projectId),
-    `holder target member ${projectId}`,
+    projection.capture.workPackages.find((candidate) => candidate.workPackageId === workPackageId),
+    `holder target member ${workPackageId}`,
   );
   for (const [key, slice] of target.slices) {
     // Proof: bypassing this membership check let the foreign-capacity fault's
@@ -243,14 +249,14 @@ function projectPersonHolders(
       `holder predecessor ${slice.resourcePredecessorId}`,
     );
     const ownerId = requireEvidence(
-      placement.identities.projectIdByWorkItem.get(predecessor.workItemId),
+      placement.identities.workPackageIdByWorkItem.get(predecessor.workItemId),
       `holder ownership ${predecessor.workItemId}`,
     );
     // Proof: bypassing captured membership accepted an extra uncaptured owner
     // and its injected metadata; the named owner fault failed (2026-10-22).
-    if (!projection.capture.projects.some((candidate) => candidate.projectId === ownerId))
-      throw new Error(`connected tree holder project is not captured ${ownerId}`);
-    const own = requireEvidence(metadataByProject.get(ownerId), `holder metadata ${ownerId}`);
+    if (!projection.capture.workPackages.some((candidate) => candidate.workPackageId === ownerId))
+      throw new Error(`connected tree holder work package is not captured ${ownerId}`);
+    const own = requireEvidence(metadataByWorkPackage.get(ownerId), `holder metadata ${ownerId}`);
     // Proof: choosing the first remote row instead failed exact holder IDs and
     // labels in the two-distinct-holders production projection test (2026-10-22).
     const row = requireEvidence(
@@ -259,7 +265,7 @@ function projectPersonHolders(
     );
     // Proof: removing this refusal accepted a local combined referent absent
     // from the target payload; the named local-reference fault failed (2026-10-22).
-    if (ownerId === projectId && !target.slices.has(slice.resourcePredecessorId))
+    if (ownerId === workPackageId && !target.slices.has(slice.resourcePredecessorId))
       throw new Error(
         `connected tree local holder is absent from target ${slice.resourcePredecessorId}`,
       );
@@ -281,23 +287,23 @@ function projectPersonHolders(
         `holder assignee ${String(slice.personId)}`,
       );
     }
-    if (ownerId === projectId) continue;
+    if (ownerId === workPackageId) continue;
     // Proof: removing the floor and mode predicates independently accepted the
     // foreign-nonperson and isolated-foreign faults (2026-10-22).
     if (slice.boundBy !== 'person' || projection.capture.mode !== 'shared')
       throw new Error(`connected tree unsupported foreign blocker ${key}`);
-    const holder = { projectId: ownerId, workItemId: row.id };
+    const holder = { workPackageId: ownerId, workItemId: row.id };
     foreignPersonHolders.set(key, holder);
     const labelKey = JSON.stringify([ownerId, row.id]);
     if (labels.has(labelKey)) continue;
-    let numbers = numbersByProject.get(ownerId);
+    let numbers = numbersByWorkPackage.get(ownerId);
     if (numbers === undefined) {
       numbers = deriveNumbers(own.workItems);
-      numbersByProject.set(ownerId, numbers);
+      numbersByWorkPackage.set(ownerId, numbers);
     }
     labels.set(labelKey, {
       ...holder,
-      projectName: requireLabel(own.project.name, `holder project name ${ownerId}`),
+      workPackageName: requireLabel(own.workPackage.name, `holder work package name ${ownerId}`),
       number: requireEvidence(numbers.get(row.id), `holder number ${row.id}`),
       name: requireLabel(row.name, `holder row name ${row.id}`),
     });
@@ -306,28 +312,28 @@ function projectPersonHolders(
 }
 
 /** Resolve only referenced foreign roots from complete authorized metadata, including transitive roots. */
-function projectBlockageLabels(
+function workPackageBlockageLabels(
   captured: ConnectedRead,
-  projectId: string,
+  workPackageId: string,
   readiness: ConnectedReadiness,
-  projectEndpoint: (endpoint: ScopedDependencyEndpoint) => ConnectedTreeEndpoint,
+  workPackageEndpoint: (endpoint: ScopedDependencyEndpoint) => ConnectedTreeEndpoint,
 ): RemoteBlockageLabel[] {
   const endpoints = new Map<string, ScopedDependencyEndpoint>();
   // Proof: incident-only member selection failed both transitive hold/step root tests (2026-10-23).
-  for (const member of captured.projection.capture.projects) {
+  for (const member of captured.projection.capture.workPackages) {
     const metadata = requireEvidence(
-      captured.metadataByProject.get(member.projectId),
-      `metadata ${member.projectId}`,
+      captured.metadataByWorkPackage.get(member.workPackageId),
+      `metadata ${member.workPackageId}`,
     );
     for (const row of metadata.workItems) {
       endpoints.set(`work-item:${row.id}`, {
-        projectId: member.projectId,
+        workPackageId: member.workPackageId,
         workItemId: row.id,
         scope: 'whole',
       });
       for (const step of metadata.steps)
         endpoints.set(`step:${formatStepNodeId({ workItemId: row.id, stepId: step.id })}`, {
-          projectId: member.projectId,
+          workPackageId: member.workPackageId,
           workItemId: row.id,
           stepId: step.id,
           scope: 'node',
@@ -342,11 +348,11 @@ function projectBlockageLabels(
         const key = `${root.kind}:${identity}`;
         // Proof: bypassing this lookup guard failed the absent-root contextual refusal test (2026-10-23).
         const endpoint = requireEvidence(endpoints.get(key), `blockage root ${identity}`);
-        if (endpoint.projectId === projectId || labels.has(key)) continue;
-        const evidence = projectEndpoint(endpoint);
+        if (endpoint.workPackageId === workPackageId || labels.has(key)) continue;
+        const evidence = workPackageEndpoint(endpoint);
         const reference =
           evidence.qualifiedReference ??
-          `${evidence.projectAbbreviation}.${evidence.workItemNumber}`;
+          `${evidence.workPackageAbbreviation}.${evidence.workItemNumber}`;
         labels.set(key, {
           // Proof: changing the step root identity failed mounted HTTP labels and both rename/clear layouts (2026-10-23).
           root: { ...root },

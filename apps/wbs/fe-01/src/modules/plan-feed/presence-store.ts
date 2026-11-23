@@ -2,13 +2,13 @@ import { createChannel } from '@/modules/channel';
 import type { Store } from '@/modules/store';
 
 /**
- * Who else has one project open, and whether the socket saying so is up.
+ * Who else has one work package open, and whether the socket saying so is up.
  *
- * gw-01 scopes the list by the project the socket subscribed to, and it
- * arrives on the plan's own stream, so it is one project's and nobody else's.
+ * gw-01 scopes the list by the work package the socket subscribed to, and it
+ * arrives on the plan's own stream, so it is one work package's and nobody else's.
  * It starts empty and disconnected: before a socket has said anything, that is
- * the honest answer, and never a previous project's list under a new
- * project's name.
+ * the honest answer, and never a previous work package's list under a new
+ * work package's name.
  */
 export interface Presence {
   readonly users: readonly string[];
@@ -16,8 +16,8 @@ export interface Presence {
 }
 
 /**
- * One project's presence: the store the header selects from, and the two
- * writes the project's stream makes into it.
+ * One work package's presence: the store the header selects from, and the two
+ * writes the work package's stream makes into it.
  *
  * The stability rule of {@link Store}: a write that changes nothing — the same
  * list object, the same connection — leaves the snapshot the same object and
@@ -26,15 +26,15 @@ export interface Presence {
  * every presence frame is a new list, and a frame is a change.
  *
  * Plain TypeScript with no lifetime of its own (rule F1): nothing closes it and
- * no call on it throws a lifecycle refusal. One store per selected project,
- * held by that project's runtime (`runtime/project-runtime.ts`).
+ * no call on it throws a lifecycle refusal. One store per selected work package,
+ * held by that work package's runtime (`runtime/work-package-runtime.ts`).
  */
 export interface PresenceStore extends Store<Presence> {
   readonly reportUsers: (users: readonly string[]) => void;
   readonly reportConnection: (connected: boolean) => void;
 }
 
-/** Builds one project's presence: nobody, not connected. */
+/** Builds one work package's presence: nobody, not connected. */
 export function createPresence(): PresenceStore {
   const changes = createChannel<undefined>();
   let current: Presence = { users: [], connected: false };

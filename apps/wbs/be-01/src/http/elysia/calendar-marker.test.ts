@@ -37,7 +37,7 @@ test('marker refusal bindings reject malformed known fields while preserving bar
         );
         const response = await app.handle(
           new Request(
-            `https://backend.example${shape.path.replace(':id', 'project').replace(':markerId', 'marker')}`,
+            `https://backend.example${shape.path.replace(':id', 'work_package').replace(':markerId', 'marker')}`,
             {
               method: shape.method,
               headers: { 'content-type': 'application/json' },

@@ -37,11 +37,11 @@ export function credentialReach(role: OrganizationRole): CredentialReach {
 }
 
 /**
- * What a project's Resources section offers a role (`wbs-resources` R8a, 1.7),
+ * What a work package's Resources section offers a role (`wbs-resources` R8a, 1.7),
  * as be-01 permits it: `admin` (admin, super-admin) every write and Remove;
  * `writer` (member) capacity, Add and Edit but no Remove; `reader` (viewer)
  * nothing to change. A drawing hint only: be-01 decides, and on a restricted
- * project it refuses capacity to everyone but the creator and a super-admin,
+ * work package it refuses capacity to everyone but the creator and a super-admin,
  * which this hint does not read.
  */
 export type ResourceStanding = 'admin' | 'writer' | 'reader';

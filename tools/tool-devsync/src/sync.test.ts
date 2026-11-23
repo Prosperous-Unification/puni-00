@@ -283,40 +283,62 @@ describe('dev supervisor', () => {
     expect(events).toEqual([`image:${DEV_IMAGE}`]);
   });
 
-  // The dev stack's project list feeds `nx run-many -t <target> --projects=...`.
-  // A tier left out of that list has no watcher and no supervisor, so it never
-  // starts. mcp-01 must run beside be-01, gw-01 and fe-01.
-  //
-  // **The list moved out of `package.json` and into `bin/dev.sh`**, which is
-  // where both dev modes now build their nx arguments — the root scripts are
-  // `bin/dev.sh` and `bin/dev.sh --local-solver`, and neither carries a project
-  // name of its own. Reading `package.json` for this fact would now pass on a
-  // `dev` script that names nothing at all, which is the fault this test exists
-  // to catch wearing the new arrangement's clothes.
-  //
+  // Historical shell-only observation: the Proof below describes the retired
+  // package routing. The current assertions inspect the PUNI provider vector
+  // and actual Nx target declarations; no new fault observation is claimed.
   // Proof: dropping mcp-01 from `bin/dev.sh`'s `--projects=` list failed this
   // case on `- "mcp-01", · Expected - 1 · Received + 0`. Pointing the read back
   // at `package.json`'s `dev` script instead passes with that same tier gone,
   // because the script no longer names any project.
   it('names every tier in the dev stack, for both dev modes', async () => {
-    const { readFile } = await import('node:fs/promises');
-    const script = await readFile(new URL('../../../bin/dev.sh', import.meta.url), 'utf8');
-    const projects = /--projects=([A-Za-z0-9,-]+)/.exec(script)?.[1];
-    expect(projects).toBeDefined();
-    // One list serves both `serve` and `serve-local-solver`, so a tier missing
-    // here is missing from both modes at once.
-    expect(projects?.split(',').sort()).toEqual([
-      'wbs-be-01',
-      'wbs-fe-01',
-      'wbs-gw-01',
-      'wbs-mcp-01',
-    ]);
+    const provider = await readFile(
+      new URL(
+        '../../../apps/twilight-structure/twilight-dash/cli/src/development.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const projectLists = [...provider.matchAll(/--projects=([A-Za-z0-9,-]+)/g)];
+    expect(projectLists).toHaveLength(1);
+    const projects = projectLists.at(0)?.at(1)?.split(',').sort();
+    expect(projects).toEqual(['wbs-be-01', 'wbs-fe-01', 'wbs-gw-01', 'wbs-mcp-01']);
+    expect(provider).toContain("selected.localSolver ? 'serve-local-solver' : 'serve'");
 
+    if (projects === undefined) throw new Error('missing PUNI development project vector');
+    const workspaceProjects = await readProjects(WORKSPACE);
+    for (const name of projects) {
+      const project = workspaceProjects.find((candidate) => candidate.name === name);
+      if (project === undefined) throw new Error('missing development Nx project ' + name);
+      for (const target of ['serve', 'serve-local-solver'])
+        expect(project.targets[target]).toMatchObject({ continuous: true, cache: false });
+    }
+    const mcp = workspaceProjects.find((project) => project.name === 'wbs-mcp-01');
+    if (mcp === undefined) throw new Error('missing MCP development project');
+    for (const target of ['serve', 'serve-local-solver'])
+      expect(mcp.targets[target]).toMatchObject({ dependsOn: ['prepare'] });
+    expect(mcp.targets['prepare']).toMatchObject({
+      dependsOn: [{ projects: ['wbs-be-01'], target: 'prepare-mcp-document' }],
+    });
+    const backend = workspaceProjects.find((project) => project.name === 'wbs-be-01');
+    if (backend === undefined) throw new Error('missing backend development project');
+    expect(backend.targets['prepare-mcp-document']).toMatchObject({
+      cache: false,
+      options: {
+        command:
+          'bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json',
+      },
+      outputs: ['{workspaceRoot}/apps/wbs/mcp-01/src/openapi.json'],
+    });
+
+    const adapter = await readFile(new URL('../../../bin/dev.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("['dash', 'dev', ...operands, '--repository', repository]");
     const pkg = JSON.parse(
       await readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ) as { scripts: Record<string, string> };
-    expect(pkg.scripts['dev']).toBe('bin/dev.sh');
-    expect(pkg.scripts['dev:local-solver']).toBe('bin/dev.sh --local-solver');
+    expect(pkg.scripts['dev']).toBe('bun --no-env-file --config=/dev/null bin/dev.ts');
+    expect(pkg.scripts['dev:local-solver']).toBe(
+      'bun --no-env-file --config=/dev/null bin/dev.ts --local-solver',
+    );
   });
 
   it('binds the dev mapping to the solver sources and package image', () => {
@@ -378,6 +400,7 @@ describe('dev supervisor', () => {
   it('prepares a changed solver target and keeps unchanged targets on the existing preflight', async () => {
     const changedEvents: string[] = [];
     await deploySolverTarget('c'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('b'.repeat(40)),
       changedPaths: () => Promise.resolve(['libs/wbs/adapters/solver-py/src/wbs_solver/solve.py']),
       compatibilityIdentity: () => Promise.resolve('d'.repeat(64)),
@@ -398,6 +421,7 @@ describe('dev supervisor', () => {
 
     const unchangedEvents: string[] = [];
     await deploySolverTarget('c'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('b'.repeat(40)),
       changedPaths: () => Promise.resolve([]),
       compatibilityIdentity: () =>
@@ -425,13 +449,18 @@ describe('dev supervisor', () => {
     });
     await mkdir(join(sourceRepository, 'apps', 'wbs', 'be-01'), { recursive: true });
     await mkdir(exportedRuntime, { recursive: true });
+    await mkdir(join(sourceRepository, 'apps/wbs/be-01/drizzle/0001_init'), { recursive: true });
+    await writeFile(
+      join(sourceRepository, 'apps/wbs/be-01/drizzle/0001_init/migration.sql'),
+      'CREATE TABLE baseline (id TEXT);\n',
+    );
     await writeFile(
       join(sourceRepository, 'libs', 'wbs', 'adapters', 'solver-py', 'solver.py'),
       'version = 1\n',
     );
     await writeFile(join(sourceRepository, 'apps', 'wbs', 'be-01', 'Dockerfile'), 'FROM scratch\n');
     await $`git -C ${sourceRepository} init --quiet`;
-    await $`git -C ${sourceRepository} add libs/wbs/adapters/solver-py apps/wbs/be-01/Dockerfile`;
+    await $`git -C ${sourceRepository} add libs/wbs/adapters/solver-py apps/wbs/be-01`;
     await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m compatibility`;
     const compatibilitySha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
     const dependencies = solverTargetDependencies({
@@ -659,6 +688,7 @@ describe('dev-sync rehearsal inputs', () => {
   it('resets an unchanged solver target without calling any live host seam', async () => {
     const resets: string[] = [];
     await deployRehearsalTarget('b'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('a'.repeat(40)),
       changedPaths: () => Promise.resolve([]),
       reset: (sha) => {
@@ -674,6 +704,7 @@ describe('dev-sync rehearsal inputs', () => {
     let failure: unknown;
     try {
       await deployRehearsalTarget('b'.repeat(40), {
+        admitSource: () => Promise.resolve(),
         currentSha: () => Promise.resolve('a'.repeat(40)),
         changedPaths: () => Promise.resolve(['apps/wbs/be-01/Dockerfile']),
         reset: () => {
@@ -1086,7 +1117,12 @@ describe('boot-commit convergence after reset', () => {
     await $`git clone --quiet ${origin} ${source}`.quiet();
     await mkdir(join(source, touched, '..'), { recursive: true });
     await writeFile(join(source, touched), 'one\n');
-    await $`git -C ${source} add ${touched}`;
+    await mkdir(join(source, 'apps/wbs/be-01/drizzle/0001_init'), { recursive: true });
+    await writeFile(
+      join(source, 'apps/wbs/be-01/drizzle/0001_init/migration.sql'),
+      'CREATE TABLE baseline (id TEXT);\n',
+    );
+    await $`git -C ${source} add ${touched} apps/wbs/be-01/drizzle`;
     await $`git -C ${source} ${GIT} commit --quiet -m one`;
     const previous = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
     await writeFile(join(source, touched), 'two\n');

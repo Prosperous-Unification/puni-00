@@ -1,0 +1,102 @@
+{
+  "sourceCommit": "1816f5848e11c40786f7919388f98abeb330ebeb",
+  "originalSha256": "18b7ce2e8b51d409c295631a56a6e0e2d7836731574a0a7c11160868a8b46b7c",
+  "archivedLedgerRows": 110,
+  "snapshotSha256": "6a175b6e685b67778254cf5b88548a0b43bde2dd0fc3548ad8be19b7c4705f39",
+  "compressedSha256": "07608b5aeacd2b2f13e8b2034e3086cf5bf69a4eb1310ee8b61d6f937020eb28",
+  "credentialOverlapUntil": 1795474740933,
+  "cleanupRequests": [
+    {
+      "useId": "77522811-8ad9-4ddb-ac1a-e51dc5e31de3",
+      "eventId": "2b03fe93-bf9d-4ff4-81ce-c64e7b34a552",
+      "expectedRevision": 1,
+      "status": 200
+    },
+    {
+      "useId": "71599540-db36-4af0-8a55-85882c9103d6",
+      "eventId": "e69f3670-f62b-48ee-9a02-3347cbe6f171",
+      "expectedRevision": 1,
+      "status": 200
+    },
+    {
+      "useId": "2c7025e4-1c82-485c-a580-d2ce0ef9761c",
+      "eventId": "d8d7542e-93b3-4595-938c-bbde8fbc4385",
+      "expectedRevision": 1,
+      "status": 200
+    }
+  ],
+  "runtime": [
+    {
+      "operation": "confirmed",
+      "eventId": "2aa24985-945f-46a9-a968-76b2258975f7",
+      "useId": "77522811-8ad9-4ddb-ac1a-e51dc5e31de3",
+      "sequence": 4,
+      "revision": 1,
+      "status": 200
+    },
+    {
+      "operation": "acknowledged",
+      "eventId": "d45ccad5-cdf3-4dbe-b225-95298e53b439",
+      "useId": "77522811-8ad9-4ddb-ac1a-e51dc5e31de3",
+      "sequence": 5,
+      "revision": 2,
+      "status": 200
+    },
+    {
+      "operation": "confirmed",
+      "eventId": "e4965438-d833-477b-90be-95a3923dccbc",
+      "useId": "71599540-db36-4af0-8a55-85882c9103d6",
+      "sequence": 6,
+      "revision": 1,
+      "status": 200
+    },
+    {
+      "operation": "acknowledged",
+      "eventId": "0f216b8e-c53b-4bfa-8eca-9d9f5613b527",
+      "useId": "71599540-db36-4af0-8a55-85882c9103d6",
+      "sequence": 7,
+      "revision": 2,
+      "status": 200
+    },
+    {
+      "operation": "acknowledged",
+      "eventId": "b4fa3ff8-27a8-4e14-aed5-c51f0f0fcded",
+      "useId": "2c7025e4-1c82-485c-a580-d2ce0ef9761c",
+      "sequence": 8,
+      "revision": 2,
+      "status": 200
+    }
+  ],
+  "tables": [
+    {
+      "table": "resource_use",
+      "fields": ["id", "snapshot", "request_fingerprint", "registration_response"],
+      "rows": 4,
+      "sha256": "2cb269fe490df0cc4c7ca0857e6a41061fcee6e59d3e3f774c730c7cc7d29998"
+    },
+    {
+      "table": "resource_use_event",
+      "fields": ["id", "snapshot", "fingerprint", "response"],
+      "rows": 11,
+      "sha256": "511e52fbd523f1632a6d55496e130be7de145c6b6c28a95905ac8fc02e44f560"
+    },
+    {
+      "table": "resource_runtime_use",
+      "fields": ["use_id", "declaration"],
+      "rows": 3,
+      "sha256": "a877ddc3a39d5f1a9547feef0304cae648916199378775c31adcd4e9913ee751"
+    },
+    {
+      "table": "resource_runtime_event",
+      "fields": ["event_id", "fingerprint", "response"],
+      "rows": 8,
+      "sha256": "fb3a7a3ccfdc17028ae9f67f6d81f9f6b72fb1bb3a8daa283418ffeb305ff6f0"
+    },
+    {
+      "table": "resource_host_job",
+      "fields": ["use_id", "declaration"],
+      "rows": 2,
+      "sha256": "4caae6a0a25979b6fcb8831d7f8676f12aac83d07b3cafd026e517e13defd06f"
+    }
+  ]
+}

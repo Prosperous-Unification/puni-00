@@ -22,7 +22,7 @@ export function createOptimizationOutcomeOwner(
       // missing-capture test from a modeled refusal into a TypeError before write.
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('optimization outcome lacks borrowed ownership and capture');
-      const owner = await capture.resolveLifecycleOwner(write.claim.projectId);
+      const owner = await capture.resolveLifecycleOwner(write.claim.workPackageId);
       const organizationId = owner.kind === 'scoped' ? owner.organizationId : null;
       // Proof: detaching source.ts capture onto a read-only connection made the
       // installed selected-outcome test lose B's durable event after A stored.
@@ -36,14 +36,14 @@ export function createOptimizationOutcomeOwner(
       // Proof: reusing before here made the installed B event assertion empty;
       // throwing during this capture restored the complete prewrite snapshot.
       const after = await capture.capture(organizationId);
-      const cause = write.claim.projectId;
+      const cause = write.claim.workPackageId;
       // Proof: omitting dependency membership lost C←B after scoped connected selected publication in connected-publication.test.ts.
       // Connected members live in the dependency capture, outside ordinary shared/local facts.
       const addressed =
         before.localFacts.has(cause) ||
         after.localFacts.has(cause) ||
-        before.dependency?.projects.has(cause) === true ||
-        after.dependency?.projects.has(cause) === true;
+        before.dependency?.workPackages.has(cause) === true ||
+        after.dependency?.workPackages.has(cause) === true;
       // Proof: dropping the addressed cause or this recording lost B's event;
       // a second-recipient insert fault rolled back outcome, cache and seq.
       // Splitting COMMIT/BEGIN after outcome write instead left those rows

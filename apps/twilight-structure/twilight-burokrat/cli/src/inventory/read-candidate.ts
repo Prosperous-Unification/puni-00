@@ -41,6 +41,7 @@ export type CandidateReadFailure =
   | 'malformed-git-output'
   | 'malformed-index'
   | 'not-repository'
+  | 'unsafe-git-configuration'
   | 'unreadable-index'
   | 'working-tree-changed';
 
@@ -121,7 +122,11 @@ function readText(
  * @throws {@link CandidateReadError} `not-repository`.
  */
 export function resolveCandidateRoot(repository: string): string {
-  const invocation = invokeGit(repository, ['rev-parse', '--show-toplevel']);
+  return decodeCandidateRoot(invokeGit(repository, ['rev-parse', '--show-toplevel']));
+}
+
+/** Decode the worktree query without selecting an ambient process environment. */
+export function decodeCandidateRoot(invocation: GitInvocation): string {
   if (invocation.exitCode !== 0) {
     const detail = invocation.stderr.length === 0 ? 'Git worktree unavailable' : invocation.stderr;
     throw new CandidateReadError('not-repository', `not a readable Git repository: ${detail}`);
@@ -397,7 +402,36 @@ function readStaged(repository: string, baseRevision: string): CandidateSnapshot
   return { selection: { kind: 'staged', base, indexTree }, entries, untracked: [] };
 }
 
+/**
+ * Refuse any loaded executable filter definition before freezing bytes, including unused filters.
+ * Git config returns 1 for no regexp match; any matched nonempty clean/process command refuses.
+ * Earlier nonempty definitions also refuse when later empty values override them.
+ * Values remain private. Stable operator-owned metadata (including includes/worktree config)
+ * is required throughout selection; this is not protection from a concurrent metadata writer.
+ * @throws CandidateReadError for unsafe configuration or a failed configuration query.
+ */
+function assertWorkingFilters(repository: string): void {
+  const invocation = invokeGit(repository, [
+    'config',
+    '--null',
+    '--get-regexp',
+    '^filter[.].*[.](clean|process)$',
+    '.+',
+  ]);
+  // Proof: treating the documented no-match outcome as failure rejected the empty-definition positive; the filter mutation sweep observed its assertion fail.
+  if (invocation.exitCode === 1) return;
+  // Proof: classifying a failed query as a matched command lost the explicit query failure in the broken-Git-wrapper negative.
+  readText(invocation, 'malformed-git-output', 'cannot inspect working Git filter configuration');
+  // Proof: omitting this refusal executed active clean/process sentinels; widening either regexp separator/anchor or exposing command values failed the corresponding filter cases.
+  throw new CandidateReadError(
+    'unsafe-git-configuration',
+    'working selection refuses configured Git clean/process filters',
+  );
+}
+
 function readWorking(repository: string, baseRevision: string): CandidateSnapshot {
+  // Proof: skipping this preflight executed active clean/process programs before freezing bytes; both actual sentinel negatives failed.
+  assertWorkingFilters(repository);
   const base = resolveCommit(repository, baseRevision, 'working base');
   const index = captureIndex(repository, 'working');
   const indexTree = writeCapturedIndexTree(repository, index);
@@ -448,6 +482,8 @@ function readWorking(repository: string, baseRevision: string): CandidateSnapsho
 /**
  * Freezes one explicit Git candidate selection and returns its exact tracked tuples.
  * Working selections are diagnostic snapshots and keep untracked paths outside the tuple set.
+ * They refuse loaded nonempty clean/process filter definitions before freezing bytes; configured filters
+ * are not disabled silently because doing so would change selected-byte semantics.
  * @throws {@link CandidateReadError} when required Git state cannot be selected completely.
  */
 export function readCandidate(repository: string, request: CandidateRequest): CandidateSnapshot {

@@ -1,8 +1,11 @@
+import { seedLegacyProject } from '../testing/project-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import type { ResolvedPlanInputReads } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import {
@@ -15,6 +18,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -30,27 +34,24 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
 import { PriorityBandRepository } from '../repository/priority-band';
-import { ProjectRepository } from '../repository/project';
-import type { PlanInputReads } from '../repository/saved-plan-capture';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { projectRow } from '../testing/project-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /**
- * A Monday, so `nextWorkday` leaves it alone and the project's day zero is the
+ * A Monday, so `nextWorkday` leaves it alone and the work package's day zero is the
  * start itself. A weekend start would put day zero on the following Monday and
  * every offset below would be an assertion about `nextWorkday` rather than
  * about this seam.
@@ -64,7 +65,7 @@ const START = '2026-03-02';
  * no deadline map, so a saved plan is scheduled as if no work item had a
  * deadline. Since `work-item-deadline` slice 5 a deadline reorders Fast's ready
  * set by minimum slack, so this is not a missing reported field: **a saved plan
- * and the live plan of the same project place their slices on different days.**
+ * and the live plan of the same work package place their slices on different days.**
  * The file's own doc claims the opposite — "a saved plan and the live plan
  * schedule the same numbers the same way" — which is what makes this a defect
  * rather than an omission.
@@ -75,7 +76,7 @@ const START = '2026-03-02';
  * therefore what a scheduler that never sees a deadline produces, and it is
  * what this file asserts against.
  *
- * **The third case turns the doc's claim into an assertion.** The same project
+ * **The third case turns the doc's claim into an assertion.** The same work package
  * is read twice — once through `WorkItemService.tree`, which is the live
  * projection the doc says this derivation mirrors, and once through the
  * capture — and the two are compared placement by placement. Argued equality
@@ -97,34 +98,49 @@ describe('a captured plan and its deadlines', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-deadlines-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    expect(
+      (
+        await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+          'service-fixture-legacy',
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          {
+            bindingId: 'dev-binding',
+            scopeKind: 'project',
+            scopeId: PARENT_PROJECT_ID,
+            workItemTypeId: null,
+            position: 10,
+          },
+          wrote,
+        )
+      ).ok,
+    ).toBe(true);
+    const born = await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'plan',
-        ownerId: 'owner',
+        projectId: PARENT_PROJECT_ID,
         estimateMethod: 'realistic',
         startDate: START,
       }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
+    expect(born).toMatchObject({ id: 'p1', projectId: PARENT_PROJECT_ID });
     const directory = new DirectoryRepository(db, OPEN);
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     await directory.addPerson({ id: 'pp-ada', name: 'Ada' }, ['t-platform'], wrote);
@@ -140,7 +156,7 @@ describe('a captured plan and its deadlines', () => {
       await items.insert(
         {
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           parentId: null,
           position,
           name: id,
@@ -182,7 +198,7 @@ describe('a captured plan and its deadlines', () => {
     new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) });
 
   /**
-   * The **live** plan of the same project, read the way the app reads it.
+   * The **live** plan of the same work package, read the way the app reads it.
    *
    * Not a second call to `schedulePlanInput` with different inputs: this is
    * `WorkItemService.tree`, whose `schedule()` call at `work-item.service.ts`
@@ -202,18 +218,18 @@ describe('a captured plan and its deadlines', () => {
     const { db } = live;
     return new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: new ProjectRepository(db, OPEN),
+        workPackages: new WorkPackageRepository(db, OPEN),
         workItems: new WorkItemRepository(db, OPEN),
         estimates: new EstimateRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
-      projects: new ProjectRepository(db, OPEN),
+      workPackages: new WorkPackageRepository(db, OPEN),
       estimates: new EstimateRepository(db, OPEN),
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -292,7 +308,11 @@ describe('a captured plan and its deadlines', () => {
     // reads as "the date never reached the capture" rather than as the
     // scheduling claim below.
     expect(reads.workItems.find((each) => each.id === 'wi-2')?.deadline).toBe(START);
-    expect(reads.project.startDate).toBe(START);
+    expect(reads.workPackage.startDate).toBe(START);
+    expect(reads.leafSteps).toEqual([
+      { workItemId: 'wi-1', stepIds: ['st-1'] },
+      { workItemId: 'wi-2', stepIds: ['st-1'] },
+    ]);
 
     // The claim: the deadlined leaf is placed first, ahead of the leaf that
     // sorts before it on position and is otherwise identical.
@@ -318,7 +338,7 @@ describe('a captured plan and its deadlines', () => {
     // no connection at all. If this also placed `wi-2` first, the assertion
     // above would be about position or about the fixture rather than about the
     // date.
-    const undated: PlanInputReads = {
+    const undated: ResolvedPlanInputReads = {
       ...reads,
       workItems: reads.workItems.map((each) => ({ ...each, deadline: null })),
     };
@@ -369,10 +389,10 @@ describe('a captured plan and its deadlines', () => {
     expect(sevenFieldsOf(live!)).toEqual(expected);
   });
 
-  it('schedules the same project to the same placements as the live projection', async () => {
-    // `tree` answers `null` for a project that is not there, exactly as the
+  it('schedules the same work package to the same placements as the live projection', async () => {
+    // `tree` answers `null` for a work package that is not there, exactly as the
     // capture does, so both are narrowed the same way and a fixture that failed
-    // to seed reads as "the project is missing" rather than as a placement
+    // to seed reads as "the work package is missing" rather than as a placement
     // disagreement.
     const read = await liveProjection();
     expect(read).not.toBeNull();

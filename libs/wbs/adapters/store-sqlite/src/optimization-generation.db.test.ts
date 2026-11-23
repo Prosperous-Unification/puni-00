@@ -5,32 +5,37 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
 import { allocateGeneration, readGeneration } from './optimization-generation';
 import { optimizedScheduleCache, solverQueue, solverSlot } from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 /** The two releases running against one file during a swap. */
 const BLUE = '7+1.0.0';
 const GREEN = '8+1.0.0';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let path: string;
 let db: Drizzle;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-generation-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'optimization-generation-org', 'optimization-generation-project');
   const seed = openDatabase(path);
   try {
     seed.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     seed.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'optimization-generation-project', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     seed.close();
@@ -39,13 +44,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Proof: sqlite-cohort2-v244-generation injected a throw after real close
+  // returned. Omission deleted this directory; restoration retained it.
+  // No leaked native handle was injected.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
 function seedCache(contractVersion: string, generation: number, inputHash: string): void {
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash,
       objective: 'pri',
       contractVersion,
@@ -62,7 +72,7 @@ function seedCache(contractVersion: string, generation: number, inputHash: strin
 function seedQueue(contractVersion: string, generation: number): void {
   db.insert(solverQueue)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion,
       objective: 'time',
       budgetMs: 60000,
@@ -76,7 +86,7 @@ function seedQueue(contractVersion: string, generation: number): void {
 function seedSlot(contractVersion: string, generation: number): void {
   db.insert(solverSlot)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion,
       generation,
       objective: 'pri',
@@ -124,14 +134,14 @@ function slotRows(): string[] {
 /**
  * The blue/green half of tasks.md 3.9.
  *
- * The whole point of keying the generation on `(projectId, contractVersion)` is
+ * The whole point of keying the generation on `(workPackageId, contractVersion)` is
  * that two releases share one database file during a swap. If the counter lived
- * on the `project` row, blue computing one hash and green computing another
+ * on the `workPackage` row, blue computing one hash and green computing another
  * would alternately increment it and delete each other's rows for ever, on a
  * plan nobody edited — a livelock, not a cache miss.
  *
- * **Watched red:** key the allocation on `projectId` alone — the generation
- * back on `project` in all but name — and the three cases named below fail.
+ * **Watched red:** key the allocation on `workPackageId` alone — the generation
+ * back on `workPackage` in all but name — and the three cases named below fail.
  */
 describe('two releases against one file', () => {
   it('allocate independently, each in its own row', () => {
@@ -238,7 +248,7 @@ describe('one allocation', () => {
     try {
       write.run(
         `UPDATE optimization_generation SET admission_state = 'draining', cancel_epoch = 3
-           WHERE project_id = 'p-1' AND contract_version = '${BLUE}'`,
+           WHERE work_package_id = 'p-1' AND contract_version = '${BLUE}'`,
       );
     } finally {
       write.close();

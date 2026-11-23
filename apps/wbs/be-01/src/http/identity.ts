@@ -233,7 +233,7 @@ async function delegatedOrSession(
     // no one (M14).
     // Proof: with this check removed, `refuses a grant without the secret, or
     // with a wrong one, internal_unauthorized` (machine-grant.controller.db.test.ts)
-    // answered 200 with the projects; watched 2026-10-26.
+    // answered 200 with the work packages; watched 2026-10-26.
     if (!isMcpSecret(headers.get(MCP_INTERNAL_SECRET_HEADER))) return 'internal_unauthorized';
     // A grant is the request's only credential, as a delegation is.
     // Proof: with this check removed, `refuses a grant beside a session

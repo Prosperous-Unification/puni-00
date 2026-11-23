@@ -1,14 +1,15 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
 const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
@@ -18,13 +19,17 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** A store migrated to the latest, with an organization, an account and an agent person. */
-function migratedStore(): { root: string; dbPath: string } {
+/** A seeded store through the credential ID guard for audit and ID checks or initial access for rollback. */
+function migratedStore(through: typeof INITIAL_ACCESS | typeof ID_SHAPE = INITIAL_ACCESS): {
+  root: string;
+  dbPath: string;
+} {
   const root = mkdtempSync(join(tmpdir(), 'wbs-machine-credential-audit-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   run(dbPath, [
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
@@ -81,7 +86,7 @@ async function rollBack(root: string, dbPath: string, to: string) {
  */
 describe(AUDIT_WIDENING, () => {
   it('admits the five new actions and two kinds, and the outgoing release keeps writing', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(ID_SHAPE);
     run(dbPath, [
       audit('a1', 'machine_credential_created', 'machine_credential'),
       audit('a2', 'machine_credential_rotated', 'machine_credential'),
@@ -95,7 +100,7 @@ describe(AUDIT_WIDENING, () => {
   });
 
   it('still refuses an unknown action or kind, and stays append-only', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(ID_SHAPE);
     expect(() => {
       run(dbPath, [audit('x1', 'machine_credential_exported', 'machine_credential')]);
     }).toThrow(/CHECK/);
@@ -155,7 +160,7 @@ describe(ID_SHAPE, () => {
   // Proof: the insert trigger's WHEN replaced by `WHEN 0` made this store
   // the misplaced-hyphen id, which the older CHECK admits; watched 2026-10-22.
   it('refuses a credential id that is not a lowercase UUID', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(ID_SHAPE);
     for (const id of [
       '0000000000000-4000-8000-000000000001',
       '------------------------------------',

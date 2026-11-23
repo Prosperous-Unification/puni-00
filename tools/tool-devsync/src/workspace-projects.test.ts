@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
-import { fileDataDepTarget } from 'nx/src/config/project-graph';
+import {
+  type DependencyType,
+  fileDataDepTarget,
+  fileDataDepType,
+} from 'nx/src/config/project-graph';
 import { createProjectGraphAsync, type ProjectGraph } from 'nx/src/devkit-exports';
 import { getFileMap } from 'nx/src/project-graph/build-project-graph';
 
@@ -16,6 +20,8 @@ const WORKSPACE = new URL('../../../', import.meta.url);
 // in. The product is read back off the root below rather than spelled out per
 // row, so a second product cannot be added here without its directory agreeing.
 const EXPECTED_PRODUCT_PROJECTS = [
+  // Proof: omitting PUNI failed the exact root/identity and product-axis cases with this new row.
+  ['apps/puni/cli', 'puni-cli'],
   // Proof: leaving this row out after Twilight Burokrat moved into the Twilight Structure
   // suite failed the owning Nx target on the exact extra
   // `['apps/twilight-structure/twilight-burokrat/cli', 'twilight-burokrat']` tuple, and the
@@ -31,7 +37,10 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/website/fe-01', 'website-fe-01'],
   // Proof: omitting both delivery projects failed the root/identity and product-axis
   // inventory cases with these exact additional tuples (2026-10-23).
+  ['libs/shared/adapters/bun-output', 'shared-bun-output'],
+  ['libs/shared/adapters/bun-startup', 'shared-bun-startup'],
   ['libs/shared/adapters/delivery-github', 'shared-delivery-github'],
+  ['libs/shared/adapters/heavy-lock', 'shared-heavy-lock'],
   ['libs/shared/adapters/ui-core-01', 'shared-ui-core-01'],
   ['libs/shared/adapters/ui-saas-01', 'shared-ui-saas-01'],
   ['libs/shared/domain/delivery', 'shared-delivery'],
@@ -483,6 +492,62 @@ describe('productConstraints', () => {
     const constraints = productConstraints(projects);
     const graph = await nxProjectGraph();
     const violations: string[] = [];
+    const providerNames = ['twilight-burokrat', 'twilight-dash', 'twilight-navigator'];
+    const puniEdges = graph.dependencies['puni-cli'];
+    // Proof: c31-integration-b-graph-missing-dynamic; injected graph-missing-dynamic in apps/puni/cli/src/execute-command.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+    // Proof: c31-integration-b-graph-implicit-provider; injected graph-implicit-provider in apps/puni/cli/project.json failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+    expect(
+      puniEdges
+        .filter((edge) => providerNames.includes(edge.target))
+        .map((edge) => edge.target + ':' + edge.type)
+        .sort(),
+    ).toEqual(providerNames.flatMap((name) => [name + ':static', name + ':dynamic']).sort());
+    const staticImporters = [
+      {
+        source: 'puni-cli',
+        target: 'tool-test-performance-execution',
+        files: ['apps/puni/cli/src/packaging/test-level-installation.test.fixture.ts'],
+      },
+      {
+        source: 'tool-devsync',
+        target: 'twilight-dash',
+        files: [
+          'tools/tool-devsync/src/browser-level.ts',
+          'tools/tool-devsync/src/performance-level.ts',
+          'tools/tool-devsync/src/performance-processes.ts',
+          'tools/tool-devsync/src/source-test-level-context.ts',
+        ],
+      },
+      {
+        source: 'tool-devsync',
+        target: 'puni-cli',
+        files: ['tools/tool-devsync/src/k3s/forge-installation.ts'],
+      },
+      {
+        source: 'tool-remote-scripts',
+        target: 'puni-cli',
+        files: ['tools/tool-remote-scripts/src/lib/source-puni-installation.ts'],
+      },
+    ];
+    for (const { source, target, files } of staticImporters) {
+      const types = graph.dependencies[source]
+        .filter((edge) => edge.target === target)
+        .map((edge) => edge.type);
+      // Proof: this graph test received [] after the installation fixture lost its execution
+      // dependency, and ['implicit', 'static'] after a remote-scripts manifest edge was added.
+      expect(types, `${source} -> ${target} edge types`).toEqual(['static']);
+      const importers = getFileMap()
+        .fileMap.projectFileMap[source].filter((file) =>
+          file.deps?.some(
+            (edge) => fileDataDepTarget(edge) === target && fileDataDepType(edge) === 'static',
+          ),
+        )
+        .map((file) => file.file)
+        .sort();
+      // Proof: the actual Devsync-to-Dash graph gained sync.ts after a peer re-export and lost
+      // source-test-level-context.ts after its type import was removed. Each failed this equality.
+      expect(importers, `${source} -> ${target} static importers`).toEqual(files);
+    }
     for (const project of projects) {
       // A product-less project is the infra rule's subject: the tools reach infra and the
       // shared product, plus whatever the root config's `allow` list excuses.
@@ -505,6 +570,60 @@ describe('productConstraints', () => {
             ...ALLOWED_BUROKRAT_EDGES,
             ...ALLOWED_NAVIGATOR_RECORD_EDGES,
           ].some(([source, reached]) => project.name === source && target.name === reached)
+        ) {
+          continue;
+        }
+        if (
+          project.name === 'puni-cli' &&
+          ['twilight-burokrat', 'twilight-dash', 'twilight-navigator'].includes(target.name)
+        ) {
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some(
+                (reached) =>
+                  fileDataDepTarget(reached) === target.name &&
+                  fileDataDepType(reached) === (dependency.type as DependencyType),
+              ),
+            )
+            .map((file) => file.file)
+            .sort();
+          const expectedImporters =
+            dependency.type === 'dynamic'
+              ? target.name === 'twilight-navigator'
+                ? ['apps/puni/cli/src/execute-command.ts']
+                : [
+                    'apps/puni/cli/src/execute-command.ts',
+                    'apps/puni/cli/src/packaging/test-levels.ts',
+                  ]
+              : target.name === 'twilight-burokrat'
+                ? [
+                    'apps/puni/cli/src/cli-parser.ts',
+                    'apps/puni/cli/src/packaging/build.ts',
+                    'apps/puni/cli/src/packaging/install.ts',
+                    'apps/puni/cli/src/packaging/prepare-source-test-levels.ts',
+                    'apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts',
+                    'apps/puni/cli/src/packaging/selection.ts',
+                  ]
+                : target.name === 'twilight-dash'
+                  ? [
+                      'apps/puni/cli/src/cli-parser.ts',
+                      'apps/puni/cli/src/execute-command.ts',
+                      'apps/puni/cli/src/packaging/test-level-installation.test.fixture.ts',
+                      'apps/puni/cli/src/packaging/test-levels.ts',
+                    ]
+                  : ['apps/puni/cli/src/cli-parser.ts'];
+          // Proof: c31-integration-b-graph-extra-static; injected graph-extra-static in apps/puni/cli/src/version.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+          // Proof: c31-integration-b-graph-extra-dynamic; injected graph-extra-dynamic in apps/puni/cli/src/version.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+          // Proof: c31-integration-b-graph-missing-builder; injected graph-missing-builder in apps/puni/cli/src/packaging/build.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+          // Proof: removing the Burokrat dynamic import in packaging/test-levels.ts left the
+          // execute-command.ts importer intact and failed this graph test on the missing client.
+          expect(importers).toEqual(expectedImporters);
+          continue;
+        }
+        if (
+          staticImporters.some(
+            ({ source, target: reached }) => source === project.name && reached === target.name,
+          )
         ) {
           continue;
         }
@@ -590,7 +709,7 @@ describe('source-bundled activation graph', () => {
       'db',
       'backup',
       'migration-set',
-      'cross-project-dependency-activation',
+      'cross-work-package-dependency-activation',
       'migrate',
     ];
     const configuration: unknown = JSON.parse(

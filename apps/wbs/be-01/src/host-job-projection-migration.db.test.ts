@@ -1,19 +1,19 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
-/** The folder right below {@link HOST_JOB_PROJECTION}: rolling back to it reverses this migration after {@link ACCESS_GRANTS}. */
+/** The rollback target immediately before {@link HOST_JOB_PROJECTION}. */
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
-/** `wbs-permissions`' access grants, the newest folder, which reverses first. */
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -21,14 +21,14 @@ afterEach(() => {
 });
 
 /**
- * A store migrated to the latest from a copy of the real folder, holding one provider instance,
+ * A store migrated through initial access offers, holding one provider instance,
  * one resource it fulfils, one agent person and one authority bound to the instance.
  */
 function migratedStore() {
   const root = mkdtempSync(join(tmpdir(), 'wbs-host-job-projection-'));
   roots.push(root);
   const folder = join(root, 'drizzle');
-  cpSync(MIGRATIONS, folder, { recursive: true });
+  renameSync(copyRecoveryPrefix(root, INITIAL_ACCESS), folder);
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, folder);
   run(dbPath, [
@@ -143,7 +143,9 @@ describe(HOST_JOB_PROJECTION, () => {
     const down = await rollBack(root, dbPath, DIRECTORY_CAPACITY);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: ${INITIAL_ACCESS}, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}\n`,
+    );
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_units');
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_dimension');
     expect(columnsOf(dbPath, 'resource_host_job')).toEqual([]);

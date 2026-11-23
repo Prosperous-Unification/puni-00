@@ -44,6 +44,8 @@ nx-gate.log
 test-results/
 test-results-packaged/
 playwright-report/
+apps/wbs/fe-01/test-results-local/
+apps/wbs/fe-01/playwright-report-local/
 .claude/worktrees
 # `.nxignore` codifies `.worktrees/<name>` as the convention for agent lanes, and
 # a nested worktree is untracked. `bin/h2puni-gate.sh` refuses a tree that is
@@ -104,3 +106,7 @@ libs/wbs/adapters/solver-py/src/*.egg-info/
 
 # Generated from this checkout before MCP source startup.
 /apps/wbs/mcp-01/src/openapi.json
+
+# Frozen synthetic migration witnesses belong to the repository, unlike operator databases.
+!libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/*.db
+!libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/*.db

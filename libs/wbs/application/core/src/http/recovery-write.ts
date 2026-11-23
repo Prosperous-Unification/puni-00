@@ -1,23 +1,25 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 
 import type { WritingServices } from '../compose';
 import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
 import type { CommandAccess } from '../ports/command-access';
 import type { DependencyContext } from '../ports/dependency-context';
-import { CREATOR_ADMISSION, type EditAdmission, grantAdmission } from '../ports/edit-admission';
+import { type EditAdmission, grantAdmission, LEGACY_EDIT_ADMISSION } from '../ports/edit-admission';
 import type {
-  BeforeProjectUpdate,
   BeforeStepRemoval,
   BeforeStepWrite,
+  BeforeWorkPackageUpdate,
   CapturedFanout,
 } from '../ports/fanout-capture-store';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-import type { RecoveryAuditDetail } from '../ports/project-store';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
+import type { Broadcaster, WorkPackageEvent } from '../ports/work-package-event';
+import type { RecoveryAuditDetail } from '../ports/work-package-store';
+import { authorizePackage } from '../service/authorize';
 import {
   type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
+  type CommittedWorkPackageEvent,
   recordCommittedFanout,
 } from '../service/committed-fanout';
 import { createDependencyContext } from '../service/dependency-context';
@@ -31,7 +33,7 @@ export interface RecoveryWriteBoundary {
     broadcast: Broadcaster,
     admission: EditAdmission,
     dependencies: DependencyContext,
-    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeWorkPackageUpdate?: BeforeWorkPackageUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
     beforeStepWrite?: BeforeStepWrite,
   ) => WritingServices;
@@ -40,25 +42,29 @@ export interface RecoveryWriteBoundary {
 }
 
 /**
- * Classifies a scoped project write inside its own unit of work, or runs a
+ * Classifies a scoped work package write inside its own unit of work, or runs a
  * legacy combined write under creator admission. A refusal rolls its audit
  * obligation back; events leave only after a committed write. Principals without
- * write scope are refused before opening the unit of work.
+ * write scope are refused before opening the unit of work. Current package step
+ * values require package.manage_settings; legacy dependent writes keep package.write.
  */
 export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   boundary: RecoveryWriteBoundary,
   expectedAccess: ResourceAccess,
-  projectId: string,
+  workPackageId: string,
   actor: AuthenticatedUser,
   detail: RecoveryAuditDetail,
-  perform: (services: WritingServices, access: ResourceAccess) => Promise<T>,
-  refuse: (reason: 'not_found' | 'forbidden') => T,
+  perform: (services: WritingServices, access: ResourceAccess, actorId: string) => Promise<T>,
+  refuse: (reason: 'not_found' | 'forbidden', permission?: Permission) => T,
 ): Promise<T | AuthorityRefusal> {
+  // Proof: removing this snapshot admitted owning-account grants after queued machine evidence removal; queued step admission fault/restored pass, 2026-11-09.
+  actor = structuredClone(actor);
+  expectedAccess = structuredClone(expectedAccess);
   // Proof: removing this guard committed a direct read-only recovery removal and its audit (command-current-authority.controller.db.test.ts).
   if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
   const actorId = actor.id;
-  const pending: { projectId: string; event: ProjectEvent }[] = [];
-  let committed: readonly CommittedProjectEvent[] = [];
+  const pending: { workPackageId: string; event: WorkPackageEvent }[] = [];
+  let committed: readonly CommittedWorkPackageEvent[] = [];
   const outcome = await boundary.uow.run<T | AuthorityRefusal>(async (scope) => {
     // Proof: using request access instead returned 200 for queued step revocation in the mounted current-authority matrix.
     const resolved = await boundary.commandAccess.resolve({
@@ -72,27 +78,34 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
     // revoked after access resolution before step admission` return 200 instead
     // of 403 (1 fail). The earlier force-ordinary mutation made the mounted
     // recovery matrix find no audit, which proved audit presence only.
-    const admitted =
-      access.kind === 'scoped'
-        ? await scope.stores.projects.admitEditInOrganization(
-            projectId,
-            access.scope.organizationId,
-            actorId,
-            detail,
-            access.scope.role,
-          )
-        : 'ordinary';
-    // Proof: skipping this refusal let a non-creator member add a step to a
-    // restricted project (200 instead of 403) in the mounted refusal case;
-    // watched 2026-09-28.
-    if (admitted === null || admitted === 'forbidden')
-      return { commit: false, value: refuse(admitted === null ? 'not_found' : 'forbidden') };
-    // Proof (2026-09-28): granting `wrong-project` made mounted step recovery
+    if (access.kind === 'scoped') {
+      const workPackage = await scope.stores.workPackages.findInOrganization(
+        workPackageId,
+        access.scope.organizationId,
+      );
+      if (workPackage === null) return { commit: false, value: refuse('not_found') };
+      const decision = await authorizePackage(
+        scope.stores.accessDecisions,
+        access,
+        workPackage,
+        actorId,
+        'step' in detail && detail.step === 'values' ? 'package.manage_settings' : 'package.write',
+      );
+      if (!decision.ok)
+        return {
+          commit: false,
+          value: refuse(
+            decision.reason,
+            decision.reason === 'forbidden' ? decision.permission : undefined,
+          ),
+        };
+    }
+    // Proof (2026-09-28): granting `wrong-work-package` made mounted step recovery
     // answer 403 instead of 200; that established correct grant plumbing.
-    // Removing project equality, actor equality and expiry separately made
-    // `scoped step service cannot borrow a recovery grant for another project,
+    // Removing work package equality, actor equality and expiry separately made
+    // `scoped step service cannot borrow a recovery grant for another workPackage,
     // actor, or settled unit` fail through the real StepService (one fail each).
-    const grant = access.kind === 'scoped' ? grantAdmission(projectId, actorId) : null;
+    const grant = access.kind === 'scoped' ? grantAdmission(workPackageId, actorId) : null;
     try {
       const captureState: { before: CapturedFanout | null; organizationId: string | null } = {
         before: null,
@@ -104,12 +117,12 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
         access.kind === 'scoped'
           ? async (addressed, currentActorId, currentAccess) => {
               if (
-                addressed !== projectId ||
+                addressed !== workPackageId ||
                 currentActorId !== actorId ||
                 currentAccess.kind !== 'scoped' ||
                 currentAccess.scope.organizationId !== access.scope.organizationId
               )
-                throw new Error('scoped recovery observation changed project or authority');
+                throw new Error('scoped recovery observation changed work package or authority');
               const capture = scope.fanoutCapture;
               if (capture === undefined) {
                 if (scope.stores.livePlans !== undefined)
@@ -131,12 +144,13 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           : undefined;
       const beforeStepRemoval = observesStepRemoval ? captureBeforeStepWrite : undefined;
       const beforeStepWrite =
-        'step' in detail && (detail.step === 'add' || detail.step === 'rename')
+        'step' in detail &&
+        (detail.step === 'add' || detail.step === 'rename' || detail.step === 'values')
           ? captureBeforeStepWrite
           : undefined;
       const dependencies = createDependencyContext(
         scope.stores,
-        { projectId, actorId, access, admission: grant?.admission ?? CREATOR_ADMISSION },
+        { workPackageId, actorId, access, admission: grant?.admission ?? LEGACY_EDIT_ADMISSION },
         () => undefined,
         { kind: 'raw' },
       );
@@ -145,12 +159,12 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           scope,
           {
             publish: (subscription, event) => {
-              pending.push({ projectId: subscription, event });
+              pending.push({ workPackageId: subscription, event });
               return Promise.resolve();
             },
             latestSeq: (subscription) => boundary.announcements.latestSeq(subscription),
           },
-          grant?.admission ?? CREATOR_ADMISSION,
+          grant?.admission ?? LEGACY_EDIT_ADMISSION,
           dependencies.context,
           undefined,
           // Proof: omitting this recovery-specific binding made injected second
@@ -158,7 +172,8 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           beforeStepRemoval,
           beforeStepWrite,
         );
-        const written = await perform(services, access);
+        // Proof: dropping the retained actor argument failed 'passes the retained actor into a queued step writer'; fault/restored pass, 2026-11-09.
+        const written = await perform(services, access, actorId);
         if (written.ok && captureState.before !== null && captureState.organizationId !== null) {
           const capture = scope.fanoutCapture;
           if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');
@@ -195,7 +210,7 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
     // recovery only after its unit of work commits` observe publish before
     // commit (0 pass, 1 fail); watched 2026-09-28.
     for (const notice of pending)
-      await boundary.announcements.publish(notice.projectId, notice.event);
+      await boundary.announcements.publish(notice.workPackageId, notice.event);
   }
   return outcome;
 }

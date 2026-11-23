@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 /** Stamped after the freeze, so a rollback to the bridge reverses it first. */
@@ -30,12 +30,14 @@ const SIDES = [
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-ownership-freeze-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-a', 'A', 1, 1)",
@@ -138,7 +140,9 @@ it('rolls back to the bridge and reapplies', () => {
   // be-01's migration-cli test.
   db.run("DELETE FROM resource WHERE id = 'r1'");
   db.close();
-  expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+  expect(rollbackTo(path, migrations, ORGANIZATION_BRIDGE)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -202,7 +206,7 @@ it('rolls back to the bridge and reapplies', () => {
   db.run("UPDATE tag_organization SET organization_id = 'org-b' WHERE resource_id = 't1'");
   db.run("UPDATE tag_organization SET organization_id = 'org-a' WHERE resource_id = 't1'");
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
   expect(() =>
     db.run("UPDATE tag_organization SET organization_id = 'org-b' WHERE resource_id = 't1'"),

@@ -32,7 +32,8 @@ function findProject(workspace: string, source: string): string {
 }
 
 /**
- * Runs installed ESLint serially at the workspace cwd, releasing project state between batches.
+ * Runs installed ESLint through this Bun runtime serially at the workspace cwd,
+ * releasing project state between batches without using ESLint's Node shebang.
  * Present unreadable/invalid manifests, missing executables, child failures and signals throw.
  * Source arguments are absolute paths after `--`, preserving spaces and option-like filenames.
  */
@@ -52,7 +53,7 @@ function lintStaged(workspace: string, files: string[]): void {
   for (const [project, sources] of batches) {
     // Proof: `rejects a missing installed ESLint` removes only the fixture dependency symlink;
     // this spawn throws with its exact executable path and the production CLI exits nonzero.
-    const child = Bun.spawnSync([executable, '--', ...sources], {
+    const child = Bun.spawnSync([process.execPath, executable, '--', ...sources], {
       cwd: workspace,
       stdout: 'inherit',
       stderr: 'inherit',

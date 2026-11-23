@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type {
+  AccessTarget,
   ChainSnapshot,
   DirectoryCatalog,
   DirectoryCatalogRows,
@@ -22,19 +23,21 @@ import { ClaimRepository } from './claim';
 import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN, WriteCoordinator } from './gate';
-import { ProjectRepository } from './project';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import * as settings from './settings';
 import { openSqliteSource, openSqliteSourceWithCaptureReadSeam } from './source';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 let folder: string;
 let path: string;
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 } as const;
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'capture-lifetime-'));
@@ -43,7 +46,7 @@ beforeEach(async () => {
   try {
     client.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     client.run(
-      "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('snapshot-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
     );
   } finally {
     client.close();
@@ -101,7 +104,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
       const first = source.uow.run(async (scope) => {
         oldScope = scope;
         retained = plansOf(scope);
-        expect(await retained.readProject('a1')).toEqual({ kind: 'isolated' });
+        expect(await retained.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
         if (outcome === 'throw') throw new Error('injected act failure');
         return { commit: outcome === 'success', value: undefined };
       });
@@ -114,7 +117,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
         const before = queries.length;
         for (const reading of [
           old.read('a1', access),
-          old.readProject('a1'),
+          old.readWorkPackage('a1'),
           old.readAggregate('ada', access),
           old.readExport('a1', access),
           old.readExecution('a1', access, null),
@@ -126,13 +129,13 @@ test.each(['success', 'refusal', 'throw'] as const)(
       await source.uow.run(async (scope) => {
         expect(scope).not.toBe(oldScope);
         expect(plansOf(scope)).not.toBe(old);
-        expect(await plansOf(scope).readProject('a1')).toEqual({ kind: 'isolated' });
+        expect(await plansOf(scope).readWorkPackage('a1')).toEqual({ kind: 'isolated' });
         await refuses();
-        sqlite.db.run(sql`UPDATE project SET name = 'still open' WHERE id = 'a1'`);
+        sqlite.db.run(sql`UPDATE work_package SET name = 'still open' WHERE id = 'a1'`);
         return { commit: true, value: undefined };
       });
       expect(
-        sqlite.db.get<{ name: string }>(sql`SELECT name FROM project WHERE id = 'a1'`).name,
+        sqlite.db.get<{ name: string }>(sql`SELECT name FROM work_package WHERE id = 'a1'`).name,
       ).toBe('still open');
     } finally {
       await source.close();
@@ -149,14 +152,14 @@ test('source borrowed shared reads include staged edits without closing their ow
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   try {
     await source.uow.run(async (scope) => {
-      sqlite.db.run(sql`UPDATE project SET name = 'staged' WHERE id = 'a1'`);
-      const observed = await plansOf(scope).readProject('a1');
+      sqlite.db.run(sql`UPDATE work_package SET name = 'staged' WHERE id = 'a1'`);
+      const observed = await plansOf(scope).readWorkPackage('a1');
       if (observed.kind !== 'shared') throw new Error('missing shared observation');
-      expect(observed.project.name).toBe('staged');
+      expect(observed.workPackage.name).toBe('staged');
       return { commit: false, value: undefined };
     });
     expect(
-      sqlite.db.get<{ name: string }>(sql`SELECT name FROM project WHERE id = 'a1'`).name,
+      sqlite.db.get<{ name: string }>(sql`SELECT name FROM work_package WHERE id = 'a1'`).name,
     ).toBe('a1');
   } finally {
     await source.close();
@@ -181,10 +184,10 @@ test('suspended first-plan-read refuses before further reads during a later tran
   sqlite.db.run(sql`UPDATE organization SET shared_people = 1 WHERE id = 'org-a'`);
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   let pending: Promise<Error> | undefined;
-  const reads = spyOn(WorkItemRepository.prototype, 'listByProject');
+  const reads = spyOn(WorkItemRepository.prototype, 'listByWorkPackage');
   try {
     await source.uow.run(async (scope) => {
-      pending = failureOf(plansOf(scope).readProject('a1'));
+      pending = failureOf(plansOf(scope).readWorkPackage('a1'));
       await reached.promise;
       return { commit: true, value: undefined };
     });
@@ -194,7 +197,7 @@ test('suspended first-plan-read refuses before further reads during a later tran
       if (pending === undefined) throw new Error('missing paused observation');
       expect((await pending).message).toContain('closed');
       expect(reads.mock.calls.length).toBe(count);
-      expect((await plansOf(scope).readProject('a1')).kind).toBe('shared');
+      expect((await plansOf(scope).readWorkPackage('a1')).kind).toBe('shared');
       return { commit: true, value: undefined };
     });
   } finally {
@@ -225,7 +228,7 @@ test('transaction snapshot and raw cache capability never revive after settlemen
   try {
     await uow.run(async () => {
       if (admitted === undefined) throw new Error('missing lifetime');
-      const readable = await new ProjectRepository(connection.db, OPEN).listForInOrganization(
+      const readable = await new WorkPackageRepository(connection.db, OPEN).listForInOrganization(
         'ada',
         'org-a',
       );
@@ -244,7 +247,7 @@ test('transaction snapshot and raw cache capability never revive after settlemen
         admitted,
       );
       const component = await retained.captureConnected('a1');
-      const target = component.projects.find(({ projectId }) => projectId === 'a1');
+      const target = component.workPackages.find(({ workPackageId }) => workPackageId === 'a1');
       if (target === undefined) throw new Error('missing captured target');
       capturedInput = scheduleInputOfCaptured(target.reads);
       return { commit: true, value: undefined };
@@ -260,7 +263,7 @@ test('transaction snapshot and raw cache capability never revive after settlemen
     const expired = admitted;
     const readCache = raw;
     const input = capturedInput;
-    const ask = { projectId: 'a1', input, objective: 'pri', enabled: true } as const;
+    const ask = { workPackageId: 'a1', input, objective: 'pri', enabled: true } as const;
     async function refuses() {
       const before = queries.length;
       expect((await failureOf(snapshot.capturePlan('a1'))).message).toContain('closed');
@@ -303,8 +306,23 @@ test('source fanout capability and authority callbacks expire permanently', asyn
   });
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
   let retained: Scope<TransactionalStores>['fanoutCapture'];
+  let project: Extract<AccessTarget, { readonly kind: 'project' }> | undefined;
   try {
     await source.uow.run(async (scope) => {
+      const addressed = await scope.stores.settings.readTarget(
+        { level: 'work_package', id: 'a1' },
+        'org-a',
+      );
+      if (addressed === null) throw new Error('lifetime fixture package target is absent');
+      project = {
+        kind: 'project',
+        chain: {
+          level: 'project',
+          organizationId: addressed.chain.organizationId,
+          spaceId: addressed.chain.spaceId,
+          projectId: addressed.chain.projectId,
+        },
+      };
       retained = scope.fanoutCapture;
       if (retained === undefined) throw new Error('missing fanout capture');
       expect((await retained.capture('org-a')).observation.mode).toBe('isolated');
@@ -316,10 +334,12 @@ test('source fanout capability and authority callbacks expire permanently', asyn
       throw new Error('missing fanout authority');
     const resolveOwner = old.resolveLifecycleOwner;
     const authorizeImport = old.authorizeImport;
+    if (project === undefined) throw new Error('missing retained import project target');
+    const target = project;
     async function refuses() {
       expect((await failureOf(old.capture('org-a'))).message).toContain('closed');
       expect((await failureOf(resolveOwner('a1'))).message).toContain('closed');
-      expect((await failureOf(authorizeImport('ada', access))).message).toContain('closed');
+      expect((await failureOf(authorizeImport('ada', access, target))).message).toContain('closed');
     }
     await refuses();
     await source.uow.run(async (scope) => {
@@ -342,13 +362,13 @@ test.each(['discard', 'throw'] as const)(
     });
     const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
     sqlite.db.run(
-      sql`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('stale','a1','ada',1,'rename','{}','{}','{}',0,1)`,
+      sql`INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('stale','a1','ada',1,'rename','{}','{}','{}',0,1)`,
     );
     try {
       const reading = source.uow.run(async (scope) => {
         const old = plansOf(scope);
-        expect(await old.readProject('a1')).toEqual({ kind: 'isolated' });
-        sqlite.db.run(sql`UPDATE project SET name = 'rolled back' WHERE id = 'a1'`);
+        expect(await old.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
+        sqlite.db.run(sql`UPDATE work_package SET name = 'rolled back' WHERE id = 'a1'`);
         return {
           commit: false,
           value: undefined,
@@ -356,9 +376,10 @@ test.each(['discard', 'throw'] as const)(
             expect(surviving).not.toBe(scope);
             expect(surviving.stores.livePlans).toBeUndefined();
             expect(surviving.fanoutCapture).toBeUndefined();
-            expect((await failureOf(old.readProject('a1'))).message).toContain('closed');
+            expect((await failureOf(old.readWorkPackage('a1'))).message).toContain('closed');
             expect(
-              sqlite.db.get<{ name: string }>(sql`SELECT name FROM project WHERE id = 'a1'`).name,
+              sqlite.db.get<{ name: string }>(sql`SELECT name FROM work_package WHERE id = 'a1'`)
+                .name,
             ).toBe('a1');
             await surviving.stores.journal.discard('stale');
             if (repair === 'throw') throw new Error('repair failed after durable discard');
@@ -369,10 +390,14 @@ test.each(['discard', 'throw'] as const)(
         expect((await failureOf(reading)).message).toBe('repair failed after durable discard');
       else await reading;
       expect(
-        await source.stores.journal.entriesFor({ projectId: 'a1', userId: 'ada', personId: null }),
+        await source.stores.journal.entriesFor({
+          workPackageId: 'a1',
+          userId: 'ada',
+          personId: null,
+        }),
       ).toEqual([]);
       await source.uow.run(async () => {
-        sqlite.db.run(sql`UPDATE project SET name = 'following run' WHERE id = 'a1'`);
+        sqlite.db.run(sql`UPDATE work_package SET name = 'following run' WHERE id = 'a1'`);
         await Promise.resolve();
         return { commit: true, value: undefined };
       });
@@ -406,14 +431,14 @@ test('legacy early reads expire while the reusable public owner keeps opening ob
     );
     const publicPlans = source.stores.livePlans;
     if (publicPlans === undefined) throw new Error('missing public owner');
-    expect(await publicPlans.readProject('a1')).toEqual({ kind: 'isolated' });
-    expect(await publicPlans.readProject('a1')).toEqual({ kind: 'isolated' });
+    expect(await publicPlans.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
+    expect(await publicPlans.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
   } finally {
     await source.close();
   }
 });
 
-test('project resources require agreement with the current activation mode', async () => {
+test('work package resources require agreement with the current activation mode', async () => {
   const sqlite = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -424,14 +449,14 @@ test('project resources require agreement with the current activation mode', asy
   const legacy = { kind: 'legacy' } as const;
   const refused = { kind: 'access_refused', refusal: 'no_active_organization' } as const;
   try {
-    expect(await plans.readProjectResources('a1', legacy)).toEqual(refused);
-    expect(await plans.readProjectResources('a1', access)).toMatchObject({ kind: 'ready' });
+    expect(await plans.readWorkPackageResources('a1', legacy)).toEqual(refused);
+    expect(await plans.readWorkPackageResources('a1', access)).toMatchObject({ kind: 'ready' });
     sqlite.db.run(sql`DROP TRIGGER organization_activation_no_revert`);
     sqlite.db.run(
       sql`UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL`,
     );
-    expect(await plans.readProjectResources('a1', access)).toEqual(refused);
-    expect(await plans.readProjectResources('a1', legacy)).toMatchObject({ kind: 'ready' });
+    expect(await plans.readWorkPackageResources('a1', access)).toEqual(refused);
+    expect(await plans.readWorkPackageResources('a1', legacy)).toMatchObject({ kind: 'ready' });
   } finally {
     await source.close();
   }
@@ -454,7 +479,7 @@ test.each(['execution', 'resources'] as const)(
       sql`INSERT INTO resource_directory_capacity (resource_id,units) VALUES ('ram',16)`,
     );
     sqlite.db.run(
-      sql`INSERT INTO project_resource_capacity (project_id,resource_id,units) VALUES ('a1','ram',12)`,
+      sql`INSERT INTO work_package_resource_capacity (work_package_id,resource_id,units) VALUES ('a1','ram',12)`,
     );
     const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
     await source.uow.run(async (scope) => {
@@ -468,7 +493,7 @@ test.each(['execution', 'resources'] as const)(
           reads: { directoryCapacities: [{ resourceId: 'ram', units: 18 }] },
         });
       else
-        expect(await plans.readProjectResources('a1', access)).toMatchObject({
+        expect(await plans.readWorkPackageResources('a1', access)).toMatchObject({
           kind: 'ready',
           value: { resources: [{ id: 'ram', directoryCapacity: 18 }] },
         });
@@ -500,7 +525,7 @@ test.each(['execution', 'resources'] as const)(
         reading = failureOf(
           surface === 'execution'
             ? plans.readExecution('a1', access, null)
-            : plans.readProjectResources('a1', access),
+            : plans.readWorkPackageResources('a1', access),
         );
         // A premature failure settles instead of leaving this test waiting on the seam.
         await Promise.race([
@@ -567,7 +592,9 @@ test.each([
   let pending: Promise<ReadOutcome> | undefined;
   try {
     if (occupancy) {
-      sqlite.db.run(sql`UPDATE organization_membership SET role = 'admin' WHERE user_id = 'ada'`);
+      sqlite.db.run(sql`INSERT INTO access_grant
+        (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at)
+        VALUES ('snapshot-directory','org-a','organization','org-a','user','ada','org-admin','route',1)`);
     } else {
       sqlite.db.run(sql`DROP TRIGGER organization_activation_no_revert`);
       sqlite.db.run(
@@ -588,9 +615,28 @@ test.each([
       sql`INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('holder','org-a','Holder')`,
     );
     sqlite.db.run(
-      sql`INSERT INTO work_item (id,project_id,position,name) VALUES ('ask','a1',10,'Ask'),('held','a2',10,'Held')`,
+      sql`INSERT INTO work_item (id,work_package_id,position,name) VALUES ('ask','a1',10,'Ask'),('held','a2',10,'Held')`,
     );
-    sqlite.db.run(sql`INSERT INTO step (id,project_id,position,name) VALUES ('do','a1',10,'Do')`);
+    const binding = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'do',
+        code: 'do',
+        name: 'Do',
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'do-parent',
+        scopeKind: 'project',
+        scopeId: 'fixture-parent-org-a',
+        workItemTypeId: null,
+        position: 10,
+      },
+      { by: 'ada', at: 1 },
+    );
+    expect(binding.ok).toBe(true);
     sqlite.db.run(
       sql`INSERT INTO work_item_resource_demand (work_item_id,resource_id,units) VALUES ('ask','ram',16)`,
     );
@@ -603,12 +649,12 @@ test.each([
 
     const readWithin = (plans: LivePlanStore) =>
       occupancy
-        ? plans.readResourceOccupancyWithin('ram', 'ada', { ...access.scope, role: 'admin' })
+        ? plans.readResourceOccupancyWithin('ram', 'ada', access)
         : plans.readStartableWithin('a1', 'ada', { kind: 'legacy' }, null);
     await source.uow.run(async (scope) => {
       expect(await readWithin(plansOf(scope))).toMatchObject(
         occupancy
-          ? { ok: true, value: { projects: [{ claims: [{ personName: 'Holder' }] }] } }
+          ? { ok: true, value: { workPackages: [{ claims: [{ personName: 'Holder' }] }] } }
           : {
               kind: 'ready',
               value: { doesNotFit: [{ exhausted: { holders: [{ name: 'Holder' }] } }] },
@@ -676,9 +722,9 @@ test.each([
         'listStampedByIds',
       )?.value as ClaimRepository['listStampedByIds'];
       const method = spyOn(ClaimRepository.prototype, 'listStampedByIds').mockImplementation(
-        function (this: ClaimRepository, projectId, ids) {
+        function (this: ClaimRepository, workPackageId, ids) {
           enter();
-          return original.call(this, projectId, ids);
+          return original.call(this, workPackageId, ids);
         },
       );
       restored.push(() => {
@@ -700,14 +746,16 @@ test.each([
         method.mockRestore();
       });
     } else if (read === 'startable origin dispatch') {
-      const original = Object.getOwnPropertyDescriptor(ProjectRepository.prototype, 'findById')
-        ?.value as ProjectRepository['findById'];
-      const method = spyOn(ProjectRepository.prototype, 'findById').mockImplementation(function (
-        this: ProjectRepository,
-        id,
-      ) {
-        if (id === 'a2') enter();
-        return original.call(this, id);
+      const original = Object.getOwnPropertyDescriptor(
+        ClaimRepository.prototype,
+        'mayReadWorkPackageWithin',
+      )?.value as ClaimRepository['mayReadWorkPackageWithin'];
+      const method = spyOn(
+        ClaimRepository.prototype,
+        'mayReadWorkPackageWithin',
+      ).mockImplementation(function (this: ClaimRepository, ...args) {
+        if (args[0].id === 'a2') enter();
+        return original.call(this, ...args);
       });
       restored.push(() => {
         method.mockRestore();
@@ -807,10 +855,10 @@ test.each(['success', 'refusal', 'throw'] as const)(
       logger: { logQuery: (query) => queries.push(query) },
     });
     const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
-    let retained: NonNullable<Scope['fanoutCapture']>['resolveProjectWriteScope'];
+    let retained: NonNullable<Scope['fanoutCapture']>['resolveWorkPackageWriteScope'];
     try {
       const first = source.uow.run(async (scope) => {
-        const resolver = scope.fanoutCapture?.resolveProjectWriteScope;
+        const resolver = scope.fanoutCapture?.resolveWorkPackageWriteScope;
         if (resolver === undefined) throw new Error('missing runtime resolver');
         retained = resolver;
         expect(await resolver('a1', 'org-a', 'ada', undefined)).toMatchObject({ ok: true });
@@ -832,7 +880,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
       await refuses();
       await source.uow.run(async (scope) => {
         await refuses();
-        const fresh = scope.fanoutCapture?.resolveProjectWriteScope;
+        const fresh = scope.fanoutCapture?.resolveWorkPackageWriteScope;
         if (fresh === undefined) throw new Error('missing fresh runtime resolver');
         expect(await fresh('a1', 'org-a', 'ada', undefined)).toMatchObject({ ok: true });
         return { commit: true, value: undefined };
@@ -843,7 +891,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
   },
 );
 
-test('suspended runtime project resolution expires before membership SQL in a later writer', async () => {
+test('suspended runtime work package resolution expires before membership SQL in a later writer', async () => {
   const queries: string[] = [];
   const reached = hold();
   const released = hold();
@@ -853,26 +901,87 @@ test('suspended runtime project resolution expires before membership SQL in a la
     logger: { logQuery: (query) => queries.push(query) },
   });
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
-  const projects = new ProjectRepository(sqlite.db, OPEN);
-  const find = projects.findInOrganization.bind(projects);
-  let pause = true;
-  const lookup = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-    async (projectId, organizationId) => {
-      const project = await find(projectId, organizationId);
-      if (pause) {
-        pause = false;
-        reached.release();
-        await released.promise;
-      }
-      return project;
-    },
-  );
+  const resolvePromise = Promise.resolve.bind(Promise);
+  const readTarget = settings.readSettingTargetIn;
+  let targetReads = 0;
+  let pauses = 0;
+  let isAwaitSpyActive = false;
+  let restoreAwait: (() => void) | undefined;
+  let restoreLookup: (() => void) | undefined;
   let pending: Promise<Error> | undefined;
   try {
+    const lookup = spyOn(settings, 'readSettingTargetIn');
+    restoreLookup = () => {
+      lookup.mockRestore();
+    };
+    type TargetScope = Parameters<typeof readTarget>[1];
+    type PackageTarget = Extract<
+      NonNullable<ReturnType<typeof readTarget>>,
+      { kind: 'work_package' }
+    >;
+    /**
+     * Pauses only the real selected target read's next empty await.
+     * Proof: snapshot-expiry-v239 removed only the resolver's post-await guard:
+     * its final guard still answered closed, but membership SQL broke the empty
+     * query assertion; exact restoration passed. Promise restores before pause.
+     */
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: Exclude<TargetScope, { level: 'work_package' }>,
+      organizationId: string | null,
+    ): never;
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: TargetScope,
+      organizationId: string | null,
+    ): PackageTarget;
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: TargetScope,
+      organizationId: string | null,
+    ): PackageTarget {
+      const target = readTarget(db, targetScope, organizationId);
+      if (
+        targetScope.level !== 'work_package' ||
+        targetScope.id !== 'a1' ||
+        organizationId !== 'org-a'
+      )
+        throw new Error('unexpected settings read in runtime suspension fixture');
+      if (target?.kind !== 'work_package' || targetReads !== 0 || pauses !== 0 || isAwaitSpyActive)
+        throw new Error('selected runtime target read did not occur exactly once');
+      targetReads += 1;
+      const yielding = spyOn(Promise, 'resolve');
+      isAwaitSpyActive = true;
+      restoreAwait = () => {
+        if (isAwaitSpyActive) {
+          yielding.mockRestore();
+          isAwaitSpyActive = false;
+        }
+      };
+      function pauseAtNextAwait(): Promise<void>;
+      function pauseAtNextAwait<Value>(value: Value): Promise<Awaited<Value>>;
+      function pauseAtNextAwait<Value>(value: Value | PromiseLike<Value>): Promise<Awaited<Value>>;
+      function pauseAtNextAwait<Value>(
+        value?: Value | PromiseLike<Value>,
+      ): Promise<Awaited<Value> | undefined> {
+        if (arguments.length !== 0 || targetReads !== 1 || pauses !== 0 || !isAwaitSpyActive)
+          throw new Error('selected runtime read did not reach its exact next empty await');
+        pauses += 1;
+        yielding.mockRestore();
+        isAwaitSpyActive = false;
+        reached.release();
+        return released.promise.then(() => resolvePromise(value));
+      }
+      yielding.mockImplementation(pauseAtNextAwait);
+      return target;
+    }
+    lookup.mockImplementation(pauseAfterTarget);
     await source.uow.run(async (scope) => {
-      const resolver = scope.fanoutCapture?.resolveProjectWriteScope;
+      const resolver = scope.fanoutCapture?.resolveWorkPackageWriteScope;
       if (resolver === undefined) throw new Error('missing runtime resolver');
       pending = failureOf(resolver('a1', 'org-a', 'ada', undefined));
+      if (targetReads !== 1 || pauses !== 1 || isAwaitSpyActive)
+        throw new Error('actual selected runtime await was not paused exactly once');
       await reached.promise;
       return { commit: true, value: undefined };
     });
@@ -886,8 +995,18 @@ test('suspended runtime project resolution expires before membership SQL in a la
     });
   } finally {
     released.release();
-    if (pending !== undefined) await pending;
-    lookup.mockRestore();
-    await source.close();
+    try {
+      if (pending !== undefined) await pending;
+    } finally {
+      try {
+        restoreAwait?.();
+      } finally {
+        try {
+          restoreLookup?.();
+        } finally {
+          await source.close();
+        }
+      }
+    }
   }
 });

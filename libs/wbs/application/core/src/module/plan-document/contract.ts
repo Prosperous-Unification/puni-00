@@ -3,19 +3,8 @@ import type { PlanDocumentService, PlanDocumentServiceOptions } from './plan-doc
 /**
  * What a host must supply to install {@link planDocumentModule}.
  *
- * Exactly {@link PlanDocumentServiceOptions}, unchanged by the move: the six
- * directory list reads, the owner-neutral marker read, required project sparse parallelism read and the clock.
- *
- * **No K3 debt; K2 debt disclosed.** Plan document is a resource, so the
- * direction rule that binds it is K4, not K3: it reads the `DirectoryStore`
- * repository port and the neutral `CalendarMarkerReader`, never another
- * resource's file, and `ports/sideways-type-boundaries.test.ts` watches the
- * Calendar marker half. What this extraction does not close is delivery's
- * side: `http/project.routes.ts` still installs the module itself and hands it
- * the Calendar marker and Directory resources, a direct resource dependency
- * of delivery (K2) the backend module map lists under its composition
- * hazards. Tracked under task 7.4 of
- * `openspec/changes/adopt-di-composition/tasks.md`.
+ * The timestamp clock only. Export IO belongs to the required PlanExportReader;
+ * serialization consumes complete detached evidence and does not resolve stores.
  */
 export type PlanDocumentRequirements = PlanDocumentServiceOptions;
 

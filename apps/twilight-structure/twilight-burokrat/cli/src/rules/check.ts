@@ -1,3 +1,4 @@
+import { readInstalledRequest, type ValidatorRequest } from '../cli-parser';
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
 import { readEvaluationInstant } from '../evidence/manual';
@@ -71,23 +72,24 @@ export function explainRule(
   return { ...rule, policyId: policy.policyId, mode: ruleMode(policy, id) };
 }
 
-/** `explain <rule-id>` or `explain <rule-id> <repository> <rule-policy-json>` */
-/** The usage line of `explain`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
-export const explainUsage =
-  'usage: twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]';
-
-/** The usage line of `check`; `cli-parser.ts`'s help shows the same grammar (cli.test.ts). */
-export const checkUsage =
-  'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]';
-
 export function writeExplainCommand(argv: readonly string[]): void {
-  const [, ruleId, repository, rulePolicyPath] = argv;
+  writeExplanation(readInstalledRequest('explain', argv));
+}
+
+/** Print a typed rule selection, preserving explicit policy authority. */
+export function writeExplanation(request: ValidatorRequest<'explain'>): void {
   process.stdout.write(
-    `${JSON.stringify(
-      argv.length === 4
-        ? explainRule(ruleId, { candidateRepository: repository, rulePolicyPath })
-        : explainRule(ruleId),
-    )}\n`,
+    JSON.stringify(
+      explainRule(
+        request.rule,
+        request.policy === undefined
+          ? undefined
+          : {
+              candidateRepository: request.policy.repository,
+              rulePolicyPath: request.policy.rulePolicy,
+            },
+      ),
+    ) + '\n',
   );
 }
 
@@ -341,37 +343,27 @@ export function checkCandidate(request: CheckRequest): Verdict {
   return executeCheckCandidate(request).verdict;
 }
 
-function candidateRequest(kind: string, revision: string): CandidateRequest {
-  // Proof: on 2026-09-20, treating `bogus` as committed replaced this usage refusal with the
-  // unrelated missing-classification-policy diagnostic.
-  if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
-    throw new Error(checkUsage);
-  }
+function candidateRequest(kind: CandidateRequest['kind'], revision: string): CandidateRequest {
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
 }
 
 /** Runs a complete or selected-rule check, optionally with external Performance evidence. */
 export function writeCheckCommand(argv: readonly string[]): void {
-  const [, kind, repository, revision, rulePolicyPath] = argv;
-  let ruleId: string | undefined;
-  let performanceEvidencePath: string | undefined;
-  let evaluatedAt: Date | undefined;
-  // Proof: removing either duplicate guard or bypassing the unknown-flag refusal made the
-  // complete-check source test lose its required check-flag diagnostic (2026-10-15).
-  for (let index = 5; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (flag === '--rule' && ruleId === undefined) ruleId = value;
-    else if (flag === '--performance-evidence' && performanceEvidencePath === undefined)
-      performanceEvidencePath = value;
-    else if (flag === '--now' && evaluatedAt === undefined)
-      evaluatedAt = readEvaluationInstant(value, 'check');
-    else {
-      throw new Error(
-        `invalid or duplicate check flag: ${flag}; expected --rule <rule-id>, --performance-evidence <json> or --now <UTC instant> once each`,
-      );
-    }
-  }
+  writeCheck(readInstalledRequest('check', argv));
+}
+
+/** Evaluate one typed candidate request; now remains absent for undated rules. */
+export function writeCheck(request: ValidatorRequest<'check'>): void {
+  const {
+    repository,
+    kind,
+    revision,
+    rulePolicy: rulePolicyPath,
+    rule: ruleId,
+    performanceEvidence: performanceEvidencePath,
+    now,
+  } = request;
+  const evaluatedAt = now === undefined ? undefined : readEvaluationInstant(now, 'check');
   const verdict = checkCandidate({
     repository,
     candidate: candidateRequest(kind, revision),
@@ -393,8 +385,11 @@ export function writeCheckCommand(argv: readonly string[]): void {
 }
 
 /** `candidate-identity <selection> <repository> <revision-or-base>`; never certifies. */
-export function writeCandidateIdentityCommand(argv: readonly string[]): void {
-  const [, kind, repository, revision] = argv;
+export function writeCandidateIdentityCommand({
+  kind,
+  repository,
+  revision,
+}: ValidatorRequest<'candidate-identity'>): void {
   process.stdout.write(
     `${JSON.stringify(identifyCandidate(repository, candidateRequest(kind, revision)))}\n`,
   );

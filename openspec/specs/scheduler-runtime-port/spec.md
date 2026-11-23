@@ -13,7 +13,7 @@ capability from installed adapters, and SHALL NOT await a solve during a read.
 
 #### Scenario: Missing selected engine
 
-- **WHEN** an enabled optimized project is read in a composition without that adapter
+- **WHEN** an enabled optimized work package is read in a composition without that adapter
 - **THEN** it returns engine_unavailable before calling Fast, without fabricated dates
 
 #### Scenario: Installed pending optimizer
@@ -41,7 +41,7 @@ misreporting the committed mutation as a failure.
 
 #### Scenario: Write notification after commitment
 
-- **WHEN** an authorized mutation commits to a stored project whose engine is unavailable
+- **WHEN** an authorized mutation commits to a stored work package whose engine is unavailable
 - **THEN** it succeeds and publishes plan_unavailable through the durable broadcaster
 - **AND** a peer refetches the tree, renders its typed failure, and receives no Fast replacement
 

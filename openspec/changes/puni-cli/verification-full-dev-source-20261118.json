@@ -1,0 +1,393 @@
+{
+  "schema": "puni-development-source-observations-v1",
+  "source": {
+    "path": "/tmp/puni-cli-full-dev-lint-live-v1/formatted-source-pins.json",
+    "sha256": "1184cecc09c3e86d509b0c56d71ea5f63f3c4bf0bf97823895d93704f224e29a",
+    "bytes": 248752,
+    "mode": 384
+  },
+  "observations": [
+    {
+      "phase": "lint",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/lint/native.log",
+          "sha256": "f214568379cec47cffa1391ff1462f912e5cf777727b3f410b87a9663ad3af26",
+          "bytes": 5859,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/lint/native.receipt.json",
+          "sha256": "8233f67c1959b1a97bcd99da44e002c93fc191806abf8c65a771a292e5a7f7b5",
+          "bytes": 2267,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/lint/native.validation.json",
+          "sha256": "286d833e083698a37de3db74c7ef28a13020857fc7d97face9f0cc8eba706680",
+          "bytes": 1323,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/eslint/bin/eslint.js",
+        "--no-cache",
+        "--max-warnings",
+        "0",
+        "--format",
+        "json",
+        "apps/puni/cli/src/cli.test.ts",
+        "apps/puni/cli/src/development/ports.test.ts",
+        "apps/puni/cli/src/development/ports.ts",
+        "apps/puni/cli/src/execute-command.ts",
+        "apps/puni/cli/src/leaf-discovery.test.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+        "apps/puni/cli/src/development/callers.test.ts",
+        "bin/dev-ports.ts",
+        "apps/puni/cli/src/development/adapter.test.ts",
+        "apps/puni/cli/src/development/start.test.ts",
+        "apps/puni/cli/src/entrypoint.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-channel.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-failures.fixture.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "types",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/types/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/types/native.receipt.json",
+          "sha256": "ce430ce41578f6de990b91212e5e87d4cdc2466b9bd9f09581f4bc679379ea34",
+          "bytes": 1390,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/types/native.validation.json",
+          "sha256": "239fd41522074a04b976dbed83c0d4a6396cc7c6257ec3d43d4c576ddc9b9d5d",
+          "bytes": 1323,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/@typescript/native/bin/tsc",
+        "--build",
+        "--force",
+        "apps/puni/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "start",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/start/native.log",
+          "sha256": "9bb985d8c2a2c8e728c4e49cd6e708581e079aa69bb958cbaede63b4bd52bb59",
+          "bytes": 642,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/start/native.receipt.json",
+          "sha256": "48f3be1bf356be2abf1a21ae9178e600bbbab1a7b142887d42e628962c4b89f6",
+          "bytes": 1299,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/start/native.validation.json",
+          "sha256": "413867ff8b3a627cc7e557c8758a1854e6ad7dda9fffc5ad84106c5a0fe7237e",
+          "bytes": 1325,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "apps/puni/cli/src/development/start.test.ts",
+        "--timeout=20000"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "defects",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/defects/native.log",
+          "sha256": "b8495de176611c6148f084131fe3113d38fe3bf59210fc8120f4aef39bb2289b",
+          "bytes": 365,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/defects/native.receipt.json",
+          "sha256": "0775fd310cf73c4611836b62f33c422bdaa685b1f55700156cc86365cf40b9ad",
+          "bytes": 1334,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/defects/native.validation.json",
+          "sha256": "d4f629ccd3c75a6a21def7e8481b5c36ce5cda6f1575bd89a0d496431421d0ce",
+          "bytes": 1331,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts",
+        "--timeout=40000"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "formatCheck",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/formatCheck/native.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/formatCheck/native.receipt.json",
+          "sha256": "1342f0dc7cf4da83e9ab18e44e907eba78e72f153d16faa4952499aa07668b05",
+          "bytes": 2765,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/formatCheck/native.validation.json",
+          "sha256": "0b899982a999c2f811b16203e23d1facf3b66bb19639c14fe05c381335a35735",
+          "bytes": 1342,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/prettier/bin/prettier.cjs",
+        "--check",
+        "apps/puni/cli/src/cli.test.ts",
+        "apps/puni/cli/src/development/ports.test.ts",
+        "apps/puni/cli/src/development/ports.ts",
+        "apps/puni/cli/src/execute-command.ts",
+        "apps/puni/cli/src/leaf-discovery.test.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+        "openspec/changes/bun-scripts/design.md",
+        "openspec/changes/bun-scripts/tasks.md",
+        "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+        "openspec/changes/puni-cli/tasks.md",
+        "openspec/changes/puni-cli/verify.md",
+        "apps/puni/cli/src/development/callers.test.ts",
+        "package.json",
+        "bin/tsconfig.json",
+        "apps/puni/cli/tsconfig.spec.json",
+        "docs/local-dev.md",
+        "apps/puni/cli/README.md",
+        "bin/dev-ports.ts",
+        "apps/puni/cli/src/development/adapter.test.ts",
+        "openspec/changes/puni-cli/verification-dev-ports-20261118.json",
+        "apps/puni/cli/src/development/start.test.ts",
+        "apps/puni/cli/src/entrypoint.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-channel.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-failures.fixture.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts",
+        "openspec/changes/puni-cli/verification-private-full-dev-owners-20261118.json"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "graphServe",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphServe/native.log",
+          "sha256": "473316a8c0c68735f915e33d15a3a58a32112b79532088690b33c129a7040d9b",
+          "bytes": 491792,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphServe/native.receipt.json",
+          "sha256": "027c8c6de6d5046b0d2f08c99f2a69650985664ac7a7e72a3c960c97f996ce22",
+          "bytes": 1441,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphServe/native.validation.json",
+          "sha256": "addb2fa6da523289c20df1eb1eedd0d3605c5406506a4b19788e54fe96db88aa",
+          "bytes": 1343,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "node_modules/nx/dist/bin/nx.js",
+        "run-many",
+        "-t",
+        "serve",
+        "--projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01",
+        "--graph=stdout"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    },
+    {
+      "phase": "graphLocal",
+      "files": [
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphLocal/native.log",
+          "sha256": "ad17b49d6ec01348da5ae16c4cf93c97480b99ea6144357bcf29c504b6bbbdf6",
+          "bytes": 492143,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphLocal/native.receipt.json",
+          "sha256": "2213424d2fec7050746f276bb86f6edc4e94a560569c46191fee3463e0ac107b",
+          "bytes": 1454,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-lint-live-v1/graphLocal/native.validation.json",
+          "sha256": "4e75b9da8f73c980ad77cca1b99fc0c889fc492149966ab2b6206750593736c4",
+          "bytes": 1343,
+          "mode": 384
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "node_modules/nx/dist/bin/nx.js",
+        "run-many",
+        "-t",
+        "serve-local-solver",
+        "--projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01",
+        "--graph=stdout"
+      ],
+      "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "outerDeadlineMs": 180000
+    }
+  ],
+  "graphObservations": [
+    {
+      "target": "serve",
+      "continuous": ["wbs-be-01:serve", "wbs-gw-01:serve", "wbs-fe-01:serve", "wbs-mcp-01:serve"],
+      "finite": ["wbs-mcp-01:prepare", "wbs-be-01:prepare-mcp-document"],
+      "limits": "Graph resolution only; this did not start the actual tier servers."
+    },
+    {
+      "target": "serve-local-solver",
+      "continuous": [
+        "wbs-be-01:serve-local-solver",
+        "wbs-gw-01:serve-local-solver",
+        "wbs-fe-01:serve-local-solver",
+        "wbs-mcp-01:serve-local-solver"
+      ],
+      "finite": ["wbs-mcp-01:prepare", "wbs-be-01:prepare-mcp-document"],
+      "limits": "Graph resolution only; this did not start the actual tier servers."
+    }
+  ],
+  "ordinary": {
+    "tests": 5,
+    "expects": 85,
+    "limits": "Actual reusable source main with real finite Bun local-Nx dependency emulation, canonical dash/d, local solver, merged capture and busy IPv4 preflight. Not installed/executable/container qualification."
+  },
+  "lifecycle": {
+    "tests": 2,
+    "expects": 14,
+    "red": "/tmp/puni-cli-full-dev-owner-tests-live-v1/defects",
+    "green": "/tmp/puni-cli-full-dev-lint-live-v1/defects",
+    "limits": "Exact owned delivery Error retained with bounded escalation; pending callback crosses explicit unconfirmed expiry and exact owned FD reuse without late capture write. Whole post-await fence only, not each conjunct or every native-sink interleaving."
+  },
+  "quality": {
+    "strictLintFiles": 16,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "normalBuildTypes": [
+      "apps/puni/cli/tsconfig.json",
+      "apps/twilight-structure/twilight-dash/cli/tsconfig.json"
+    ],
+    "typeDiagnosticsBytes": 0,
+    "formatFiles": 28
+  },
+  "channelDiagnosis": {
+    "files": [
+      {
+        "path": "/tmp/puni-cli-full-dev-read-fd-observed-v2/native.log",
+        "sha256": "db9cf813d63ceb6e8b966e9b36f062d58a6c9687491f6f444c8ac102bc2348f5",
+        "bytes": 1110,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-read-fd-observed-v2/native.receipt.json",
+        "sha256": "9d89f558d1df80e46be0e7c19d58105f8b831086b98f01c95c34f453e96b4483",
+        "bytes": 1284,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-read-fd-observed-v2/validation.json",
+        "sha256": "cfcaa0b24e1868a7eb4411108a08263f2cdb2b1af77c0e9f25029ec7243c44be",
+        "bytes": 2583,
+        "mode": 384
+      }
+    ],
+    "limits": "Linux Bun1.4.4 owned native descriptor capability; stream is sole read-FD owner. No independent EBADF suppression or manual close retry."
+  },
+  "ttyCapability": {
+    "file": {
+      "path": "/tmp/puni-cli-full-dev-owned-tty-observed-v2.json",
+      "sha256": "9ac4a2a07c7d85f837e90cb02e7684660fb67e80c08046e97cd6925cbe311e60",
+      "bytes": 2341,
+      "mode": 436
+    },
+    "limits": "Owned PTY capability only, not the current PUNI executable path or production parity."
+  },
+  "reviews": [
+    {
+      "path": "/tmp/puni-cli-full-dev-implementation-astra-v1.md",
+      "sha256": "ba1228ae049b27f8ea75a25c2d14f7437b9182ba5b72f483a783a66629df0f0b",
+      "bytes": 4002,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-read-owner-fix-astra-v1.md",
+      "sha256": "ce152eec6e1f8cc2c635a4bebb99e4b86c1135d38ddb8856a694bd7a5b3ddca0",
+      "bytes": 2074,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-corrections-astra-v1.md",
+      "sha256": "9449fe7e9d2148201134cd585446851fe402cc378d2c9b0c2748bcee9935a6af",
+      "bytes": 1914,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-lint-repairs-astra-v1.md",
+      "sha256": "d138c3a41cf9577fc894805fea82c4966246a2ff991556209c30fe94f7426597",
+      "bytes": 2287,
+      "mode": 384
+    }
+  ],
+  "remaining": [
+    "Actual PUNI executable native IO/TTY and output drain",
+    "Remaining required input/capture/signal/failure controls and finite R5 omissions",
+    "Installed artifact and selected runtime delivery",
+    "Package/default/local-solver/dev:test, old scripts and container caller conversion",
+    "Remaining full Bun inventory, client operations, C35/gates, complete WBS scope and integration"
+  ]
+}

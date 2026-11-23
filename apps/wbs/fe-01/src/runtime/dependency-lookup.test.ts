@@ -1,30 +1,30 @@
 import { expect, it, vi } from 'vitest';
 
 import type { ResourceScope } from '@/lib/organization-context';
-import type { ProjectAddressApi } from '@/lib/wbs-api';
+import type { WorkPackageAddressApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { type Credential, credentialOf } from './credential';
 import { createSessionOwner } from './session-runtime';
 
 it('opens address lookup with the session credential/scope and retires it on organization replacement', async () => {
-  const projectClientFor = vi.fn((_credential: Credential, _scope?: ResourceScope) =>
-    fakeProjectApi(),
+  const workPackageClientFor = vi.fn((_credential: Credential, _scope?: ResourceScope) =>
+    fakeWorkPackageApi(),
   );
   const scopes: (ResourceScope | undefined)[] = [];
-  const ports: ProjectAddressApi[] = [];
+  const ports: WorkPackageAddressApi[] = [];
   const addressClientFor = vi.fn(
-    (_credential: Credential, scope?: ResourceScope): ProjectAddressApi => {
+    (_credential: Credential, scope?: ResourceScope): WorkPackageAddressApi => {
       scopes.push(scope);
-      const port: ProjectAddressApi = {
-        projects: vi.fn().mockResolvedValue({
+      const port: WorkPackageAddressApi = {
+        workPackages: vi.fn().mockResolvedValue({
           kind: 'success',
           representation: 'json',
           status: 200,
           headers: new Headers(),
-          body: { projects: [], nextCursor: null },
+          body: { workPackages: [], nextCursor: null },
         }),
         candidates: vi.fn(),
         resolve: vi.fn(),
@@ -35,7 +35,7 @@ it('opens address lookup with the session credential/scope and retires it on org
   );
   const owner = createSessionOwner({
     clientFor: fakeDirectoryApi,
-    projectClientFor,
+    workPackageClientFor,
     addressClientFor,
     streamDeps: SILENT_STREAM,
   });
@@ -47,26 +47,26 @@ it('opens address lookup with the session credential/scope and retires it on org
   });
   const first = owner.snapshot();
   if (first.status !== 'live') throw new Error('Missing first session');
-  await first.services.projects.open('p1');
-  const opened = first.services.projects.snapshot();
-  if (opened.status !== 'live') throw new Error('Missing first project');
-  expect(ports[0]?.projects).not.toHaveBeenCalled();
-  await opened.services.dependencyLookup.discoverProjects('PUNI', null);
+  await first.services.workPackages.open('p1');
+  const opened = first.services.workPackages.snapshot();
+  if (opened.status !== 'live') throw new Error('Missing first work package');
+  expect(ports[0]?.workPackages).not.toHaveBeenCalled();
+  await opened.services.dependencyLookup.discoverWorkPackages('PUNI', null);
   await owner.open({
     userId: 'u1',
     credential,
     organization: { kind: 'active', organizationId: 'org-b' },
   });
-  expect(await opened.services.dependencyLookup.discoverProjects('PUNI', null)).toEqual({
+  expect(await opened.services.dependencyLookup.discoverWorkPackages('PUNI', null)).toEqual({
     kind: 'cancelled',
   });
-  expect(ports[0]?.projects).toHaveBeenCalledTimes(1);
+  expect(ports[0]?.workPackages).toHaveBeenCalledTimes(1);
   expect(addressClientFor.mock.calls.map((call) => call[0])).toEqual([credential, credential]);
   expect(scopes.map((scope) => scope?.organization)).toEqual([
     { kind: 'active', organizationId: 'org-a' },
     { kind: 'active', organizationId: 'org-b' },
   ]);
-  expect(scopes[0]).toBe(projectClientFor.mock.calls[0]?.[1]);
-  expect(scopes[1]).toBe(projectClientFor.mock.calls[1]?.[1]);
+  expect(scopes[0]).toBe(workPackageClientFor.mock.calls[0]?.[1]);
+  expect(scopes[1]).toBe(workPackageClientFor.mock.calls[1]?.[1]);
   await owner.leave();
 });

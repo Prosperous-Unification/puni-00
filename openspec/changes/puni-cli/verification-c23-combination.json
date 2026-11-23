@@ -1,0 +1,100 @@
+{
+  "merge": "dec3aecd51a2252e38b1401b6ab37ec7abe614aa",
+  "parents": [
+    "bb51ac050adf610b7084b80f8052dc5465fdf192",
+    "4eb4c062a130dfd64508533e67b7c125321a1bb3"
+  ],
+  "checks": [
+    {
+      "id": "types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/puni/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json",
+        "apps/wbs/be-01/tsconfig.json",
+        "apps/wbs/gw-01/tsconfig.json",
+        "apps/wbs/fe-01/tsconfig.json",
+        "apps/wbs/mcp-01/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "seconds": 44.073,
+      "log": "/tmp/puni-c23-combination-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/wbs/be-01/src/controller/rank-mode-authority.controller.db.test.ts",
+        "./apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts",
+        "./apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts",
+        "./apps/wbs/be-01/src/controller/delegation.controller.db.test.ts",
+        "./apps/wbs/be-01/src/controller/fanout-selected-rank.controller.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/project-rank.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/shared-people-mode.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/source.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/source-dependency-capability.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "./apps/puni/cli/src/cli.test.ts",
+        "./apps/puni/cli/src/cli-parser.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-blob.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "seconds": 138.286,
+      "log": "/tmp/puni-c23-combination-tests.log",
+      "logSha256": "e7126a36c450b5b8c2fbba130327051b4d0caec7988fc29d324c5d0ca2fd5cb5"
+    },
+    {
+      "id": "diff",
+      "argv": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "seconds": 0.012,
+      "log": "/tmp/puni-c23-combination-diff.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "inherited": [
+    {
+      "source": "bb51ac050adf610b7084b80f8052dc5465fdf192",
+      "base": "eb15d19b523f5187537ffca87ba899119b20d0b8",
+      "paths": 11,
+      "drift": 0
+    },
+    {
+      "source": "4eb4c062a130dfd64508533e67b7c125321a1bb3",
+      "base": "88c08048537fba1870d0af78284206734a6363a4",
+      "paths": 14,
+      "drift": 0
+    }
+  ],
+  "observed": {
+    "pass": 452,
+    "fail": 0,
+    "assertions": 8804,
+    "files": 16,
+    "seconds": 138.21
+  },
+  "review": "Both exact parent checkpoints received Astra source/evidence/final-receipt review. No production edits or new mutation claims in this merge.",
+  "unrun": [
+    "whole repository CI/build/browser suite",
+    "canonical exact-SHA host gate",
+    "public PUNI package installation",
+    "full optimization model file; parent checkpoint ran five relevant cases, not repeated here",
+    "main merge/live deployment"
+  ],
+  "wholeGoal": "active"
+}

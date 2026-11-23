@@ -1,0 +1,123 @@
+{
+  "schema": "development-owner-two-red-observations-v1",
+  "stage": "Corrected source UNRUN at this private candidate checkpoint",
+  "sourceBasis": {
+    "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/source-pins.json",
+    "sha256": "b66d70257317452cb3d8d8ad9c6d730e7608f4d0462095fc2557c493e8b12db3",
+    "bytes": 248495,
+    "mode": 384
+  },
+  "ordinaryBefore": {
+    "command": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/puni/cli/src/development/start.test.ts",
+      "--timeout=20000"
+    ],
+    "scope": "group5",
+    "pass": 5,
+    "fail": 0,
+    "expects": 85,
+    "raw": {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/start/native.log",
+      "sha256": "5e4bb74a2e30bf56ce6bfdbc20c3a6c39921ce6a1c5a919279bccce34ae274b9",
+      "bytes": 642,
+      "mode": 384
+    }
+  },
+  "defectGroup": {
+    "command": [
+      "/home/df/.bun/bin/bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts",
+      "--timeout=40000"
+    ],
+    "pass": 0,
+    "fail": 2,
+    "expects": 14,
+    "elapsedSeconds": 23.35,
+    "receiptState": "normal1/stopped-and-reaped/descriptorclosed/primarynull/cleanup[]",
+    "raw": {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/defects/native.log",
+      "sha256": "04ce2c88f84d6a293e5d2e810cc5ca1dbfd73b2c8da0bfff15b8cfafbaadd999",
+      "bytes": 2343,
+      "mode": 384
+    }
+  },
+  "observations": [
+    {
+      "name": "delivery",
+      "injectedDependency": "Only actual owned negative NxPID/SIGINT process.kill throws exact Error in isolated fixture",
+      "reached": "Actual baseline/ready/preflight2, attempt1, rejection and exact original Error retained before time oracle",
+      "firstFailure": "test21 elapsed<8000 expected, actual13004.469366000001ms",
+      "correction": "Arm both existing escalation and settlement timers before invoking signalDevelopment",
+      "limits": "This actual dependency-break premise only; no every-timer/delivery/failure/cancellation proof."
+    },
+    {
+      "name": "late-sink",
+      "injectedDependency": "Controlled callback remains pending through explicit unconfirmed expiry, then exact owned capture FD reused before callback resolves",
+      "reached": "Actual baseline/ready/preflight2, pending sink, expiry, EBADF-confirmed old capture descriptor and exact owned reuse",
+      "firstFailure": "test24 lateHex empty expected, actual4c4154452d434150545552450a (LATE-CAPTURE+LF)",
+      "elapsedMs": 10001.408377,
+      "correction": "Recheck whole !isOperationClosed && primary===undefined condition after await before capture write",
+      "limits": "Whole fence under this combined state only; no per-conjunct necessity, pending native kernel sink, generic arbitrary-resource cleanup or whole-output guarantee."
+    }
+  ],
+  "originals": [
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/start/native.log",
+      "sha256": "5e4bb74a2e30bf56ce6bfdbc20c3a6c39921ce6a1c5a919279bccce34ae274b9",
+      "bytes": 642,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/start/native.receipt.json",
+      "sha256": "1f5762ef2ac664a2a9676667314d719beabb4d6cf185a175531fac756582b868",
+      "bytes": 1313,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/start/native.validation.json",
+      "sha256": "bf33dc8439e96dfcb9c79aa8b743d16164b1b5e7b0b431956fc5bf307c8d5d81",
+      "bytes": 1336,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/defects/native.log",
+      "sha256": "04ce2c88f84d6a293e5d2e810cc5ca1dbfd73b2c8da0bfff15b8cfafbaadd999",
+      "bytes": 2343,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/defects/native.receipt.json",
+      "sha256": "d6e68d1fdc689df5ed8c913f596e9b85979e0a551979ba735a4bd01c594cb8a4",
+      "bytes": 1349,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-owner-tests-live-v1/defects/native.validation.json",
+      "sha256": "525cbe52893f219f9708d7aa33bdbf9530c61037b0996426d3533edf8f6664f8",
+      "bytes": 1343,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-defect-tests-v1/manifest.json",
+      "sha256": "a83f3c8b770475e0f31689df4e5be0abde070ce97615d3926a79be475fa79472",
+      "bytes": 3572,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-defect-tests-astra-v1.md",
+      "sha256": "ebf883f61e3d11da46ea2add5569219eefb70c7071554db691821cbe751b5e67",
+      "bytes": 2852,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-read-owner-fix-v1/manifest.json",
+      "sha256": "1b59cae7d3349144ded5025718c2bd1b4a6783e550b20110c89fa635ade8a706",
+      "bytes": 3708,
+      "mode": 384
+    }
+  ],
+  "next": "Root/Astra source review then actual unchanged controls; no test, budget, fixtures or expected assertions changed here."
+}

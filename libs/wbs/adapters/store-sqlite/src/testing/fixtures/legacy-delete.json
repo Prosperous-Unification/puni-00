@@ -1,0 +1,35 @@
+{
+  "schema": "puni-genuine-legacy-delete-fixtures-v1",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "sourceLockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+  "runtime": {
+    "version": "1.4.4",
+    "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+  },
+  "ledgerEpoch": "20261103110000_add_initial_access_offers",
+  "ledgerEntries": 110,
+  "cases": {
+    "parent-progress": {
+      "file": "legacy-delete-parent-progress.sqlite.gz",
+      "databaseSha256": "45292e5963bbd210fc11576ccb2a5b0da643773b1898712c82f24a2925928518",
+      "gzipSha256": "5a2ec603c8f12ca4a81a29f05cfaf8c92f1788cf40094d9fadd1205887db3d83",
+      "producerScriptSha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+      "producerCaptureSha256": "090e5963b2c5bc676079cb045e51d5f48ecefb6cfcafe775c38bb78a15e6dad6",
+      "oldReplayControlSha256": "e872573f7c48c918c998eb2a6715451b499bf3deb4c30d152d28c1cb7149a192",
+      "hasHistoricalParentProgress": true
+    },
+    "leaf-only": {
+      "file": "legacy-delete-leaf-only.sqlite.gz",
+      "databaseSha256": "58e633d3059f9821644eb4ac52457f4e87b591e0ee0d41e3478bba9e43b15909",
+      "gzipSha256": "36bbd33540aa699588490d904592771a180b54ecffd724dd9d84ecd1b5797fba",
+      "producerScriptSha256": "1f9bcec575a2f9f86daab652b248b4be3ec6382990e5c9aed394557b7abbbf3b",
+      "producerCaptureSha256": "d723cd81ab057af22f47e146dc80de08de7f77a585675555e60686135947141b",
+      "oldReplayControlSha256": "cfb7fc954bb786bd7cba054698ae3b2c98d51207f5c23b3283a38fbd91482760",
+      "hasHistoricalParentProgress": false
+    }
+  },
+  "provenance": "Both databases were authored through actual immutable old SQLite Source stores and deletion service. Both old undo controls succeeded on independent copied databases. The parent-progress case includes exact original parent statedAt -30 and child20 in its genuine inverse; the leaf-only case never authored parent progress before deletion. No journal/fact row was hand-built. Tests must run actual normal migrations, report, E37 backup and guarded catalogue apply before opening current Source.",
+  "parentProgressProducer": "legacy-history-producer.ts.txt",
+  "leafOnlyProducer": "legacy-delete-positive-producer.ts.txt",
+  "qualification": "Isolated old blockage marker is fixture-native; no host/session/scoped activation claim. These assets do not authorize current parent progress or close all15historical guarantees."
+}

@@ -23,12 +23,12 @@ export interface ActualKey {
  * own to drift into.
  */
 export interface ActualStore {
-  /** Every actual in the project, in step order within each work item. */
-  listByProject(projectId: string): Promise<StoredActual[]>;
-  /** Values for the requested work items in project and step order. */
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredActual[]>;
+  /** Every actual in the work package, in step order within each work item. */
+  listByWorkPackage(workPackageId: string): Promise<StoredActual[]>;
+  /** Values for the requested work items in work package and step order. */
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredActual[]>;
   /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
-  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
+  listPlacements(workPackageId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** Writes one work item's actual for one step, replacing any earlier one. */
   set(actual: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

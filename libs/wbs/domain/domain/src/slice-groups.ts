@@ -29,10 +29,10 @@ export interface GroupableSlice {
 
 /**
  * The slices grouped by the leaf they belong to, in the order they were handed
- * over — which is the project's step order, and therefore the order they run in.
+ * over — which is the work package's step order, and therefore the order they run in.
  *
  * Throws on a slice for something that is not a leaf of `rows`. A parent has no
- * work of its own and a work item from another project has no place in this
+ * work of its own and a work item from another work package has no place in this
  * graph at all; scheduling either would be answering a question about a plan
  * that was not asked for. R5: this is malformed input, not a missing default.
  *
@@ -51,7 +51,7 @@ export function groupSlicesByLeaf<S extends GroupableSlice>(
   const grouped = new Map<string, S[]>();
   for (const slice of slices) {
     if (!leaves.has(slice.workItemId)) {
-      throw new Error(`slice for ${slice.workItemId}, which is not a leaf of this project`);
+      throw new Error(`slice for ${slice.workItemId}, which is not a leaf of this work package`);
     }
     // A width is people, and the smallest number of people that can do work is
     // one. Refused **here**, at the boundary the slices enter the engine

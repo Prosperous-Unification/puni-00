@@ -1,29 +1,26 @@
 import { readFileSync } from 'node:fs';
 
 import {
-  canonicalisePlanInputV10,
+  canonicalisePlanInputV12,
+  projectSavedPlanInput,
   readSavedConnectedScheduleBody,
   readSavedConnectedScheduleEvidence,
   readSavedDependencyHistory,
-  readSavedPlanInput,
 } from '@wbs/domain';
-import { connectedPlanFixtureRows } from '@wbs/domain/connected-history-fixture';
+import {
+  connectedHistoryFixture,
+  connectedPlanFixtureRows,
+} from '@wbs/domain/connected-history-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { verifySavedPlanBodies } from './saved-plan-integrity';
 
 const captured = JSON.parse(
-  readFileSync(
-    new URL(
-      '../../../../../domain/domain/src/saved-plan/fixtures/connected-history.txt',
-      import.meta.url,
-    ),
-    'utf8',
-  )
+  JSON.stringify(connectedHistoryFixture())
     .replaceAll('20727', '14808')
     .replaceAll('20728', '14809'),
 ) as { history: unknown; evidence: unknown };
-const planFixtureRows = readSavedPlanInput(
+const historicalFacts = projectSavedPlanInput(
   JSON.parse(
     readFileSync(
       new URL('../../../../../domain/domain/src/saved-plan/fixtures/input-v8.txt', import.meta.url),
@@ -31,7 +28,11 @@ const planFixtureRows = readSavedPlanInput(
     ),
   ),
   8,
-);
+).input;
+const planFixtureRows = {
+  ...historicalFacts,
+  workPackage: { ...historicalFacts.workPackage, projectId: 'fixture-parent' },
+};
 // The Slice 1 fixture is structural-only: original abstract ordinals do not match its dates.
 // This core fixture explicitly uses 2026-10-01/02 ordinals throughout every stage/question byte.
 const history = readSavedDependencyHistory(captured.history);
@@ -40,9 +41,9 @@ const evidence = readSavedConnectedScheduleEvidence(captured.evidence);
 const designKey = 'a\u0000design';
 const testKey = 'a\u0000test';
 const buildKey = 'b\u0000build';
-const input = canonicalisePlanInputV10(connectedPlanFixtureRows(history), history);
+const input = canonicalisePlanInputV12(connectedPlanFixtureRows(history), history);
 const schedule = {
-  version: 2,
+  version: 4,
   algorithmId: 'connected-selection-v1:retired',
   workItems: {
     a: { ...evidence.composite.workItems['a'], startsOn: '2026-10-01', endsOn: '2026-10-07' },
@@ -63,14 +64,14 @@ const schedule = {
   waitingForCapacity: 0,
   connection: evidence,
 };
-const read = (inputBytes: string, scheduleBytes: string | null, projectId = 'A') =>
+const read = (inputBytes: string, scheduleBytes: string | null, workPackageId = 'A') =>
   verifySavedPlanBodies(
     'saved',
-    projectId,
-    { version: 10, bytes: inputBytes },
+    workPackageId,
+    { version: 12, bytes: inputBytes },
     scheduleBytes === null
       ? { present: false, absentReason: 'unavailable' }
-      : { present: true, version: 2, bytes: scheduleBytes, algorithmId: schedule.algorithmId },
+      : { present: true, version: 4, bytes: scheduleBytes, algorithmId: schedule.algorithmId },
   );
 
 describe('new saved body integrity', () => {
@@ -176,9 +177,9 @@ describe('new saved body integrity', () => {
       ),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
   });
-  it('validates the captured target anchor rather than using another project calendar', () => {
-    const betaHistory = { ...history, targetProjectId: 'B' };
-    const betaInput = canonicalisePlanInputV10(connectedPlanFixtureRows(betaHistory), betaHistory);
+  it('validates the captured target anchor rather than using another work package calendar', () => {
+    const betaHistory = { ...history, targetWorkPackageId: 'B' };
+    const betaInput = canonicalisePlanInputV12(connectedPlanFixtureRows(betaHistory), betaHistory);
     const projected = {
       ...evidence.composite.slices[buildKey],
       earliestStart: 0,
@@ -190,7 +191,7 @@ describe('new saved body integrity', () => {
     };
     const beta = {
       ...schedule,
-      connection: { ...evidence, targetProjectId: 'B' },
+      connection: { ...evidence, targetWorkPackageId: 'B' },
       workItems: {
         b: {
           ...evidence.composite.workItems['b'],
@@ -216,7 +217,7 @@ describe('new saved body integrity', () => {
       read(
         JSON.stringify({
           ...betaInput,
-          project: { ...betaInput.project, startDate: '2026-10-01' },
+          workPackage: { ...betaInput.workPackage, startDate: '2026-10-01' },
         }),
         JSON.stringify(beta),
         'B',
@@ -263,14 +264,18 @@ describe('new saved body integrity', () => {
   it('accepts a genuinely empty connected component without inventing an anchor or stage', () => {
     const emptyHistory = readSavedDependencyHistory({
       ...history,
-      projects: history.projects.map((project) => ({ ...project, startDate: null, workItems: [] })),
+      workPackages: history.workPackages.map((workPackage) => ({
+        ...workPackage,
+        startDate: null,
+        workItems: [],
+      })),
       relationships: [],
       ownership: [],
       readiness: [],
       graph: { nodes: [], edges: [] },
     });
     if (emptyHistory.kind !== 'connected') throw new Error('fixture must be connected');
-    const emptyInput = canonicalisePlanInputV10(
+    const emptyInput = canonicalisePlanInputV12(
       connectedPlanFixtureRows(emptyHistory),
       emptyHistory,
     );
@@ -284,7 +289,7 @@ describe('new saved body integrity', () => {
         baseline: empty,
         composite: empty,
         stages: [],
-        idleProjects: ['A', 'B'],
+        idleWorkPackages: ['A', 'B'],
       },
     };
     expect(read(JSON.stringify(emptyInput), JSON.stringify(emptyBody))).toBeNull();
@@ -296,11 +301,13 @@ describe('new saved body integrity', () => {
   it('refuses impossible target calendar text and invented waiting facts', () => {
     const malformed = {
       ...input,
-      project: { ...input.project, startDate: '2026-02-31' },
+      workPackage: { ...input.workPackage, startDate: '2026-02-31' },
       dependencyHistory: {
         ...history,
-        projects: history.projects.map((project) =>
-          project.projectId === 'A' ? { ...project, startDate: '2026-02-31' } : project,
+        workPackages: history.workPackages.map((workPackage) =>
+          workPackage.workPackageId === 'A'
+            ? { ...workPackage, startDate: '2026-02-31' }
+            : workPackage,
         ),
       },
     };
@@ -337,7 +344,7 @@ describe('new saved body integrity', () => {
     expect(
       read(JSON.stringify(input), JSON.stringify({ ...schedule, connection: undefined })),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
-    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
+    const local = canonicalisePlanInputV12(planFixtureRows, { kind: 'local' });
     expect(read(JSON.stringify(local), JSON.stringify(schedule), 'p1')).toMatchObject({
       reason: 'body_invalid',
       body: 'schedule',
@@ -355,19 +362,48 @@ describe('new saved body integrity', () => {
       verifySavedPlanBodies(
         'saved',
         'A',
-        { version: 10, bytes: JSON.stringify(unavailable) },
+        { version: 12, bytes: JSON.stringify(unavailable) },
         { present: true, version: 1, bytes: '{}', algorithmId: 'legacy' },
       ),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
-    const local = canonicalisePlanInputV10(planFixtureRows, { kind: 'local' });
+    const local = canonicalisePlanInputV12(planFixtureRows, { kind: 'local' });
+    const legacyBytes = readFileSync(
+      new URL(
+        '../../../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-first-writer.txt',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const legacyAlgorithm = (JSON.parse(legacyBytes) as { algorithmId: string }).algorithmId;
     expect(
       verifySavedPlanBodies(
         'saved',
         'p1',
-        { version: 10, bytes: JSON.stringify(local) },
-        { present: true, version: 1, bytes: 'legacy bytes stay opaque', algorithmId: 'legacy' },
+        { version: 12, bytes: JSON.stringify(local) },
+        { present: true, version: 1, bytes: legacyBytes, algorithmId: legacyAlgorithm },
       ),
     ).toBeNull();
+    expect(
+      verifySavedPlanBodies(
+        'saved',
+        'p1',
+        { version: 12, bytes: JSON.stringify(local) },
+        {
+          present: true,
+          version: 1,
+          bytes: 'legacy bytes stay opaque',
+          algorithmId: legacyAlgorithm,
+        },
+      ),
+    ).toMatchObject({ reason: 'body_invalid', body: 'schedule', code: 'json' });
+    expect(
+      verifySavedPlanBodies(
+        'saved',
+        'p1',
+        { version: 12, bytes: JSON.stringify(local) },
+        { present: true, version: 1, bytes: legacyBytes, algorithmId: 'wrong-header' },
+      ),
+    ).toMatchObject({ reason: 'body_invalid', body: 'schedule', code: 'algorithm_identity' });
   });
 
   it('refuses missing selected evidence and malformed timings without replaying schedules', () => {
@@ -421,7 +457,7 @@ it.each([
   'half-trio-basis',
   'negative-cap',
   'negative-hold',
-] as const)('refuses input10 measure invariant %s through saved-body integrity', (fault) => {
+] as const)('refuses input12 measure invariant %s through saved-body integrity', (fault) => {
   const invalid = structuredClone({
     ...input,
     measures: [
@@ -448,8 +484,8 @@ it.each([
     ],
     budgets: [{ workItemId: 'a', key: 'cost', cap: 5, policy: 'strict', holdPerAttempt: null }],
   });
-  if (fault === 'factor-zero') Reflect.set(invalid.project, 'budgetFactor', 0);
-  if (fault === 'factor-above-max') Reflect.set(invalid.project, 'budgetFactor', 1001);
+  if (fault === 'factor-zero') Reflect.set(invalid.workPackage, 'budgetFactor', 0);
+  if (fault === 'factor-above-max') Reflect.set(invalid.workPackage, 'budgetFactor', 1001);
   if (fault === 'negative-fact') Reflect.set(invalid.measures[0], 'value', -1);
   if (fault === 'half-fact-basis') Reflect.set(invalid.measures[0], 'currency', 'USD');
   if (fault === 'negative-trio') Reflect.set(invalid.measureEstimates[0], 'optimistic', -1);
@@ -462,4 +498,37 @@ it.each([
     reason: 'body_invalid',
     body: 'input',
   });
+});
+
+it('keeps constructed original eleven and original schedule one independently readable', () => {
+  const inputBytes = readFileSync(
+    new URL(
+      '../../../../../domain/domain/src/saved-plan/fixtures/constructed-input11-local.txt',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const scheduleBytes = readFileSync(
+    new URL(
+      '../../../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-first-writer.txt',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const schedule: unknown = JSON.parse(scheduleBytes);
+  if (
+    typeof schedule !== 'object' ||
+    schedule === null ||
+    !('algorithmId' in schedule) ||
+    typeof schedule.algorithmId !== 'string'
+  )
+    throw Error('historical algorithm absent');
+  expect(
+    verifySavedPlanBodies(
+      'saved',
+      'p1',
+      { version: 11, bytes: inputBytes },
+      { present: true, version: 1, bytes: scheduleBytes, algorithmId: schedule.algorithmId },
+    ),
+  ).toBeNull();
 });

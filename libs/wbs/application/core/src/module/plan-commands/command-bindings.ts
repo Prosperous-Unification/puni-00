@@ -28,16 +28,16 @@ export function bindTypedEndpoint(
   endpoint: CommandFor<'addTypedDependency'>['predecessor'],
   context: CommandContext,
 ): ScopedDependencyEndpoint {
-  // Proof: preserve-explicit-project bypass failed `mounted external authoring stays dormant`'s selected assertion
+  // Proof: preserve-explicit-work-package bypass failed `mounted external authoring stays dormant`'s selected assertion
   // (actual SQLite boundary; watched 2026-10-22).
-  const projectId = endpoint.projectId ?? context.requireProjectId();
+  const workPackageId = endpoint.workPackageId ?? context.requireWorkPackageId();
   const workItemId = context.required(
     endpoint.workItemId,
     'workItemRef' in endpoint ? endpoint.workItemRef : undefined,
   );
   return endpoint.scope === 'whole'
-    ? { scope: 'whole', projectId, workItemId }
-    : { scope: endpoint.scope, projectId, workItemId, stepId: endpoint.stepId };
+    ? { scope: 'whole', workPackageId, workItemId }
+    : { scope: endpoint.scope, workPackageId, workItemId, stepId: endpoint.stepId };
 }
 
 /** Stops one binding while retaining the command position and typed refusal. */
@@ -52,13 +52,13 @@ export class CommandRefused extends Error {
 }
 
 /**
- * The batch-local authority shared by one command binding: actor and project,
+ * The batch-local authority shared by one command binding: actor and work package,
  * ref lookup/minting, applied position, and service-refusal translation.
  */
 export class CommandContext {
   constructor(
     readonly actorId: string,
-    readonly projectId: string | null,
+    readonly workPackageId: string | null,
     readonly index: number,
     private readonly kind: PlanCommandKind,
     private readonly refs: Map<string, string>,
@@ -76,9 +76,9 @@ export class CommandContext {
     private readonly actingPersonId: string | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
-    // and commit its preceding tag instead of refusing `project_required` at index 1.
-    if (projectId === null && commandDefinitions[kind].scope === 'project') {
-      this.refuse({ reason: 'project_required' });
+    // and commit its preceding tag instead of refusing `work_package_required` at index 1.
+    if (workPackageId === null && commandDefinitions[kind].scope === 'work_package') {
+      this.refuse({ reason: 'work_package_required' });
     }
   }
 
@@ -86,9 +86,9 @@ export class CommandContext {
     throw new CommandRefused(this.index, this.kind, refusal);
   }
 
-  requireProjectId(): string {
-    if (this.projectId === null) this.refuse({ reason: 'project_required' });
-    return this.projectId;
+  requireWorkPackageId(): string {
+    if (this.workPackageId === null) this.refuse({ reason: 'work_package_required' });
+    return this.workPackageId;
   }
 
   id(given: string | null | undefined, ref: string | undefined): string | null {
@@ -232,7 +232,11 @@ export class CommandContext {
           detail: { cap: outcome.cap, current: outcome.current },
         });
       case 'resources_on_subtree':
+        return this.refuse({ reason: outcome.reason });
       case 'person_not_bound':
+        if (this.access.kind === 'scoped')
+          return this.refuse({ reason: 'forbidden', permission: 'package.claim_for_others' });
+        return this.refuse({ reason: outcome.reason });
       case 'credential_not_for_person':
       case 'run_mismatch':
       case 'parent_claim_unknown':
@@ -254,6 +258,14 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
+    // Proof: dropping the permission projection encoded a bare forbidden body; `remote write for implicit duplicate`
+    // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+    if (
+      outcome.reason === 'forbidden' &&
+      'permission' in outcome &&
+      outcome.permission !== undefined
+    )
+      return this.refuse({ reason: 'forbidden', permission: outcome.permission });
     if (
       outcome.reason === 'descendant_step_on_leaf' ||
       outcome.reason === 'node_on_parent' ||
@@ -268,6 +280,11 @@ export class CommandContext {
         detail: { dependencyIds: outcome.dependencyIds },
       });
     }
+    if (outcome.reason === 'step_nodes_in_use')
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { count: outcome.count, pairs: structuredClone(outcome.pairs) },
+      });
     if (outcome.reason === 'referenced_by_step_parallel') {
       // Proof: replacing nodes with [] failed the mounted exact 409 assertion, 2026-10-17.
       return this.refuse({
@@ -339,14 +356,17 @@ export class CommandContext {
           : { reason: 'in_use', detail: { usage: outcome.usage } },
       );
     }
-    if (outcome.reason === 'deadline_before_project_start') {
+    if (outcome.reason === 'deadline_before_work_package_start') {
       // Proof: deleting this guard threw Malformed deadline refusal resolved in the runner negative.
-      if (typeof outcome.workItemId !== 'string' || typeof outcome.projectDayZero !== 'string') {
-        throw new Error('Deadline refusal requires work item and project day zero');
+      if (
+        typeof outcome.workItemId !== 'string' ||
+        typeof outcome.workPackageDayZero !== 'string'
+      ) {
+        throw new Error('Deadline refusal requires work item and work package day zero');
       }
       return this.refuse({
         reason: outcome.reason,
-        detail: { workItemId: outcome.workItemId, projectDayZero: outcome.projectDayZero },
+        detail: { workItemId: outcome.workItemId, workPackageDayZero: outcome.workPackageDayZero },
       });
     }
     return this.refuse({ reason: outcome.reason });
@@ -363,12 +383,10 @@ async function createDirectoryEntry<
 >(
   context: CommandContext,
   command: { kind: Kind; ref?: string; name: string },
-  create: (actorId: string, name: string) => Promise<Entity | null>,
+  create: (actorId: string, name: string) => Promise<{ ok: true; value: Entity } | ServiceRefusal>,
 ): Promise<MintedBase & { kind: Kind; entity: Entity }> {
   context.assertRefAvailable(command.ref);
-  const entity = context.requireValue(await create(context.actorId, command.name), {
-    reason: 'name_required',
-  });
+  const entity = context.value(await create(context.actorId, command.name));
   return { ...context.mint(command.ref, entity.id), kind: command.kind, entity };
 }
 
@@ -411,7 +429,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       // and returned `not_found` instead of `duplicate_ref` for the second create.
       context.assertRefAvailable(command.ref);
       const created = context.value(
-        await workItems.create(context.requireProjectId(), context.actorId, {
+        await workItems.create(context.requireWorkPackageId(), context.actorId, {
           parentId: context.id(command.parentId, command.parentRef),
           afterId: context.id(command.afterId, command.afterRef),
           ...(command.name === undefined ? {} : { name: command.name }),
@@ -767,7 +785,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     addTypedDependency: async (command, context) => {
       const id = context.value(
-        await workItems.addTypedDependency(context.requireProjectId(), context.actorId, {
+        await workItems.addTypedDependency(context.requireWorkPackageId(), context.actorId, {
           predecessor: bindTypedEndpoint(command.predecessor, context),
           successor: bindTypedEndpoint(command.successor, context),
           type: command.type,
@@ -778,7 +796,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     updateTypedDependency: async (command, context) => {
       context.value(
         await workItems.updateTypedDependency(
-          context.requireProjectId(),
+          context.requireWorkPackageId(),
           context.actorId,
           command.dependencyId,
           {
@@ -793,7 +811,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     removeTypedDependency: async (command, context) => {
       context.value(
         await workItems.removeTypedDependency(
-          context.requireProjectId(),
+          context.requireWorkPackageId(),
           context.actorId,
           command.dependencyId,
         ),
@@ -801,15 +819,19 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return { ...context.plain(), kind: command.kind };
     },
     arrangeBySchedule: async (command, context) => {
-      context.value(await workItems.arrangeBySchedule(context.requireProjectId(), context.actorId));
+      context.value(
+        await workItems.arrangeBySchedule(context.requireWorkPackageId(), context.actorId),
+      );
       return { ...context.plain(), kind: command.kind };
     },
-    freezeProject: async (command, context) => {
-      context.value(await workItems.freeze(context.requireProjectId(), context.actorId));
+    freezeWorkPackage: async (command, context) => {
+      context.value(await workItems.freeze(context.requireWorkPackageId(), context.actorId));
       return { ...context.plain(), kind: command.kind };
     },
-    unfreezeProject: async (command, context) => {
-      context.value(await workItems.unfreezeProject(context.requireProjectId(), context.actorId));
+    unfreezeWorkPackage: async (command, context) => {
+      context.value(
+        await workItems.unfreezeWorkPackage(context.requireWorkPackageId(), context.actorId),
+      );
       return { ...context.plain(), kind: command.kind };
     },
     unfreezeWorkItem: async (command, context) => {
@@ -824,7 +846,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     setCapacity: async (command, context) => {
       context.value(
         await capacity.set(
-          context.requireProjectId(),
+          context.requireWorkPackageId(),
           context.actorId,
           context.required(command.teamId, command.teamRef),
           command.size,
@@ -835,7 +857,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     setResourceCapacity: async (command, context) => {
       context.value(
         await capacity.setForResource(
-          context.requireProjectId(),
+          context.requireWorkPackageId(),
           context.actorId,
           context.required(command.resourceId, command.resourceRef),
           command.units,
@@ -858,7 +880,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     setStepAllowance: async (command, context) => {
       context.value(
         await workItems.setStepAllowance(
-          context.requireProjectId(),
+          context.requireWorkPackageId(),
           context.actorId,
           command.stepId,
           command.allowancePercent,
@@ -868,15 +890,14 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     setPriorityBands: async (command, context) => {
       context.value(
-        await priorityBands.set(context.requireProjectId(), context.actorId, command.bands),
+        await priorityBands.set(context.requireWorkPackageId(), context.actorId, command.bands),
       );
       return { ...context.plain(), kind: command.kind };
     },
     createTeam: async (command, context) => {
       context.assertRefAvailable(command.ref);
-      const team = context.requireValue(
+      const team = context.value(
         await directory.addWithin('teams', context.actorId, command.name, context.access),
-        { reason: 'name_required' },
       );
       return {
         ...context.mint(command.ref, team.id),

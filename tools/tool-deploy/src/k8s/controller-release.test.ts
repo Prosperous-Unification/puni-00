@@ -218,7 +218,7 @@ throw new Error('unexpected command '+args.join(' '));
     namespaces: request.namespaces,
     stateDir: root,
     overlay: root,
-    anonymousProjectsStatus: 200,
+    anonymousWorkPackagesStatus: 200,
     rolloutTimeoutSeconds: 1,
     jobTimeoutSeconds: 1,
     drainTimeoutMs: 50,

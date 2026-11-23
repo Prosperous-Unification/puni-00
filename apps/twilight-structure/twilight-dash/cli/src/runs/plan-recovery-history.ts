@@ -19,7 +19,9 @@ import {
   decodeRuntimePin,
   digestRuntimeRequest,
   equalRuntimeScopes,
+  readReceiptScope,
   readRuntimeRequest,
+  readStateScope,
   runtimeScopeKey,
 } from './runtime-codecs';
 import type {
@@ -243,7 +245,7 @@ function checkReceipt(
 ): void {
   const { scope, operation } = readRuntimeRequest(original.canonicalRequest);
   if (
-    !equalRuntimeScopes(receipt.scope, scope) ||
+    !equalRuntimeScopes(readReceiptScope(receipt), scope) ||
     receipt.ledgerId !== operation.expectedLedgerId ||
     receipt.commandId !== original.commandId ||
     receipt.requestDigest !== original.requestDigest
@@ -397,7 +399,7 @@ function auditRecoveryAssociations(catalog: RuntimeCatalog, ownership: Ownership
       const state = basis.state.body.value;
       const generation = state.authority.kind === 'held' ? state.authority.generation : null;
       if (
-        !equalRuntimeScopes(state.scope, request.scope) ||
+        !equalRuntimeScopes(readStateScope(state), request.scope) ||
         state.ledgerId !== retained.pin.ledgerId ||
         parsed.operation.expectedGeneration !== generation ||
         (threshold !== null && (generation === null || generation < threshold))

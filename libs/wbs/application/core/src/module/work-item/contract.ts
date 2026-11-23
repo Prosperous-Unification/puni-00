@@ -10,7 +10,7 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Work item is a resource:
  * it imports the domain library, thirteen repository ports — `WorkItemStore`,
- * `ProjectStore`, `EstimateStore`, `ActualStore`, `MeasureStore`,
+ * `WorkPackageStore`, `EstimateStore`, `ActualStore`, `MeasureStore`,
  * `StepProgressStore`, `DirectoryStore`, `CapacityStore`, `PriorityBandStore`,
  * `DependencyStore`, `TypedDependencyStore`, `SubtreeStore` and
  * `CommandJournalStore` — and no other
@@ -18,7 +18,7 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
  * assumed-assignee, dependency and roll-up rules to `@wbs/domain` and
  * reclassified `compensating.ts` and `numbered-work-item.ts` as application
  * support over port records, which stay in the core. Its consumers' side is not
- * closed either: `http/project.routes.ts` and `http/work-item.routes.ts` accept
+ * closed either: `http/work-package.routes.ts` and `http/work-item.routes.ts` accept
  * `WorkItemService` directly, Plan commands and Plan import name it, and Saved
  * plans' `saved-plan-schedule.ts` imports its `NO_DEADLINES` and `slicesOf`
  * values — the direct resource dependency (K2) the map lists under its

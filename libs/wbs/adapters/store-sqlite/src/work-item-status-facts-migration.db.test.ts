@@ -7,22 +7,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STATUS_FACTS = '20260928200000_add_work_item_status_facts';
 /** The migration below this one, where every rollback here stops. */
-const BASELINE = readMigrationFolders(FOLDER)
-  .map(({ name }) => name)
-  .filter((name) => name < STATUS_FACTS)
-  .at(-1);
+const BASELINE = '20260928040000_add_email_challenge';
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-status-facts-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, STATUS_FACTS);
+  runMigrations(path, migrations);
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -42,7 +41,7 @@ function seed(sqlite: Database): void {
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
   sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
   );
   // The outgoing colour's insert names neither column.
   sqlite.run(
@@ -91,13 +90,12 @@ describe(STATUS_FACTS, () => {
       seed(sqlite);
       sqlite.run("UPDATE work_item SET readiness = 'ready' WHERE id = 'a'");
     });
-    if (BASELINE === undefined) throw new Error('no migration below the status facts');
-    expect(rollbackTo(path, FOLDER, BASELINE)).toContain(STATUS_FACTS);
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([STATUS_FACTS]);
     withDatabase((sqlite) => {
       expect(columnsOfWorkItem(sqlite)).not.toContain('readiness');
       expect(columnsOfWorkItem(sqlite)).not.toContain('hold');
     });
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     withDatabase((sqlite) => {
       expect(columnsOfWorkItem(sqlite)).toContain('hold');
     });
@@ -113,8 +111,7 @@ describe(STATUS_FACTS, () => {
       seed(sqlite);
       sqlite.run("UPDATE work_item SET hold = 'on_hold' WHERE id = 'a'");
     });
-    if (BASELINE === undefined) throw new Error('no migration below the status facts');
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'docs/runbook-prod-deploy.md#work-item-status-facts-rollback',
     );
     withDatabase((sqlite) => {

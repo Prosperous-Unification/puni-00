@@ -16,9 +16,13 @@ import { capturedSchedulerIn } from './captured-scheduler';
 import { response, stage } from './connected-optimization.fixture';
 import { captureConnectedQuestion, hashConnectedBytes } from './connected-question-identity';
 import { drizzleReadTransaction, openDatabase } from './db';
-import { runMigrations } from './migrate';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { optimizedScheduleCache } from './schema';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
 const schedulerOf = () =>
@@ -40,6 +44,7 @@ const schedulerOf = () =>
     scheduleResolved,
   );
 let directory: string;
+let custody: CatalogueFixtureCustody;
 let path: string;
 function connect() {
   const sqlite = openDatabase(path);
@@ -52,17 +57,26 @@ function connect() {
   };
 }
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   directory = mkdtempSync(join(tmpdir(), 'captured-scheduler-'));
   path = join(directory, 'store.db');
-  runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture({ path, directory: directory, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'captured-scheduler-org', 'captured-scheduler-project');
   const connection = connect();
   connection.sqlite.run(
     "INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)",
   );
-  connection.sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES('B','B','u',1)");
+  connection.sqlite.run(
+    "INSERT INTO work_package(id,project_id,name,created_by,created_at) VALUES('B','captured-scheduler-project','B','u',1)",
+  );
   connection.close();
 });
 afterEach(() => {
+  // Proof: sqlite-cohort3-v247-captured injected a throw after real close
+  // returned. Omission deleted this directory; restoration retained it.
+  // No leaked native handle was injected.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -181,13 +195,13 @@ for (const capability of [
       const invoke = {
         acquisition: () => capturedSchedulerIn(connection.db, { schedulerOf }, lifetime, installed),
         'local callback': () =>
-          retained?.({ projectId: 'B', objective: 'time', input, enabled: true }),
+          retained?.({ workPackageId: 'B', objective: 'time', input, enabled: true }),
         supports: () => view.scheduler.supports('fast'),
         'resolved Fast': () => view.scheduler.readResolvedFast(stage().input),
         'local schedule': () =>
           view.scheduler.read({
             mode: 'capture',
-            projectId: 'B',
+            workPackageId: 'B',
             objective: 'time',
             engine: 'fast',
             enabled: false,
@@ -201,7 +215,7 @@ for (const capability of [
           }),
       }[capability];
       expect(invoke).toThrow('read snapshot is closed');
-      expect(connection.sqlite.query('SELECT count(*) AS count FROM project').get()).toEqual({
+      expect(connection.sqlite.query('SELECT count(*) AS count FROM work_package').get()).toEqual({
         count: 1,
       });
     } finally {
@@ -227,7 +241,7 @@ it('retains a stored boundary certificate and refuses malformed terminal evidenc
       hashConnectedBytes,
     );
     connection.sqlite.run(
-      'INSERT INTO optimization_boundary_certificate(project_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at) VALUES(?,?,?,?,?,?,1,?,1)',
+      'INSERT INTO optimization_boundary_certificate(work_package_id,input_hash,objective,contract_version,budget_ms,certificate_json,generation,attempt_token,created_at) VALUES(?,?,?,?,?,?,1,?,1)',
       [
         'B',
         question.inputHash,

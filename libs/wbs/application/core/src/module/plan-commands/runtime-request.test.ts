@@ -9,7 +9,7 @@ import {
   parseRuntimeStateRequest,
 } from './runtime-request';
 
-const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+const scope = { organizationId: 'org', workPackageId: 'workPackage', personId: 'person' };
 const acquisition = {
   kind: 'authority' as const,
   schemaVersion: 1 as const,
@@ -45,11 +45,11 @@ const write = {
 describe('canonical runtime request', () => {
   it('fixes every authority envelope key and preserves explicit null', () => {
     expect(canonicalRuntimeRequest(scope, acquisition)).toBe(
-      '{"schemaVersion":1,"expectedLedgerId":"ledger","scope":{"organizationId":"org","projectId":"project","personId":"person"},"commandId":"command","operation":{"kind":"authority","ownerId":"owner","expectedGeneration":null}}',
+      '{"schemaVersion":2,"expectedLedgerId":"ledger","scope":{"organizationId":"org","workPackageId":"workPackage","personId":"person"},"commandId":"command","operation":{"kind":"authority","ownerId":"owner","expectedGeneration":null}}',
     );
     expect(
       canonicalRuntimeRequest(
-        { personId: 'person', projectId: 'project', organizationId: 'org' },
+        { personId: 'person', workPackageId: 'workPackage', organizationId: 'org' },
         { ...acquisition, ownerId: 'owner' },
       ),
     ).toBe(canonicalRuntimeRequest(scope, acquisition));
@@ -57,7 +57,7 @@ describe('canonical runtime request', () => {
   it('normalizes nested claim/write object keys while retaining ordered content', () => {
     const canonical = canonicalRuntimeRequest(scope, write);
     expect(canonical).toBe(
-      '{"schemaVersion":1,"expectedLedgerId":"ledger","scope":{"organizationId":"org","projectId":"project","personId":"person"},"commandId":"write","operation":{"kind":"write","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:' +
+      '{"schemaVersion":2,"expectedLedgerId":"ledger","scope":{"organizationId":"org","workPackageId":"workPackage","personId":"person"},"commandId":"write","operation":{"kind":"write","authority":{"ownerId":"owner","generation":1},"expectedBasis":"rb1:' +
         'a'.repeat(64) +
         '","action":{"kind":"write","claim":{"claimId":"claim","workItemId":"leaf","stepId":"dev","parentClaimId":null,"execution":{"storeId":"store","runId":"run","attemptId":"attempt","sessionId":"session"}},"commands":[{"kind":"setProgress","workItemId":"leaf","stepId":"dev","state":"done"}]}}}',
     );
@@ -247,7 +247,7 @@ describe('runtime application request boundaries', () => {
       parseCanonicalRuntimeRequest(bytes.replace('"kind":"write"', '"kind":"claim"')),
     ).toThrow('not canonical');
     expect(() =>
-      parseCanonicalRuntimeRequest(bytes.replace('"schemaVersion":1', '"schemaVersion":2')),
+      parseCanonicalRuntimeRequest(bytes.replace('"schemaVersion":2', '"schemaVersion":3')),
     ).toThrow();
   });
 });

@@ -114,9 +114,9 @@ describe('a box whose write is travelling keeps the focus (F-066)', () => {
     expect(box.readOnly).toBe(false);
   });
 
-  itDom('a step’s name, which a second Enter does not send again', async () => {
+  itDom('a package allowance, which a second Enter does not send again', async () => {
     let finish: () => void = () => undefined;
-    const renameStep = vi.fn(
+    const setStepAllowance = vi.fn(
       () =>
         new Promise<{
           estimateUnit: 'workdays';
@@ -125,7 +125,7 @@ describe('a box whose write is travelling keeps the focus (F-066)', () => {
           allowancePercent: number;
         }>((done) => {
           finish = () => {
-            done({ estimateUnit: 'workdays', id: 'step-dev', name: 'Build', allowancePercent: 0 });
+            done({ estimateUnit: 'workdays', id: 'step-dev', name: 'Dev', allowancePercent: 0 });
           };
         }),
     );
@@ -144,27 +144,22 @@ describe('a box whose write is travelling keeps the focus (F-066)', () => {
           waitsForSeveral: false,
         }}
         hiddenColumnIds={INITIAL_HIDDEN_COLUMNS}
-        numberOf={() => null}
-        nameOf={() => null}
-        addStep={vi.fn()}
-        renameStep={renameStep}
-        setStepAllowance={vi.fn()}
-        removeStep={vi.fn()}
+        setStepAllowance={setStepAllowance}
         onChanged={quiet}
         onDirtyChange={() => undefined}
       />,
     );
-    const name = screen.getByLabelText<HTMLInputElement>('Dev');
-    fireEvent.change(name, { target: { value: 'Build' } });
-    fireEvent.submit(name);
-    fireEvent.submit(name);
+    const allowance = screen.getByLabelText<HTMLInputElement>('Dev allowance (%)');
+    fireEvent.change(allowance, { target: { value: '12.34' } });
+    fireEvent.keyDown(allowance, { key: 'Enter' });
+    fireEvent.keyDown(allowance, { key: 'Enter' });
 
-    expect(name.matches(':disabled')).toBe(false);
-    expect(name.readOnly).toBe(true);
+    expect(allowance.matches(':disabled')).toBe(false);
+    expect(allowance.readOnly).toBe(true);
     // Proof: on 2026-10-14, with the steps panel's one-write-at-a-time guard
     // removed, this failed on `expected "vi.fn()" to be called 1 times, but got
-    // 2 times` — a readOnly box takes a second Enter, which sent the rename again.
-    expect(renameStep).toHaveBeenCalledTimes(1);
+    // 2 times` — a readOnly box takes a second Enter, which sent the allowance again.
+    expect(setStepAllowance).toHaveBeenCalledTimes(1);
     await act(async () => {
       finish();
       await new Promise((resume) => setTimeout(resume, 0));

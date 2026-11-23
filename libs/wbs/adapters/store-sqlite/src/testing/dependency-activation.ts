@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 
-import { inspectDependencyActivation } from '../cross-project-dependency-activation';
+import { inspectDependencyActivation } from '../cross-work-package-dependency-activation';
 import { openConnection } from '../db';
 
 /**
@@ -22,9 +22,11 @@ export function seedDependencyAuthority(dbPath: string): void {
       activatedAt: 1,
     });
     connection.db.run(
-      sql`INSERT INTO cross_project_dependency_activation_receipt (id,receipt) VALUES (1,${receipt})`,
+      sql`INSERT INTO cross_work_package_dependency_activation_receipt (id,receipt) VALUES (1,${receipt})`,
     );
-    connection.db.run("UPDATE cross_project_dependency_activation SET state='ENABLED' WHERE id=1");
+    connection.db.run(
+      "UPDATE cross_work_package_dependency_activation SET state='ENABLED' WHERE id=1",
+    );
     if (inspectDependencyActivation(connection.db).state !== 'ENABLED')
       throw new Error('synthetic dependency authority not persisted');
   } finally {

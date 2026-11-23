@@ -47,6 +47,7 @@ import type {
 } from '../records';
 import type { ScopedAttemptGuard } from '../run-store';
 import type { AttemptGuard, RunStore, StoreReply } from '../run-store';
+import { mapCurrentScope } from '../runtime-codecs';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeIntent } from '../runtime-records';
 import { createMemoryStores } from './memory-stores';
@@ -332,7 +333,7 @@ export async function admitExecution<
   const authority = unwrapReply(
     await stores.runs.stageRuntimeRequest(
       { ownership, scope, expectedRevision: 0 },
-      canonicalRuntimeRequest(scope, {
+      canonicalRuntimeRequest(mapCurrentScope(scope), {
         schemaVersion: 1,
         kind: 'authority',
         commandId: 'authority',
@@ -345,9 +346,9 @@ export async function admitExecution<
   const authorityArtifact = await stores.artifacts.retainArtifact(
     new TextEncoder().encode(
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         ledgerId: 'ledger',
-        scope,
+        scope: mapCurrentScope(scope),
         commandId: authority.commandId,
         requestDigest: authority.requestDigest,
         actorId: 'account',
@@ -367,12 +368,12 @@ export async function admitExecution<
     ),
   );
   const state: RuntimeState = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ledgerId: 'ledger',
-    scope,
+    scope: mapCurrentScope(scope),
     basis: 'rb1:' + 'a'.repeat(64),
     facts: {
-      projectRevision: 0,
+      workPackageRevision: 0,
       workItems: [{ id: run.workItemId, parentId: null, revision: 0, externalRefs: [] }],
       steps: [{ id: 'step', code: 'plan', position: 0 }],
     },
@@ -440,7 +441,7 @@ export async function admitExecution<
     stateEvidence: retained.reference,
     executor: { kind: 'human' as const, version: 'human-1' },
   };
-  const canonicalRequest = canonicalRuntimeRequest(scope, {
+  const canonicalRequest = canonicalRuntimeRequest(mapCurrentScope(scope), {
     schemaVersion: 1,
     commandId: label('wire-claim'),
     expectedLedgerId: 'ledger',
@@ -486,7 +487,7 @@ export async function retainClaimReceipt(
     throw new Error('fixture claim required');
   const { kind: _kind, ...target } = operation.action;
   const receipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ledgerId: operation.expectedLedgerId,
     scope,
     commandId: intent.commandId,
@@ -507,7 +508,7 @@ export async function retainClaimReceipt(
   return retained.reference;
 }
 
-/** Prepares a retained session through the verified binding and target operation. */
+/** Prepares a fresh current2 WBS session through verified binding and target operation; Dash pins/guards retain their local1 address. */
 export async function prepareSession<
   Runs extends Omit<
     HistoricalRunStore,

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fakeProjectApi } from './fake-project-api';
+import type { CreatedProjectWithWorkPackage } from '@/lib/wbs-api';
+
+import { fakeWorkPackageApi } from './fake-work-package-api';
 import { refusingApi } from './refusing-api';
 import { planRead, workItemView } from './views';
 
@@ -25,8 +27,8 @@ describe('refusingApi contract boundary', () => {
   it('starts a direct marker mutation immediately with its normalized facade input', async () => {
     const received: unknown[] = [];
     const api = refusingApi({
-      createCalendarMarker: (projectId, marker) => {
-        received.push({ projectId, marker });
+      createCalendarMarker: (workPackageId, marker) => {
+        received.push({ workPackageId, marker });
         return Promise.resolve({ id: 'marker-1', ...marker, color: '#123456' });
       },
     });
@@ -37,7 +39,9 @@ describe('refusingApi contract boundary', () => {
       color: undefined,
     });
 
-    expect(received).toEqual([{ projectId: 'p1', marker: { date: '2026-09-07', name: 'Cut' } }]);
+    expect(received).toEqual([
+      { workPackageId: 'p1', marker: { date: '2026-09-07', name: 'Cut' } },
+    ]);
     await expect(created).resolves.toEqual({
       id: 'marker-1',
       date: '2026-09-07',
@@ -70,23 +74,23 @@ describe('refusingApi contract boundary', () => {
     expect(recolorCalendarMarker).not.toHaveBeenCalled();
   });
 
-  it('does not repair a missing required project-list facade field', async () => {
+  it('does not repair a missing required work-package-list facade field', async () => {
     const api = refusingApi({
-      listProjects: () =>
+      listWorkPackages: () =>
         Promise.resolve([
           {
-            id: 'project-1',
+            id: 'work-package-1',
             restricted: false,
             abbreviation: 'PLAN',
             lastOpenedAt: null,
-            ownerName: 'Ada',
+            createdByName: 'Ada',
             startDate: null,
             createdAt: 1,
           },
         ] as never),
     });
 
-    await expect(api.listProjects()).rejects.toThrow('fake_invalid_response');
+    await expect(api.listWorkPackages()).rejects.toThrow('fake_invalid_response');
   });
 
   // Proof: `accountId` required on `listPeople` failed this, as it failed 111
@@ -110,12 +114,14 @@ describe('refusingApi contract boundary', () => {
     await expect(api.listPeople()).rejects.toThrow('fake_invalid_response');
   });
 
-  it('does not repair a missing required created-project facade field', async () => {
+  it('does not repair a missing required created-work-package facade field', async () => {
     const api = refusingApi({
-      createProject: () => Promise.resolve({ id: 'project-1', name: 'Plan' } as never),
+      createWorkPackage: () => Promise.resolve({ id: 'work-package-1', name: 'Plan' } as never),
     });
 
-    await expect(api.createProject('Plan')).rejects.toThrow('fake_invalid_response');
+    await expect(api.createWorkPackage('project-a', 'Plan')).rejects.toThrow(
+      'fake_invalid_response',
+    );
   });
 
   it.each(['undo', 'redo'] as const)(
@@ -142,26 +148,6 @@ describe('refusingApi contract boundary', () => {
     await expect(api.undo('p1')).rejects.toThrow('fake_invalid_response');
   });
 
-  it('does not rewrite a malformed step-removal discriminant into in_use', async () => {
-    const api = refusingApi({
-      removeStep: () =>
-        Promise.resolve({
-          ok: false,
-          reason: 'taken',
-          inUse: {
-            estimates: 0,
-            actuals: 0,
-            progress: 0,
-            measures: 0,
-            assignments: 0,
-            assumedAssignees: [],
-          },
-        } as never),
-    });
-
-    await expect(api.removeStep('p1', 'step-dev', false)).rejects.toThrow('fake_invalid_response');
-  });
-
   it('does not rewrite a malformed tag-write discriminant into taken', async () => {
     const api = refusingApi({
       renameTag: () =>
@@ -177,7 +163,7 @@ describe('refusingApi contract boundary', () => {
         Promise.resolve({
           ok: false,
           reason: 'taken',
-          usage: { projects: [], members: [] },
+          usage: { workPackages: [], members: [] },
         } as never),
     });
 
@@ -185,7 +171,7 @@ describe('refusingApi contract boundary', () => {
   });
 
   it('builds a checked wrapper for every method stated by the complete fake', () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
 
     expect(() => {
       Object.values(api);
@@ -193,7 +179,7 @@ describe('refusingApi contract boundary', () => {
   });
 
   it('refuses malformed dependency reach before the stateful fake mutates', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const before = (await api.tree('p1')).depReach;
 
     const outcome = await api.setDepReach('p1', 'quantum' as never).then(
@@ -208,8 +194,8 @@ describe('refusingApi contract boundary', () => {
     expect({ outcome, after }).toEqual({ outcome: 'fake_invalid_request', after: before });
   });
 
-  it('refuses an empty project id before dependency reach mutates', async () => {
-    const api = fakeProjectApi();
+  it('refuses an empty work package id before dependency reach mutates', async () => {
+    const api = fakeWorkPackageApi();
     const before = (await api.tree('p1')).depReach;
 
     await expect(api.setDepReach('', 'anchor-slice')).rejects.toThrow('fake_invalid_request');
@@ -217,8 +203,8 @@ describe('refusingApi contract boundary', () => {
     expect((await api.tree('p1')).depReach).toBe(before);
   });
 
-  it('refuses a dot-segment project id before a work item is created', async () => {
-    const api = fakeProjectApi();
+  it('refuses a dot-segment work package id before a work item is created', async () => {
+    const api = fakeWorkPackageApi();
     const before = (await api.tree('p1')).workItems.length;
 
     await expect(api.createWorkItem('.', { parentId: null })).rejects.toThrow(
@@ -229,7 +215,7 @@ describe('refusingApi contract boundary', () => {
   });
 
   it('mutates from the normalized patch and leaves an undefined name absent', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const made = await api.createWorkItem('p1', { parentId: null, name: 'Original' });
 
     await expect(api.patchWorkItem(made.id, { name: undefined })).resolves.toBeUndefined();
@@ -238,7 +224,7 @@ describe('refusingApi contract boundary', () => {
     expect(plan.workItems.find((row) => row.id === made.id)?.name).toBe('Original');
   });
 
-  it('refuses a malformed project command before the stated mutation runs', async () => {
+  it('refuses a malformed work package command before the stated mutation runs', async () => {
     const setEstimate = vi.fn(() => Promise.resolve());
     const api = refusingApi({ setEstimate });
 
@@ -283,34 +269,42 @@ describe('refusingApi contract boundary', () => {
     expect(addPerson).toHaveBeenCalledWith('Ada', []);
   });
 
-  it('refuses malformed project creation before the stated mutation runs', async () => {
-    const createProject = vi.fn(() =>
-      Promise.resolve({ id: 'project-1', name: 'Plan', restricted: false, abbreviation: 'PLAN' }),
+  it('refuses malformed work package creation before the stated mutation runs', async () => {
+    const createWorkPackage = vi.fn((projectId: string) =>
+      Promise.resolve({
+        projectId,
+        id: 'work-package-1',
+        name: 'Plan',
+        restricted: false,
+        abbreviation: 'PLAN',
+      }),
     );
-    const api = refusingApi({ createProject });
+    const api = refusingApi({ createWorkPackage });
 
-    await expect(api.createProject(7 as never)).rejects.toThrow('fake_invalid_request');
-    expect(createProject).not.toHaveBeenCalled();
+    await expect(api.createWorkPackage('project-a', 7 as never)).rejects.toThrow(
+      'fake_invalid_request',
+    );
+    expect(createWorkPackage).not.toHaveBeenCalled();
   });
 
-  it('refuses a malformed project list before a screen can read it', async () => {
+  it('refuses a malformed work package list before a screen can read it', async () => {
     const api = refusingApi({
-      listProjects: () =>
+      listWorkPackages: () =>
         Promise.resolve([
           {
-            id: 'project-1',
+            id: 'work-package-1',
             name: 'Plan',
             restricted: false,
             abbreviation: 'PLAN',
             lastOpenedAt: null,
-            ownerName: 'Ada',
+            createdByName: 'Ada',
             startDate: null,
             createdAt: 'yesterday',
           },
         ] as never),
     });
 
-    await expect(api.listProjects()).rejects.toThrow('fake_invalid_response');
+    await expect(api.listWorkPackages()).rejects.toThrow('fake_invalid_response');
   });
 
   it('refuses a malformed created work-item id before a screen can read it', async () => {
@@ -340,7 +334,7 @@ describe('refusingApi contract boundary', () => {
     await expect(removal).resolves.toBeUndefined();
   });
 
-  it('reconstructs a project-command facade answer from the validated reply', async () => {
+  it('reconstructs a work-package-command facade answer from the validated reply', async () => {
     const api = refusingApi({
       createWorkItem: () => Promise.resolve({ id: 'work-1', unchecked: true } as never),
     });
@@ -366,7 +360,10 @@ describe('refusingApi contract boundary', () => {
 
   it('refuses malformed optimizer settings before the stated mutation runs', async () => {
     const setOptimizationSettings = vi.fn(() => Promise.resolve());
-    const api = refusingApi({ setOptimizationSettings });
+    const api = refusingApi(
+      { setOptimizationSettings },
+      { projectIdOf: (_id: string) => 'fixture-project' },
+    );
 
     await expect(
       api.setOptimizationSettings('p1', { scheduleEngine: 'quantum' } as never),
@@ -375,7 +372,7 @@ describe('refusingApi contract boundary', () => {
   });
 
   it('refuses a malformed stated request before the answer can mutate', async () => {
-    const addStep = vi.fn(() =>
+    const setStepUnit = vi.fn(() =>
       Promise.resolve({
         estimateUnit: 'workdays' as const,
         id: 'step-dev',
@@ -383,10 +380,12 @@ describe('refusingApi contract boundary', () => {
         allowancePercent: 0,
       }),
     );
-    const api = refusingApi({ addStep });
+    const api = refusingApi({ setStepUnit });
 
-    await expect(api.addStep('p1', 7 as never)).rejects.toThrow('fake_invalid_request');
-    expect(addStep).not.toHaveBeenCalled();
+    await expect(api.setStepUnit('p1', 'step-dev', 'hours' as never)).rejects.toThrow(
+      'fake_invalid_request',
+    );
+    expect(setStepUnit).not.toHaveBeenCalled();
   });
 
   it('refuses a malformed stated directory answer before a screen can read it', async () => {
@@ -396,13 +395,142 @@ describe('refusingApi contract boundary', () => {
 
     await expect(api.listTeams()).rejects.toThrow('fake_invalid_response');
   });
+});
 
-  it('refuses a malformed modeled step refusal before a screen can branch on it', async () => {
-    const api = refusingApi({
-      removeStep: () =>
-        Promise.resolve({ ok: false, reason: 'in_use', inUse: { estimates: 1 } } as never),
+describe('explicit project facade boundaries', () => {
+  it('forwards the explicit creation parent before validating its stated response', async () => {
+    const createWorkPackage = vi.fn((projectId: string, name: string) =>
+      Promise.resolve({ id: 'p-new', projectId, name, restricted: false, abbreviation: 'PLAN' }),
+    );
+    const api = refusingApi({ createWorkPackage });
+    await expect(api.createWorkPackage('project-a', 'Plan')).resolves.toEqual({
+      id: 'p-new',
+      projectId: 'project-a',
+      name: 'Plan',
+      restricted: false,
+      abbreviation: 'PLAN',
     });
-
-    await expect(api.removeStep('p1', 'step-dev', false)).rejects.toThrow('fake_invalid_response');
+    expect(createWorkPackage).toHaveBeenCalledWith('project-a', 'Plan');
   });
+  it('does not repair a missing required parent in the creation response', async () => {
+    const createWorkPackage = vi.fn(() =>
+      Promise.resolve({
+        id: 'p-new',
+        name: 'Plan',
+        restricted: false,
+        abbreviation: 'PLAN',
+      } as never),
+    );
+    const api = refusingApi({ createWorkPackage });
+    await expect(api.createWorkPackage('project-a', 'Plan')).rejects.toThrow(
+      'fake_invalid_response',
+    );
+    expect(createWorkPackage).toHaveBeenCalledTimes(1);
+  });
+  it('validates actual project summary fields instead of forwarding an unchecked list', async () => {
+    const api = refusingApi({
+      listProjects: () =>
+        Promise.resolve([{ id: 'project-a', name: 'A', createdAt: 'yesterday' }] as never),
+    });
+    await expect(api.listProjects()).rejects.toThrow('fake_invalid_response');
+  });
+});
+
+describe('required project fake preflight', () => {
+  it.each([undefined, null, '', 7])(
+    'rejects malformed destination %s before the stated create callback',
+    async (parent) => {
+      const create = vi.fn();
+      const api = refusingApi({ createWorkPackage: create });
+      await expect(api.createWorkPackage(parent as never, 'Plan')).rejects.toThrow(
+        'fake_invalid_request',
+      );
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('requires explicit parent context before manufacturing a step response', async () => {
+    const read = vi.fn(() => Promise.resolve([]));
+    const api = refusingApi({ steps: read });
+    await expect(api.steps('p1')).rejects.toThrow('fake_missing_project_context');
+    expect(read).not.toHaveBeenCalled();
+  });
+});
+
+const combinedCreation: CreatedProjectWithWorkPackage = {
+  project: {
+    id: 'project-created',
+    organizationId: 'org-a',
+    spaceId: null,
+    spacePosition: null,
+    name: 'New mission',
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+    createdBy: 'creator-a',
+    workPackageCount: 1,
+  },
+  workPackage: {
+    id: 'package-created',
+    projectId: 'project-created',
+    name: 'First delivery',
+    abbreviation: 'FIRST',
+    restricted: false,
+    estimateMethod: 'pert',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
+    startDate: null,
+    solutionRef: null,
+    revision: 0,
+    createdAt: 1,
+    optimizationEnabled: false,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
+    budgetFactor: 1,
+  },
+  steps: [],
+};
+
+describe('combined creation fake boundary', () => {
+  it('keeps an unstated combined operation refusing', async () => {
+    await expect(
+      refusingApi({}).createProjectWithWorkPackage('New mission', 'First delivery'),
+    ).rejects.toThrow('api.createProjectWithWorkPackage is not one this test answers');
+  });
+
+  it('runs one stated creation with the exact normalized names and complete reply', async () => {
+    const create = vi.fn(() => Promise.resolve(combinedCreation));
+    const api = refusingApi({ createProjectWithWorkPackage: create });
+    await expect(
+      api.createProjectWithWorkPackage('New mission', 'First delivery'),
+    ).resolves.toEqual(combinedCreation);
+    expect(create).toHaveBeenCalledExactlyOnceWith('New mission', 'First delivery');
+  });
+
+  it('rejects a malformed required name before the stated writer runs', async () => {
+    const create = vi.fn(() => Promise.resolve(combinedCreation));
+    const api = refusingApi({ createProjectWithWorkPackage: create });
+    await expect(
+      api.createProjectWithWorkPackage('New mission', undefined as never),
+    ).rejects.toThrow('fake_invalid_request');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each(['empty', 'partial', 'foreign parent'])(
+    'refuses a stated %s combined response without manufacturing its missing fields',
+    async (fault) => {
+      const reply = structuredClone(combinedCreation);
+      if (fault === 'empty') {
+        Reflect.deleteProperty(reply, 'workPackage');
+        Reflect.deleteProperty(reply, 'steps');
+      }
+      if (fault === 'partial') Reflect.deleteProperty(reply, 'steps');
+      if (fault === 'foreign parent') reply.workPackage.projectId = 'foreign-parent';
+      const api = refusingApi({ createProjectWithWorkPackage: () => Promise.resolve(reply) });
+      await expect(
+        api.createProjectWithWorkPackage('New mission', 'First delivery'),
+      ).rejects.toThrow('fake_invalid_response');
+    },
+  );
 });

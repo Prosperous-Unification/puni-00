@@ -1,0 +1,694 @@
+{
+  "schema": "puni-wbs-current-writer13-v1",
+  "recordedAt": "2026-11-20T18:52:53.899Z",
+  "previousGoalTurn": {
+    "classification": "progress",
+    "qualification": "The preceding inspection identified three stale current-version/header expectations and an assertion using noncanonical leaf record order. This continuation corrected them and added independently falsifiable current integration evidence."
+  },
+  "qualification": "Partial SC9/SC13/SC16 integration: actual current local/connected writers select13; live/captured/shared/connected preparation requires own leaf inventories. Actual local Memory/SQLite save/read/current comparison and live/captured preparation are covered. Cycle guards, node readings/resources, documents15/16 and complete activated connected/Source/history/UI/CLI release remain unfinished.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/current-saved-plan.test.ts",
+      "sha256": "a201875711f3e2aaa99031fba63bb7f97fa2836950a56f6da4817c4e6c86e05b",
+      "bytes": 1210,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+      "sha256": "7eee78fa2feba3c7825bba628c92681f117a72c443644b5f7041d6728b818cdb",
+      "bytes": 46298,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+      "sha256": "b0fbc4adcb9d2ba2204c62f4fa5f5e04202675f69c7af008ecb4d02a4b0d68c1",
+      "bytes": 1406,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/fanout-capture.ts",
+      "sha256": "eb4a201906c845ab397d7b4694632e8a9feb955dbf14f68a01bb2e48c8d24c9b",
+      "bytes": 24181,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+      "sha256": "dbe5b16527d7d3abd54df8bada3fa7cbe137d023beb368a32953d72a93266e1f",
+      "bytes": 16118,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/compose.test.ts",
+      "sha256": "bde9c6673558a8f3c5ff5d3994aa12234941871cdaa963a515a3c693a3c67943",
+      "bytes": 30479,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+      "sha256": "8aa281fcba949e1028e932c9a6d7bb405fb2c758fff50e7285e70c05fc7dd407",
+      "bytes": 17510,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/connected-history.ts",
+      "sha256": "44b97bf99f1d4b3847ccb8316a86b02224448cbf23d8175d284a3d86fa5a7a9a",
+      "bytes": 12135,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+      "sha256": "dc8fee18db15db7d09f4894d75ccd4ef1b6f3fba1c85117488a6ef747c8666b0",
+      "bytes": 30917,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+      "sha256": "4e155a08550441fab31e744d39a908033446965f1ddb82d77adde77ea0e8182d",
+      "bytes": 14876,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts",
+      "sha256": "ddf7fce9ff1a07a333001084bc7242e4021e39bfa40d602f424364908703b12e",
+      "bytes": 2881,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plan.resource.ts",
+      "sha256": "56084380197375c73d7b5de2bd8267cd0be50c3fd31c9aab16abc71444f58b9f",
+      "bytes": 14559,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+      "sha256": "95cfc4e15642a97aa06356b7c7bdebd03fea69632393e409eed5eaafa58c6151",
+      "bytes": 37275,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+      "sha256": "8a985256cfa196d7ec3696db8594bfbc586ce2bc7fa17e87acdac5619f2946cb",
+      "bytes": 8360,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "e763d961ac35b474b3c076518db42676dd1ea89e8f30991e0f773b82fc7a5795",
+      "bytes": 578227,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/chain-snapshot-store.ts",
+      "sha256": "5fbe683c84396fdacc4159c8bfcccc8034fbf34ba397ca454fff15e41df38cdc",
+      "bytes": 3168,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/shared-people-values.ts",
+      "sha256": "30545c440a7cc1dd12b8b7945f42519a6910613d0d41edcf2b815371b1447123",
+      "bytes": 7964,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-package-observation.ts",
+      "sha256": "0273c81d4462d4e5fd97e8c3c8323a872033eb01a3cbdf9cd9385d289a124644",
+      "bytes": 5660,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-plan-values.ts",
+      "sha256": "5e7709f6901f4146ebedff4296378ff5011de4300bf896d0a82cdb3b0370b910",
+      "bytes": 690,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-plan.test.ts",
+      "sha256": "1023d6387c101b508a5baddc880635370a9b9a705e3d49fcf988f989f103ba97",
+      "bytes": 29597,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-tree.test.ts",
+      "sha256": "694b338e9dbb27bcc385adc9e6a0d43813929b7363d15a8c5615f87b6345c381",
+      "bytes": 42771,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-tree.ts",
+      "sha256": "73b5b42433d2f25a93d2b5e06024233d757b7002b1df4d05d528d241bb7e32e1",
+      "bytes": 16274,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+      "sha256": "984848c15b648ff8cef4e954c1f01c074efc25f9409c3505acdde1a46883f708",
+      "bytes": 23800,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/saved-plan-schedule.ts",
+      "sha256": "586cf36e602cca62d3939792ca16def0076b4ebbd69939fa5317851e953831cf",
+      "bytes": 985,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/schedule-parts.test.ts",
+      "sha256": "bbd5fe87e981aeec33de24f98f345641f97f7d8d0831e8d41f9bf3383bcad5df",
+      "bytes": 7353,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/schedule-parts.ts",
+      "sha256": "12896fce453ff23ca1d48309271862374b05f6960173a7f557dd5dc653a8a24a",
+      "bytes": 5957,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/shared-people.test.ts",
+      "sha256": "1ebf99dccbf70b85ceaba16198642aac7c7f73f93bb726cd036b2ba55c061d49",
+      "bytes": 16484,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/shared-people.ts",
+      "sha256": "e24589e9b16253719efc12898e9c6eb9e5d308f79d356cf16f455f932a814ee6",
+      "bytes": 12538,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-blockage.fixture.ts",
+      "sha256": "4e1932304aba7843ee3f9ae28f3f84c6c71531cbf7f0be0902c05edf668f4bcb",
+      "bytes": 3799,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-leaf-fixture.ts",
+      "sha256": "c59e0b4af6fd316e7d1815ebd1394e4fb958e6bc99d15f144458074b127cd762",
+      "bytes": 1949,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-optimization-view.fixture.ts",
+      "sha256": "95670cc1e9652cf861c5c537a80620f62c7e9240ed32d94046f8dcfeb9ec26e3",
+      "bytes": 13602,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-plan-fixture.ts",
+      "sha256": "653d1a0f1d183c359ebc3cd6695c199b73de7b97f3d1de7e3fa7bf791adc2341",
+      "bytes": 4975,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/current-saved-plan.ts",
+      "sha256": "0ebda916edb9362563bedebc1002a1909aef8fe93a22cb2464ff60cf47f3a902",
+      "bytes": 7587,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+      "sha256": "76369ffe0db8609d0637db70e54c79578c261d3f1d1e4ef95ffd305d966ab7d8",
+      "bytes": 36332,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/comparison-input.ts",
+      "sha256": "14348f0fd5c4045ae24c6a956a9cc075e4c0c79b23295228cc7afbd9942f56ce",
+      "bytes": 4487,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/comparison-meaning.ts",
+      "sha256": "758a146761e0b0cd526686b6032eeb08092f4a84109029a3c9e6c41cc485b73e",
+      "bytes": 21118,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/dependency-execution.ts",
+      "sha256": "d646f75f68f2e2e01dbd2157b3be61970bcdec95230a8b710a7de4f7425d79e6",
+      "bytes": 1750,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts",
+      "sha256": "c702be264a95247542932e1b10aafab7d9f8099dbb1e40375b0d40629ef61eae",
+      "bytes": 21181,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/diff-plans.ts",
+      "sha256": "da511e7597fbc7a623d8fbfe6d89fce4c4bad80ee0bff04eddeaa18f92f71c02",
+      "bytes": 19435,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/input13-integration.test.ts",
+      "sha256": "86afdf93e7b01d483f95533aa8167a1296b3e580e889a5c638e01f3cd02ce053",
+      "bytes": 5438,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/leaf-connected-schedule.test.ts",
+      "sha256": "7d702835db6894fae429c0ed263382067ffc55c93962f06668aa84aa9eaf3ebb",
+      "bytes": 2500,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/step-identity.ts",
+      "sha256": "78fe4bf2884ec7b4e71fd2484e6f069bb5f05548f1585d6f06b44215cf956640",
+      "bytes": 6463,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/versioned-schedule.ts",
+      "sha256": "989cd7bc0718dfe5b6f0eb34ca3a10d5b4d00ed23e0297a3e9f54daa40e18651",
+      "bytes": 13992,
+      "mode": 436
+    }
+  ],
+  "previous": {
+    "path": "/tmp/puni-goal-continuation-20261120-v81.json",
+    "sha256": "897d169898f424578210b8101c1853c3093d85e15385936680ee570ca4268002",
+    "bytes": 742870,
+    "mode": 384
+  },
+  "implementation": {
+    "writerVersion": 13,
+    "originalUniformVersions": [1, 12],
+    "documentVersions": [15, 16],
+    "currentPreparation": [
+      "local captured",
+      "shared people",
+      "connected members",
+      "live canonical input"
+    ],
+    "requiredReads": "ResolvedPlanInputReads through current saved/local/shared/connected ports and SQLite snapshot annotations; complete census checked at preparation.",
+    "comparison": "Original declared version selects uniform/leaf evidence. Detached uniform member orders derive from original IDs before aliases; translated policy metadata sets sort by resolved ID, while execution and captured bytes retain their meaning.",
+    "scope": "Actual local Source seed authors two types, opposite own orders, distinct sets by real unbind and an empty untyped leaf. Later valid type/name edits alter current comparison, never stored bytes. Explicit synthetic unit uniform constructors remain test-only.",
+    "ownership": "Memory local saves intentionally use the supported legacy write mode; its existing refusal of unsupported scoped writes stays intact. SQLite exercises real scoped saved-store admission. Direct Source/service evidence is not whole HTTP/activation or complete owner/fact/access certification.",
+    "connected": "The actual converter selects leaf history and the leaf schedule4 builder; current connected controls are detached/synthetic. Activated connected HTTP remains required."
+  },
+  "verification": {
+    "unit": {
+      "name": "current-writer13-final-unit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-unit-v2.receipt.json",
+        "sha256": "ff4e5b7fe71b907d0a1258390e04960f5a7637e153fc13f3873bfa6debefc5bb",
+        "bytes": 1293,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-unit-v2.log",
+        "sha256": "740c8fd54a00e30bd1f40e1d4b46f9a076c8170f6ca3ea16c27f336e6c4737d4",
+        "bytes": 61529,
+        "mode": 384
+      },
+      "pass": 583,
+      "fail": 0,
+      "assertions": 3226,
+      "tests": 583,
+      "files": 33,
+      "seconds": 22.76
+    },
+    "api": {
+      "name": "current-writer13-api-mcp-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-api-mcp-v2.receipt.json",
+        "sha256": "bcc46e8a918d15d0290fe01843ac05bce50946194eedc6a5862fc8b5f466c70b",
+        "bytes": 2573,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-api-mcp-v2.log",
+        "sha256": "556602835d75aca1dffad257a7c6a8141d1a6c3f92a815df410777b8f47b3159",
+        "bytes": 33190,
+        "mode": 384
+      },
+      "pass": 238,
+      "fail": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "seconds": 236.65
+    },
+    "core": {
+      "name": "current-core-source-only-v31",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v31.receipt.json",
+        "sha256": "54625b40ed4e3921ad5797ec89973b1df22d67d6a43d8d40227b2aae9ac78e77",
+        "bytes": 14837,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v31.log",
+        "sha256": "9e0bfbb50cabb481ba90fa7fab37b16023d8b5a0f4f182e77d804824dac27f7c",
+        "bytes": 264675,
+        "mode": 384
+      },
+      "pass": 2090,
+      "fail": 27,
+      "assertions": 9470,
+      "tests": 2117,
+      "files": 171,
+      "seconds": 88.78,
+      "same27FailureIdentities": true,
+      "retainedFailures": [
+        "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "(fail) counting unit of work rejects unexpected store access and records rollback",
+        "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "(fail) refuses a typed node endpoint absent from the full tree",
+        "(fail) rejects a required work package read returning another work package identity",
+        "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "(fail) the Plan import module > admits a small document over the graph installPlanImport wires",
+        "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ]
+    },
+    "checks": [
+      {
+        "name": "current-writer13-final-types-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-types-v2.receipt.json",
+          "sha256": "34e8a465ed03fa928cf4f7ef1b995b066ba83a867b7edc730711fa619bfc492c",
+          "bytes": 1346,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-frontend-types-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-frontend-types-v2.receipt.json",
+          "sha256": "555ddd17b795b62668ba013d43939cdf83aee5fbb1609c6f7df8b4af4dc01c0d",
+          "bytes": 1356,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-frontend-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-proofs-v5",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proofs-v5.receipt.json",
+          "sha256": "b73286a6c60761b085e8db8edf06b82582e6198ff7fdd1b667f1cfb50f5bb447",
+          "bytes": 1269,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proofs-v5.log",
+          "sha256": "7149d231e10ee76587a8c530a0cf4d8281134d233865b80b7ffe91cb47a3eb18",
+          "bytes": 595,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-proof-comments-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proof-comments-v1.receipt.json",
+          "sha256": "701a1af5759dbfb5fa4f260f2fa0d052173a144df936e436a3a206506350c3f4",
+          "bytes": 1292,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proof-comments-v1.log",
+          "sha256": "08f6c5ff0f5190768b59a3b9ca3f42800a1497b5cccc39f0c5fc8cca7cc06309",
+          "bytes": 31,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-final-lint-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-lint-v3.receipt.json",
+          "sha256": "98e09e6c9754ae9bba13a4433a4abf7b063a198a2a5a8bc26224e7ec58578c1f",
+          "bytes": 1289,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-lint-v3.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-final-format-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-format-v2.receipt.json",
+          "sha256": "7e160e2b9b492430ebcf47a3001b20438c9c6b296b25ba67ae04b4bedea122ed",
+          "bytes": 1286,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-final-format-v2.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-retirement-audit-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-retirement-audit-v2.receipt.json",
+          "sha256": "6e992ca206c2cba03361c308d4a59524c797166ab5242148efceb3f32ba96a3e",
+          "bytes": 1295,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-retirement-audit-v2.log",
+          "sha256": "8ecc35309197dbb11bf32fe7d53292755ff09788edeff0c16f253673b142faa7",
+          "bytes": 275,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-writer13-jsdoc-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-jsdoc-v1.receipt.json",
+          "sha256": "c6ce29af1e99261b651908a5d3400ef3ebb756b12483c68691319d4f6cf24637",
+          "bytes": 1265,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-jsdoc-v1.log",
+          "sha256": "1a67580fac425db4b4c290fa746b7bc45795f12655f8e17447b06e150e39631f",
+          "bytes": 58,
+          "mode": 384
+        }
+      }
+    ],
+    "compilerEntries": 240,
+    "frontendCompiler": "/tmp/puni-current-step-tree-fe-types-v1.json",
+    "audit": {
+      "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v17.json",
+      "sha256": "d7e02201ff14aea4382800acbc02b133756f7e9c4d630a37d55c92ef75369067",
+      "bytes": 1861766,
+      "mode": 384
+    },
+    "formatPaths": 43,
+    "unitRoster": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-unit-roster-v2.json",
+      "sha256": "2ebc23c0a33808811f194c6c5d554ff5b741e5bfd07f01d009fbca709094a7e5",
+      "bytes": 2306,
+      "mode": 384
+    }
+  },
+  "proofs": {
+    "effects": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-effects-v5.json",
+      "sha256": "0472d795042539b1bccf0a564f7ba7d35480491e585f2397b7050aea17cd6f31",
+      "bytes": 6759,
+      "mode": 384
+    },
+    "canonical": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proof-canonical-v5.json",
+      "sha256": "f92e68b96cf0e8535bf3317b2651df750889763357706f0c0108c12bb9f5b3a3",
+      "bytes": 684280,
+      "mode": 384
+    },
+    "emissions": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-proof-comments-v1.json",
+      "sha256": "be4419beda01b103e37986dc3ceae575b03b26d31c5254d931bc85eb588f9407",
+      "bytes": 1302,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "id": "captured-uniform",
+        "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite schedule",
+        "qualification": "Actual SQLite capture handed to current preparation must keep each own order and empty boundary; replacing it with uniform interpretation fails actual scheduling controls.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-captured-uniform-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-captured-uniform-v5.log"
+      },
+      {
+        "id": "live-uniform",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite schedule",
+        "qualification": "Actual live scheduleInput must keep the two actual leaf orders/sets and zero boundary; the direct live service is exercised over an actual SQLite Source.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-live-uniform-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-live-uniform-v5.log"
+      },
+      {
+        "id": "live-ordinary-rows",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite schedule",
+        "qualification": "Required metadata availability proof: ordinary stored rows correctly lack current resolved metadata, so the actual live call throws instead of delivering a schedule.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-live-ordinary-rows-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-live-ordinary-rows-v5.log"
+      },
+      {
+        "id": "local-old-writer",
+        "path": "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite save",
+        "qualification": "Actual current saved-store output cannot revert to the uniform12 writer and lose its own inventories. Real scoped SQLite save/read/compare assertions fail.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-local-old-writer-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-local-old-writer-v5.log"
+      },
+      {
+        "id": "census-missing",
+        "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite inventory refuse-missing",
+        "qualification": "Diagnostic proof: bypassing captured inventory validation loses SavedHistoryError to the later required-list Error; absence is still rejected.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-missing-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-missing-v5.log"
+      },
+      {
+        "id": "census-parent",
+        "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite inventory refuse-parent",
+        "qualification": "Admission proof: bypassing captured inventory validation admits an extra parent entry in a real detached SQLite capture.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-parent-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-parent-v5.log"
+      },
+      {
+        "id": "census-foreign",
+        "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-saved-plan.db.test.ts",
+        "pattern": "current SQLite inventory refuse-foreign",
+        "qualification": "Admission proof: bypassing captured inventory validation admits an extra foreign entry in a real detached SQLite capture.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-foreign-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-census-foreign-v5.log"
+      },
+      {
+        "id": "comparison-unprojected",
+        "path": "libs/wbs/domain/domain/src/saved-plan/diff-plans.ts",
+        "test": "libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+        "pattern": "actual connected old and renamed captured meanings compare equal",
+        "qualification": "Actual version transition comparison must compare declared execution meaning without mutating original histories; removing comparison projection exposes false old-uniform/new-leaf differences.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-comparison-unprojected-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-comparison-unprojected-v5.log"
+      },
+      {
+        "id": "alias-before-uniform",
+        "path": "libs/wbs/domain/domain/src/saved-plan/step-identity.ts",
+        "test": "libs/wbs/domain/domain/src/saved-plan/input13-integration.test.ts",
+        "pattern": "uniform connected comparison derives tied policy order",
+        "qualification": "Synthetic strict original12 comparison control proves original tied policy IDs select uniform order before aliases; translating first reverses the actual meaning. It is not a genuine predecessor-producer certificate.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-alias-before-uniform-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-alias-before-uniform-v5.log"
+      },
+      {
+        "id": "alias-step-set-sort",
+        "path": "libs/wbs/domain/domain/src/saved-plan/comparison-meaning.ts",
+        "test": "libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+        "pattern": "step-resolved connected input canonicalizes identity-keyed sets",
+        "qualification": "A relevant identity alias must preserve execution order while canonicalizing the detached metadata set; omitting identity sorting reports a false difference.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-alias-step-set-sort-v5.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-writer13-fault-alias-step-set-sort-v5.log"
+      }
+    ],
+    "qualification": "Ten final owning-test faults, restored after stopped/reaped/closed custody. Missing census and ordinary-row metadata are diagnostic/availability evidence; parent/foreign entries are separate admission proofs. Earlier grouped absence stopped later assertions and is not credited as independent parent/foreign evidence. V4 normalized mutation preparation failed before canonical capture/mutation because an import name also matched a call; V5 selects unique exact targets first. Source/comment-only emission is identical in six modules.",
+    "jsdocCorrection": {
+      "canonical": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-writer13-jsdoc-canonical-v1.json",
+        "sha256": "cd101b4800d81418b822a7e2c5a887d1256b454334dd3aee340c731e5c0e230d",
+        "bytes": 151283,
+        "mode": 384
+      },
+      "identicalEmission": true,
+      "modules": [
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+          "emittedSha256": "5579cc63da30b252a732fb84fecb7f3afef7768e4097ef4fdf22323d35bb3802"
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+          "emittedSha256": "37be015585d932bff850e0e0b1b7f7f41b4d37486fbc7faafe7637759891bd21"
+        }
+      ],
+      "qualification": "Final diff inspection found two current-writer JSDoc strings still naming12. Correcting them to13 preserves identical Bun emission; final lint, format and source audit were repeated. Runtime/type checks were not repeated for comment-only edits."
+    }
+  },
+  "retainedFailures": [
+    "Initial Source red included unsupported scoped Memory saves; corrected to its explicitly supported mode without removing the guard.",
+    "An authored leaf schedule builder control lacked its target calendar anchor; corrected the fixture, preserving target_anchor refusal.",
+    "The version transition exposed a false old-uniform/new-leaf dependency comparison difference; explicit declared semantics and detached projection fixed it.",
+    "Type erasure, old synthetic inventories and current writer expectations were corrected without changing frozen original bodies or goldens.",
+    "Final lint initially refused import/type ordering, two unsafe test matcher values and void shorthand; typed behavioral assertions and normal autofixes resolved them."
+  ],
+  "skippedOrUnverified": [
+    "Full build, browser E2E, exact-SHA h2/h4 gate, secrets/migration gate, whole Source conformance and actual CP-SAT were not run.",
+    "Installed CLI/toolchain, complete Bun client-surface inventory/embedding, activation, release, public commit, push, PR update, merge, deploy and install were not performed.",
+    "Astra quota remains unavailable until recorded Nov22,2026 10:09AM, timezone unspecified; no retry, spawn or substitute review."
+  ],
+  "remaining": [
+    "Cycle graph guards must resolve each proposed tree/type state using actual current catalogue ownership, including undo/redo and cross-package changes.",
+    "Current node readings/resources, fake/demo/UI and real Fast/CP-SAT agreement/replay remain.",
+    "Document17/18, exact previous converters, SC24 import reconciliation, Navigator/Burokrat consumption and complete activated connected save/read comparison remain.",
+    "All13 protected fact families, all15 genuine historical guarantees, complete Source owner/fact/access matrices, old raw-owner/qualified fixtures and space/project/settings/browser flows remain.",
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "protected": {
+    "archive": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+      "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+      "bytes": 8770,
+      "mode": 436
+    },
+    "sentinelAbsent": true,
+    "archiveExecuted": false,
+    "sharedNodeModulesWritten": false
+  }
+}

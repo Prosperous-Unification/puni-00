@@ -39,14 +39,14 @@ export interface PriorityBandStyle {
 /**
  * The five inks, most important first, keyed on **rank** and never on the label.
  *
- * A project may rename `Critical` to `Blocker`, so a colour that followed the
+ * A work package may rename `Critical` to `Blocker`, so a colour that followed the
  * word would follow it out of the ladder. The rank is the rung, and since
  * `priority-default-medium` (2026-08-29) the ramp **diverges around rank 2**
  * rather than running hot to cool: neutral at the middle rung, warm above it,
  * cool below it. Colour reads as *distance from ordinary*.
  *
  * The reason it had to change is the create: a new work item now carries the
- * project's rank 2 default, so rank 2 is the commonest value on any screen. On
+ * work package's rank 2 default, so rank 2 is the commonest value on any screen. On
  * the old heat ramp that was a yellow, and a plan of ordinary work was a column
  * of chips shouting about nothing. Rank 2 is now the exact grey rank 4 wore
  * before this change — copied, not re-picked, because that grey is the one Dany

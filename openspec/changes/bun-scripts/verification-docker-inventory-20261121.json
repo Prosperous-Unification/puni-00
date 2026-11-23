@@ -1,0 +1,260 @@
+{
+  "schema": "puni-docker-inventory-v116",
+  "recordedAt": "2026-11-21T14:53:57.826Z",
+  "classification": "progress",
+  "parent": {
+    "path": "/tmp/puni-goal-continuation-20261121-v115.json",
+    "sha256": "3c40afa2e75db028e69d644070ca9e24d44cbee1a7ebdd96a52cd09128a5c9cb",
+    "bytes": 19589,
+    "mode": 384
+  },
+  "implementation": "Whole-file unresolved Docker build/image references and ordinary physical RUN/CMD/ENTRYPOINT/HEALTHCHECK/ONBUILD spans. Full file context participates in identity; no host program lookup or Docker semantic certification.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/scripts/docker.ts",
+      "sha256": "caefafa836f46293947365725b13a8e409dabe6aebc23f1ff15402aee7b4ef88",
+      "bytes": 2880,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/scripts/consumers.ts",
+      "sha256": "88c4838fee63c1c93fd4d7ea14c40a311178f11208f69a2aeee136caccbfebdd",
+      "bytes": 51434,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/scripts/consumers.test.ts",
+      "sha256": "e9137215ccb10c770d81cde18eb5963e55c4da59c934a91fab574dcd9b4ffef4",
+      "bytes": 43632,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/scripts/inventory.ts",
+      "sha256": "f164bd34ecf268bc4c57429e70406e11aab1d1305b5aebf0d5930e1836648165",
+      "bytes": 19034,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/scripts/inventory.test.ts",
+      "sha256": "79bde94838ab2f4e503e5894a46139a19c2f359fefbc938e15838b462007a42b",
+      "bytes": 15327,
+      "mode": 436
+    }
+  ],
+  "checks": [
+    {
+      "name": "docker-inventory-final-regression-v116",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-regression-v116.receipt.json",
+        "sha256": "f4284973282604b414df6cedc530d15df9432d8f39450c4e825455e7237e0a4b",
+        "bytes": 1474,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-regression-v116.log",
+        "sha256": "5d682011d3bdbbe6e22969bf149db503d08062b27c4ee953776930ee9a048da5",
+        "bytes": 17766,
+        "mode": 384
+      }
+    },
+    {
+      "name": "docker-inventory-final-types-v116",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-types-v116.receipt.json",
+        "sha256": "5f124e8bee6f14923b5ad919a2ef7ed8f4d11efb53d86da62b983b384b6f261f",
+        "bytes": 1340,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-types-v116.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "docker-inventory-final-lint-v116",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-lint-v116.receipt.json",
+        "sha256": "e38ff9719961d9c93c5f07d29b930fb055a8e383dc7a28c6d0414ae6bc81f573",
+        "bytes": 1545,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-final-lint-v116.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "docker-inventory-faults-v116b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-faults-v116b.receipt.json",
+        "sha256": "95fd47c2e30f77195925ef138b76ec16274dd6a38099f98c1a144557570e5cf0",
+        "bytes": 1276,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-faults-v116b.log",
+        "sha256": "26af17c098565fa282d52529277c15eeec6a8b066e1e6cf8edcc23540bec7296",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "docker-inventory-capture-v116",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-capture-v116.receipt.json",
+        "sha256": "5bec9c8bcce85fc115061f146ec704588cfb9f7ab97f359d6e614f93f9e68c29",
+        "bytes": 1278,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-capture-v116.log",
+        "sha256": "310e5924008fc852e1b898dfc8ac2874aebcbd22b2b59dc06c4a1963a7074268",
+        "bytes": 115,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-current-v116",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-current-v116.receipt.json",
+        "sha256": "242731775512dafbb74558dc910614cb7c79faa3556a2456ba26a641827a7b9e",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-current-v116.log",
+        "sha256": "7a849abdc66823d73d4b26ac3d71f9529dca512b4c8080c76e236738830e43b1",
+        "bytes": 2391,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "tests": 175,
+    "fail": 0,
+    "assertions": 455,
+    "files": 3,
+    "typeRoots": 5,
+    "lintOwners": 5,
+    "omissionControls": 10,
+    "restoredControls": 10,
+    "capture": {
+      "consumers": 803,
+      "unresolved": 583,
+      "dockerFiles": 12,
+      "dockerSites": 36,
+      "dockerCommands": 24,
+      "acceptedInventory": false
+    }
+  },
+  "faults": {
+    "plan": {
+      "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-plan-v116b.json",
+      "sha256": "aa1a02421f041115293d492805705630ad0458d36b96d2d5c29ebf407137a633",
+      "bytes": 73810,
+      "mode": 384
+    },
+    "state": {
+      "path": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-state-v116b.json",
+      "sha256": "313fc680ac60cefc8d566e078a5552788800d4798859a60323ae48bb044a0611",
+      "bytes": 2420,
+      "mode": 384
+    },
+    "completed": [
+      {
+        "name": "family",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-family-v116b",
+        "oracle": "toHaveLength",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "root",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-root-v116b",
+        "oracle": "toHaveLength",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "heredoc",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-heredoc-v116b",
+        "oracle": "toHaveLength",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "escape",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-escape-v116b",
+        "oracle": "toHaveLength",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "frontend",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-frontend-v116b",
+        "oracle": "toHaveLength",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "continuation",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-continuation-v116b",
+        "oracle": "toEqual",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "healthcheck",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-healthcheck-v116b",
+        "oracle": "site missing",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "context",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-context-v116b",
+        "oracle": "not.toBe",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "unqualified",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-unqualified-v116b",
+        "oracle": "active runtime is unresolved",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      },
+      {
+        "name": "regular",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/docker-inventory-fault-regular-v116b",
+        "oracle": "function did not throw",
+        "exactBytesAndModeRestored": true,
+        "restoredExitCode": 0
+      }
+    ]
+  },
+  "qualification": [
+    "Formal Astra review is unavailable until previously recorded2026-11-22 10:09AM,timezone unspecified. No retry/substitute/new agent. Task1.1c and parent1.1 remain open.",
+    "Heredocs, custom frontends and escape directives are complete opaque file boundaries, not individually qualified commands. Custom build filenames selected by callers, image/stage/mount/frontend semantics, Kubernetes/Ansible/generated/remote/runbook collectors and actual Bun conversion/installed clients remain required.",
+    "The unqualified-reason omission proves diagnostic order only: active runtime remains unknown and later refusal still prevents acceptance. Other faults cover observed discovery, opaque-site, exact-body, context-identity and symlink boundaries; none grants Docker runtime validation.",
+    "Fresh real Bun build/pack/add reaches source selection then rejects duplicate raw PAX identities. Native file3pass1fail32assertions; full installed and alias controls downstream are not reached. Retained fixture: /tmp/puni captured package integration ycIOFw. The protected archive implementation and rejected source candidate remain unchanged.",
+    "First Docker attempt7pass4fail was an order-sensitive test expectation corrected to assert membership rather than unrelated output ordering. The first fault harness observed the correct four missing-family failures but expected a different diagnostic; it restored exact source then stopped. The corrected10-fault flight and final175/0 are separately retained.",
+    "Only Docker inventory owners/spec/task/verification change this turn. All nine original WBS/entity/catalogue/settings/history/Source/API/UI/CLI/scripts/gates/delivery requirements remain open unless proved by their own evidence. No host gate, public commit/push/PR/merge/deploy/default activation or full-scope acceptance occurs."
+  ],
+  "protectedArchive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  }
+}

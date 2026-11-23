@@ -4,7 +4,16 @@ import type {
   OrganizationLimitsSource,
   OrganizationLimitUsage,
   OrganizationLimitValues,
+  Permission,
 } from '@wbs/domain';
+
+import type { SecurityPrincipal } from './security-principal';
+
+/** Named organization permission denial; usage is never included. */
+export interface OrganizationLimitsRefusal {
+  readonly kind: 'forbidden';
+  readonly permission: Permission;
+}
 
 /**
  * Organization limits (`organization-limits`): the caps an organization holds,
@@ -16,13 +25,14 @@ import type {
 export interface OrganizationLimits {
   /**
    * The organization's caps and usage, read in one transaction so they agree
-   * (L8): `inactive` before activation, `forbidden` for anyone but a current
-   * `admin` or `super_admin` of it, who reads no usage.
+   * (L8): `inactive` before activation; the actual authenticated principal needs
+   * current `organization.read`. A named denial carries no usage. The owner
+   * shares the source's gate with operator inspect/set/reset and retains no caller aliases.
    */
   read(
     organizationId: string,
-    actorId: string,
-  ): Promise<OrganizationLimitsReading | 'inactive' | 'forbidden'>;
+    principal: SecurityPrincipal,
+  ): Promise<OrganizationLimitsReading | 'inactive' | OrganizationLimitsRefusal>;
   /**
    * The organization's caps and usage for a host operator (L12), who holds no
    * membership: `inactive` before activation, `unknown_organization` when no
@@ -120,23 +130,23 @@ export interface OrganizationLimitGauge {
   readAgentPersonCap(organizationId: string): Promise<CapReading>;
   /**
    * The organization's effective `maxConcurrentClaims` and how many bound
-   * claims its projects hold: distinct `(work item, person, run)` triples
+   * claims its work packages hold: distinct `(work item, person, run)` triples
    * with at least one claim row (L5), including any the caller's open
    * transaction has written.
    */
   readConcurrentClaimCap(organizationId: string): Promise<CapReading>;
   /**
    * The organization's effective `maxCapacityUnitsPerResource` and, as
-   * `current`, the units of `resourceId` its projects other than
-   * `exceptProjectId` state, summed (L2): what a capacity write to
-   * `exceptProjectId` adds its own units to, so the project's own statement
+   * `current`, the units of `resourceId` its work packages other than
+   * `exceptWorkPackageId` state, summed (L2): what a capacity write to
+   * `exceptWorkPackageId` adds its own units to, so the work package's own statement
    * never counts against itself. When a directory capacity is stated (including 0),
-   * the project is checked alone. A resource the organization does not own contributes 0.
+   * the work package is checked alone. A resource the organization does not own contributes 0.
    */
   readCapacityCap(
     organizationId: string,
     resourceId: string,
-    exceptProjectId: string,
+    exceptWorkPackageId: string,
   ): Promise<CapReading>;
 
   /** Reads the current owned directory statement and the raw sum of all owned project statements. */

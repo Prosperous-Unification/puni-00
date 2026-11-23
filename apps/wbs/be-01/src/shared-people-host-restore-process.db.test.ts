@@ -27,11 +27,13 @@ let approvalIds: string[];
 let actorA: string;
 let actorB: string;
 let saved: ReturnType<typeof createBackup>;
+const recoveryRoots: string[] = [];
 const operationId = 'process-restore';
 const tables = [
   'organization',
   'organization_membership',
-  'project_rank',
+  'access_grant',
+  'work_package_rank',
   'shared_people_audit',
   'event_log',
   'event_sequencer',
@@ -137,24 +139,36 @@ beforeEach(async () => {
     ] as const) {
       harness.organization(org);
       harness.member(org, username, 'super_admin');
+      harness.grantPermissions(org, username, ['organization.manage_security']);
       harness.bind(username, org);
     }
     // Cross-org authority must never replace the locally recorded personal approver.
     harness.member('org-a', 'bob', 'super_admin');
+    harness.grantPermissions('org-a', 'bob', ['organization.manage_security']);
     harness.member('org-b', 'alice', 'super_admin');
+    harness.grantPermissions('org-b', 'alice', ['organization.manage_security']);
     harness.activate();
-    for (const [project, org, owner] of [
+    for (const [org, owner] of [
+      ['org-a', actorA],
+      ['org-b', actorB],
+    ]) {
+      harness.sqlite.run(
+        'INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+        [`parent-${org}`, org, `Parent of ${org}`, owner],
+      );
+    }
+    for (const [workPackage, org, owner] of [
       ['a1', 'org-a', actorA],
       ['a-unranked', 'org-a', actorA],
       ['b1', 'org-b', actorB],
     ]) {
       harness.sqlite.run(
-        'INSERT INTO project (id, name, owner_id, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
-        [project, project, owner, owner],
+        'INSERT INTO work_package (id, project_id, name, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+        [workPackage, `parent-${org}`, workPackage, owner],
       );
       harness.sqlite.run(
-        'INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)',
-        [project, org],
+        'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
+        [workPackage, org],
       );
     }
     saved = createBackup(actorB);
@@ -189,6 +203,7 @@ beforeEach(async () => {
       approvalIds.push(approval.id);
     }
     database = await harness.stopForRecovery();
+    recoveryRoots.push(dirname(database));
   } catch (cause) {
     await harness.closeComposed();
     throw cause;
@@ -209,7 +224,7 @@ beforeEach(async () => {
   );
 });
 afterEach(() => {
-  rmSync(dirname(database), { recursive: true, force: true });
+  for (const root of recoveryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
   rmSync(directory, { recursive: true, force: true });
 });
 // Proof: legacy dispatch failed lost-output exit/receipt; bypassed receipt retry failed cold retry after later edits.
@@ -245,11 +260,11 @@ it('recovers authenticated two-organization evidence in a cold host process and 
   );
   expect(
     query(
-      'SELECT project_id, organization_id, position, created_at, updated_at, created_by FROM project_rank',
+      'SELECT work_package_id, organization_id, position, created_at, updated_at, created_by FROM work_package_rank',
     ),
   ).toEqual([
     {
-      project_id: 'b1',
+      work_package_id: 'b1',
       organization_id: 'org-b',
       position: 7,
       created_at: 2,
@@ -258,15 +273,19 @@ it('recovers authenticated two-organization evidence in a cold host process and 
     },
   ]);
   expect(query('SELECT subscription, seq, message FROM event_log ORDER BY subscription')).toEqual(
-    ['a-unranked', 'a1'].map((projectId) => ({
-      subscription: 'project:' + projectId,
+    ['a-unranked', 'a1'].map((workPackageId) => ({
+      subscription: 'work-package:' + workPackageId,
       seq: 0,
-      message: JSON.stringify({ type: 'elsewhere_changed', projectId, causeProjectId: null }),
+      message: JSON.stringify({
+        type: 'elsewhere_changed',
+        workPackageId,
+        causeWorkPackageId: null,
+      }),
     })),
   );
   expect(query('SELECT subscription, next_seq FROM event_sequencer ORDER BY subscription')).toEqual(
-    ['a-unranked', 'a1'].map((projectId) => ({
-      subscription: 'project:' + projectId,
+    ['a-unranked', 'a1'].map((workPackageId) => ({
+      subscription: 'work-package:' + workPackageId,
       next_seq: 1,
     })),
   );
@@ -281,7 +300,7 @@ it('recovers authenticated two-organization evidence in a cold host process and 
       organization_id,
     })),
   );
-  execute('UPDATE project_rank SET position=999');
+  execute('UPDATE work_package_rank SET position=999');
   execute('DELETE FROM organization_membership');
   const before = snapshot();
   const retry = await recover();
@@ -296,24 +315,43 @@ it('recovers authenticated two-organization evidence in a cold host process and 
   });
   expect(snapshot()).toEqual(before);
 });
-// Proof: independently dropping actor identity, organization identity or role admitted the demoted/deleted approver.
-it('rechecks the recorded actor and local role after the app has stopped', async () => {
-  for (const actor of [actorA, actorB]) {
-    execute(
-      `UPDATE organization_membership SET role='admin' WHERE user_id='${actor}' AND organization_id='${actor === actorA ? 'org-a' : 'org-b'}'`,
+for (const organization of ['org-a', 'org-b'] as const)
+  for (const loss of ['grant', 'membership'] as const)
+    it(
+      'rechecks recorded personal ' + organization + ' ' + loss + ' after the app has stopped',
+      async () => {
+        const actor = organization === 'org-a' ? actorA : actorB;
+        const grantRows = query(
+          `SELECT id FROM access_grant WHERE subject_kind='user' AND subject_id='${actor}' AND organization_id='${organization}'`,
+        );
+        const members = query(
+          `SELECT user_id FROM organization_membership WHERE user_id='${actor}' AND organization_id='${organization}'`,
+        );
+        expect(grantRows).toHaveLength(1);
+        expect(members).toHaveLength(1);
+        if (loss === 'grant')
+          execute(
+            `DELETE FROM access_grant WHERE subject_kind='user' AND subject_id='${actor}' AND organization_id='${organization}'`,
+          );
+        else
+          execute(
+            `DELETE FROM organization_membership WHERE user_id='${actor}' AND organization_id='${organization}'`,
+          );
+        await refused('no longer holds organization.manage_security');
+        if (loss === 'membership')
+          expect(
+            query(
+              `SELECT id FROM access_grant WHERE subject_kind='user' AND subject_id='${actor}' AND organization_id='${organization}'`,
+            ),
+          ).toEqual(grantRows);
+        else
+          expect(
+            query(
+              `SELECT user_id FROM organization_membership WHERE user_id='${actor}' AND organization_id='${organization}'`,
+            ),
+          ).toEqual(members);
+      },
     );
-    await refused('no longer a super-admin');
-    execute(`UPDATE organization_membership SET role='super_admin' WHERE user_id='${actor}'`);
-    const organization = actor === actorA ? 'org-a' : 'org-b';
-    execute(
-      `DELETE FROM organization_membership WHERE user_id='${actor}' AND organization_id='${organization}'`,
-    );
-    await refused('no longer a super-admin');
-    execute(
-      `INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('${organization}', '${actor}', 'super_admin', 1)`,
-    );
-  }
-});
 // Proof: removing the outer transaction changed the complete snapshot after SIGKILL; early flock release admitted its rival.
 it('rolls back every shared WAL table on precommit process death and releases the host flock', async () => {
   execute(`CREATE TABLE restore_probe (bytes BLOB NOT NULL)`);
@@ -380,9 +418,9 @@ it('retains shared approval-bound bytes across inspection pathname replacement',
   expect(query('SELECT * FROM shared_people_restore_receipt')).toHaveLength(1);
 });
 // Proof: bypassing colour shutdown admitted a running writer; substituting the DB for mount resolution admitted absent/unreadable sources.
-it('refuses shared physical faults before opening the writable database', async () => {
-  execute('PRAGMA journal_mode=DELETE');
-  for (const name of ['be-01-blue', 'be-01-green', 'extra-writer']) {
+for (const name of ['be-01-blue', 'be-01-green', 'extra-writer'] as const)
+  it('refuses shared running ' + name + ' before opening the writable database', async () => {
+    execute('PRAGMA journal_mode=DELETE');
     inventory([
       container('be-01-blue', name === 'be-01-blue'),
       container('be-01-green', name === 'be-01-green'),
@@ -390,18 +428,31 @@ it('refuses shared physical faults before opening the writable database', async 
     ]);
     await refused('writable container is not stopped');
     expect(query('PRAGMA journal_mode')).toEqual([{ journal_mode: 'delete' }]);
-  }
+  });
+
+it('refuses shared foreign database inode before opening the writable database', async () => {
+  execute('PRAGMA journal_mode=DELETE');
   const foreign = join(directory, 'foreign');
   mkdirSync(foreign);
   writeFileSync(join(foreign, basename(database)), 'foreign inode');
   inventory([container('be-01-blue'), container('be-01-green', false, foreign)]);
   await refused('database identity differs');
+  expect(query('PRAGMA journal_mode')).toEqual([{ journal_mode: 'delete' }]);
+});
+
+it('refuses shared absent writable mount before opening the writable database', async () => {
+  execute('PRAGMA journal_mode=DELETE');
   inventory([
     container('be-01-blue'),
     container('be-01-green'),
     container('extra', false, join(directory, 'absent')),
   ]);
   await refused('ENOENT');
+  expect(query('PRAGMA journal_mode')).toEqual([{ journal_mode: 'delete' }]);
+});
+
+it('refuses shared unreadable writable mount before opening the writable database', async () => {
+  execute('PRAGMA journal_mode=DELETE');
   const parent = join(directory, 'inaccessible');
   mkdirSync(parent);
   const source = join(parent, 'mount');
@@ -414,7 +465,9 @@ it('refuses shared physical faults before opening the writable database', async 
     chmodSync(parent, 0o700);
   }
   expect(query('PRAGMA journal_mode')).toEqual([{ journal_mode: 'delete' }]);
-  inventory();
+});
+
+async function holdDeployLock() {
   const holder = Bun.spawn(['flock', '--no-fork', join(directory, 'deploy.lock'), 'sleep', '30']);
   try {
     const deadline = Date.now() + 3000;
@@ -422,15 +475,40 @@ it('refuses shared physical faults before opening the writable database', async 
       (await Bun.spawn(['flock', '--nonblock', join(directory, 'deploy.lock'), 'true']).exited) ===
       0
     ) {
-      if (Date.now() > deadline) throw new Error('flock holder failed to acquire');
+      if (Date.now() > deadline) throw Error('flock holder failed to acquire');
       await Bun.sleep(5);
     }
+    return holder;
+  } catch (cause) {
+    holder.kill('SIGKILL');
+    await holder.exited;
+    throw cause;
+  }
+}
+
+it('refuses shared held deploy lock before opening the writable database', async () => {
+  execute('PRAGMA journal_mode=DELETE');
+  const holder = await holdDeployLock();
+  try {
     await refused('deploy lock held');
   } finally {
     holder.kill('SIGKILL');
     await holder.exited;
   }
   expect(query('PRAGMA journal_mode')).toEqual([{ journal_mode: 'delete' }]);
+  expect(
+    await Bun.spawn(['flock', '--nonblock', join(directory, 'deploy.lock'), 'true']).exited,
+  ).toBe(0);
+});
+
+it('restores shared state after the same deploy lock holder has released', async () => {
+  execute('PRAGMA journal_mode=DELETE');
+  const holder = await holdDeployLock();
+  holder.kill('SIGKILL');
+  await holder.exited;
+  expect(
+    await Bun.spawn(['flock', '--nonblock', join(directory, 'deploy.lock'), 'true']).exited,
+  ).toBe(0);
   expect((await recover()).exit).toBe(0);
 });
 

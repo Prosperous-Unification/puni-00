@@ -7,12 +7,12 @@ import { sliceKey } from './schedule';
 function stage(): ConnectedOptimizationStage {
   return {
     kind: 'connected-stage',
-    projectId: 'A',
+    workPackageId: 'A',
     mode: 'shared',
     originOrdinal: 20000,
-    projects: [
-      { projectId: 'A', rank: 0, anchorOrdinal: 20000 },
-      { projectId: 'B', rank: 1, anchorOrdinal: 20001 },
+    workPackages: [
+      { workPackageId: 'A', rank: 0, anchorOrdinal: 20000 },
+      { workPackageId: 'B', rank: 1, anchorOrdinal: 20001 },
     ],
     input: {
       rows: [
@@ -62,15 +62,15 @@ function stage(): ConnectedOptimizationStage {
       ]),
       resourceCapacities: new Map([['resource', 2]]),
       elsewhere: new Map([
-        ['person', [{ start: 4, end: 5, projectId: 'outside', workItemId: 'outside-work' }]],
+        ['person', [{ start: 4, end: 5, workPackageId: 'outside', workItemId: 'outside-work' }]],
       ]),
       order: {
         kind: 'connected',
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 1],
         ]),
@@ -80,8 +80,8 @@ function stage(): ConnectedOptimizationStage {
       {
         id: 'relationship',
         type: 'FS',
-        predecessor: { scope: 'whole', projectId: 'A', workItemId: 'a' },
-        successor: { scope: 'whole', projectId: 'B', workItemId: 'b' },
+        predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'a' },
+        successor: { scope: 'whole', workPackageId: 'B', workItemId: 'b' },
       },
     ],
     starts: new Map([
@@ -127,7 +127,7 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
   [
     'stage owner',
     (s) => {
-      s.projectId = 'B';
+      s.workPackageId = 'B';
     },
   ],
   [
@@ -145,14 +145,14 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
   [
     'rank',
     (s) => {
-      s.projects[0].rank = 2;
-      connectedOrder(s).rankByProject.set('A', 2);
+      s.workPackages[0].rank = 2;
+      connectedOrder(s).rankByWorkPackage.set('A', 2);
     },
   ],
   [
     'anchor',
     (s) => {
-      s.projects[1].anchorOrdinal = 20002;
+      s.workPackages[1].anchorOrdinal = 20002;
     },
   ],
   [
@@ -178,7 +178,7 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
         frozenNumber: null,
       });
       s.input.rows[0].parentId = 'parent';
-      connectedOrder(s).projectIdByWorkItem.set('parent', 'A');
+      connectedOrder(s).workPackageIdByWorkItem.set('parent', 'A');
     },
   ],
   [
@@ -261,9 +261,9 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
     },
   ],
   [
-    'elsewhere holder project',
+    'elsewhere holder work package',
     (s) => {
-      s.input.elsewhere.get('person')![0].projectId = 'other';
+      s.input.elsewhere.get('person')![0].workPackageId = 'other';
     },
   ],
   [
@@ -316,7 +316,7 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
     (s) => {
       s.relationships[0].predecessor = {
         scope: 'node',
-        projectId: 'A',
+        workPackageId: 'A',
         workItemId: 'a',
         stepId: 'build',
       };
@@ -327,7 +327,7 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
     (s) => {
       s.relationships[0].predecessor = {
         scope: 'descendant-step',
-        projectId: 'A',
+        workPackageId: 'A',
         workItemId: 'original-parent',
         stepId: 'build',
       };
@@ -360,8 +360,8 @@ const edits: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void]
   [
     'ownership',
     (s) => {
-      connectedOrder(s).projectIdByWorkItem.set('a', 'B');
-      s.relationships[0].predecessor.projectId = 'B';
+      connectedOrder(s).workPackageIdByWorkItem.set('a', 'B');
+      s.relationships[0].predecessor.workPackageId = 'B';
     },
   ],
   [
@@ -397,7 +397,7 @@ test('canonicalizes set and map permutations without mutating the capture', () =
   const before = structuredClone(s);
   const canonical = canonicalConnectedStageInput(s);
   expect(s).toEqual(before);
-  s.projects.reverse();
+  s.workPackages.reverse();
   s.input.rows.reverse();
   s.input.graph.nodes.reverse();
   s.input.graph.edges.reverse();
@@ -406,9 +406,9 @@ test('canonicalizes set and map permutations without mutating the capture', () =
   s.starts = new Map([...s.starts].reverse());
   s.finishes = new Map([...s.finishes].reverse());
   s.input.poolSizes = new Map([...s.input.poolSizes].reverse());
-  connectedOrder(s).rankByProject = new Map([...connectedOrder(s).rankByProject].reverse());
-  connectedOrder(s).projectIdByWorkItem = new Map(
-    [...connectedOrder(s).projectIdByWorkItem].reverse(),
+  connectedOrder(s).rankByWorkPackage = new Map([...connectedOrder(s).rankByWorkPackage].reverse());
+  connectedOrder(s).workPackageIdByWorkItem = new Map(
+    [...connectedOrder(s).workPackageIdByWorkItem].reverse(),
   );
   expect(canonicalConnectedStageInput(s)).toBe(canonical);
 });
@@ -424,7 +424,7 @@ const faults: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void
   [
     'unknown stage owner',
     (s) => {
-      s.projectId = 'unknown';
+      s.workPackageId = 'unknown';
     },
     'stage owner',
   ],
@@ -436,38 +436,38 @@ const faults: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void
     'connected order',
   ],
   [
-    'duplicate project',
+    'duplicate work package',
     (s) => {
-      s.projects.push(s.projects[0]);
+      s.workPackages.push(s.workPackages[0]);
     },
-    'duplicate project',
+    'duplicate work package',
   ],
   [
     'missing rank',
     (s) => {
-      connectedOrder(s).rankByProject.delete('A');
+      connectedOrder(s).rankByWorkPackage.delete('A');
     },
     'rank evidence',
   ],
   [
     'inconsistent rank',
     (s) => {
-      connectedOrder(s).rankByProject.set('A', 2);
+      connectedOrder(s).rankByWorkPackage.set('A', 2);
     },
     'rank evidence',
   ],
   [
     'extra rank',
     (s) => {
-      connectedOrder(s).rankByProject.set('unknown', 3);
+      connectedOrder(s).rankByWorkPackage.set('unknown', 3);
     },
     'rank evidence',
   ],
   [
     'nonfinite rank',
     (s) => {
-      s.projects[0].rank = NaN;
-      connectedOrder(s).rankByProject.set('A', NaN);
+      s.workPackages[0].rank = NaN;
+      connectedOrder(s).rankByWorkPackage.set('A', NaN);
     },
     'finite',
   ],
@@ -481,28 +481,28 @@ const faults: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void
   [
     'missing anchor',
     (s) => {
-      s.projects[1].anchorOrdinal = null;
+      s.workPackages[1].anchorOrdinal = null;
     },
-    'active project anchor',
+    'active work package anchor',
   ],
   [
     'nonfinite anchor',
     (s) => {
-      s.projects[1].anchorOrdinal = NaN;
+      s.workPackages[1].anchorOrdinal = NaN;
     },
     'finite',
   ],
   [
     'missing ownership',
     (s) => {
-      connectedOrder(s).projectIdByWorkItem.delete('a');
+      connectedOrder(s).workPackageIdByWorkItem.delete('a');
     },
     'ownership',
   ],
   [
     'unknown ownership',
     (s) => {
-      connectedOrder(s).projectIdByWorkItem.set('a', 'unknown');
+      connectedOrder(s).workPackageIdByWorkItem.set('a', 'unknown');
     },
     'ownership',
   ],
@@ -643,16 +643,16 @@ const faults: readonly [string, (s: Mutable<ConnectedOptimizationStage>) => void
   [
     'relationship owner mismatch',
     (s) => {
-      s.relationships[0].predecessor.projectId = 'B';
+      s.relationships[0].predecessor.workPackageId = 'B';
     },
     'relationship ownership',
   ],
   [
-    'unknown selector project',
+    'unknown selector work package',
     (s) => {
-      s.relationships[0].predecessor.projectId = 'unknown';
+      s.relationships[0].predecessor.workPackageId = 'unknown';
     },
-    'selector project',
+    'selector work package',
   ],
 ];
 for (const [fault, inject, message] of faults)
@@ -674,9 +674,14 @@ test('refuses unsupported selectors, relationship types and graph provenance', (
   const s = mutableStage();
   Object.assign(s.relationships[0].predecessor, { scope: 'unknown', stepId: 'build' });
   expect(() => canonicalConnectedStageInput(s)).toThrow('selector scope');
-  s.relationships[0].predecessor = { scope: 'node', projectId: 'A', workItemId: 'a', stepId: '' };
+  s.relationships[0].predecessor = {
+    scope: 'node',
+    workPackageId: 'A',
+    workItemId: 'a',
+    stepId: '',
+  };
   expect(() => canonicalConnectedStageInput(s)).toThrow('selector step');
-  s.relationships[0].predecessor = { scope: 'whole', projectId: 'A', workItemId: 'a' };
+  s.relationships[0].predecessor = { scope: 'whole', workPackageId: 'A', workItemId: 'a' };
   Object.assign(s.relationships[0], { type: 'SF' });
   expect(() => canonicalConnectedStageInput(s)).toThrow('relationship type');
   s.relationships[0].type = 'FS';
@@ -691,16 +696,16 @@ test('refuses absent workflow endpoints through the shared graph validator', () 
   s.input.graph.edges[0].predecessor.leafId = 'absent';
   expect(() => canonicalConnectedStageInput(s)).toThrow('endpoint');
 });
-test('permits null anchor only on projects without active reduced nodes', () => {
+test('permits null anchor only on work packages without active reduced nodes', () => {
   const s = mutableStage();
-  s.projects.push({ projectId: 'empty', rank: 2, anchorOrdinal: null });
-  connectedOrder(s).rankByProject.set('empty', 2);
+  s.workPackages.push({ workPackageId: 'empty', rank: 2, anchorOrdinal: null });
+  connectedOrder(s).rankByWorkPackage.set('empty', 2);
   expect(canonicalConnectedStageInput(s)).not.toBe(canonicalConnectedStageInput(stage()));
 });
 
 test('refuses extra reduced ownership facts', () => {
   const s = mutableStage();
-  connectedOrder(s).projectIdByWorkItem.set('original-parent', 'A');
+  connectedOrder(s).workPackageIdByWorkItem.set('original-parent', 'A');
   expect(() => canonicalConnectedStageInput(s)).toThrow('ownership keys');
 });
 
@@ -713,7 +718,7 @@ test('identifies reparenting without changes to the retained row set', () => {
     priority: null,
     frozenNumber: null,
   });
-  connectedOrder(before).projectIdByWorkItem.set('parent', 'A');
+  connectedOrder(before).workPackageIdByWorkItem.set('parent', 'A');
   before.input.rows[0].parentId = 'parent';
   before.input.rows.push({
     id: 'c',
@@ -722,7 +727,7 @@ test('identifies reparenting without changes to the retained row set', () => {
     priority: null,
     frozenNumber: null,
   });
-  connectedOrder(before).projectIdByWorkItem.set('c', 'A');
+  connectedOrder(before).workPackageIdByWorkItem.set('c', 'A');
   before.input.slices.push({
     workItemId: 'c',
     stepId: null,
@@ -750,7 +755,7 @@ test('identifies ownership independently of authored selectors', () => {
   before.input.graph.edges.pop();
   before.relationships = [];
   const after = structuredClone(before);
-  connectedOrder(after).projectIdByWorkItem.set('b', 'A');
+  connectedOrder(after).workPackageIdByWorkItem.set('b', 'A');
   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(before));
 });
 test('identifies each graph endpoint independently', () => {
@@ -782,7 +787,7 @@ test('identifies unused authored identity, type and successor selector independe
   const changes = [
     { id: 'other' },
     { type: 'FF' },
-    { successor: { scope: 'whole', projectId: 'B', workItemId: 'original-parent' } },
+    { successor: { scope: 'whole', workPackageId: 'B', workItemId: 'original-parent' } },
   ] as const;
   for (const change of changes) {
     const after = structuredClone(before);
@@ -815,19 +820,23 @@ test('refuses missing and unknown ownership on retained parents independently of
       frozenNumber: null,
     });
     s.input.rows[0].parentId = 'parent';
-    if (owner !== undefined) connectedOrder(s).projectIdByWorkItem.set('parent', owner);
+    if (owner !== undefined) connectedOrder(s).workPackageIdByWorkItem.set('parent', owner);
     expect(() => canonicalConnectedStageInput(s)).toThrow('ownership');
   }
 });
 test('refuses selector ownership independently of graph relationship evidence', () => {
   const s = mutableStage();
   s.input.graph.edges.pop();
-  s.relationships[0].predecessor.projectId = 'B';
+  s.relationships[0].predecessor.workPackageId = 'B';
   expect(() => canonicalConnectedStageInput(s)).toThrow('relationship ownership');
 });
 test('refuses graph ownership independently of unreduced selector identities', () => {
   const s = mutableStage();
-  s.relationships[0].predecessor = { scope: 'whole', projectId: 'B', workItemId: 'held-parent' };
+  s.relationships[0].predecessor = {
+    scope: 'whole',
+    workPackageId: 'B',
+    workItemId: 'held-parent',
+  };
   expect(() => canonicalConnectedStageInput(s)).toThrow('relationship ownership');
 });
 test('canonicalizes all independent map and relationship permutations', () => {
@@ -836,7 +845,7 @@ test('canonicalizes all independent map and relationship permutations', () => {
   before.input.deadlines.set('a', 8);
   before.input.resourceCapacities.set('other', 3);
   before.input.elsewhere.set('other-person', [
-    { start: 8, end: 9, projectId: 'outside', workItemId: 'other-work' },
+    { start: 8, end: 9, workPackageId: 'outside', workItemId: 'other-work' },
   ]);
   before.relationships.push({ ...structuredClone(before.relationships[0]), id: 'other' });
   const after = structuredClone(before);
@@ -872,10 +881,10 @@ test('refuses same-sized placement maps with substituted local or foreign keys',
     expect(() => canonicalConnectedStageInput(s)).toThrow('placement keys');
   }
 });
-test('identifies rank changes that preserve project ordering', () => {
+test('identifies rank changes that preserve work package ordering', () => {
   const after = mutableStage();
-  after.projects[0].rank = 0.5;
-  connectedOrder(after).rankByProject.set('A', 0.5);
+  after.workPackages[0].rank = 0.5;
+  connectedOrder(after).rankByWorkPackage.set('A', 0.5);
   expect(canonicalConnectedStageInput(after)).not.toBe(canonicalConnectedStageInput(stage()));
 });
 

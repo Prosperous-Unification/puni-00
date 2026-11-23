@@ -20,17 +20,17 @@ defineFault({
   // an arbitrary fault name is outside the manifest-derived registry.
   // @ts-expect-error fault IDs are closed over CaseId
   id: 'break:not-a-manifest-case',
-  caseId: 'projects.create:steps',
+  caseId: 'workPackages.create:steps',
   createControl: () => createFaultControl('typed-phase'),
   mutate: (source: TypedSource) => source,
 });
 
 defineFault({
-  id: 'break:projects.create:steps',
+  id: 'break:workPackages.create:steps',
   // Proof: removing this guard fails conformance:typecheck with TS2322 because
   // the registered fault ID and its owning case differ.
   // @ts-expect-error the case must be the one encoded by the fault ID
-  caseId: 'steps.add',
+  caseId: 'steps.listByWorkPackage:resolved-scope',
   createControl: () => createFaultControl('typed-phase'),
   mutate: (source: TypedSource) => source,
 });

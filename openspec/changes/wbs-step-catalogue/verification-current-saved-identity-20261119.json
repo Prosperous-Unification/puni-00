@@ -1,0 +1,4591 @@
+{
+  "recordedAt": "2026-11-19T15:05:08.940Z",
+  "goalStatus": "active",
+  "scope": "Current Memory saved-read identity evidence and shared actual-Source historical store conformance",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "cb0d7e4a2b632cd1716097b0e9c666d682a1d8cb16e823006f73d2972e5e4790",
+      "bytes": 63658,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "sha256": "8d808cf2590b29e38ddf3ace88470077a112bc96d0cd3a73c51e49abfadc052e",
+      "bytes": 58034,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "fb73ff5b516d1ae203e0080bdc049278f8820188707362fa32a73e1ffd62f7c4",
+      "bytes": 83150,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+      "sha256": "e6caa1838012811bd3a353de8a257db6621659512490b55626aba240c1937970",
+      "bytes": 27135,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-identity.ts",
+      "sha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+      "bytes": 3705,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+      "sha256": "1ee9daf4f801b4f07e5547fa98b404eed8b2e34fe9a03948353678f1047fa01b",
+      "bytes": 14027,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "bec664bd7808a5b31428f95f830e8c2bda04eb1c8f13821f1efaef0b934da446",
+      "bytes": 322994,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "973bfda76962d5b14db262cf92a562f0b089a46f65de6ff947588e579b7fc5a5",
+      "bytes": 350936,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/history-batch.ts",
+      "sha256": "41eac90f70b3ebb5001347ea212c26954f7fa43715a8ee4bbe15e52682acfe20",
+      "bytes": 10732,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/saved-plans.ts",
+      "sha256": "1ccb59f2c6c1ff3a3ca0dedcd1bcb0423c9b1aafecd467fa69ea4c20c24b2b44",
+      "bytes": 23817,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-saved-identity-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-first-red-v1.receipt.json",
+        "sha256": "680d4846ae167ba0c2300f3e2b22fc8b6322725ab561bc159c317bc5aa68b3c4",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:42:49.918Z",
+        "endedAt": "2026-11-19T14:42:52.524Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-first-red-v1.log",
+          "sha256": "0db7c15145daeb633ecabca558e4027434293911ec3fadd6c10a8b5b96d7d679",
+          "bytes": 1087
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-first-red-v1.log",
+        "sha256": "0db7c15145daeb633ecabca558e4027434293911ec3fadd6c10a8b5b96d7d679",
+        "bytes": 1087,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-after-v1.receipt.json",
+        "sha256": "3fd0fb16019e3bea051377c938769dea77114dce3617f58632abc510eb496175",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:44:17.723Z",
+        "endedAt": "2026-11-19T14:44:20.296Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-after-v1.log",
+          "sha256": "f0cca792999b85d19a0e7f5229f930f278f377869f95b0bfaa3e3cfbaff7605a",
+          "bytes": 273
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-after-v1.log",
+        "sha256": "f0cca792999b85d19a0e7f5229f930f278f377869f95b0bfaa3e3cfbaff7605a",
+        "bytes": 273,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-memory-controls-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-memory-controls-v1.receipt.json",
+        "sha256": "d139d29a4456bb93d070e33d0e5b1205866b88aecbbb07563d758a6e55e9c09e",
+        "bytes": 1391,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-memory-controls-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:46:02.256Z",
+        "endedAt": "2026-11-19T14:46:04.874Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-memory-controls-v1.log",
+          "sha256": "82b47a4d1fa00016e37ca4a4be087187c4cb5ca462c0f9cbc66a3c71d26ea641",
+          "bytes": 1465
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-memory-controls-v1.log",
+        "sha256": "82b47a4d1fa00016e37ca4a4be087187c4cb5ca462c0f9cbc66a3c71d26ea641",
+        "bytes": 1465,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-types-v1.receipt.json",
+        "sha256": "c8a884177934e90e4f1d9576f4606817d73bc1612cce3c6e8a8b643e4073beb5",
+        "bytes": 1440,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:46:29.319Z",
+        "endedAt": "2026-11-19T14:46:40.723Z",
+        "exitCode": 2,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-types-v1.log",
+          "sha256": "faba53186572f6cdae143c88fb90cac33bb96c90bdfbba0c65da244d1e30f457",
+          "bytes": 4544
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-types-v1.log",
+        "sha256": "faba53186572f6cdae143c88fb90cac33bb96c90bdfbba0c65da244d1e30f457",
+        "bytes": 4544,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-broad-memory-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v1.receipt.json",
+        "sha256": "8a323b6cf84d18899d74946f6ea220c9497c87be3591bccb3b86733e0811e9f3",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:47:17.842Z",
+        "endedAt": "2026-11-19T14:47:23.185Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v1.log",
+          "sha256": "5801d3ba96a5a9f71000c5b58bd99ccda83487f5b886390ae5df610d21816773",
+          "bytes": 30390
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v1.log",
+        "sha256": "5801d3ba96a5a9f71000c5b58bd99ccda83487f5b886390ae5df610d21816773",
+        "bytes": 30390,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-sql-history-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v1.receipt.json",
+        "sha256": "aaa8755e38f59f02c3a78c2d94d6a2fc6e62799cba758ce1bbb183bc00bc5899",
+        "bytes": 1492,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "Task 6.5|every Task 6.1 and 6.2|all seven Task 6.1 saved-plan|Task 6.2 saved-plan faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:47:18.993Z",
+        "endedAt": "2026-11-19T14:47:40.034Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v1.log",
+          "sha256": "2510255e07349ca719b8d3bb7e25f1b26fb5355dce3528a0f43030a0c7063c84",
+          "bytes": 5743
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v1.log",
+        "sha256": "2510255e07349ca719b8d3bb7e25f1b26fb5355dce3528a0f43030a0c7063c84",
+        "bytes": 5743,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-broad-memory-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v2.receipt.json",
+        "sha256": "f7f2f1a1afcf4debc3230a0e26921a4a17f3a70edce43ccd2d560209c33cf0f2",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:48:43.615Z",
+        "endedAt": "2026-11-19T14:48:49.055Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v2.log",
+          "sha256": "243924869a6af94223df34f7821734fec67e2e6212527c2496b74f269abfefe3",
+          "bytes": 25468
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-broad-memory-v2.log",
+        "sha256": "243924869a6af94223df34f7821734fec67e2e6212527c2496b74f269abfefe3",
+        "bytes": 25468,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-sql-history-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v2.receipt.json",
+        "sha256": "cce98bdd1ee3d10a870c849176088d7db058bad86da8fdb66caece5c9226f5ca",
+        "bytes": 1491,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "Task 6.5|every Task 6.1 and 6.2|all seven Task 6.1 saved-plan|Task 6.2 saved-plan faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:48:44.768Z",
+        "endedAt": "2026-11-19T14:49:05.757Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v2.log",
+          "sha256": "d04d9f28798f17d6421925ab4e6cafaba98a2786418b52d089571328dbdf4b98",
+          "bytes": 942
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-sql-history-v2.log",
+        "sha256": "d04d9f28798f17d6421925ab4e6cafaba98a2786418b52d089571328dbdf4b98",
+        "bytes": 942,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-closed-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-first-red-v1.receipt.json",
+        "sha256": "a034d8aba240ff027d93db263e492e0f7058db8bde57fd3d80c276a570a56ebf",
+        "bytes": 1449,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read rejects a closed Source",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:48.487Z",
+        "endedAt": "2026-11-19T14:50:51.158Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-first-red-v1.log",
+          "sha256": "7d69b71e4f5759ecefd1be8db3b7e7b8013466a34dcddbc7a16af94c27f8e025",
+          "bytes": 2197
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-first-red-v1.log",
+        "sha256": "7d69b71e4f5759ecefd1be8db3b7e7b8013466a34dcddbc7a16af94c27f8e025",
+        "bytes": 2197,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-closed-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-after-v1.receipt.json",
+        "sha256": "60ae395f91063d495acf37233091fbe0f89e5c4ee7e554f6076e337844f87a7f",
+        "bytes": 1385,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:51:08.913Z",
+        "endedAt": "2026-11-19T14:51:11.553Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-after-v1.log",
+          "sha256": "993e4d4274ba26bc6244f94575f2d9fecc72990a69323d0478a08b761934dec2",
+          "bytes": 1711
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-closed-after-v1.log",
+        "sha256": "993e4d4274ba26bc6244f94575f2d9fecc72990a69323d0478a08b761934dec2",
+        "bytes": 1711,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-foreign-controls-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-foreign-controls-v1.receipt.json",
+        "sha256": "a489340ae2d079fa685901bf642750840aab1674c56cf4bc0d77a92de6fec488",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-foreign-controls-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read refuses captured",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:52:59.986Z",
+        "endedAt": "2026-11-19T14:53:02.597Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-foreign-controls-v1.log",
+          "sha256": "1883da03254e3d00d38a9bb2b2d3ca450445fac3221d726dc9202e8c12970299",
+          "bytes": 380
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-foreign-controls-v1.log",
+        "sha256": "1883da03254e3d00d38a9bb2b2d3ca450445fac3221d726dc9202e8c12970299",
+        "bytes": 380,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-lint-fix-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-lint-fix-v1.receipt.json",
+        "sha256": "cf127e516d9c73bef788684b4635b119f7109477bf7598dc7039732028b0a204",
+        "bytes": 1933,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-lint-fix-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+            "libs/wbs/adapters/store-memory/src/step-identity.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/stores/history-batch.ts",
+            "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:54:07.070Z",
+        "endedAt": "2026-11-19T14:54:16.178Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-lint-fix-v1.log",
+          "sha256": "a640717747a54f58baa9d9c7c84856c18c6aff1a4ed58f12cce02497c0ffb239",
+          "bytes": 2764
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-lint-fix-v1.log",
+        "sha256": "a640717747a54f58baa9d9c7c84856c18c6aff1a4ed58f12cce02497c0ffb239",
+        "bytes": 2764,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-format-write-v1.receipt.json",
+        "sha256": "0c8a6d301ced3396d071a3aa67ec531b60a26439aa3b34a40187ba2eb4edfdad",
+        "bytes": 1947,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-format-write-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+            "libs/wbs/adapters/store-memory/src/step-identity.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/stores/history-batch.ts",
+            "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:56:02.319Z",
+        "endedAt": "2026-11-19T14:56:03.644Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-format-write-v1.log",
+          "sha256": "ee83a22f2d9a0acdb9f5ac6ce0b9e1c1aed24c701e7a10e22a2939732784dbe7",
+          "bytes": 635
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-format-write-v1.log",
+        "sha256": "ee83a22f2d9a0acdb9f5ac6ce0b9e1c1aed24c701e7a10e22a2939732784dbe7",
+        "bytes": 635,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v1.receipt.json",
+        "sha256": "90b2bfef87aa97223326f2bb1efdd754e17b35e59431f3b11d89f31df3f91a22",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:56:24.596Z",
+        "endedAt": "2026-11-19T14:56:39.074Z",
+        "exitCode": 2,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v1.log",
+          "sha256": "3db9968c10610c854e89866e9a985ba50a1d27071b39faa1a5bbf19322e40208",
+          "bytes": 173
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v1.log",
+        "sha256": "3db9968c10610c854e89866e9a985ba50a1d27071b39faa1a5bbf19322e40208",
+        "bytes": 173,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v1.receipt.json",
+        "sha256": "ae1a7cc689f46be87cb3a886b28962a43abee9ff1e58d157377e56fdb497f752",
+        "bytes": 1919,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+            "libs/wbs/adapters/store-memory/src/step-identity.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/stores/history-batch.ts",
+            "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:56:26.168Z",
+        "endedAt": "2026-11-19T14:56:38.934Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-types-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v2.receipt.json",
+        "sha256": "d9cb6936237fb537dd5fb159c634ac06e7e0d9e133e7bd098af534025fa3c0c2",
+        "bytes": 1449,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:57:08.698Z",
+        "endedAt": "2026-11-19T14:57:21.766Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-regression-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v1.receipt.json",
+        "sha256": "dd3b0b67f71c4af5129ec3f325487571650a12bf2d153ab3240ea92b12b4dd24",
+        "bytes": 2221,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-retirement.test.ts",
+            "libs/wbs/application/conformance/src/stores/existing.test.ts",
+            "libs/wbs/application/conformance/src/testing/broken-source.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:57:10.119Z",
+        "endedAt": "2026-11-19T14:57:24.649Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v1.log",
+          "sha256": "2daffc00af0859650633ac2398675f968c7067a436d0be67d299148443dcc780",
+          "bytes": 41551
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v1.log",
+        "sha256": "2daffc00af0859650633ac2398675f968c7067a436d0be67d299148443dcc780",
+        "bytes": 41551,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-sql-history-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-sql-history-v1.receipt.json",
+        "sha256": "a757d2bd2d477cce0a666fdd24d0514868a52e8869febf36971ce3f74664ce52",
+        "bytes": 1522,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-sql-history-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "Task 6.5|every Task 6.1 and 6.2|all seven Task 6.1 saved-plan|Task 6.2 saved-plan faults|saved-plan proofs",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:57:11.465Z",
+        "endedAt": "2026-11-19T14:57:40.680Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-sql-history-v1.log",
+          "sha256": "43aa96bad26096a961586febfdd98ffd0c2fe337e4752eeeae03b44492d0d21a",
+          "bytes": 1067
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-sql-history-v1.log",
+        "sha256": "43aa96bad26096a961586febfdd98ffd0c2fe337e4752eeeae03b44492d0d21a",
+        "bytes": 1067,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-parent-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-after-v1.receipt.json",
+        "sha256": "d2fc174810632f119549e854ea85c31cb04ae538c2e8533606b142586b4b8993",
+        "bytes": 1462,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "-t",
+            "refuses saved-plan persistence mutations without their exact target state",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:22.245Z",
+        "endedAt": "2026-11-19T14:59:25.293Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-after-v1.log",
+          "sha256": "664c1fb3a704299198ead24f15d7c979786bde1edc8310cb085a6d04e646f15b",
+          "bytes": 292
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-after-v1.log",
+        "sha256": "664c1fb3a704299198ead24f15d7c979786bde1edc8310cb085a6d04e646f15b",
+        "bytes": 292,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-parent-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-format-v1.receipt.json",
+        "sha256": "16371e9438bfe64f232e3ef5bb7770f726916a13bf4750f0ef71c3e8424fb08c",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:00:49.153Z",
+        "endedAt": "2026-11-19T15:00:49.474Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-format-v1.log",
+          "sha256": "bd456f06b9abe8c1c7ad5d0a8661484ba550ca515c01152532c3b9fbe3851585",
+          "bytes": 63
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-parent-format-v1.log",
+        "sha256": "bd456f06b9abe8c1c7ad5d0a8661484ba550ca515c01152532c3b9fbe3851585",
+        "bytes": 63,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-regression-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v2.receipt.json",
+        "sha256": "9a27cd0006506db9d4bed88008e3c2732a267a22406e511221adb02cda9d04c2",
+        "bytes": 2221,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-retirement.test.ts",
+            "libs/wbs/application/conformance/src/stores/existing.test.ts",
+            "libs/wbs/application/conformance/src/testing/broken-source.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:01:05.950Z",
+        "endedAt": "2026-11-19T15:01:21.499Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v2.log",
+          "sha256": "220ad70c14590afb9bd70dce9cf5a5565691c60a429628516cf6e1c296255d46",
+          "bytes": 40555
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-regression-v2.log",
+        "sha256": "220ad70c14590afb9bd70dce9cf5a5565691c60a429628516cf6e1c296255d46",
+        "bytes": 40555,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-lint-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v2.receipt.json",
+        "sha256": "9a6d99b4335f3f4fa9ef64c5e7020092bca0aff766efda5192afda62a2fdec07",
+        "bytes": 1985,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+            "libs/wbs/adapters/store-memory/src/step-identity.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/stores/history-batch.ts",
+            "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:01:07.102Z",
+        "endedAt": "2026-11-19T15:01:20.815Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-types-v3",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v3.receipt.json",
+        "sha256": "d1fea733441d0b62888b48714067986a7ca2a92b49520b976530a7fa8fb57312",
+        "bytes": 1449,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v3",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:01:08.332Z",
+        "endedAt": "2026-11-19T15:01:22.083Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v3.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-types-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-saved-identity-final-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-format-v1.receipt.json",
+        "sha256": "467ffb5a4dd6128af05513fbea32516f54cf5cd0314e446b90c5f4588529a01a",
+        "bytes": 2012,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+            "libs/wbs/adapters/store-memory/src/step-identity.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/stores/history-batch.ts",
+            "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:03:24.588Z",
+        "endedAt": "2026-11-19T15:03:26.052Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-package-attribution-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1.receipt.json",
+        "sha256": "005531cc97640e79f3be52e7b392dec5eebe89d33132147e7acd152395ad3e1a",
+        "bytes": 1453,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "refuses missing package attribution",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:49:54.590Z",
+        "endedAt": "2026-11-19T14:49:57.194Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1.log",
+          "sha256": "e972a9859eb39110bbb715b2b5e8f5336595d66d79a74ce63a749889263dfe52",
+          "bytes": 1276
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1.log",
+        "sha256": "e972a9859eb39110bbb715b2b5e8f5336595d66d79a74ce63a749889263dfe52",
+        "bytes": 1276,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-alias-consistency-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1.receipt.json",
+        "sha256": "63661005d2b89c190db5a232779b790a5fdce47dd23e94ef4daa40f3a98fe7ec",
+        "bytes": 1475,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "refuses actual alias corruption|refuses an actual alias chain",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:49:57.195Z",
+        "endedAt": "2026-11-19T14:49:59.810Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1.log",
+          "sha256": "f64394e70145cfcd3c54ec0c4e7765baa20d3200e4586017547e0a747a85ba05",
+          "bytes": 6933
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1.log",
+        "sha256": "f64394e70145cfcd3c54ec0c4e7765baa20d3200e4586017547e0a747a85ba05",
+        "bytes": 6933,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-foreign-exclusion-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1.receipt.json",
+        "sha256": "9e1468be31294e7a0c93a839e6fa9078875feda585847bfec641d93cde8eaedb",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:49:59.811Z",
+        "endedAt": "2026-11-19T14:50:02.400Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1.log",
+          "sha256": "9580af36c183524640b24551da0c260ab47a7c3229f898b169ea3d05d20508a1",
+          "bytes": 1474
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1.log",
+        "sha256": "9580af36c183524640b24551da0c260ab47a7c3229f898b169ea3d05d20508a1",
+        "bytes": 1474,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-alias-order-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1.receipt.json",
+        "sha256": "f122291917891bfaaf98cf2d65bfb14f5ad84234252ae4de1e1eca3f2e27dfee",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:02.401Z",
+        "endedAt": "2026-11-19T14:50:05.019Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1.log",
+          "sha256": "6947e3728f61febf674288c4e24497a1615c21a8359e0b8c28ac98d379db67cd",
+          "bytes": 1448
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1.log",
+        "sha256": "6947e3728f61febf674288c4e24497a1615c21a8359e0b8c28ac98d379db67cd",
+        "bytes": 1448,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-alias-projection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1.receipt.json",
+        "sha256": "e31cde9a3d3a355823234926413d4cde1e044df42981a2e1244c85319578cb00",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:05.019Z",
+        "endedAt": "2026-11-19T14:50:07.620Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1.log",
+          "sha256": "73983443f0e8592878a453d0980a0a49ed28ad3d9e1a2c8a5b4b5b2a760ccd53",
+          "bytes": 1400
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1.log",
+        "sha256": "73983443f0e8592878a453d0980a0a49ed28ad3d9e1a2c8a5b4b5b2a760ccd53",
+        "bytes": 1400,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-alias-publication-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1.receipt.json",
+        "sha256": "27852a0fc449ef8a4c4b11613e3c1d0dea2b2ab7b4a905e374ea94a3f838c5b4",
+        "bytes": 1453,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "identity history is detached by staging",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:07.620Z",
+        "endedAt": "2026-11-19T14:50:10.175Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1.log",
+          "sha256": "c2764184d83a9d080ff2cd31552857028300baa0176e02fd78c8fde2ed126471",
+          "bytes": 1428
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1.log",
+        "sha256": "c2764184d83a9d080ff2cd31552857028300baa0176e02fd78c8fde2ed126471",
+        "bytes": 1428,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-fixture-retention-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1.receipt.json",
+        "sha256": "9608bcfdf7de44463fcaddeef93342ffacd1c496fc31dc265b823e2b8c074443",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:10.175Z",
+        "endedAt": "2026-11-19T14:50:12.763Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1.log",
+          "sha256": "12301102772c1a483ed06446cb6a8134f921dad6468bafaf1d969bae1fa52bc5",
+          "bytes": 1474
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1.log",
+        "sha256": "12301102772c1a483ed06446cb6a8134f921dad6468bafaf1d969bae1fa52bc5",
+        "bytes": 1474,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-fixture-closure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1.receipt.json",
+        "sha256": "b449e0d4ccd7ae2e0d029e071f76ff0a41af422726a503e07415fc47360fad83",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "alias fixture rejects",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:50:12.764Z",
+        "endedAt": "2026-11-19T14:50:15.394Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1.log",
+          "sha256": "2a95ca585ed2d7c9af46593dd4d0e9104a874cc96bcababec5ca4d2050e9e683",
+          "bytes": 1908
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1.log",
+        "sha256": "2a95ca585ed2d7c9af46593dd4d0e9104a874cc96bcababec5ca4d2050e9e683",
+        "bytes": 1908,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-foreign-inclusion-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1.receipt.json",
+        "sha256": "e71712b448972331ac05d6d7532bc7d96f8aac0104a9a459ef9db5120a4d8c01",
+        "bytes": 1455,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read refuses captured foreign-value",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:53:26.590Z",
+        "endedAt": "2026-11-19T14:53:29.237Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1.log",
+          "sha256": "19421112c7036a4ad41f5f6468e7fa71824cef488cd03ba86e3a2a158c46745b",
+          "bytes": 1104
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1.log",
+        "sha256": "19421112c7036a4ad41f5f6468e7fa71824cef488cd03ba86e3a2a158c46745b",
+        "bytes": 1104,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-foreign-organization-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1.receipt.json",
+        "sha256": "da431e8940e48b679bf257f32d518ce5d0b0720c862607736f1749fa6ef96eae",
+        "bytes": 1468,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read refuses captured foreign-organization",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:53:29.237Z",
+        "endedAt": "2026-11-19T14:53:31.789Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1.log",
+          "sha256": "016f38931547dff7f9f2d58aef34a4c9dce0ef4f6bb8fffae9e37c4c52fa6731",
+          "bytes": 1111
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1.log",
+        "sha256": "016f38931547dff7f9f2d58aef34a4c9dce0ef4f6bb8fffae9e37c4c52fa6731",
+        "bytes": 1111,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-effect-saved-read-closure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1.receipt.json",
+        "sha256": "fa7c187c87e23f2be16b27aa649ecade91d82d5dd7cea17d24f63d89c2e048d4",
+        "bytes": 1450,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read rejects a closed Source",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:51:47.264Z",
+        "endedAt": "2026-11-19T14:51:49.921Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1.log",
+          "sha256": "5c01a993c86e6840081d45338b0afc785a98961371a274a2cbd0e477057f092f",
+          "bytes": 2197
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1.log",
+        "sha256": "5c01a993c86e6840081d45338b0afc785a98961371a274a2cbd0e477057f092f",
+        "bytes": 2197,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-package-attribution-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1.receipt.json",
+        "sha256": "37fe929d811798b1f7176e0a69a4b8b258036cbb5ed5940ec691c0924316094f",
+        "bytes": 1464,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "refuses missing package attribution",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:23.480Z",
+        "endedAt": "2026-11-19T14:59:26.680Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1.log",
+          "sha256": "54e2fd89f13aa47b7d7e4411bafede3223be4291b676f1fddc8209ea1fa5d4db",
+          "bytes": 879
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1.log",
+        "sha256": "54e2fd89f13aa47b7d7e4411bafede3223be4291b676f1fddc8209ea1fa5d4db",
+        "bytes": 879,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-alias-consistency-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1.receipt.json",
+        "sha256": "954fa25bf7c3cee674f2daf0bc261e993e0d06261bd809144a1a3e8b49000b3d",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "refuses actual alias corruption|refuses an actual alias chain",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:26.681Z",
+        "endedAt": "2026-11-19T14:59:29.514Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1.log",
+          "sha256": "c9505ecefeb993efaa214d50a52f03255c55e8ab8af57dd6468fdffc7c794f33",
+          "bytes": 4478
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1.log",
+        "sha256": "c9505ecefeb993efaa214d50a52f03255c55e8ab8af57dd6468fdffc7c794f33",
+        "bytes": 4478,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-foreign-exclusion-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1.receipt.json",
+        "sha256": "ea6fdf582fa8e25c0b9ce4b00f941cb72eaacfe3632be93c7e5377cb2c3ed95c",
+        "bytes": 1453,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:29.515Z",
+        "endedAt": "2026-11-19T14:59:32.291Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1.log",
+          "sha256": "58e01d3c73d83a7cdad86318f89734bf6d9fcee0077976c36215d371e2e64941",
+          "bytes": 1150
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1.log",
+        "sha256": "58e01d3c73d83a7cdad86318f89734bf6d9fcee0077976c36215d371e2e64941",
+        "bytes": 1150,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-alias-order-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1.receipt.json",
+        "sha256": "b5bea1b0097a73a6a31dd697105af953da8132f26a77f4b42c5d6e00826b3211",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:32.291Z",
+        "endedAt": "2026-11-19T14:59:34.910Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1.log",
+          "sha256": "7e843560fed4f0ca7f281c4fc27b3af9c88bf75360e7785ab755152965fac7ae",
+          "bytes": 1153
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1.log",
+        "sha256": "7e843560fed4f0ca7f281c4fc27b3af9c88bf75360e7785ab755152965fac7ae",
+        "bytes": 1153,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-alias-projection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1.receipt.json",
+        "sha256": "974d1985f05b1eac443fa6a603e16caae417ccaf0aeccd6915f3e82a06b2e42c",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:34.911Z",
+        "endedAt": "2026-11-19T14:59:37.555Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1.log",
+          "sha256": "d10e34598f5e27900886315c98edbd3a309f7a3f323bb1cfda9266ec46a9c6d8",
+          "bytes": 1105
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1.log",
+        "sha256": "d10e34598f5e27900886315c98edbd3a309f7a3f323bb1cfda9266ec46a9c6d8",
+        "bytes": 1105,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-alias-publication-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1.receipt.json",
+        "sha256": "a75cf68f045a9c0037e2e79adec467324844de2b2e33be30553f5eb0c439d6a2",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "identity history is detached by staging",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:37.556Z",
+        "endedAt": "2026-11-19T14:59:40.141Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1.log",
+          "sha256": "108db7c895d08553cf1c5cd73de0b9e51957f6e181b9da10225b3638e10491bd",
+          "bytes": 1119
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1.log",
+        "sha256": "108db7c895d08553cf1c5cd73de0b9e51957f6e181b9da10225b3638e10491bd",
+        "bytes": 1119,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-fixture-retention-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1.receipt.json",
+        "sha256": "699703c81968064b95c3f049d853133e08838516b36bfd0a7f4947e23fc5dc6f",
+        "bytes": 1453,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "aliases are scoped, ordered",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:40.141Z",
+        "endedAt": "2026-11-19T14:59:42.703Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1.log",
+          "sha256": "71b7deb616971d68a3f19b6513980ac93a995d63f37c090c6902e337bd5dde7f",
+          "bytes": 1150
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1.log",
+        "sha256": "71b7deb616971d68a3f19b6513980ac93a995d63f37c090c6902e337bd5dde7f",
+        "bytes": 1150,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-fixture-closure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1.receipt.json",
+        "sha256": "e082586564e2e9f567fc1d1bb670da337d701e927bef024d5303e711df80b60d",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "alias fixture rejects",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:42.704Z",
+        "endedAt": "2026-11-19T14:59:45.326Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1.log",
+          "sha256": "edf19aa390131d197a8a62d6aaa00b2a597e2b23568f7e18d04e96baa76c25a4",
+          "bytes": 1481
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1.log",
+        "sha256": "edf19aa390131d197a8a62d6aaa00b2a597e2b23568f7e18d04e96baa76c25a4",
+        "bytes": 1481,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-saved-read-closure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1.receipt.json",
+        "sha256": "1e5a00e2541f3924631da4f98d68c81fda9ba130b5a90e6ec20edb89b5e945f0",
+        "bytes": 1462,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read rejects a closed Source",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:45.326Z",
+        "endedAt": "2026-11-19T14:59:47.912Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1.log",
+          "sha256": "bc20ef72c7bdc617a55f355b913e64316d1eed1b65ac7fb5a81918f11856a2e2",
+          "bytes": 1499
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1.log",
+        "sha256": "bc20ef72c7bdc617a55f355b913e64316d1eed1b65ac7fb5a81918f11856a2e2",
+        "bytes": 1499,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-foreign-inclusion-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1.receipt.json",
+        "sha256": "580bdabac45a7c215973b0dbd93c602b98e1d4383451c7a79e7baded22a14e3a",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read refuses captured foreign-value",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:47.912Z",
+        "endedAt": "2026-11-19T14:59:50.687Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1.log",
+          "sha256": "ea53bd08721725f30e7ccc2bedcacf971cdcc0699ed21c1263d8f2abe2cf653e",
+          "bytes": 862
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1.log",
+        "sha256": "ea53bd08721725f30e7ccc2bedcacf971cdcc0699ed21c1263d8f2abe2cf653e",
+        "bytes": 862,
+        "mode": 384
+      }
+    },
+    {
+      "name": "saved-identity-final-effect-foreign-organization-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1.receipt.json",
+        "sha256": "2e30c805f7f66e63c0e32f6843f810f8849092c36dbc25f49c2660c69f4251ef",
+        "bytes": 1479,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read refuses captured foreign-organization",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:59:50.687Z",
+        "endedAt": "2026-11-19T14:59:53.359Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1.log",
+          "sha256": "873cf9a061d8dd4221f149b94af54a8e405713a7657080e576d717f373cd5b47",
+          "bytes": 869
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1.log",
+        "sha256": "873cf9a061d8dd4221f149b94af54a8e405713a7657080e576d717f373cd5b47",
+        "bytes": 869,
+        "mode": 384
+      }
+    }
+  ],
+  "behavior": [
+    "Memory now stores actual historical identity rows separately from live bindings and immutable saved bodies. Its captured saved-read graph supplies current catalogue evidence independently of saved input schema version.",
+    "Package attribution and alias consistency refuse corrupt trusted state. Only coherent foreign survivors are excluded before history metadata decoding; an included foreign package value or missing foreign organization refuses. Aliases retain retired physical survivors and use binary old-ID order.",
+    "Each saved read captures its current Source graph before even a missing-plan result can return. Both known and missing saved reads reject a closed Source.",
+    "Actual alias fixture injection retains caller values, checks Source lifetime and supplies explicit restoration. MemoryState staging/publishing retains the new actual map.",
+    "Shared current Source saved-plan/history fixtures and explicit Memory/SQL proof prerequisites expect the current empty catalogue roster. Separate historical SQL schema/decoder fixtures and every stored input/schedule byte/hash are unchanged."
+  ],
+  "firstRed": {
+    "epoch": "current-saved-identity-first-red-v1",
+    "tests": 1,
+    "fail": 1,
+    "assertions": 10,
+    "oracle": "Actual current Memory Source reports pre_catalogue after unchanged schema11 body/hash prerequisites."
+  },
+  "closedFirstRed": {
+    "epoch": "current-saved-identity-closed-first-red-v1",
+    "tests": 2,
+    "fail": 2,
+    "oracle": "Both known and missing reads resolve after actual Source closure."
+  },
+  "final": {
+    "regression": {
+      "tests": 291,
+      "pass": 291,
+      "fail": 0,
+      "assertions": 15755,
+      "files": 12
+    },
+    "sqlHistory": {
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "assertions": 1117,
+      "scope": "Task6.5 history, Task6.1/6.2 complete cases and fault owners, plus prewrite/incomplete saved-plan proofs"
+    },
+    "memoryIdentityTests": 16,
+    "compilerRoots": ["store-memory", "store-sqlite"],
+    "lintFiles": 10,
+    "formatFiles": 10
+  },
+  "effects": {
+    "final": {
+      "pin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-final-effects-v1.json",
+        "sha256": "b7a85c161ca50d2b2f48729c2a7e163735fe8c9bc2a85d223ec9774c174950ac",
+        "bytes": 27057,
+        "mode": 384
+      },
+      "effects": [
+        {
+          "name": "package-attribution",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "  if (\n    !workPackages.workPackages.has(workPackageId) ||\n    typeof organizationId !== 'string' ||\n    organizationId === '' ||\n    !directory.measureDefinitions.organizations.has(organizationId)\n  )\n    throw new Error('saved step identity package attribution is inconsistent');",
+          "after": "  // Injected admission omission.",
+          "pattern": "refuses missing package attribution",
+          "markers": ["1 fail", "toBeInstanceOf"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "34a203b559fb5fb3b25618f67a82973711707a9c05f340afd3d703658a959163",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "refuses missing package attribution",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:23.480Z",
+            "endedAt": "2026-11-19T14:59:26.680Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-package-attribution-v1.log",
+              "sha256": "54e2fd89f13aa47b7d7e4411bafede3223be4291b676f1fddc8209ea1fa5d4db",
+              "bytes": 879
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-consistency",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    if (\n      survivor === undefined ||\n      survivor.id !== stepId ||\n      survivor.organizationId !== organizationId ||\n      typeof oldStepId !== 'string' ||\n      typeof stepId !== 'string' ||\n      oldStepId !== key ||\n      oldStepId === stepId ||\n      typeof mergedAt !== 'number' ||\n      !Number.isSafeInteger(mergedAt) ||\n      stepCatalogue.definitions.has(oldStepId) ||\n      stepCatalogue.identityHistory.has(stepId)\n    )\n      throw new Error('saved step identity history is inconsistent');",
+          "after": "    // Injected history consistency omission.",
+          "pattern": "refuses actual alias corruption|refuses an actual alias chain",
+          "markers": ["6 fail", "toBeInstanceOf"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "b29365b76d3219a7f4d5410add8151ee2acde621f50a03ec65b932ea0e571240",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "refuses actual alias corruption|refuses an actual alias chain",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:26.681Z",
+            "endedAt": "2026-11-19T14:59:29.514Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-consistency-v1.log",
+              "sha256": "c9505ecefeb993efaa214d50a52f03255c55e8ab8af57dd6468fdffc7c794f33",
+              "bytes": 4478
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "foreign-exclusion",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    if (\n      survivor?.id === alias.stepId &&\n      typeof survivorOrganizationId === 'string' &&\n      survivorOrganizationId !== organizationId &&\n      directory.measureDefinitions.organizations.has(survivorOrganizationId) &&\n      included?.has(alias.stepId) !== true\n    )\n      continue;",
+          "after": "    // Injected foreign exclusion omission.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "saved step identity history is inconsistent"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "51f169d6c78cdd190c78686d796e5c1c5d538726bb2393a1e7896cf14064fccf",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:29.515Z",
+            "endedAt": "2026-11-19T14:59:32.291Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-exclusion-v1.log",
+              "sha256": "58e01d3c73d83a7cdad86318f89734bf6d9fcee0077976c36215d371e2e64941",
+              "bytes": 1150
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-order",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "  aliases.sort((left, right) =>\n    left.oldStepId < right.oldStepId ? -1 : left.oldStepId > right.oldStepId ? 1 : 0,\n  );",
+          "after": "  // Injected alias ordering omission.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "z-old-dev", "A-old-dev"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "29d5706f2caca99046188feb4c18120ce10273e9f71c97f07da99cbe9e8ce4a7",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:32.291Z",
+            "endedAt": "2026-11-19T14:59:34.910Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-order-v1.log",
+              "sha256": "7e843560fed4f0ca7f281c4fc27b3af9c88bf75360e7785ab755152965fac7ae",
+              "bytes": 1153
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-projection",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    aliases.push({ oldStepId, stepId });",
+          "after": "    // Injected actual alias projection omission.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "aliases"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "bf562b4b0e50140c650f34e58bad3012ae59f21e8819c14542b30caf1e1f815c",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:34.911Z",
+            "endedAt": "2026-11-19T14:59:37.555Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-projection-v1.log",
+              "sha256": "d10e34598f5e27900886315c98edbd3a309f7a3f323bb1cfda9266ec46a9c6d8",
+              "bytes": 1105
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-publication",
+          "file": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "before": "    replaceMap(\n      this.tables.stepCatalogue.identityHistory,\n      next.tables.stepCatalogue.identityHistory,\n    );",
+          "after": "    // Injected staged alias publication omission.",
+          "pattern": "identity history is detached by staging",
+          "markers": ["1 fail", "identity-second", "old-qa"],
+          "healthySha256": "cb0d7e4a2b632cd1716097b0e9c666d682a1d8cb16e823006f73d2972e5e4790",
+          "faultSha256": "221d28e9d718bc781a5c9de3416266184462fa7a8794fad6813d1e96a5424a26",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "identity history is detached by staging",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:37.556Z",
+            "endedAt": "2026-11-19T14:59:40.141Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-alias-publication-v1.log",
+              "sha256": "108db7c895d08553cf1c5cd73de0b9e51957f6e181b9da10225b3638e10491bd",
+              "bytes": 1119
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "fixture-retention",
+          "file": "libs/wbs/adapters/store-memory/src/source.ts",
+          "before": "      const retained = { ...alias };",
+          "after": "      const retained = alias;",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "saved step identity history is inconsistent"],
+          "healthySha256": "fb73ff5b516d1ae203e0080bdc049278f8820188707362fa32a73e1ffd62f7c4",
+          "faultSha256": "2c41960e29d9e79797151b82914fff0ccc896630ec2badb10e538b27d64ee7a8",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:40.141Z",
+            "endedAt": "2026-11-19T14:59:42.703Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-retention-v1.log",
+              "sha256": "71b7deb616971d68a3f19b6513980ac93a995d63f37c090c6902e337bd5dde7f",
+              "bytes": 1150
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "fixture-closure",
+          "file": "libs/wbs/adapters/store-memory/src/source.ts",
+          "before": "    if (closed) throw new Error('memory source is closed');",
+          "after": "    if (false) throw new Error('memory source is closed');",
+          "pattern": "alias fixture rejects",
+          "markers": ["2 fail", "toThrow"],
+          "healthySha256": "fb73ff5b516d1ae203e0080bdc049278f8820188707362fa32a73e1ffd62f7c4",
+          "faultSha256": "179e8a2d67d684e1380c6837aa0207fee7beb0a40ea49eba9a3b300b098c17fd",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "alias fixture rejects",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:42.704Z",
+            "endedAt": "2026-11-19T14:59:45.326Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-fixture-closure-v1.log",
+              "sha256": "edf19aa390131d197a8a62d6aaa00b2a597e2b23568f7e18d04e96baa76c25a4",
+              "bytes": 1481
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "saved-read-closure",
+          "file": "libs/wbs/adapters/store-memory/src/source.ts",
+          "before": "    if (closed) throw new Error('memory source is closed');",
+          "after": "    if (false) throw new Error('memory source is closed');",
+          "pattern": "saved read rejects a closed Source",
+          "markers": ["2 fail", "toBeInstanceOf"],
+          "healthySha256": "fb73ff5b516d1ae203e0080bdc049278f8820188707362fa32a73e1ffd62f7c4",
+          "faultSha256": "179e8a2d67d684e1380c6837aa0207fee7beb0a40ea49eba9a3b300b098c17fd",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "saved read rejects a closed Source",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:45.326Z",
+            "endedAt": "2026-11-19T14:59:47.912Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-saved-read-closure-v1.log",
+              "sha256": "bc20ef72c7bdc617a55f355b913e64316d1eed1b65ac7fb5a81918f11856a2e2",
+              "bytes": 1499
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "foreign-inclusion",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "included?.has(alias.stepId) !== true",
+          "after": "true",
+          "pattern": "saved read refuses captured foreign-value",
+          "markers": ["1 fail", "toBeInstanceOf"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "f1db8bc319e6b4c1b376ca22619ce6fb328219dd318e7c4ab09f8d782c86b50c",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "saved read refuses captured foreign-value",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:47.912Z",
+            "endedAt": "2026-11-19T14:59:50.687Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-inclusion-v1.log",
+              "sha256": "ea53bd08721725f30e7ccc2bedcacf971cdcc0699ed21c1263d8f2abe2cf653e",
+              "bytes": 862
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "foreign-organization",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "directory.measureDefinitions.organizations.has(survivorOrganizationId)",
+          "after": "true",
+          "pattern": "saved read refuses captured foreign-organization",
+          "markers": ["1 fail", "toBeInstanceOf"],
+          "healthySha256": "fcd316f1e666e956b04f1f3fbc89f68d68b9d2efa45da1023aedaa09c0fb4b0c",
+          "faultSha256": "bfc3aa206b97a37f1744dd9e439eb122f0f857282c1383a4722b57237fcb4cb1",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "saved read refuses captured foreign-organization",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:59:50.687Z",
+            "endedAt": "2026-11-19T14:59:53.359Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-final-effect-foreign-organization-v1.log",
+              "sha256": "873cf9a061d8dd4221f149b94af54a8e405713a7657080e576d717f373cd5b47",
+              "bytes": 869
+            },
+            "settled": true
+          }
+        }
+      ]
+    },
+    "prior": {
+      "pin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-effects-v1.json",
+        "sha256": "402a6a9463f33495a47cf7ae1a9548f2d31c3c6122e4d5e04dc88a244f1da488",
+        "bytes": 19799,
+        "mode": 384
+      },
+      "effects": [
+        {
+          "name": "package-attribution",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "  if (!workPackages.workPackages.has(workPackageId) || typeof organizationId !== 'string' ||\n      organizationId === '' || !directory.measureDefinitions.organizations.has(organizationId))\n    throw new Error('saved step identity package attribution is inconsistent');",
+          "after": "  // Injected omission: accept missing attribution.",
+          "pattern": "refuses missing package attribution",
+          "markers": ["1 fail", "rejects"],
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "24612682f5870bd2bab1f03fc484dad1887950bc5181c23293692a488565390d",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "refuses missing package attribution",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:49:54.590Z",
+            "endedAt": "2026-11-19T14:49:57.194Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-package-attribution-v1.log",
+              "sha256": "e972a9859eb39110bbb715b2b5e8f5336595d66d79a74ce63a749889263dfe52",
+              "bytes": 1276
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-consistency",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    if (survivor === undefined || survivor.id !== stepId || survivor.organizationId !== organizationId ||\n        typeof oldStepId !== 'string' || typeof stepId !== 'string' || oldStepId !== key ||\n        oldStepId === stepId || typeof mergedAt !== 'number' || !Number.isSafeInteger(mergedAt) ||\n        stepCatalogue.definitions.has(oldStepId) || stepCatalogue.identityHistory.has(stepId))\n      throw new Error('saved step identity history is inconsistent');",
+          "after": "    // Injected omission: accept inconsistent actual aliases.",
+          "pattern": "refuses actual alias corruption|refuses an actual alias chain",
+          "markers": ["6 fail", "rejects"],
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "62649141d5c9bb8cfdaf14b65c71282750de10d13c888b4065575b022dd1da89",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "refuses actual alias corruption|refuses an actual alias chain",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:49:57.195Z",
+            "endedAt": "2026-11-19T14:49:59.810Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-consistency-v1.log",
+              "sha256": "f64394e70145cfcd3c54ec0c4e7765baa20d3200e4586017547e0a747a85ba05",
+              "bytes": 6933
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "foreign-exclusion",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    if (survivor !== undefined && survivor.id === alias.stepId &&\n        survivor.organizationId !== organizationId &&\n        directory.measureDefinitions.organizations.has(survivor.organizationId) &&\n        included?.has(alias.stepId) !== true) continue;",
+          "after": "    // Injected omission: decode foreign metadata.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "saved step identity history is inconsistent"],
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "a7f270647e0e6965e03613195e0e291ecffd61aabc1f9110cd686729dc3d8821",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:49:59.811Z",
+            "endedAt": "2026-11-19T14:50:02.400Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-exclusion-v1.log",
+              "sha256": "9580af36c183524640b24551da0c260ab47a7c3229f898b169ea3d05d20508a1",
+              "bytes": 1474
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-order",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "  aliases.sort((left, right) => left.oldStepId < right.oldStepId ? -1 : left.oldStepId > right.oldStepId ? 1 : 0);",
+          "after": "  // Injected omission: preserve insertion order.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "z-old-dev", "A-old-dev"],
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "d35e34503c21d8b007d3686ab785873399069104aa7b7112637a72a83c2fb30c",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:50:02.401Z",
+            "endedAt": "2026-11-19T14:50:05.019Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-order-v1.log",
+              "sha256": "6947e3728f61febf674288c4e24497a1615c21a8359e0b8c28ac98d379db67cd",
+              "bytes": 1448
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-projection",
+          "file": "libs/wbs/adapters/store-memory/src/step-identity.ts",
+          "before": "    aliases.push({ oldStepId, stepId });",
+          "after": "    // Injected omission: drop actual identity rows.",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "aliases"],
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "30a4b9254675d873064fcad0b9dec86b8a16774d428d04b2ed8e6b541b303c17",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:50:05.019Z",
+            "endedAt": "2026-11-19T14:50:07.620Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-projection-v1.log",
+              "sha256": "73983443f0e8592878a453d0980a0a49ed28ad3d9e1a2c8a5b4b5b2a760ccd53",
+              "bytes": 1400
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "alias-publication",
+          "file": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "before": "    replaceMap(this.tables.stepCatalogue.identityHistory, next.tables.stepCatalogue.identityHistory);",
+          "after": "    // Injected omission: do not publish staged alias rows.",
+          "pattern": "identity history is detached by staging",
+          "markers": ["1 fail", "identity-second", "old-qa"],
+          "healthySha256": "1735a8d69986e683574a7708ed18cc27a274f42d36ed724ac75ccb814921771f",
+          "faultSha256": "9f91dad1d5e5cc010e87ff122258d9ce43868ede48a09800bb8c7a0967147158",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "identity history is detached by staging",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:50:07.620Z",
+            "endedAt": "2026-11-19T14:50:10.175Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-alias-publication-v1.log",
+              "sha256": "c2764184d83a9d080ff2cd31552857028300baa0176e02fd78c8fde2ed126471",
+              "bytes": 1428
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "fixture-retention",
+          "file": "libs/wbs/adapters/store-memory/src/source.ts",
+          "before": "      const retained = { ...alias };",
+          "after": "      const retained = alias;",
+          "pattern": "aliases are scoped, ordered",
+          "markers": ["1 fail", "saved step identity history is inconsistent"],
+          "healthySha256": "625a130dbb38363c6ee1646541edecd700eb1e1927097c215be890d565032511",
+          "faultSha256": "56586a61f5d72bf62481048f318ef23a112b7c21fd51e844f6ad186e31b1175e",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "aliases are scoped, ordered",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:50:10.175Z",
+            "endedAt": "2026-11-19T14:50:12.763Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-retention-v1.log",
+              "sha256": "12301102772c1a483ed06446cb6a8134f921dad6468bafaf1d969bae1fa52bc5",
+              "bytes": 1474
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "fixture-closure",
+          "file": "libs/wbs/adapters/store-memory/src/source.ts",
+          "before": "    if (closed) throw new Error('memory source is closed');",
+          "after": "    if (false) throw new Error('memory source is closed');",
+          "pattern": "alias fixture rejects",
+          "markers": ["2 fail", "toThrow"],
+          "healthySha256": "625a130dbb38363c6ee1646541edecd700eb1e1927097c215be890d565032511",
+          "faultSha256": "58b73e663b199697e80f39cf0ec69bb9e736c30c9fc80dc69749c703f85274be",
+          "restored": true,
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "alias fixture rejects",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:50:12.764Z",
+            "endedAt": "2026-11-19T14:50:15.394Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-fixture-closure-v1.log",
+              "sha256": "2a95ca585ed2d7c9af46593dd4d0e9104a874cc96bcababec5ca4d2050e9e683",
+              "bytes": 1908
+            },
+            "settled": true
+          }
+        }
+      ]
+    },
+    "priorForeign": {
+      "pin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-foreign-effects-v1.json",
+        "sha256": "65be1df91c428b35ebc3bacf07006628afab332a220f85e1c957e01f6eb769e5",
+        "bytes": 4364,
+        "mode": 384
+      },
+      "effects": [
+        {
+          "name": "foreign-inclusion",
+          "before": "included?.has(alias.stepId) !== true",
+          "pattern": "saved read refuses captured foreign-value",
+          "restored": true,
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "f18b1bf3fe2c7b8ec37c245bac492971ea576a4f08521348b4241a2e265f3b3a",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "saved read refuses captured foreign-value",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:53:26.590Z",
+            "endedAt": "2026-11-19T14:53:29.237Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-inclusion-v1.log",
+              "sha256": "19421112c7036a4ad41f5f6468e7fa71824cef488cd03ba86e3a2a158c46745b",
+              "bytes": 1104
+            },
+            "settled": true
+          }
+        },
+        {
+          "name": "foreign-organization",
+          "before": "directory.measureDefinitions.organizations.has(survivor.organizationId)",
+          "pattern": "saved read refuses captured foreign-organization",
+          "restored": true,
+          "healthySha256": "1d1db88972971b1ca0eac71df7e34b7df66d3f3d81f2b499e914734162930fb0",
+          "faultSha256": "f8ceff7ababaaa83dbbf14814a717cf97d3b69142e140198099c0c87b453624e",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+                "-t",
+                "saved read refuses captured foreign-organization",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-combined-proposal-v1/tree",
+              "deadlineMs": 60000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-19T14:53:29.237Z",
+            "endedAt": "2026-11-19T14:53:31.789Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-foreign-organization-v1.log",
+              "sha256": "016f38931547dff7f9f2d58aef34a4c9dce0ef4f6bb8fffae9e37c4c52fa6731",
+              "bytes": 1111
+            },
+            "settled": true
+          }
+        }
+      ]
+    },
+    "priorClosure": {
+      "pin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-saved-identity-close-effect-v1.json",
+        "sha256": "9c34794b716f0311128ece518d2924d4c15eb360aeece89147b579221eb1f861",
+        "bytes": 1845,
+        "mode": 384
+      },
+      "effect": "shared Source closure dependency through known and missing saved reads",
+      "healthySha256": "3bdde0b1032bc722b452e2019046b6281ad548d8f512d30cd5e9ba9d96321d2a",
+      "faultSha256": "bded2e3358178c61003fdbc55d6b3ecc27cfb6bca116d4c5726b110ca80bbbfa",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+            "-t",
+            "saved read rejects a closed Source",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:51:47.264Z",
+        "endedAt": "2026-11-19T14:51:49.921Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-identity-effect-saved-read-closure-v1.log",
+          "sha256": "5c01a993c86e6840081d45338b0afc785a98961371a274a2cbd0e477057f092f",
+          "bytes": 2197
+        },
+        "settled": true
+      }
+    }
+  },
+  "proofLimits": [
+    "All11final effects run on the corrected formatted reader and explicitly awaited rejection helper; all restore exact bytes before the291test after-control. They cover whole package admission, whole alias consistency, coherent foreign exclusion, binary order, projection, actual MemoryState publication, offered-object retention, shared Source closure through fixture helpers and saved reads, and the two separate foreign-integrity terms.",
+    "Whole consistency omission loses six real Source refusals; individual scalar/key/identity decoder conjuncts are not independently certified. Publication is an actual MemoryState owner, not a separate public alias writer.",
+    "Foreign integrity controls alter only complete genuine Source clone evidence: one adds the actual foreign explicit record to the selected package, the other removes the actual foreign organization. The current Source factory/read remains the first owner; committed originals are restored/unchanged.",
+    "Final Source evidence transport is covered. No complete SC13 journal/event/cache/replay/import/activation, body verification, alias migration or API comparison end-to-end claim follows from these raw store tests alone."
+  ],
+  "corrections": [
+    "The first compiler found a widened test discriminator and a missing identityHistory field in the package materialization candidate. Both are corrected; both final adapter roots pass in one serial invocation.",
+    "The first broad memory125-test cohort124/1 across2files and selected SQL history5/1 exposed old signed quota-rival diagnostic metadata; the full record expectation now retains its complete fields with current aliases and the actual workPackageId order.",
+    "The first lint found three preexisting optional-patch ternaries, a foreign-survivor optional-chain style, a no-await callback and awaits of void-typed Bun rejection matchers. Validated patch fields use equivalent nullish expressions, the reader retains explicit optional organization qualification, the no-op UoW returns Promise.resolve, and a helper awaits the actual promise settlement then checks Error/message. Final lint passes all10files.",
+    "A later compiler found a raw PackageStepRecord stepId typed unknown in a corruption prerequisite; the test uses the exact known foreign key it actually selected. Fresh final roots pass.",
+    "The initial291test regression290/1 exposed a saved-plan mutation fixture with no actual owning package. It now seeds the real project/organization/package, independently checks that parent and closes through finally. Final291/0 is the authoritative successor.",
+    "The single parent-after owner overlapped the initial package-admission mutation flight and is excluded as an independent final baseline. Final291/0 runs only after all11mutants are exactly restored."
+  ],
+  "remaining": [
+    "Full SQLite Source83/31/17263 remains its previous epoch. Do not subtract targeted successes or infer a full all-case certificate; aggregate120s certification and other DTO/cleanup/fact/event observer failures remain.",
+    "Additional selected malformed ownership/alias scalar/key/identity boundaries and every historical surface/lifetime/queue/concurrency obligation must still meet its actual production-path proofs; current raw store parity is not all SC13 completion.",
+    "Known-package current budget/definition corrupt-parent guards, full API/UI/import/scheduler/SC17/SC22/SC25 scope, complete client-script Bun/PUNI embedding, installed profile/Nx/assets, Astra and exact committed host gates remain open. All original nine requirements stay active."
+  ]
+}

@@ -9,7 +9,7 @@ import {
 } from './index';
 
 const CALLER_ID = 'a'.repeat(64);
-const PROJECT_ID = '018f3f08-2ef7-7d1c-b645-14f877575d65';
+const WORK_PACKAGE_ID = '018f3f08-2ef7-7d1c-b645-14f877575d65';
 const ATTEMPT_TOKEN = '018f3f08-2ef7-7d1c-b645-14f877575d66';
 
 function frame(overrides: Partial<SupervisorStartFrame> = {}): SupervisorStartFrame {
@@ -17,7 +17,7 @@ function frame(overrides: Partial<SupervisorStartFrame> = {}): SupervisorStartFr
     type: 'start',
     protocolVersion: SUPERVISOR_PROTOCOL_VERSION,
     callerId: CALLER_ID,
-    projectId: PROJECT_ID,
+    workPackageId: WORK_PACKAGE_ID,
     objective: 'pri',
     attemptToken: ATTEMPT_TOKEN,
     childDeadlineAt: 20_000,
@@ -93,7 +93,7 @@ describe('decodeSupervisorStartFrame', () => {
     expect(() => decode(frame({ callerId: CALLER_ID.slice(0, 11) }))).toThrow(/callerId/);
     expect(() => decode(frame({ callerId: CALLER_ID.slice(0, 13) }))).toThrow(/callerId/);
     expect(() => decode(frame({ callerId: '../docker.sock' }))).toThrow(/callerId/);
-    expect(() => decode(frame({ projectId: 'project one' }))).toThrow(/projectId/);
+    expect(() => decode(frame({ workPackageId: 'work package one' }))).toThrow(/workPackageId/);
     expect(() => decode(frame({ attemptToken: 'guessable' }))).toThrow(/attemptToken/);
     expect(() => decode(frame({ childDeadlineAt: 10_000 }))).toThrow(/deadline/);
   });

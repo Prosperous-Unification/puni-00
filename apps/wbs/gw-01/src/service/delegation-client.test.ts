@@ -14,8 +14,8 @@ it('presents service and bearer credentials without cookies', async () => {
       return Promise.resolve(new Response(null, { status: 204 }));
     },
   });
-  await client.checkProject('project-1', 'signed-token');
-  expect(destination).toBe('http://be.test/internal/gateway/projects/project-1/access');
+  await client.checkWorkPackage('work-package-1', 'signed-token');
+  expect(destination).toBe('http://be.test/internal/gateway/work-packages/work-package-1/access');
   expect(sent?.headers).toEqual({
     'x-internal-auth': 'service-secret',
     authorization: 'Bearer signed-token',
@@ -30,7 +30,7 @@ it('refuses a success-shaped body on any status other than 204', async () => {
   });
   let failure: unknown;
   try {
-    await client.checkProject('project-1', 'signed-token');
+    await client.checkWorkPackage('work-package-1', 'signed-token');
   } catch (caught) {
     failure = caught;
   }

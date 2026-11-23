@@ -18,6 +18,7 @@ import {
 import { arch, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 
@@ -133,6 +134,10 @@ if (insideOpsNamespace(import.meta.path)) {
       telemetry: linuxScopeTelemetry(),
       host: ampleHost,
       user: 'puni1',
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: () => privateLegacyLock(join(cwd, '..')),
       connect: () => {
         throw new Error('no WBS call expected');
@@ -196,6 +201,10 @@ if (insideOpsNamespace(import.meta.path)) {
       settleBudgetMs: 20_000,
       user: 'puni1',
       // Beside the checkout, in the pool fixture's own directory: one shell lock per pool.
+      helperPrefix: createLaunch(
+        process.execPath,
+        new URL('../entrypoint.ts', import.meta.url).pathname,
+      ),
       legacyLock: privateLegacyLock(join(cwd, '..')),
       ...overrides,
     };
@@ -209,6 +218,73 @@ if (insideOpsNamespace(import.meta.path)) {
   ): JobRunRequest {
     return { config, type, label, waitSeconds: 0, pollSeconds: 1, argv };
   }
+
+  test('native payload preserves the exact supplied unusual environment names before private transport', async () => {
+    const fixture = pool();
+    const capture = join(fixture.base, 'selected-environment.json');
+    const environment = Object.fromEntries([
+      ...Object.entries(fake.environment),
+      ['__proto__', 'caller-proto'],
+      ['constructor', 'caller-constructor'],
+      ['PWD', ''],
+      ['SHLVL', 'caller-level'],
+      ['_', 'caller-underscore'],
+    ]);
+    const payload = join(fixture.base, 'environment-payload.mjs');
+    writeFileSync(
+      payload,
+      '#!' +
+        process.execPath +
+        '\nawait Bun.write(' +
+        JSON.stringify(capture) +
+        ', JSON.stringify(Object.fromEntries(["__proto__", "constructor", "PWD", "SHLVL", "_"].map(key => [key,process.env[key] ?? null]))));\n',
+      { mode: 0o755 },
+    );
+    const code = await runHostJob(
+      request(fixture.config, 'test-queued', [payload]),
+      runDependencies(fixture.checkout, [], { environment }),
+    );
+    expect(code).toBe(0);
+    expect(JSON.parse(readFileSync(capture, 'utf8'))).toEqual(
+      Object.fromEntries([
+        ['__proto__', 'caller-proto'],
+        ['constructor', 'caller-constructor'],
+        ['PWD', ''],
+        ['SHLVL', 'caller-level'],
+        ['_', 'caller-underscore'],
+      ]),
+    );
+  });
+
+  for (const mode of ['missing', 'partial', 'duplicate', 'leading-zero', 'range', 'contradict'])
+    test(
+      'refuses unqualified private payload status ' + mode + ' without leader fallback',
+      async () => {
+        const fixture = pool();
+        const payload = join(fixture.base, 'status-payload.mjs');
+        writeFileSync(payload, '#!' + process.execPath + '\nprocess.exitCode = 3;\n', {
+          mode: 0o755,
+        });
+        const refusal = await runHostJob(
+          request(fixture.config, 'test-queued', [payload]),
+          runDependencies(fixture.checkout, [], {
+            helperPrefix: [
+              ...createLaunch(
+                process.execPath,
+                new URL('./testing/gated-status.test.fixture.ts', import.meta.url).pathname,
+              ),
+              mode,
+            ],
+          }),
+        ).then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+        expect(refusal).toBeInstanceOf(OpsRefusal);
+        if (!(refusal instanceof OpsRefusal)) throw new Error('missing protocol refusal');
+        expect(refusal.exitCode).toBe(70);
+      },
+    );
 
   async function refusal(promise: Promise<number>): Promise<OpsRefusal> {
     try {
@@ -811,6 +887,10 @@ if (insideOpsNamespace(import.meta.path)) {
           expect(code).toBe(3);
           expect(record.exitCode).toBe(3);
           expect(record.telemetryFailure).toContain('torn down before the exit sample');
+          expect(record.telemetryFailure).toContain(
+            'private helper ended by SIGKILL after qualified payload status',
+          );
+          expect(record.attributionIncomplete).toBe(true);
           expect(record.samples.at(-1)).toMatchObject({ kind: 'exit', counters: null });
           expect(report.some((line) => line.includes('telemetry failure recorded'))).toBe(true);
         },
@@ -963,20 +1043,18 @@ if (insideOpsNamespace(import.meta.path)) {
 
     test('refuses 70 when the launch identity cannot be recorded', async () => {
       const { config, checkout, root } = pool();
-      // Read once the job's tmp directory exists, which is after preparation and before the
-      // spawn: the managed root is opened to others, so recording the launch is refused.
-      const environment: Record<string, string | undefined> = { ...fake.environment };
-      Object.defineProperty(environment, 'DASH_TEST_TRIGGER', {
-        enumerable: true,
-        get: () => {
+      // The startup deadline is captured after preparation. Change the trusted root there;
+      // caller environment values are now deliberately captured before admission waits.
+      const openingClock = {
+        now: () => {
           if (readdirSync(root).some((entry) => entry !== '.dash')) chmodSync(root, 0o755);
-          return 'set';
+          return monotonic.now();
         },
-      });
+      };
       const refused = await refusal(
         runHostJob(
           request(config, 'test-queued', ['true']),
-          runDependencies(checkout, [], { environment }),
+          runDependencies(checkout, [], { monotonic: openingClock }),
         ),
       );
       chmodSync(root, 0o700);
@@ -1615,7 +1693,7 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(
         report.some((line) =>
           line.endsWith(
-            `outlived SIGTERM by 1000 ms; SIGKILL to every process of dash-job-${record.jobId}.scope`,
+            'outlived SIGTERM by 1000 ms; SIGKILL to its owned payload; scope descendants after keeper retirement',
           ),
         ),
       ).toBe(true);
@@ -1715,7 +1793,7 @@ if (insideOpsNamespace(import.meta.path)) {
       const marker = join(base, 'started');
       const payload = payloadScript(
         join(base, 'stubborn.sh'),
-        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+        `trap '' TERM\ntouch ${marker}\nexec sleep 20`,
       );
       const bin = fakeBin('exec');
       rmSync(join(bin, 'systemctl'));
@@ -1766,19 +1844,23 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       expect(
         report.some((line) =>
-          line.startsWith(
-            `ops job: SIGKILL to ${scope} failed: systemctl is not on PATH; SIGKILL to session `,
+          line.endsWith(
+            'outlived SIGTERM by 1000 ms; SIGKILL to its owned payload; scope descendants after keeper retirement',
           ),
         ),
       ).toBe(true);
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 0,
+        endedWith: 'none',
+      });
     }, 60000);
 
-    test('a failed scope kill is reported and the session SIGKILLed instead', async () => {
+    test('a failing systemctl still ends its owned payload and releases a clean scope', async () => {
       const { config, checkout, base, root } = pool();
       const marker = join(base, 'started');
       const payload = payloadScript(
         join(base, 'stubborn.sh'),
-        `trap '' TERM\ntouch ${marker}\nsleep 20\nexit 0`,
+        `trap '' TERM\ntouch ${marker}\nexec sleep 20`,
       );
       const refusing = fakeSystemctl(join(base, 'refusing-bin'), 'fails');
       const report: string[] = [];
@@ -1795,8 +1877,7 @@ if (insideOpsNamespace(import.meta.path)) {
           settleBudgetMs: 1000,
         }),
       );
-      // Proof: dropping the fallback `killSession(pid, 'SIGKILL')` in `endPayload` made the payload
-      // run its full 20 s: the elapsed check failed (2026-11-18).
+      // The retained native payload is stubborn, with no escaped descendant to clean up.
       expect(monotonic.now() - started).toBeLessThan(15_000);
       expect(code).toBe(124);
       const job = onlyJob(config);
@@ -1809,11 +1890,72 @@ if (insideOpsNamespace(import.meta.path)) {
       );
       expect(
         report.some((line) =>
-          line.startsWith(
-            `ops job: SIGKILL to ${scope} failed: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}; SIGKILL to session `,
+          line.endsWith(
+            'outlived SIGTERM by 1000 ms; SIGKILL to its owned payload; scope descendants after keeper retirement',
           ),
         ),
       ).toBe(true);
+      expect(runRecord(root, job.id).leftoverProcesses).toMatchObject({
+        count: 0,
+        endedWith: 'none',
+      });
+    }, 60000);
+
+    test('a failed post-keeper scope kill keeps an actual escaped descendant charged', async () => {
+      const { config, checkout, base, root } = pool();
+      const marker = join(base, 'started');
+      const childPid = join(base, 'escaped-child');
+      const payload = payloadScript(
+        join(base, 'stubborn-with-escape.sh'),
+        [
+          "trap '' TERM",
+          `setsid sh -c 'trap "" TERM; exec 9>"$TMPDIR/escaped-held"; echo $$ > ${childPid}; exec sleep 30' &`,
+          `while [ ! -s ${childPid} ]; do sleep 0.05; done`,
+          `touch ${marker}`,
+          'exec sleep 20',
+        ].join('\n'),
+      );
+      cleanups.push(() => {
+        if (existsSync(childPid)) spawn('kill', ['-KILL', readFileSync(childPid, 'utf8').trim()]);
+      });
+      const refusing = fakeSystemctl(join(base, 'refusing-bin'), 'fails');
+      const report: string[] = [];
+      const started = monotonic.now();
+      const code = await runHostJob(
+        request(config, 'bounded', [payload]),
+        runDependencies(checkout, report, {
+          environment: {
+            ...fake.environment,
+            PATH: `${refusing}:${fake.environment['PATH'] ?? ''}`,
+          },
+          monotonic: aheadOnceStarted(marker),
+          sampleIntervalMs: 100,
+          settleBudgetMs: 1000,
+        }),
+      );
+      expect(monotonic.now() - started).toBeLessThan(15_000);
+      expect(code).toBe(124);
+      const job = onlyJob(config);
+      const scope = `dash-job-${job.id}.scope`;
+      const diagnostic = 'Failed to connect to bus: No medium found';
+      const failure = `SIGKILL: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}`;
+      expect(job.state).not.toBe('released');
+      expect(job.tmpDisk.state).toBe('blocked');
+      expect(() => process.kill(Number(readFileSync(childPid, 'utf8').trim()), 0)).not.toThrow();
+      expect(runRecord(root, job.id)).toMatchObject({
+        exitCode: 124,
+        signal: 'SIGKILL',
+        leftoverProcesses: { count: 1, endedWith: 'signal-failed', failure },
+      });
+      expect(report).toContain(
+        `ops job: SIGKILL to what is left of ${scope} failed: systemctl kill --signal=SIGKILL ${scope}: ${diagnostic}`,
+      );
+      expect(report).toContain(
+        `ops job: ${job.id} 1 leftover processes in ${scope} were not signalled: ${failure}; its tmp directory stays charged`,
+      );
+      expect(readFileSync(join(refusing, 'systemctl.log'), 'utf8')).toBe(
+        `--user set-property --runtime ${scope} MemoryHigh=infinity\n--user kill --signal=SIGKILL ${scope}\n`,
+      );
     }, 60000);
 
     test('a failed kill at the runtime bound still records 124 and settles', async () => {

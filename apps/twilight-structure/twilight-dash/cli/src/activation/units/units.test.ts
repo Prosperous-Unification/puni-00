@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { expect, test } from 'bun:test';
 
 import { runDashArguments } from '../../cli';
@@ -261,6 +262,7 @@ test('render-observation-units refuses a malformed grammar before any effect', a
     const written: string[] = [];
     const deps = {
       planEnrollment: () => Promise.reject(new Error('planner must not run')),
+      helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../../entrypoint.ts')),
       clock: { read: () => 0 },
       monotonic: { now: () => 0 },
       stdout: { write: (text: string) => written.push(text) },

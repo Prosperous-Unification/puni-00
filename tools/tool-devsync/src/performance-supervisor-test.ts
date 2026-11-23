@@ -1,6 +1,6 @@
 /** Drains a fixture supervisor's pipe and exit under one deadline. */
 export async function awaitPerformanceSupervisor(
-  supervisor: Bun.Subprocess<'ignore', 'ignore', 'pipe'>,
+  supervisor: Bun.Subprocess<'ignore', 'ignore' | 'inherit', 'pipe'>,
   deadlineMs: number,
 ): Promise<{ exitCode: number; stderr: string }> {
   const reader = supervisor.stderr.getReader();

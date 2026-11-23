@@ -29,24 +29,24 @@ export interface NodeReadingInputs {
   readonly blocked: readonly StepNodeRef[];
 }
 
-/** Canonical readings and their deduplicated roots, keyed by leaf and project step. */
+/** Canonical readings and their deduplicated roots, keyed by leaf and step identity. */
 export interface NodeReadingProjection {
   readonly readings: Map<string, Record<string, NodeReading>>;
   readonly causes: Map<string, Record<string, readonly BlockageRoot[]>>;
 }
 
 /**
- * Every leaf's canonical readings in project step order, including empty maps
- * for stepless leaves. {@link projectNodeReadings} owns the shared traversal.
+ * Every leaf's canonical readings in the graph's own node order, including empty maps
+ * for stepless leaves. {@link workPackageNodeReadings} owns the shared traversal.
  */
 export function nodeReadingsOf(
   inputs: NodeReadingInputs,
 ): Map<string, Record<string, NodeReading>> {
-  return projectNodeReadings(inputs).readings;
+  return workPackageNodeReadings(inputs).readings;
 }
 
 /**
- * Projects canonical node readings and root causes over the complete graph.
+ * Work packages canonical node readings and root causes over the complete graph.
  * All directed FS/SS/FF edges carry informational stoppage, including legacy
  * joins; only workflow/authored predecessors supply the existing waiting rule.
  * A running or done node stops incoming causes. Row proxy status never spreads
@@ -62,7 +62,7 @@ export function nodeReadingsOf(
  * cycle refusal while the plan remains readable. Write-time cycle guards remain
  * in `DependencyGraphGuard`.
  */
-export function projectNodeReadings({
+export function workPackageNodeReadings({
   graph,
   holdOf,
   statusOf,

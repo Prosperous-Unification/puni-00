@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,7 +7,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const USERS = '20260804194845_add_users';
@@ -351,14 +351,35 @@ const WORK_ITEM_SERVICE_TABLES = ['work_item_service'] as const;
 
 const STEP_MEASURE_TABLES = ['step_measure'] as const;
 
-function tempDb(): { path: string; cleanup: () => void } {
+/** Owns the exact pre-rename migration profile that the historical SQL and ledger assertions exercise. */
+function tempDb(): { path: string; migrations: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
-  return {
-    path: join(dir, 'test.db'),
-    cleanup: () => {
+  try {
+    const migrations = join(dir, 'migrations');
+    mkdirSync(migrations);
+    for (const migration of readMigrationFolders(FOLDER).filter(
+      ({ name }) => name < '20261110100000_rename_project_to_work_package',
+    ))
+      cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
+    return {
+      path: join(dir, 'test.db'),
+      migrations,
+      cleanup: () => {
+        rmSync(dir, { recursive: true, force: true });
+      },
+    };
+  } catch (failure) {
+    try {
       rmSync(dir, { recursive: true, force: true });
-    },
-  };
+    } catch (cleanupFailure) {
+      throw new AggregateError(
+        [failure, cleanupFailure],
+        'migration profile setup and cleanup failed',
+        { cause: cleanupFailure },
+      );
+    }
+    throw failure;
+  }
 }
 
 function tables(dbPath: string): string[] {
@@ -377,7 +398,7 @@ describe('the WBS domain migration', () => {
   it('creates the four domain tables', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of [
         ...WBS_TABLES,
         ...DEPENDENCY_TABLES,
@@ -401,9 +422,9 @@ describe('the WBS domain migration', () => {
   it('reverses to the accounts schema without touching it', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
-      const reversed = rollbackTo(db.path, FOLDER, USERS);
+      const reversed = rollbackTo(db.path, db.migrations, USERS);
 
       // Newest first. The three capacity migrations reverse in the opposite
       // order to the one they were applied in, which is the whole of the
@@ -412,6 +433,8 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -553,8 +576,8 @@ describe('the step position migration', () => {
     // the way the previous release wrote them, and migrating forward again.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, JOURNAL);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, JOURNAL);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -573,7 +596,7 @@ describe('the step position migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -604,7 +627,7 @@ describe('the step position migration', () => {
     // one sends over the wire.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -642,7 +665,7 @@ describe('the priority migration', () => {
     // one sends.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -683,8 +706,8 @@ describe('the priority migration', () => {
     // one, and migrate forward again.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, STEP_POSITION);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, STEP_POSITION);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -702,7 +725,7 @@ describe('the priority migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -732,7 +755,7 @@ describe('the capacity migrations', () => {
     // watched 2026-08-12.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -778,8 +801,8 @@ describe('the capacity migrations', () => {
     // wrote one, and migrate forward again.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PRIORITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PRIORITY);
       const before = openDatabase(db.path);
       try {
         before.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
@@ -787,7 +810,7 @@ describe('the capacity migrations', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -809,11 +832,13 @@ describe('the capacity migrations', () => {
     // work item and a team without either column.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
-      const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
+      const reversed = rollbackTo(db.path, db.migrations, PRIORITY);
 
       expect(reversed).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1028,11 +1053,11 @@ describe('the per-project capacity migration', () => {
     // today. Watched 2026-08-13.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, MAX_PARALLEL);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, MAX_PARALLEL);
       outgoingRelease(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(capacities(db.path)).toEqual([
         { project_id: 'p1', service_team_id: 't-backend', size: 1 },
@@ -1065,11 +1090,11 @@ describe('the per-project capacity migration', () => {
     // wrapper.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, MAX_PARALLEL);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, MAX_PARALLEL);
       outgoingRelease(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(capacities(db.path).some((row) => row.service_team_id === 't-ops')).toBe(false);
       // And the global number it came from is still there, unread: the column is
@@ -1104,7 +1129,7 @@ describe('the per-project capacity migration', () => {
     // working against constraints it cannot see.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -1139,7 +1164,7 @@ describe('the per-project capacity migration', () => {
     // re-run of the seeding into a failed statement instead of a doubled table.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -1236,11 +1261,11 @@ describe('the work item team migration', () => {
     // gets nothing, which is what keeps _unstated_ one spelling.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
       outgoingRelease(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(joined(db.path)).toEqual([{ work_item_id: 'w1', team_id: 't-backend' }]);
     } finally {
@@ -1256,11 +1281,11 @@ describe('the work item team migration', () => {
     // set of teams mean something about capacity.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
       outgoingRelease(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -1294,7 +1319,7 @@ describe('the work item team migration', () => {
     // argument, as the per-project capacity table's own case above.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -1342,18 +1367,20 @@ describe('the work item team migration', () => {
     // being true.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
       outgoingRelease(db.path);
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
-      const reversed = rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      const reversed = rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
 
       // `PRIORITY_BANDS`, `PLAN_EVENT` and `ACTUAL` ride along because each is
       // applied after this one and the baseline is older than all four — not this
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1492,8 +1519,8 @@ describe('the priority band migration', () => {
     // the assertion is on the table. Watched 2026-08-14.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -1509,7 +1536,7 @@ describe('the priority band migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -1570,8 +1597,8 @@ describe('the priority band migration', () => {
     // able to run.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -1585,7 +1612,7 @@ describe('the priority band migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -1637,7 +1664,7 @@ describe('the priority band migration', () => {
     // the ladder was never read by the leveller. `down.sql` says so too.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -1660,7 +1687,9 @@ describe('the priority band migration', () => {
       // migration, so a rollback to `PER_PROJECT_CAPACITY` reverses four. Named rather than
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
-      expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, PER_PROJECT_CAPACITY)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -1834,7 +1863,7 @@ describe('the plan event migration', () => {
     // worse than one that seeded none.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       expect(tables(db.path)).toContain('plan_event');
       const sqlite = openDatabase(db.path);
       try {
@@ -1861,7 +1890,7 @@ describe('the plan event migration', () => {
     // it has always been able to run. 23 pass, 2 fail; watched 2026-08-17.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -1908,7 +1937,7 @@ describe('the plan event migration', () => {
     // Watched 2026-08-17.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
       const before = openDatabase(db.path);
       try {
@@ -1976,7 +2005,7 @@ describe('the plan event migration', () => {
     // other end. 22 pass, 3 fail; watched 2026-08-17.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path, true);
 
       const sqlite = openDatabase(db.path);
@@ -2007,7 +2036,7 @@ describe('the plan event migration', () => {
     // undo stack, which lives in `command_journal` and is not touched.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path, true);
       const before = openDatabase(db.path);
       try {
@@ -2019,7 +2048,9 @@ describe('the plan event migration', () => {
         before.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, PRIORITY_BANDS)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -2197,7 +2228,7 @@ describe('the actual migration', () => {
     // the absence rule the whole table rests on, asserted rather than assumed.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       expect(tables(db.path)).toContain('actual');
       const sqlite = openDatabase(db.path);
       try {
@@ -2225,7 +2256,7 @@ describe('the actual migration', () => {
     // 2026-08-17; see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2259,7 +2290,7 @@ describe('the actual migration', () => {
     // 2026-08-17; see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2289,7 +2320,7 @@ describe('the actual migration', () => {
     // screen. A correction replaces; it does not accumulate.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2313,10 +2344,12 @@ describe('the actual migration', () => {
     // is the property that makes this rollback survivable at all.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, PLAN_EVENT)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -2507,7 +2540,7 @@ describe('the step progress migration', () => {
     // has said", never as "nothing has been started".
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       expect(tables(db.path)).toContain('step_progress');
       const sqlite = openDatabase(db.path);
       try {
@@ -2533,7 +2566,7 @@ describe('the step progress migration', () => {
     // real plan that nothing folds. Watched 2026-08-18; see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2566,7 +2599,7 @@ describe('the step progress migration', () => {
     // 2026-08-18; see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2597,7 +2630,7 @@ describe('the step progress migration', () => {
     // silently gone. Watched 2026-08-18; see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2628,7 +2661,7 @@ describe('the step progress migration', () => {
     // accumulate.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -2654,10 +2687,12 @@ describe('the step progress migration', () => {
     // in before this migration.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, ACTUAL)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -2807,7 +2842,7 @@ describe('the not-before reason migration', () => {
     // sentence nobody typed. Watched 2026-08-18.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -2861,7 +2896,7 @@ describe('the not-before reason migration', () => {
     // `UPDATE` with `CHECK constraint failed: work_item`; watched 2026-08-18.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -2915,8 +2950,8 @@ describe('the not-before reason migration', () => {
     // and migrate forward again.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, STEP_PROGRESS);
+      runMigrations(db.path, db.migrations);
+      rollbackTo(db.path, db.migrations, STEP_PROGRESS);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -2934,7 +2969,7 @@ describe('the not-before reason migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -2963,7 +2998,7 @@ describe('the not-before reason migration', () => {
     // every plan on the server is in today.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -2982,7 +3017,9 @@ describe('the not-before reason migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, STEP_PROGRESS)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -3146,7 +3183,7 @@ describe('the tag migration', () => {
     // assertion to do it, and deleting it is the conversation.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of TAG_TABLES) expect(tables(db.path)).toContain(t);
 
       const sqlite = openDatabase(db.path);
@@ -3185,7 +3222,7 @@ describe('the tag migration', () => {
     // verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run("INSERT INTO tag (id, name) VALUES ('g1', 'regulatory')");
@@ -3212,7 +3249,7 @@ describe('the tag migration', () => {
     // 2026-08-19, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
       expect(labelCount(db.path)).toBe(2);
 
@@ -3244,7 +3281,7 @@ describe('the tag migration', () => {
     // Watched 2026-08-19, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -3295,10 +3332,12 @@ describe('the tag migration', () => {
     // 2026-08-19, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, NOT_BEFORE_REASON)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -3410,7 +3449,7 @@ describe('the tag migration', () => {
         after.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of TAG_TABLES) expect(tables(db.path)).toContain(t);
       // Empty rather than restored: the rollback took the labelling and nothing
       // replays it. The tables come back usable, which is what re-applying means.
@@ -3495,7 +3534,7 @@ describe('the service migration', () => {
     // do it, and deleting it is the conversation.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of SERVICE_TABLES) expect(tables(db.path)).toContain(t);
 
       const sqlite = openDatabase(db.path);
@@ -3544,7 +3583,7 @@ describe('the service migration', () => {
     // unreachable in the directory.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
@@ -3570,7 +3609,7 @@ describe('the service migration', () => {
     // migration.sql.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
       expect(serviceOf(db.path, 'w1')).toBe('s1');
 
@@ -3606,7 +3645,7 @@ describe('the service migration', () => {
     // plain `DELETE FROM service_team` must not hit a constraint it cannot see.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
       expect(ownershipCount(db.path)).toBe(1);
 
@@ -3647,7 +3686,7 @@ describe('the service migration', () => {
     // exist, and comes back through the migration the way a real plan would.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -3662,7 +3701,7 @@ describe('the service migration', () => {
         sqlite.close();
       }
 
-      rollbackTo(db.path, FOLDER, TAG);
+      rollbackTo(db.path, db.migrations, TAG);
       const before = openDatabase(db.path);
       try {
         before.run(
@@ -3673,7 +3712,7 @@ describe('the service migration', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const after = openDatabase(db.path);
       try {
@@ -3716,10 +3755,12 @@ describe('the service migration', () => {
     // Watched red: `DROP TABLE IF EXISTS team_service` struck from down.sql.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, TAG)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -3842,7 +3883,7 @@ describe('the service migration', () => {
         after.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of SERVICE_TABLES) expect(tables(db.path)).toContain(t);
       // Empty rather than restored: the rollback took the labelling and the map,
       // and nothing replays them. The tables come back usable, which is what
@@ -3930,9 +3971,11 @@ describe('the work-item-service migration', () => {
    * rollback that quietly reversed one more migration than the caller expected
    * would still land here with a green `runMigrations` after it.
    */
-  function atTheColumnOnly(dbPath: string): void {
-    runMigrations(dbPath, FOLDER);
-    expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+  function atTheColumnOnly(dbPath: string, migrations: string): void {
+    runMigrations(dbPath, migrations);
+    expect(rollbackTo(dbPath, migrations, SERVICE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -4032,10 +4075,10 @@ describe('the work-item-service migration', () => {
     // Watched red: the `INSERT … SELECT` struck from migration.sql.
     const db = tempDb();
     try {
-      atTheColumnOnly(db.path);
+      atTheColumnOnly(db.path, db.migrations);
       seededOnTheColumn(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(labelsOf(db.path, 'w1')).toEqual(['s1']);
       // Absence stays absence. Seeding `w2` with anything would be the migration
@@ -4058,9 +4101,9 @@ describe('the work-item-service migration', () => {
     // conversation.
     const db = tempDb();
     try {
-      atTheColumnOnly(db.path);
+      atTheColumnOnly(db.path, db.migrations);
       seededOnTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4097,9 +4140,9 @@ describe('the work-item-service migration', () => {
     // work_item` must not hit a constraint it cannot see.
     const db = tempDb();
     try {
-      atTheColumnOnly(db.path);
+      atTheColumnOnly(db.path, db.migrations);
       seededOnTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4146,9 +4189,9 @@ describe('the work-item-service migration', () => {
     // Watched red: `DROP TABLE IF EXISTS work_item_service` struck from down.sql.
     const db = tempDb();
     try {
-      atTheColumnOnly(db.path);
+      atTheColumnOnly(db.path, db.migrations);
       seededOnTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run("INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w1', 's2')");
@@ -4156,7 +4199,9 @@ describe('the work-item-service migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, SERVICE)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -4274,7 +4319,7 @@ describe('the work-item-service migration', () => {
         after.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       for (const t of WORK_ITEM_SERVICE_TABLES) expect(tables(db.path)).toContain(t);
       // Re-seeded rather than restored, and the difference is the point: the
       // forward migration reads the column every time it runs, so what comes
@@ -4355,7 +4400,7 @@ describe('the step measure migration', () => {
     // that is the absence rule every later refusal rests on.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       expect(tables(db.path)).toContain('step_measure');
       expect(measureCount(db.path)).toBe(0);
     } finally {
@@ -4373,7 +4418,7 @@ describe('the step measure migration', () => {
     // F1, watched 2026-08-21, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -4410,7 +4455,7 @@ describe('the step measure migration', () => {
     // F2, watched 2026-08-21, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -4441,7 +4486,7 @@ describe('the step measure migration', () => {
     // replaces, it does not accumulate.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -4483,7 +4528,7 @@ describe('the step measure migration', () => {
     // `'nonsense'` sitting in the table. F3, watched 2026-08-21, see verify.md.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -4510,10 +4555,12 @@ describe('the step measure migration', () => {
     // reversal survivable, because it takes away a unit and never a date.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, WORK_ITEM_SERVICE)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -4667,9 +4714,11 @@ describe('the person kind migration', () => {
    * is the point of doing it that way — it is literally the statement the
    * outgoing release runs, so the fixture is also the blue/green premise.
    */
-  function beforeTheColumn(dbPath: string): void {
-    runMigrations(dbPath, FOLDER);
-    expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+  function beforeTheColumn(dbPath: string, migrations: string): void {
+    runMigrations(dbPath, migrations);
+    expect(rollbackTo(dbPath, migrations, STEP_MEASURE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -4805,8 +4854,8 @@ describe('the person kind migration', () => {
     // was written.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeTheColumn(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4848,10 +4897,10 @@ describe('the person kind migration', () => {
     // green suite: nothing else in this file counts these rows across a folder.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
+      beforeTheColumn(db.path, db.migrations);
       expect(counts(db.path)).toEqual({ people: 2, memberships: 2, assignments: 1 });
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(counts(db.path)).toEqual({ people: 2, memberships: 2, assignments: 1 });
     } finally {
@@ -4869,8 +4918,8 @@ describe('the person kind migration', () => {
     // failure worth catching.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeTheColumn(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4894,8 +4943,8 @@ describe('the person kind migration', () => {
     // answers 500 for the length of the swap.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeTheColumn(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4922,8 +4971,8 @@ describe('the person kind migration', () => {
     // verify.md.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeTheColumn(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4955,8 +5004,8 @@ describe('the person kind migration', () => {
     // reversal of this migration and a reversal of the directory itself.
     const db = tempDb();
     try {
-      beforeTheColumn(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeTheColumn(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -4965,7 +5014,9 @@ describe('the person kind migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, STEP_MEASURE)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -5114,7 +5165,7 @@ describe('the role -> step rename', () => {
   it('renames the step table with every reference to it rewritten, on a database built from nothing', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         // Foreign keys really are on, or the insert below proves nothing: an
@@ -5221,8 +5272,10 @@ describe('the step allowance migration', () => {
   it('reads an existing step at no allowance, and lets the outgoing release keep inserting', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+      runMigrations(db.path, db.migrations);
+      expect(rollbackTo(db.path, db.migrations, STEP_CODE)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -5287,7 +5340,7 @@ describe('the step allowance migration', () => {
       ]);
       seededBeforeAllowances(db.path);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(allowanceOf(db.path, 'qa')).toBe(0);
       const sqlite = openDatabase(db.path);
@@ -5314,10 +5367,12 @@ describe('the step allowance migration', () => {
   it('rolls back while every allowance is zero, and re-applies onto the result', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seededBeforeAllowances(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, STEP_CODE)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -5384,7 +5439,7 @@ describe('the step allowance migration', () => {
       expect(stepColumns(db.path)).not.toContain('allowance_revision');
       expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       expect(allowanceOf(db.path, 'qa')).toBe(0);
     } finally {
       db.cleanup();
@@ -5400,7 +5455,7 @@ describe('the step allowance migration', () => {
   it('refuses to roll back while a step carries a nonzero allowance', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seededBeforeAllowances(db.path);
       const sqlite = openDatabase(db.path);
       try {
@@ -5409,7 +5464,7 @@ describe('the step allowance migration', () => {
         sqlite.close();
       }
 
-      expect(() => rollbackTo(db.path, FOLDER, STEP_CODE)).toThrow(
+      expect(() => rollbackTo(db.path, db.migrations, STEP_CODE)).toThrow(
         'CHECK constraint failed: step_allowance_rollback_guard',
       );
       expect(allowanceOf(db.path, 'qa')).toBe(3000);
@@ -5418,4 +5473,24 @@ describe('the step allowance migration', () => {
       db.cleanup();
     }
   });
+});
+
+it('retains the complete historical migration profile and both original script hashes', () => {
+  const db = tempDb();
+  try {
+    const selected = readMigrationFolders(db.migrations),
+      source = readMigrationFolders(FOLDER).filter(
+        ({ name }) => name < '20261110100000_rename_project_to_work_package',
+      );
+    expect(selected).toHaveLength(110);
+    expect(selected.at(-1)?.name).toBe('20261103110000_add_initial_access_offers');
+    expect(
+      selected.some(({ name }) => name >= '20261110100000_rename_project_to_work_package'),
+    ).toBe(false);
+    expect(selected.map(({ name, hash, downHash }) => ({ name, hash, downHash }))).toEqual(
+      source.map(({ name, hash, downHash }) => ({ name, hash, downHash })),
+    );
+  } finally {
+    db.cleanup();
+  }
 });

@@ -60,12 +60,12 @@ function capturedStage(
     ...input,
     order: {
       kind: 'connected' as const,
-      projectIdByWorkItem: new Map([
+      workPackageIdByWorkItem: new Map([
         ['a', 'A'],
         ['b', 'B'],
         ['c', 'C'],
       ]),
-      rankByProject: new Map([
+      rankByWorkPackage: new Map([
         ['A', 0],
         ['B', 1],
         ['C', 2],
@@ -75,13 +75,13 @@ function capturedStage(
   const plan = scheduleResolved(connected);
   return {
     kind: 'connected-stage',
-    projectId: 'B',
+    workPackageId: 'B',
     mode: 'shared',
     originOrdinal: 20000,
-    projects: [
-      { projectId: 'A', rank: 0, anchorOrdinal: 20000 },
-      { projectId: 'B', rank: 1, anchorOrdinal: 20000 },
-      { projectId: 'C', rank: 2, anchorOrdinal: 20000 },
+    workPackages: [
+      { workPackageId: 'A', rank: 0, anchorOrdinal: 20000 },
+      { workPackageId: 'B', rank: 1, anchorOrdinal: 20000 },
+      { workPackageId: 'C', rank: 2, anchorOrdinal: 20000 },
     ],
     input: connected,
     relationships: [],
@@ -128,14 +128,14 @@ function weightedStage(type: RelationshipType): ConnectedOptimizationStage {
     {
       id: 'incoming',
       type,
-      predecessor: { scope: 'node', projectId: 'A', workItemId: 'a', stepId: 'second' },
-      successor: { scope: 'node', projectId: 'B', workItemId: 'b', stepId: 'second' },
+      predecessor: { scope: 'node', workPackageId: 'A', workItemId: 'a', stepId: 'second' },
+      successor: { scope: 'node', workPackageId: 'B', workItemId: 'b', stepId: 'second' },
     },
     {
       id: 'outgoing',
       type,
-      predecessor: { scope: 'node', projectId: 'B', workItemId: 'b', stepId: 'second' },
-      successor: { scope: 'node', projectId: 'C', workItemId: 'c', stepId: 'second' },
+      predecessor: { scope: 'node', workPackageId: 'B', workItemId: 'b', stepId: 'second' },
+      successor: { scope: 'node', workPackageId: 'C', workItemId: 'c', stepId: 'second' },
     },
   ];
   const edges = [
@@ -218,16 +218,16 @@ describe('connected publication guard', () => {
     });
     const stage = capturePlacement({
       ...initial,
-      projectId: 'B',
-      projects: initial.projects.filter((project) => project.projectId !== 'C'),
+      workPackageId: 'B',
+      workPackages: initial.workPackages.filter((workPackage) => workPackage.workPackageId !== 'C'),
       input: {
         ...input,
         order: {
           kind: 'connected',
-          projectIdByWorkItem: new Map(
+          workPackageIdByWorkItem: new Map(
             rows.map((row) => [row.id, row.id.startsWith('a') || row.id === 'pa' ? 'A' : 'B']),
           ),
-          rankByProject: new Map([
+          rankByWorkPackage: new Map([
             ['A', 0],
             ['B', 1],
           ]),
@@ -237,8 +237,8 @@ describe('connected publication guard', () => {
         {
           id: 'expanded',
           type: 'FS',
-          predecessor: { scope: 'whole', projectId: 'A', workItemId: 'pa' },
-          successor: { scope: 'whole', projectId: 'B', workItemId: 'pb' },
+          predecessor: { scope: 'whole', workPackageId: 'A', workItemId: 'pa' },
+          successor: { scope: 'whole', workPackageId: 'B', workItemId: 'pb' },
         },
       ],
     });
@@ -291,7 +291,7 @@ describe('connected publication guard', () => {
           elsewhere:
             constraint === 'elsewhere'
               ? new Map([
-                  ['booked', [{ start: 0, end: 1, projectId: 'outside', workItemId: 'held' }]],
+                  ['booked', [{ start: 0, end: 1, workPackageId: 'outside', workItemId: 'held' }]],
                 ])
               : new Map(),
         },
@@ -326,7 +326,7 @@ describe('connected publication guard', () => {
     );
   });
   test.each(['team', 'resource'] as const)(
-    'enforces project-local %s contention in a complete replay',
+    'enforces work-package-local %s contention in a complete replay',
     (constraint) => {
       const initial = capturedStage();
       const order = initial.input.order;
@@ -340,7 +340,9 @@ describe('connected publication guard', () => {
       );
       const stage = capturePlacement({
         ...initial,
-        projects: initial.projects.filter((project) => project.projectId !== 'C'),
+        workPackages: initial.workPackages.filter(
+          (workPackage) => workPackage.workPackageId !== 'C',
+        ),
         input: {
           ...initial.input,
           slices,
@@ -350,12 +352,12 @@ describe('connected publication guard', () => {
             constraint === 'resource' ? new Map([['local-machine', 1]]) : new Map(),
           order: {
             ...order,
-            projectIdByWorkItem: new Map([
+            workPackageIdByWorkItem: new Map([
               ['a', 'A'],
               ['b', 'B'],
               ['c', 'B'],
             ]),
-            rankByProject: new Map([
+            rankByWorkPackage: new Map([
               ['A', 0],
               ['B', 1],
             ]),
@@ -391,7 +393,7 @@ describe('connected publication guard', () => {
     const baseline = replayConnectedStage(stage);
     expect(baseline.slices.get(trailingKey)?.earliestStart).toBe(1.2);
     const decision = guardConnectedPublication(stage, reference(0.2), 'makespan', reference(0));
-    expect(decision.scope).toEqual({ kind: 'connected-stage', projectId: 'B' });
+    expect(decision.scope).toEqual({ kind: 'connected-stage', workPackageId: 'B' });
     expect(decision.chosen).toBe('optimized');
     expect(decision.schedule.slices.size).toBe(3);
     expect(decision.values.makespan).toBe(1.2);
@@ -421,7 +423,7 @@ describe('connected publication guard', () => {
     expect(firstChoice.schedule.slices.get(localKey)?.earliestStart).toBe(0.2);
     const secondStage = {
       ...firstStage,
-      projectId: 'C',
+      workPackageId: 'C',
       starts: new Map(
         [...firstChoice.schedule.slices].map(([key, placed]) => [key, placed.earliestStart]),
       ),
@@ -590,15 +592,15 @@ describe('connected publication guard', () => {
       ScheduleInvalidOptimizedStartError,
     );
   });
-  test('folds a fractional project floor onto the local leaf', () => {
+  test('folds a fractional work package floor onto the local leaf', () => {
     const initial = capturedStage();
     const order = initial.input.order;
     if (order.kind !== 'connected') throw new Error('fixture requires connected order');
     const rows = [
       ...initial.input.rows.map((row) =>
-        row.id === 'b' ? { ...row, parentId: 'project-b' } : row,
+        row.id === 'b' ? { ...row, parentId: 'work-package-b' } : row,
       ),
-      { id: 'project-b', parentId: null, position: 3, priority: null, frozenNumber: null },
+      { id: 'work-package-b', parentId: null, position: 3, priority: null, frozenNumber: null },
     ];
     const stage = capturePlacement({
       ...initial,
@@ -606,12 +608,15 @@ describe('connected publication guard', () => {
         ...initial.input,
         rows,
         notBefore: new Map([
-          ['project-b', 0.4],
+          ['work-package-b', 0.4],
           ['b', 0.2],
         ]),
         order: {
           ...order,
-          projectIdByWorkItem: new Map([...order.projectIdByWorkItem, ['project-b', 'B']]),
+          workPackageIdByWorkItem: new Map([
+            ...order.workPackageIdByWorkItem,
+            ['work-package-b', 'B'],
+          ]),
         },
       },
     });
@@ -649,12 +654,12 @@ describe('connected publication guard', () => {
       rows,
       order: {
         kind: 'connected' as const,
-        projectIdByWorkItem: new Map([
+        workPackageIdByWorkItem: new Map([
           ['a', 'A'],
           ['b', 'B'],
           ['c', 'B'],
         ]),
-        rankByProject: new Map([
+        rankByWorkPackage: new Map([
           ['A', 0],
           ['B', 1],
         ]),
@@ -663,7 +668,7 @@ describe('connected publication guard', () => {
     const stage = capturePlacement({
       ...initial,
       input,
-      projects: initial.projects.filter((project) => project.projectId !== 'C'),
+      workPackages: initial.workPackages.filter((workPackage) => workPackage.workPackageId !== 'C'),
     });
     const starts = new Map([
       [localKey, stage.starts.get(localKey) ?? NaN],
@@ -699,19 +704,19 @@ describe('connected publication guard', () => {
     ];
     const stage = capturePlacement({
       ...initial,
-      projects: initial.projects.filter((project) => project.projectId !== 'C'),
+      workPackages: initial.workPackages.filter((workPackage) => workPackage.workPackageId !== 'C'),
       input: {
         ...initial.input,
         rows,
         order: {
           ...order,
-          projectIdByWorkItem: new Map([
+          workPackageIdByWorkItem: new Map([
             ['a', 'A'],
             ['b', 'B'],
             ['c', 'B'],
             ['parent-c', 'B'],
           ]),
-          rankByProject: new Map([
+          rankByWorkPackage: new Map([
             ['A', 0],
             ['B', 1],
           ]),
@@ -764,12 +769,12 @@ describe('connected publication guard', () => {
     ).toThrow(ConnectedStageEvidenceError);
     const order = stage.input.order;
     if (order.kind !== 'connected') throw new Error('fixture requires connected order');
-    const ownership = new Map(order.projectIdByWorkItem);
+    const ownership = new Map(order.workPackageIdByWorkItem);
     ownership.set('b', 'A');
     expect(() =>
       replayConnectedStage({
         ...stage,
-        input: { ...stage.input, order: { ...order, projectIdByWorkItem: ownership } },
+        input: { ...stage.input, order: { ...order, workPackageIdByWorkItem: ownership } },
       }),
     ).toThrow(ConnectedStageEvidenceError);
   });
@@ -876,7 +881,7 @@ describe('connected publication guard', () => {
         deadlines: new Map([['parent-b', 0.5]]),
         order: {
           ...order,
-          projectIdByWorkItem: new Map([...order.projectIdByWorkItem, ['parent-b', 'B']]),
+          workPackageIdByWorkItem: new Map([...order.workPackageIdByWorkItem, ['parent-b', 'B']]),
         },
       },
     });

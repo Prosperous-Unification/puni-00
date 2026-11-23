@@ -10,6 +10,7 @@ const NX = fileURLToPath(import.meta.resolve('nx/bin/nx.js'));
 
 function runGit(repository: string, args: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -47,7 +48,13 @@ async function invokeTarget(repository: string): Promise<{ code: number; output:
     ],
     {
       cwd: repository,
-      env: { ...process.env, NX_DAEMON: 'false', NX_ISOLATE_PLUGINS: 'false' },
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_SYSTEM: '/dev/null',
+        NX_DAEMON: 'false',
+        NX_ISOLATE_PLUGINS: 'false',
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     },
@@ -98,7 +105,13 @@ test('runtime selection leaves the actual docs target a clean candidate tree', a
       head,
       repository,
     ],
-    { cwd: repository, env: process.env, stdout: 'pipe', stderr: 'pipe', timeout: 20_000 },
+    {
+      cwd: repository,
+      env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 20_000,
+    },
   );
   expect(plan.exitCode, plan.stderr.toString()).toBe(0);
   const selected: unknown = JSON.parse(plan.stdout.toString());

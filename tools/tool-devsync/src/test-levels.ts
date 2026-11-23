@@ -610,6 +610,10 @@ export async function verifyDeclaredCollections(
     }
   }
   assertBrowserAggregateMembers(manifests);
+  assertSourceTestLevelProvisioning(
+    manifests.get('apps/wbs/fe-01'),
+    overrides.get('apps/puni/cli') ?? (await readManifest('apps/puni/cli')),
+  );
 }
 
 /** Resolve all Browser aggregate members in their owning project manifests. */
@@ -621,19 +625,19 @@ export function assertBrowserAggregateMembers(
       'apps/wbs/fe-01',
       'wbs-fe-01',
       'test:browser:ordinary:level',
-      'bun tools/tool-devsync/src/browser-level.ts ordinary',
+      'bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser ordinary --repository .',
     ],
     [
       'apps/wbs/fe-01',
       'wbs-fe-01',
       'test:browser:packaged:level',
-      'bun tools/tool-devsync/src/browser-level.ts packaged',
+      'bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser packaged --repository .',
     ],
     [
       'libs/wbs/application/core',
       'wbs-core',
       'test:browser:portable:level',
-      'bun tools/tool-devsync/src/browser-level.ts portable',
+      'bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser portable --repository .',
     ],
   ] as const;
   for (const [root, project, target, command] of members) {
@@ -642,17 +646,63 @@ export function assertBrowserAggregateMembers(
     // when this cross-project member guard was removed.
     if (entry === undefined)
       throw new Error(`wbs-fe-01:test:browser:level member ${project}:${target} is absent`);
-    if (
-      entry.executor !== 'nx:run-commands' ||
-      entry.options?.command !== command ||
-      entry.options.forwardAllArgs !== false ||
-      Object.keys(entry).some((key) => !['executor', 'cache', 'options'].includes(key)) ||
-      Object.keys(entry.options).some((key) => !['command', 'forwardAllArgs'].includes(key))
-    )
+    if (!hasSourceTestLevelEnvelope(entry, command))
       throw new Error(
         `wbs-fe-01:test:browser:level member ${project}:${target} differs from declaration`,
       );
   }
+}
+
+/** The declaration verifier owns the exact root command, explicit prerequisite and selection transport. */
+function hasSourceTestLevelEnvelope(entry: ManifestTarget, command: string): boolean {
+  return (
+    entry.executor === 'nx:run-commands' &&
+    entry.cache === false &&
+    entry.options?.command === command &&
+    entry.options.forwardAllArgs === false &&
+    entry.options.envFile === 'tmp/puni-source-test-level.env' &&
+    JSON.stringify(entry.options.env) === JSON.stringify({ PUNI_TEST_LEVEL_ROLE: 'source' }) &&
+    JSON.stringify(entry.dependsOn) ===
+      JSON.stringify([
+        { target: 'prepare-test-level-assets', projects: ['puni-cli'], params: 'ignore' },
+      ]) &&
+    Object.keys(entry).every((key) =>
+      ['executor', 'cache', 'dependsOn', 'options'].includes(key),
+    ) &&
+    Object.keys(entry.options).every((key) =>
+      ['command', 'forwardAllArgs', 'envFile', 'env'].includes(key),
+    )
+  );
+}
+
+/** Verify Performance and its real PUNI prerequisite without changing Browser aggregate membership. */
+export function assertSourceTestLevelProvisioning(
+  frontend: ProjectManifest | undefined,
+  puni: ProjectManifest,
+): void {
+  const performance = frontend?.targets['test:performance:level'];
+  if (
+    performance === undefined ||
+    !hasSourceTestLevelEnvelope(
+      performance,
+      'bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash performance --repository .',
+    )
+  )
+    throw new Error('wbs-fe-01:test:performance:level differs from source test-level declaration');
+  const prepare = puni.targets['prepare-test-level-assets'];
+  if (
+    puni.name !== 'puni-cli' ||
+    prepare?.executor !== 'nx:run-commands' ||
+    prepare.cache !== false ||
+    prepare.options?.command !==
+      'bun --no-env-file --config=/dev/null apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts' ||
+    prepare.options.forwardAllArgs !== false ||
+    Object.keys(prepare).some((key) => !['executor', 'cache', 'options'].includes(key)) ||
+    Object.keys(prepare.options).some((key) => !['command', 'forwardAllArgs'].includes(key))
+  )
+    throw new Error(
+      'puni-cli:prepare-test-level-assets differs from source test-level declaration',
+    );
 }
 
 /** Refuses unknown test targets in covered projects. */
@@ -919,6 +969,10 @@ export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
   'wbs-fe-01:test:browser:packaged:level':
     'Packaged Browser adapter has a separate runner and publication contract.',
   'wbs-fe-01:e2e': 'Legacy Browser Playwright target without this slice’s report binding.',
+  // Proof: without this exact classification, the named local quiet-load production-CLI
+  // inventory test refused `wbs-fe-01:e2e-local` before its success assertions (2026-11-22).
+  'wbs-fe-01:e2e-local':
+    'Local quiet-load Browser Playwright target without this slice’s report binding.',
   // Proof: deleting this classification made the named organization Browser inventory
   // test fail and the production verifier refuse `wbs-fe-01:e2e-organization`.
   'wbs-fe-01:e2e-organization':
@@ -958,13 +1012,22 @@ const NEVER_WALKED = new Set(['node_modules', 'dist', 'coverage', 'test-results'
 /** One Nx target as a project manifest spells it. */
 export interface ManifestTarget {
   readonly executor?: string;
-  readonly dependsOn?: readonly string[];
+  readonly cache?: boolean;
+  readonly dependsOn?: readonly (
+    | string
+    | {
+        readonly target: string;
+        readonly projects: readonly string[];
+        readonly params: 'ignore' | 'forward';
+      }
+  )[];
   readonly configurations?: Readonly<Record<string, unknown>>;
   readonly defaultConfiguration?: string;
   readonly options?: {
     readonly command?: string;
     readonly commands?: readonly string[];
     readonly cwd?: string;
+    readonly envFile?: string;
     readonly args?: readonly string[];
     readonly env?: Readonly<Record<string, string>>;
     readonly forwardAllArgs?: boolean;

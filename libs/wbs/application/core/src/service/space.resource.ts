@@ -1,26 +1,30 @@
+import type { Permission } from '@wbs/domain';
 import {
-  canWriteInOrganization,
   type InProgressLeaf,
   inProgressLeavesOf,
   POSITION_STEP,
-  type ProjectRollUp,
   ROLLUP_DTO_VERSION,
-  rollUpProject,
+  rollUpWorkPackage,
   SCHEDULER_CONTRACT_VERSION,
   sortInProgress,
+  type WorkPackageRollUp,
 } from '@wbs/domain';
 
+import type { AccessDecisions } from '../ports/access-decisions';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { Broadcaster } from '../ports/project-event';
-import type { ProjectRead } from '../ports/project-read';
-import type { ProjectWithAccess } from '../ports/project-store';
+import type { SettingStore, SettingTarget } from '../ports/setting-store';
 import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
 import type { TreeRead } from '../ports/tree-read';
+import type { Broadcaster } from '../ports/work-package-event';
+import type { WorkPackageRead } from '../ports/work-package-read';
+import type { WorkPackageWithAccess } from '../ports/work-package-store';
+import type { WriteStamp } from '../ports/write-stamp';
+import { authorize } from './authorize';
 
-/** The address of the virtual All projects space (spec `space-read`). */
-export const ALL_PROJECTS = 'all';
+/** The address of the virtual All work packages space (spec `space-read`). */
+export const ALL_WORK_PACKAGES = 'all';
 /** The longest space name, in code points, after trimming. */
 export const SPACE_NAME_MAX = 120;
 
@@ -33,57 +37,76 @@ export type SpaceRefusal =
   | 'forbidden'
   | 'not_found'
   | 'name_taken'
+  | 'project_in_other_space'
   | 'already_in_space'
   | 'virtual_space'
   | 'malformed_name';
 
 /** A decision, or the refusals that method can answer and no others. */
 export type SpaceAnswer<T, R extends SpaceRefusal> =
-  { ok: true; value: T } | { ok: false; refusal: R };
+  | { ok: true; value: T }
+  | { ok: false; refusal: Exclude<R, 'project_in_other_space'>; readonly permission?: Permission }
+  | ('project_in_other_space' extends R
+      ? {
+          ok: false;
+          refusal: 'project_in_other_space';
+          spaceId: string;
+          readonly permission?: never;
+        }
+      : never);
 
 /** One space as the routes answer it; the virtual space has no author, instant or revision. */
 export interface SpaceSummary {
   id: string;
   name: string;
   virtual: boolean;
-  projectCount: number;
+  workPackageCount: number;
   revision: number;
   createdById: string | null;
   createdAt: number | null;
 }
 
-/** One leaf in progress in a space, with its project and that project's place. */
+/** One leaf in progress in a space, with its work package and that work package's place. */
 export interface InProgressItem extends InProgressLeaf {
-  projectId: string;
-  projectName: string;
+  workPackageId: string;
+  workPackageName: string;
   position: number;
 }
 
-/** One readable project in its place. */
+/** One readable work package in its place. */
 export interface SpaceRow {
-  project: ProjectWithAccess;
+  workPackage: WorkPackageWithAccess;
   position: number;
 }
 
 export interface SpaceResourceOptions {
+  readonly accessDecisions?: AccessDecisions;
   spaces: SpaceStore;
+  settings: {
+    readTarget(
+      scope: { readonly level: 'project'; readonly id: string },
+      organizationId: string | null,
+    ): Promise<Extract<SettingTarget, { readonly kind: 'project' }> | null>;
+    touchPackages: SettingStore['touchPackages'];
+  };
+  announcements: Broadcaster;
   /**
-   * The project routes' own predicate: `listWithin` is what `GET
-   * /api/projects` answers and `readWithin` is what `GET /api/projects/:id`
+   * The work package routes' own predicate: `listWithin` is what `GET
+   * /api/work-packages` answers and `readWithin` is what `GET /api/work-packages/:id`
    * finds. Every space read and add goes through them and nothing else, so a
-   * future read restriction on projects needs no change here (the leak rule).
+   * future read restriction on work packages needs no change here (the leak rule).
    */
-  projects: ProjectRead;
+  workPackages: WorkPackageRead;
   clock: Clock;
-  /** The project page's own read and the shared aggregate projection for cache admission. */
+  /** The work package page's own read and the shared aggregate projection for cache admission. */
   trees: TreeRead;
-  /** The project's event sequence, read before the tree to key the cache. */
+  /** The work package's event sequence, read before the tree to key the cache. */
   sequences: Pick<Broadcaster, 'latestSeq'>;
   /** One process's roll-ups; a fresh cache per process, shared by its requests. */
   rollUpCache: RollUpCache;
 }
 
-/** A project whose scheduler engine is unavailable: drawn as a mark, never a Fast fallback. */
+/** A work package whose scheduler engine is unavailable: drawn as a mark, never a Fast fallback. */
 export interface UnavailableRollUp {
   kind: 'unavailable';
 }
@@ -95,8 +118,8 @@ export const IN_PROGRESS_LIMIT = { default: 200, max: 1_000 } as const;
 export const ROLL_UPS_PER_REQUEST = 50;
 
 /** What one tree read yields for a space: its roll-up and its leaves in progress. */
-export interface RolledProject {
-  rollUp: ProjectRollUp;
+export interface RolledWorkPackage {
+  rollUp: WorkPackageRollUp;
   inProgress: InProgressLeaf[];
 }
 
@@ -106,18 +129,18 @@ type SharedTreeEntry = Extract<
 >['entries'][number];
 
 /**
- * A per-process LRU of {@link RolledProject}s (`add-spaces` design, memo §8).
+ * A per-process LRU of {@link RolledWorkPackage}s (`add-spaces` design, memo §8).
  *
- * Keyed by project, event sequence, project revision, reader access,
+ * Keyed by work package, event sequence, work package revision, reader access,
  * scheduler contract and roll-up version; shared reads add the captured
  * incoming-calendar basis. Every plan write publishes to the sequence and
  * every settings write moves the revision. Another process's write or a
  * missed publication converges within {@link RollUpCache.ttlMs}. `capacity`
- * counts entries, one per project and reader, whatever number of leaves each
+ * counts entries, one per work package and reader, whatever number of leaves each
  * holds.
  */
 export class RollUpCache {
-  private readonly held = new Map<string, { rolled: RolledProject; storedAt: number }>();
+  private readonly held = new Map<string, { rolled: RolledWorkPackage; storedAt: number }>();
 
   constructor(
     private readonly clock: Pick<Clock, 'now'>,
@@ -128,15 +151,15 @@ export class RollUpCache {
   ) {}
 
   /**
-   * The key for one project at one event sequence and one project revision,
+   * The key for one work package at one event sequence and one work package revision,
    * as one kind of reader sees it. Shared reads add `basis` while isolated
    * addresses keep their original bytes.
-   * The revision is not redundant with the sequence: a project settings change
+   * The revision is not redundant with the sequence: a work package settings change
    * (start date, PERT weights, reach, estimate method or rounding) advances
    * the revision and moves dates and totals, yet publishes no event.
    */
   static keyOf(
-    projectId: string,
+    workPackageId: string,
     seq: number,
     revision: number,
     access: ResourceAccess,
@@ -145,11 +168,11 @@ export class RollUpCache {
     // The access is part of what a tree read answers: scoped reads rename
     // assignees to the organization's own names (`treeWithin`).
     const reader = access.kind === 'legacy' ? 'legacy' : `org:${access.scope.organizationId}`;
-    const key = `${projectId}:${String(seq)}:${String(revision)}:${reader}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+    const key = `${workPackageId}:${String(seq)}:${String(revision)}:${reader}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
     return basis === undefined ? key : `${key}:${basis}`;
   }
 
-  get(key: string): RolledProject | undefined {
+  get(key: string): RolledWorkPackage | undefined {
     const entry = this.held.get(key);
     if (entry === undefined) return undefined;
     // Proof, observed 2026-09-29: with this expiry skipped, `expires a roll-up
@@ -164,7 +187,7 @@ export class RollUpCache {
     return entry.rolled;
   }
 
-  set(key: string, rolled: RolledProject): void {
+  set(key: string, rolled: RolledWorkPackage): void {
     this.held.delete(key);
     this.held.set(key, { rolled, storedAt: this.clock.now() });
     for (const oldest of this.held.keys()) {
@@ -180,17 +203,28 @@ type Owner = { ok: true; organizationId: string } | { ok: false; refusal: 'organ
  * Spaces through the caller's access (`add-spaces`, specs `space-read` and
  * `space-authorization`).
  *
- * **The leak rule.** A project the caller cannot open is omitted from every
+ * **The leak rule.** A work package the caller cannot open is omitted from every
  * answer: no row, no count, no placeholder. Membership is filtered through
- * {@link SpaceResourceOptions.projects}, never read raw into a reply.
+ * {@link SpaceResourceOptions.work packages}, never read raw into a reply.
  *
  * The owner is the scope's organization, or under legacy access the one marked
  * legacy; with none, every named-space request answers
  * `organization_required` while `all` still reads. Writes to `all` answer
  * `virtual_space` under any access. Viewers read and never write.
  */
+// Historical package-membership Proof paragraphs below are preserved provenance; current membership and admission address projects.
 export class SpaceResource {
   constructor(private readonly opts: SpaceResourceOptions) {}
+
+  /** Builds only the mapped space resource over this write turn's borrowed catalog. */
+  over(
+    spaces: SpaceStore,
+    accessDecisions: AccessDecisions | undefined,
+    settings: SettingStore,
+    announcements: Broadcaster,
+  ): SpaceResource {
+    return new SpaceResource({ ...this.opts, spaces, accessDecisions, settings, announcements });
+  }
 
   async list(
     actorId: string,
@@ -198,7 +232,7 @@ export class SpaceResource {
   ): Promise<SpaceAnswer<SpaceSummary[], 'organization_required'>> {
     const owner = await this.ownerOf(access);
     if (!owner.ok) return owner;
-    const readable = await this.readableIds(actorId, access);
+    const readable = await this.readableProjects(actorId, access);
     const spaces = await this.opts.spaces.listIn(owner.organizationId);
     // One read for every space's members (task 3.0): a space added between the
     // two reads counts no member, which the next read corrects.
@@ -208,7 +242,10 @@ export class SpaceResource {
       value: spaces.map((space) =>
         summaryOf(
           space,
-          (members.get(space.id) ?? []).filter(({ projectId }) => readable.has(projectId)).length,
+          (members.get(space.id) ?? []).reduce(
+            (count, { projectId }) => count + (readable.get(projectId) ?? 0),
+            0,
+          ),
         ),
       ),
     };
@@ -243,24 +280,34 @@ export class SpaceResource {
     access: ResourceAccess,
     spaceId: string,
   ): Promise<
-    SpaceAnswer<{ space: SpaceSummary; rows: SpaceRow[] }, 'organization_required' | 'not_found'>
+    SpaceAnswer<
+      {
+        space: SpaceSummary;
+        rows: SpaceRow[];
+        personIds: readonly string[];
+        serviceTeamIds: readonly string[];
+      },
+      'organization_required' | 'not_found'
+    >
   > {
-    if (spaceId === ALL_PROJECTS) {
-      const projects = await this.opts.projects.listWithin(actorId, access);
+    if (spaceId === ALL_WORK_PACKAGES) {
+      const workPackages = await this.opts.workPackages.listWithin(actorId, access);
       return {
         ok: true,
         value: {
+          personIds: [],
+          serviceTeamIds: [],
           space: {
-            id: ALL_PROJECTS,
-            name: 'All projects',
+            id: ALL_WORK_PACKAGES,
+            name: 'All work packages',
             virtual: true,
-            projectCount: projects.length,
+            workPackageCount: workPackages.length,
             revision: 0,
             createdById: null,
             createdAt: null,
           },
-          rows: projects.map((project, index) => ({
-            project,
+          rows: workPackages.map((workPackage, index) => ({
+            workPackage,
             position: (index + 1) * POSITION_STEP,
           })),
         },
@@ -268,83 +315,105 @@ export class SpaceResource {
     }
     const owner = await this.ownerOf(access);
     if (!owner.ok) return owner;
-    // The space is found before the project list is read (task 3.0): an
-    // absent space costs one lookup, not the caller's whole project list.
-    const space = await this.opts.spaces.findIn(owner.organizationId, spaceId);
-    if (space === null) return { ok: false, refusal: 'not_found' };
-    const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
-    if (members === null) return { ok: false, refusal: 'not_found' };
-    const projects = await this.opts.projects.listWithin(actorId, access);
-    const readable = new Map(projects.map((project) => [project.id, project]));
+    // The space is found before the work package list is read (task 3.0): an
+    // absent space costs one lookup, not the caller's whole work package list.
+    const contents = await this.opts.spaces.readContents(owner.organizationId, spaceId);
+    if (contents === null) return { ok: false, refusal: 'not_found' };
+    const workPackages = await this.opts.workPackages.listWithin(actorId, access);
     const rows: SpaceRow[] = [];
-    for (const { projectId, position } of members) {
-      const project = readable.get(projectId);
+    for (const workPackage of workPackages) {
+      const member = contents.projects.find(({ projectId }) => projectId === workPackage.projectId);
+      const position = member?.position;
       // Proof, observed 2026-09-29: with this filter removed (a row for every
-      // member), `omits a project the caller cannot open from the rows and the
+      // member), `omits a workPackage the caller cannot open from the rows and the
       // count` in `space.resource.test.ts` received a third row.
-      if (project !== undefined) rows.push({ project, position });
+      if (position !== undefined) rows.push({ workPackage, position });
     }
-    return { ok: true, value: { space: summaryOf(space, rows.length), rows } };
+    rows.sort(
+      (left, right) =>
+        left.position - right.position ||
+        (left.workPackage.projectId < right.workPackage.projectId
+          ? -1
+          : left.workPackage.projectId > right.workPackage.projectId
+            ? 1
+            : 0),
+    );
+    return {
+      ok: true,
+      value: {
+        space: summaryOf(contents.space, rows.length),
+        rows,
+        personIds: contents.personIds,
+        serviceTeamIds: contents.serviceTeamIds,
+      },
+    };
   }
 
   /**
-   * Roll-ups for `projectIds`, each a member of the space the caller can open
-   * (`all`: any project the caller can open). Any other id answers
+   * Roll-ups for `workPackageIds`, each a member of the space the caller can open
+   * (`all`: any work package the caller can open). Any other id answers
    * `not_found` for the whole request, indistinguishable from a non-member.
-   * A cached roll-up is answered only at the project's current sequence.
+   * A cached roll-up is answered only at the work package's current sequence.
    */
   async rollUps(
     actorId: string,
     access: ResourceAccess,
     spaceId: string,
-    projectIds: readonly string[],
+    workPackageIds: readonly string[],
   ): Promise<
     | SpaceAnswer<
-        Record<string, ProjectRollUp | UnavailableRollUp>,
+        Record<string, WorkPackageRollUp | UnavailableRollUp>,
         'organization_required' | 'not_found'
       >
     | AccessRefused
   > {
-    const projects = await this.opts.projects.listWithin(actorId, access);
-    const revisions = new Map(projects.map(({ id, revision }) => [id, revision]));
+    const workPackages = await this.opts.workPackages.listWithin(actorId, access);
+    const revisions = new Map(workPackages.map(({ id, revision }) => [id, revision]));
     const readable = new Set(revisions.keys());
     let members: Set<string> = readable;
-    if (spaceId !== ALL_PROJECTS) {
+    if (spaceId !== ALL_WORK_PACKAGES) {
       const owner = await this.ownerOf(access);
       if (!owner.ok) return owner;
       const listed = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
       if (listed === null) return { ok: false, refusal: 'not_found' };
-      members = new Set(listed.map(({ projectId }) => projectId));
+      const projects = new Set(listed.map(({ projectId }) => projectId));
+      members = new Set(
+        workPackages.filter(({ projectId }) => projects.has(projectId)).map(({ id }) => id),
+      );
     }
     // Proof, observed 2026-09-29: with the readable check removed, `answers no
-    // roll-up for a project the caller cannot open` in `space.resource.test.ts`
-    // received the hidden project's roll-up instead of `not_found`.
-    if (projectIds.some((projectId) => !members.has(projectId) || !readable.has(projectId))) {
+    // roll-up for a work package the caller cannot open` in `space.resource.test.ts`
+    // received the hidden work package's roll-up instead of `not_found`.
+    if (
+      workPackageIds.some(
+        (workPackageId) => !members.has(workPackageId) || !readable.has(workPackageId),
+      )
+    ) {
       return { ok: false, refusal: 'not_found' };
     }
     const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
     if (observation.kind === 'access_refused') return observation;
     const shared =
       observation.kind === 'shared' || observation.kind === 'isolated-connected'
-        ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
+        ? new Map(observation.entries.map((entry) => [entry.workPackageId, entry] as const))
         : null;
-    const rollUps: Record<string, ProjectRollUp | UnavailableRollUp> = {};
-    for (const projectId of projectIds) {
-      const revision = revisions.get(projectId);
+    const rollUps: Record<string, WorkPackageRollUp | UnavailableRollUp> = {};
+    for (const workPackageId of workPackageIds) {
+      const revision = revisions.get(workPackageId);
       // Checked readable above; absent here would be the list changing mid-call.
       if (revision === undefined) return { ok: false, refusal: 'not_found' };
-      const entry = shared?.get(projectId);
+      const entry = shared?.get(workPackageId);
       if (shared !== null && entry === undefined) return { ok: false, refusal: 'not_found' };
-      const rolled = await this.rolledOf(projectId, entry?.revision ?? revision, access, entry);
+      const rolled = await this.rolledOf(workPackageId, entry?.revision ?? revision, access, entry);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
       if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
-      rollUps[projectId] = 'kind' in rolled ? rolled : rolled.rollUp;
+      rollUps[workPackageId] = 'kind' in rolled ? rolled : rolled.rollUp;
     }
     return { ok: true, value: rollUps };
   }
 
   /**
-   * One project's roll-up, from the cache when its sequence and revision match.
+   * One work package's roll-up, from the cache when its sequence and revision match.
    *
    * An entry is keyed by the reader's access as well, because the tree read
    * answers differently by access: under scoped access it renames assignees
@@ -356,21 +425,21 @@ export class SpaceResource {
    * call, above. So a hit can miss a reference across organizations written
    * after the entry was cached (corrupt state, which no route writes), and a
    * change the cache key does not carry, such as a person renamed in the
-   * directory (no event, no project revision). Both last at most the 5 min TTL;
+   * directory (no event, no work package revision). Both last at most the 5 min TTL;
    * the next miss reads the tree afresh and fails closed.
    * Connected trees are not stored under this target-only cache identity; their
    * foreign calendars and required engines can change independently. Shared
    * connected aggregate entries carry a null basis to bypass cache lookup too.
    */
   private async rolledOf(
-    projectId: string,
+    workPackageId: string,
     revision: number,
     access: ResourceAccess,
     shared?: SharedTreeEntry,
-  ): Promise<RolledProject | UnavailableRollUp | AccessRefused | null> {
+  ): Promise<RolledWorkPackage | UnavailableRollUp | AccessRefused | null> {
     // Proof: accepting a held value before captured availability made an unavailable influencer retain old dates.
     if (shared !== undefined && 'kind' in shared.tree) return { kind: 'unavailable' };
-    const seq = shared?.seq ?? (await this.opts.sequences.latestSeq(projectId));
+    const seq = shared?.seq ?? (await this.opts.sequences.latestSeq(workPackageId));
     const basis = shared?.basis ?? undefined;
     const cacheable = shared?.basis !== null;
     // Proof, observed 2026-09-29: with the sequence left out of this key,
@@ -387,16 +456,16 @@ export class SpaceResource {
     // Proof: omitting basis lookup/storage made mounted warm roll-up and in-progress reads retain old dates.
     // Proof: omitting the null-basis lookup guard failed mounted `does not reuse isolated load or roll-up entries`: the shared roll-up had no calendar_range.
     const cached = cacheable
-      ? this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision, access, basis))
+      ? this.opts.rollUpCache.get(RollUpCache.keyOf(workPackageId, seq, revision, access, basis))
       : undefined;
     if (cached !== undefined) return cached;
-    const tree = shared?.tree ?? (await this.opts.trees.treeWithin(projectId, access));
+    const tree = shared?.tree ?? (await this.opts.trees.treeWithin(workPackageId, access));
     if (tree === null) return null;
     // An unavailable engine is not cached: it can recover with no write.
-    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable project output.
+    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable work package output.
     if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'unavailable' };
-    const rollUp = rollUpProject({
+    const rollUp = rollUpWorkPackage({
       workItems: tree.workItems.map((row) => ({
         id: row.id,
         parentId: row.parentId,
@@ -413,10 +482,10 @@ export class SpaceResource {
         tree.connectedDependencies !== undefined && tree.scheduleError !== null
           ? null
           : (tree.optimization?.displayed ?? 'fast'),
-      projectRevision: tree.projectRevision,
+      workPackageRevision: tree.workPackageRevision,
       seq: tree.seq,
     });
-    const rolled: RolledProject = {
+    const rolled: RolledWorkPackage = {
       rollUp,
       inProgress: inProgressLeavesOf({
         workItems: tree.workItems,
@@ -431,7 +500,7 @@ export class SpaceResource {
     // Proof: allowing connected storage failed mounted isolated-capacity calendar recovery: Target roll-up retained missing-calendar after Remote gained an anchor.
     if (cacheable && tree.connectedDependencies === undefined)
       this.opts.rollUpCache.set(
-        RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision, access, basis),
+        RollUpCache.keyOf(workPackageId, tree.seq, tree.workPackageRevision, access, basis),
         rolled,
       );
     return rolled;
@@ -439,10 +508,10 @@ export class SpaceResource {
 
   /**
    * The leaves in progress across the readable members of a space (`all`:
-   * every project the caller can open), ordered by end date with undated last,
+   * every work package the caller can open), ordered by end date with undated last,
    * then space position, then number, and cut to `limit`
-   * (spec `in-progress-now`). A project whose engine is unavailable
-   * contributes nothing; `unavailable` names those projects.
+   * (spec `in-progress-now`). A work package whose engine is unavailable
+   * contributes nothing; `unavailable` names those work packages.
    */
   async inProgress(
     actorId: string,
@@ -456,12 +525,12 @@ export class SpaceResource {
       >
     | AccessRefused
   > {
-    const projects = await this.opts.projects.listWithin(actorId, access);
-    const readable = new Map(projects.map((project) => [project.id, project]));
-    let placed: { projectId: string; position: number }[];
-    if (spaceId === ALL_PROJECTS) {
-      placed = projects.map(({ id }, index) => ({
-        projectId: id,
+    const workPackages = await this.opts.workPackages.listWithin(actorId, access);
+    const readable = new Map(workPackages.map((workPackage) => [workPackage.id, workPackage]));
+    let placed: { workPackageId: string; position: number }[];
+    if (spaceId === ALL_WORK_PACKAGES) {
+      placed = workPackages.map(({ id }, index) => ({
+        workPackageId: id,
         position: (index + 1) * POSITION_STEP,
       }));
     } else {
@@ -473,25 +542,31 @@ export class SpaceResource {
       // Proof, observed 2026-09-29: with this filter removed, `takes nothing
       // from a member the caller cannot open, and names unavailable engines`
       // in `space.resource.test.ts` threw on the hidden member instead.
-      placed = members.filter(({ projectId }) => readable.has(projectId));
+      placed = workPackages.flatMap((workPackage) => {
+        const member = members.find(({ projectId }) => projectId === workPackage.projectId);
+        return member === undefined
+          ? []
+          : [{ workPackageId: workPackage.id, position: member.position }];
+      });
     }
     const observation = await this.opts.trees.sharedTreesWithin(actorId, access);
     if (observation.kind === 'access_refused') return observation;
     const shared =
       observation.kind === 'shared' || observation.kind === 'isolated-connected'
-        ? new Map(observation.entries.map((entry) => [entry.projectId, entry] as const))
+        ? new Map(observation.entries.map((entry) => [entry.workPackageId, entry] as const))
         : null;
     const items: InProgressItem[] = [];
     const unavailable: string[] = [];
-    for (const { projectId, position } of placed) {
-      const project = readable.get(projectId);
-      // `placed` holds only readable projects, so this is a broken invariant.
-      if (project === undefined) throw new Error(`placed project ${projectId} is not readable`);
-      const entry = shared?.get(projectId);
+    for (const { workPackageId, position } of placed) {
+      const workPackage = readable.get(workPackageId);
+      // `placed` holds only readable work packages, so this is a broken invariant.
+      if (workPackage === undefined)
+        throw new Error(`placed work package ${workPackageId} is not readable`);
+      const entry = shared?.get(workPackageId);
       if (shared !== null && entry === undefined) continue;
       const rolled = await this.rolledOf(
-        projectId,
-        entry?.revision ?? project.revision,
+        workPackageId,
+        entry?.revision ?? workPackage.revision,
         access,
         entry,
       );
@@ -499,11 +574,16 @@ export class SpaceResource {
       if (rolled === null) continue;
       if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
       if ('kind' in rolled) {
-        unavailable.push(projectId);
+        unavailable.push(workPackageId);
         continue;
       }
       for (const leaf of rolled.inProgress) {
-        items.push({ ...leaf, projectId, projectName: entry?.name ?? project.name, position });
+        items.push({
+          ...leaf,
+          workPackageId,
+          workPackageName: entry?.name ?? workPackage.name,
+          position,
+        });
       }
     }
     const ordered = sortInProgress(items, ({ dates }) => dates?.endsOn ?? null);
@@ -536,7 +616,7 @@ export class SpaceResource {
       | 'malformed_name'
     >
   > {
-    if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
     const trimmed = spaceNameOf(name);
     if (trimmed === null) return { ok: false, refusal: 'malformed_name' };
     const owner = await this.writableOwner(access);
@@ -548,30 +628,35 @@ export class SpaceResource {
       this.opts.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, refusal: written.reason };
-    const readable = await this.readableIds(actorId, access);
+    const readable = await this.readableProjects(actorId, access);
     const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
     if (members === null) return { ok: false, refusal: 'not_found' };
     return {
       ok: true,
       value: summaryOf(
         written.space,
-        members.filter(({ projectId }) => readable.has(projectId)).length,
+        members.reduce((count, { projectId }) => count + (readable.get(projectId) ?? 0), 0),
       ),
     };
   }
 
   async remove(
+    actorId: string,
     access: ResourceAccess,
     spaceId: string,
   ): Promise<
     SpaceAnswer<null, 'organization_required' | 'forbidden' | 'not_found' | 'virtual_space'>
   > {
-    if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
-    return (await this.opts.spaces.remove(owner.organizationId, spaceId))
-      ? { ok: true, value: null }
-      : { ok: false, refusal: 'not_found' };
+    const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
+    if (members === null) return { ok: false, refusal: 'not_found' };
+    const stamp = this.opts.clock.stampFor(actorId);
+    if (!(await this.opts.spaces.remove(owner.organizationId, spaceId, stamp)))
+      return { ok: false, refusal: 'not_found' };
+    for (const { projectId } of members) await this.changedProject(projectId, access, stamp);
+    return { ok: true, value: null };
   }
 
   async addProject(
@@ -583,29 +668,38 @@ export class SpaceResource {
   ): Promise<
     SpaceAnswer<
       number,
-      'organization_required' | 'forbidden' | 'not_found' | 'already_in_space' | 'virtual_space'
+      | 'organization_required'
+      | 'forbidden'
+      | 'not_found'
+      | 'already_in_space'
+      | 'project_in_other_space'
+      | 'virtual_space'
     >
   > {
-    if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
-    // Proof, observed 2026-09-29: with `projectId` left out of this gate,
-    // `answers a project the caller cannot open as not_found, adding nothing`
+    // Proof, observed 2026-09-29: with `workPackageId` left out of this gate,
+    // `answers a workPackage the caller cannot open as not_found, adding nothing`
     // in `space.resource.test.ts` received the store's position instead; with
-    // `afterProjectId` left out, `refuses to place a project after it, as if
+    // `afterWorkPackageId` left out, `refuses to place a workPackage after it, as if
     // it were not a member` received `{ ok: true, value: 25 }`. Over SQLite
-    // today the store's ownership read refuses a foreign project too; this is
-    // the gate a future read restriction on projects relies on.
+    // today the store's ownership read refuses a foreign work package too; this is
+    // the gate a future read restriction on work packages relies on.
     if (!(await this.canOpenAll(access, projectId, afterProjectId))) {
       return { ok: false, refusal: 'not_found' };
     }
+    const stamp = this.opts.clock.stampFor(actorId);
     const written = await this.opts.spaces.addProject(
       owner.organizationId,
       spaceId,
       projectId,
       afterProjectId,
-      this.opts.clock.stampFor(actorId),
+      stamp,
     );
+    if (written.ok) await this.changedProject(projectId, access, stamp);
+    if (!written.ok && written.reason === 'project_in_other_space')
+      return { ok: false, refusal: written.reason, spaceId: written.spaceId };
     return written.ok
       ? { ok: true, value: written.position }
       : { ok: false, refusal: written.reason };
@@ -619,20 +713,17 @@ export class SpaceResource {
   ): Promise<
     SpaceAnswer<null, 'organization_required' | 'forbidden' | 'not_found' | 'virtual_space'>
   > {
-    if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
     // Proof, observed 2026-09-29: with this gate removed, `refuses to remove
     // it` in `space.resource.test.ts` received `{ ok: true, value: null }`.
     if (!(await this.canOpenAll(access, projectId))) return { ok: false, refusal: 'not_found' };
-    return (await this.opts.spaces.removeProject(
-      owner.organizationId,
-      spaceId,
-      projectId,
-      this.opts.clock.stampFor(actorId),
-    ))
-      ? { ok: true, value: null }
-      : { ok: false, refusal: 'not_found' };
+    const stamp = this.opts.clock.stampFor(actorId);
+    if (!(await this.opts.spaces.removeProject(owner.organizationId, spaceId, projectId, stamp)))
+      return { ok: false, refusal: 'not_found' };
+    await this.changedProject(projectId, access, stamp);
+    return { ok: true, value: null };
   }
 
   async moveProject(
@@ -644,13 +735,13 @@ export class SpaceResource {
   ): Promise<
     SpaceAnswer<number, 'organization_required' | 'forbidden' | 'not_found' | 'virtual_space'>
   > {
-    if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
-    // Proof, observed 2026-09-29: with `projectId` left out of this gate,
+    // Proof, observed 2026-09-29: with `workPackageId` left out of this gate,
     // `refuses to move it, or to move another after it` in
     // `space.resource.test.ts` received `{ ok: true, value: 5 }`; with
-    // `afterProjectId` left out, the second move received `{ ok: true, value: 30 }`.
+    // `afterWorkPackageId` left out, the second move received `{ ok: true, value: 30 }`.
     if (!(await this.canOpenAll(access, projectId, afterProjectId))) {
       return { ok: false, refusal: 'not_found' };
     }
@@ -663,16 +754,43 @@ export class SpaceResource {
     );
     // A move never adds, so the store's `already_in_space` cannot arise;
     // answering it as absent would hide a store fault, so it throws.
-    if (!written.ok && written.reason === 'already_in_space') {
+    if (
+      !written.ok &&
+      (written.reason === 'already_in_space' || written.reason === 'project_in_other_space')
+    ) {
       throw new Error(`space ${spaceId} answered already_in_space to a move`);
     }
     return written.ok ? { ok: true, value: written.position } : { ok: false, refusal: 'not_found' };
   }
 
+  /** Changes only a person/team link and the space revision under current manage-spaces authority. */
+  async changeMembership(
+    actorId: string,
+    access: ResourceAccess,
+    spaceId: string,
+    memberId: string,
+    operation: 'addPerson' | 'removePerson' | 'addTeam' | 'removeTeam',
+  ): Promise<
+    SpaceAnswer<null, 'organization_required' | 'forbidden' | 'not_found' | 'virtual_space'>
+  > {
+    // Proof: omitting this guard returned HTTP404 for a virtual membership write, instead of409 (space-membership-fault-virtual-membership-v3).
+    if (spaceId === ALL_WORK_PACKAGES) return { ok: false, refusal: 'virtual_space' };
+    // Proof: replacing writableOwner by ownerOf admitted a viewer's actual membership write (space-membership-fault-membership-authority-v3).
+    const owner = await this.writableOwner(access);
+    if (!owner.ok) return owner;
+    const isWritten = await this.opts.spaces[operation](
+      owner.organizationId,
+      spaceId,
+      memberId,
+      this.opts.clock.stampFor(actorId),
+    );
+    return isWritten ? { ok: true, value: null } : { ok: false, refusal: 'not_found' };
+  }
+
   /**
-   * Whether the caller can open every named project through the project
+   * Whether the caller can open every named work package through the work package
    * routes' own read (`null` names none). A membership write addressing a
-   * project the caller cannot open, as the member or as the anchor, answers
+   * work package the caller cannot open, as the member or as the anchor, answers
    * that route's 404 exactly as if it were no member: the leak rule for
    * writes, so a hidden member is neither movable, removable nor probeable.
    */
@@ -682,9 +800,32 @@ export class SpaceResource {
   ): Promise<boolean> {
     for (const projectId of projectIds) {
       if (projectId === null) continue;
-      if ((await this.opts.projects.readWithin(projectId, access)) === null) return false;
+      const target = await this.opts.settings.readTarget(
+        { level: 'project', id: projectId },
+        access.kind === 'legacy' ? null : access.scope.organizationId,
+      );
+      if (target === null) return false;
+      if (
+        access.kind === 'scoped' &&
+        !(await authorize(this.opts.accessDecisions, access.principal, target, 'project.read')).ok
+      )
+        return false;
     }
     return true;
+  }
+
+  private async changedProject(
+    projectId: string,
+    access: ResourceAccess,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    const target = await this.opts.settings.readTarget(
+      { level: 'project', id: projectId },
+      access.kind === 'legacy' ? null : access.scope.organizationId,
+    );
+    if (target === null) throw new Error('space write lost its admitted project');
+    for (const changed of await this.opts.settings.touchPackages(target, stamp))
+      await this.opts.announcements.publish(changed.workPackageId, changed.event);
   }
 
   private async ownerOf(access: ResourceAccess): Promise<Owner> {
@@ -697,7 +838,7 @@ export class SpaceResource {
 
   /**
    * {@link ownerOf}, refusing a viewer. Legacy access keeps its
-   * deployment-wide write authority, as it does for projects.
+   * deployment-wide write authority, as it does for work packages.
    *
    * Proof, observed 2026-09-29: with this role check skipped,
    * `refuses a viewer every space write and lets the viewer read` in
@@ -707,25 +848,38 @@ export class SpaceResource {
    */
   private async writableOwner(
     access: ResourceAccess,
-  ): Promise<Owner | { ok: false; refusal: 'forbidden' }> {
-    if (!this.mayWrite(access)) return { ok: false, refusal: 'forbidden' };
+  ): Promise<Owner | { ok: false; refusal: 'forbidden'; readonly permission?: Permission }> {
+    if (!(await this.mayWrite(access)))
+      return { ok: false, refusal: 'forbidden', permission: 'organization.manage_spaces' };
     return this.ownerOf(access);
   }
 
   /**
-   * Whether the caller may create, rename or delete spaces and edit their
-   * membership: every role but viewer, and legacy access as it may write
-   * projects. The routes answer it as `writable` so fe-01 shows no handle a
-   * write would refuse; the writes still check it themselves.
+   * Whether current grants permit organization.manage_spaces. Reads expose
+   * this as writable; every scoped write rechecks through its borrowed port.
+   * Legacy access retains deployment-wide behavior.
    */
-  mayWrite(access: ResourceAccess): boolean {
-    return access.kind === 'legacy' || canWriteInOrganization(access.scope.role);
+  async mayWrite(access: ResourceAccess): Promise<boolean> {
+    if (access.kind === 'legacy') return true;
+    // Proof: space-grant fault failed 'missing permission on the direct space creation route' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    return (
+      await authorize(
+        this.opts.accessDecisions,
+        access.principal,
+        { kind: 'organization', organizationId: access.scope.organizationId },
+        'organization.manage_spaces',
+      )
+    ).ok;
   }
 
-  private async readableIds(actorId: string, access: ResourceAccess): Promise<Set<string>> {
-    return new Set(
-      (await this.opts.projects.listWithin(actorId, access)).map((project) => project.id),
-    );
+  private async readableProjects(
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    for (const workPackage of await this.opts.workPackages.listWithin(actorId, access))
+      counts.set(workPackage.projectId, (counts.get(workPackage.projectId) ?? 0) + 1);
+    return counts;
   }
 }
 
@@ -737,12 +891,12 @@ function spaceNameOf(name: string): string | null {
   return length === 0 || length > SPACE_NAME_MAX ? null : trimmed;
 }
 
-function summaryOf(space: Space, projectCount: number): SpaceSummary {
+function summaryOf(space: Space, workPackageCount: number): SpaceSummary {
   return {
     id: space.id,
     name: space.name,
     virtual: false,
-    projectCount,
+    workPackageCount,
     revision: space.revision,
     createdById: space.createdBy,
     createdAt: space.createdAt,

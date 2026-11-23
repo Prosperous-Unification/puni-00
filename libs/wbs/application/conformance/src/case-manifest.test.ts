@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   CASE_MANIFEST,
   type CaseRegistration,
+  type ExpectedCase,
   expectedCasesFor,
   SUPPLEMENTAL_CASE_MANIFEST,
 } from './case-manifest';
@@ -31,16 +32,16 @@ describe('the closed case manifest', () => {
     const declaration = offeredDeclaration();
     const expected = expectedCasesFor(declaration.historyAdmission);
     const registrations = expected
-      .filter(({ family }) => family !== 'projects')
+      .filter(({ family }) => family !== 'workPackages')
       .map(({ family, caseId }) => passingRegistration(family, caseId));
     const report = await runCases(registrations);
 
-    // Proof: removing the registration exact-set check after the projects kit
+    // Proof: removing the registration exact-set check after the work packages kit
     // was removed failed here: expected `missing registered cases`, received
-    // `missing case reports: projects: projects.create:steps`.
+    // `missing case reports: workPackages: workPackages.create:steps`.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('missing registered cases: projects: projects.create:steps');
+    }).toThrow('missing registered cases: workPackages: workPackages.create:steps');
   });
 
   it('rejects a duplicated case', async () => {
@@ -52,7 +53,7 @@ describe('the closed case manifest', () => {
 
     // Proof: removing the registration duplicate check after duplicating the
     // first case failed here: expected `duplicate registered cases`, received
-    // `duplicate case reports: projects: projects.create:steps`.
+    // `duplicate case reports: workPackages: workPackages.create:steps`.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow('duplicate registered cases');
@@ -63,8 +64,9 @@ describe('the closed case manifest', () => {
     // replacing its case ID with blockages.set:broken failed the exact case assertion below.
     expect(Object.keys(CASE_MANIFEST)).toEqual([
       'livePlans',
-      'projects',
-      'projectRanks',
+      'workPackages',
+      'spaces',
+      'workPackageRanks',
       'accessDecisions',
       'users',
       'directory',
@@ -72,9 +74,11 @@ describe('the closed case manifest', () => {
       'capacity',
       'resourceCapacity',
       'priorityBands',
+      'settings',
       'calendarMarkers',
       'eventLog',
       'planEvents',
+      'stepCatalogue',
       'steps',
       'workItems',
       'estimates',
@@ -101,11 +105,11 @@ describe('the closed case manifest', () => {
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(CASE_MANIFEST.claims).toEqual([
       'claims.add:taken-stated-remove',
-      'claims.listStampedByProject:write-instant',
+      'claims.listStampedByWorkPackage:write-instant',
       'claims.remove:delegated-cascade',
       'claims.moveAll:in-place',
       'claims.lease:write-renew-expire',
-      'claims.observeProject:legacy-observation',
+      'claims.observeWorkPackage:legacy-observation',
       'claims.lease:revoked-instant-read',
       'claims.lease:run-scoped',
       'claims.occupancy:hold-read-cascade',
@@ -117,4 +121,17 @@ describe('the closed case manifest', () => {
       independentWrite: ['history.batch:interleaved-success-survives'],
     });
   });
+});
+
+it('requires executable settings cases in both source admission manifests', () => {
+  const required: ExpectedCase[] = [
+    { family: 'settings', caseId: 'settings.readTarget:actual-chain-and-scope' },
+    { family: 'settings', caseId: 'settings.capture:inherited-and-detached' },
+    { family: 'settings', caseId: 'settings.write:refusal-and-clear' },
+    { family: 'settings', caseId: 'settings.packageIds:descendants-and-touch' },
+  ];
+  for (const admission of ['independent-write', 'immediate-busy'] as const) {
+    const registered = expectedCasesFor(admission).filter(({ family }) => family === 'settings');
+    expect(registered).toEqual(required);
+  }
 });

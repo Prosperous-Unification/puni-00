@@ -1,9 +1,8 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 /**
- * The Directory, Organization and Spaces pages as a local-mode reader meets
- * them, measured by a browser: findings F-014 and F-015 of the 2026-10-13 UI
- * review.
+ * Directory card rows in the activated ordinary cohort, measured by a browser
+ * for finding F-014 of the 2026-10-13 UI review.
  */
 
 /** How far two measured edges may disagree, in CSS px. */
@@ -64,31 +63,3 @@ for (const viewport of [
     }
   });
 }
-
-test('Organization says what local mode means and offers somewhere to go', async ({ page }) => {
-  await signIn(page);
-  await page.goto('/organization');
-  const state = page.getByRole('main');
-  await expect(state.getByRole('alert')).toBeVisible();
-  // Proof: on main at 16eaa121f this failed on the link: the page said only
-  // `No organization is selected for this session.` Watched 2026-10-13.
-  const action = state.getByRole('link', { name: 'Open the plan' });
-  await expect(action).toBeVisible();
-  await action.click();
-  await expect(page).toHaveURL(/\/$/);
-});
-
-test('Spaces says what local mode means and offers All projects', async ({ page }) => {
-  await signIn(page);
-  await page.goto('/spaces');
-  const state = page.getByRole('main');
-  await expect(state.getByRole('alert')).toBeVisible();
-  // Proof: on main at 16eaa121f this failed on `not.toContainText('deployment')`:
-  // the page read `Until this deployment has one, only All projects is
-  // available.` Watched 2026-10-13.
-  await expect(state).not.toContainText('deployment');
-  const action = state.getByRole('link', { name: 'Open All projects' });
-  await expect(action).toBeVisible();
-  await action.click();
-  await expect(page).toHaveURL(/\/spaces\/all$/);
-});

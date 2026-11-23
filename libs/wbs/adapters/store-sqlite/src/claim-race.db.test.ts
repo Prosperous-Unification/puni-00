@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION, LEGACY_ACCESS } from '@wbs/core';
+import { LEGACY_ACCESS, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -15,11 +15,11 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 const F = 'account-f';
 const G = 'account-g';
 const BOUND = new Map([
@@ -30,20 +30,53 @@ const BOUND = new Map([
 
 let directory: string;
 let source: SqliteSource;
+let closeSource: (() => Promise<void>) | undefined;
 
-beforeEach(() => {
+beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'claim-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  closeSource = undefined;
+  custody.hasUnknownOwner = false;
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: { at: 1, by: F },
+      definitions: [
+        {
+          id: 'dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          id: 'qa',
+          code: 'qa',
+          name: 'QA',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    custody,
+  );
+  custody.hasUnknownOwner = true;
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
   });
+  custody.hasUnknownOwner = false;
+  closeSource = source.close.bind(source);
 });
 
 afterEach(async () => {
-  await source.close();
-  rmSync(directory, { recursive: true, force: true });
+  await closeSource?.();
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 /** A gate the first claim read waits at, so the other batch is queued behind its turn. */
@@ -56,21 +89,19 @@ interface Hold {
 async function seeded(hold?: Hold) {
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  for (const id of [F, G]) {
-    await source.stores.users.create(
-      { id, username: id, passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: id },
-    );
-  }
-  const created = expectCreated(await graph.projects.create('Race', F));
-  const projectId = created.project.id;
+  await source.stores.users.create(
+    { id: G, username: G, passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: G },
+  );
+  const created = expectCreated(await graph.workPackages.create('Race', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   for (const [id, name] of [
     ['claire', 'claire'],
     ['worker', 'worker'],
@@ -79,17 +110,18 @@ async function seeded(hold?: Hold) {
     await source.stores.directory.addPerson({ id, name, kind: 'agent' }, [], { at: 1, by: F });
   }
   const withIdentity = (claims: ClaimStore, actor: () => string): ClaimStore => ({
-    listByProject: async (id) => {
+    listByWorkPackage: async (id) => {
       if (hold?.actor === actor()) {
         hold.actor = null;
         hold.reached();
         await hold.release;
       }
-      return claims.listByProject(id);
+      return claims.listByWorkPackage(id);
     },
-    listStampedByProject: (id) => claims.listStampedByProject(id),
+    listStampedByWorkPackage: (id) => claims.listStampedByWorkPackage(id),
     findById: (id, claimId) => claims.findById(id, claimId),
-    observeProject: (id, access) => claims.observeProject(id, access),
+    observeWorkPackage: (id, access) => claims.observeWorkPackage(id, access),
+    mayReadWorkPackageWithin: (...args) => claims.mayReadWorkPackageWithin(...args),
     occupancyOf: (id) => claims.occupancyOf(id),
     organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
     listStampedByIds: (projectId, ids) => claims.listStampedByIds(projectId, ids),
@@ -100,7 +132,7 @@ async function seeded(hold?: Hold) {
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
     renewLeases: (personId, runId, now) => claims.renewLeases(personId, runId, now),
     expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
-    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
+    workPackagesWithExpiredLeases: (at, limit) => claims.workPackagesWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),
     pinnedPersonOf: () => Promise.resolve(null),
   });
@@ -123,9 +155,9 @@ async function seeded(hold?: Hold) {
   /** One batch as `actor`; the identity wrapper reads the actor of the batch that started last. */
   const as = (actor: string, commands: PlanCommand[]) => () => {
     acting = actor;
-    return runner.run(projectId, actor, commands);
+    return runner.run(workPackageId, actor, commands);
   };
-  const leaf = await runner.run(projectId, F, [
+  const leaf = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'leaf', name: 'Leaf', parentId: null, afterId: null },
   ]);
   if (!leaf.ok) throw new Error('the leaf was refused');
@@ -139,7 +171,7 @@ async function seeded(hold?: Hold) {
     source.db.all<{ person_id: string; step_id: string }>(
       sql`SELECT person_id, step_id FROM claim ORDER BY person_id`,
     );
-  return { graph, runner, projectId, leafId, steps, revision, claims, as };
+  return { graph, runner, workPackageId, leafId, steps, revision, claims, as };
 }
 
 describe('two fleets claim the same step', () => {
@@ -202,12 +234,12 @@ describe('a claim on SQLite', () => {
   it('refuses an undo of a subtree claim that would take a delegated claim it never wrote', async () => {
     const {
       runner,
-      projectId,
+      workPackageId,
       claims,
       as,
       steps: [dev],
     } = await seeded();
-    const tree = await runner.run(projectId, F, [
+    const tree = await runner.run(workPackageId, F, [
       { kind: 'createWorkItem', ref: 'root', name: 'Root', parentId: null, afterId: null },
       {
         kind: 'createWorkItem',
@@ -240,15 +272,15 @@ describe('a claim on SQLite', () => {
     ).toMatchObject({ ok: true });
     await as(G, [{ kind: 'patchWorkItem', workItemId: childId, patch: { name: 'Renamed' } }])();
     const held = claims();
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
     expect(claims()).toEqual(held);
   });
 
   it('moves the revision by one and records one entry for a claim that states progress', async () => {
-    const { runner, projectId, leafId, steps, revision, as } = await seeded();
+    const { runner, workPackageId, leafId, steps, revision, as } = await seeded();
     const [dev, qa] = steps;
-    await runner.run(projectId, F, [
+    await runner.run(workPackageId, F, [
       {
         kind: 'setEstimate',
         workItemId: leafId,
@@ -273,7 +305,7 @@ describe('a claim on SQLite', () => {
   });
 
   it('refuses an undo of a claim after the holder’s leaf moved on', async () => {
-    const { runner, projectId, leafId, steps, claims, as } = await seeded();
+    const { runner, workPackageId, leafId, steps, claims, as } = await seeded();
     // Both steps already in progress, so the claim states nothing and its own
     // revision precondition is the only thing guarding the undo.
     await as(F, [
@@ -286,12 +318,12 @@ describe('a claim on SQLite', () => {
     ])();
     await as(F, [{ kind: 'claimWorkItem', workItemId: leafId, personId: 'claire' }])();
     await as(G, [{ kind: 'patchWorkItem', workItemId: leafId, patch: { name: 'Renamed' } }])();
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
     expect(claims().map(({ person_id }) => person_id)).toEqual(['claire', 'claire']);
   });
 
   it('refuses a redo of a claim after the leaf moved on', async () => {
-    const { runner, projectId, leafId, steps, claims, as } = await seeded();
+    const { runner, workPackageId, leafId, steps, claims, as } = await seeded();
     await as(F, [
       ...steps.map((stepId): PlanCommand => ({
         kind: 'setProgress',
@@ -301,9 +333,9 @@ describe('a claim on SQLite', () => {
       })),
     ])();
     await as(F, [{ kind: 'claimWorkItem', workItemId: leafId, personId: 'claire' }])();
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
     await as(G, [{ kind: 'patchWorkItem', workItemId: leafId, patch: { name: 'Renamed' } }])();
-    expect(await runner.redo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
     expect(claims()).toEqual([]);
   });
 
@@ -311,7 +343,7 @@ describe('a claim on SQLite', () => {
   // the leaf; with the undo's `move_claims` omitted the child's delete cascaded
   // it away and the undo read no claim; watched 2026-10-20.
   it('hands a claimed leaf’s claim to its first child, fencing and releasable there, and back on undo', async () => {
-    const { graph, runner, projectId, leafId, steps, as } = await seeded();
+    const { graph, runner, workPackageId, leafId, steps, as } = await seeded();
     const [dev] = steps;
     await as(F, [
       { kind: 'claimWorkItem', workItemId: leafId, personId: 'claire', steps: [dev] },
@@ -328,7 +360,7 @@ describe('a claim on SQLite', () => {
     const childId = created.results[0]?.id ?? '';
     expect(owners()).toEqual([{ work_item_id: childId, step_id: dev, person_id: 'claire' }]);
     expect(source.db.get<{ id: string }>(sql`SELECT id FROM claim`).id).toBe(claimId);
-    const startable = await graph.workItems.startableWithin(projectId, LEGACY_ACCESS, null);
+    const startable = await graph.workItems.startableWithin(workPackageId, LEGACY_ACCESS, null);
     if (startable === null || 'kind' in startable) throw new Error('the read refused');
     expect(startable.claimed.map(({ workItemId, claimId: id }) => [workItemId, id])).toEqual([
       [childId, claimId],
@@ -339,9 +371,9 @@ describe('a claim on SQLite', () => {
       ])(),
     ).toMatchObject({ ok: false, reason: 'already_claimed' });
 
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
     expect(owners()).toEqual([{ work_item_id: leafId, step_id: dev, person_id: 'claire' }]);
-    expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
     expect(owners()).toEqual([{ work_item_id: childId, step_id: dev, person_id: 'claire' }]);
     expect(
       await as(F, [{ kind: 'releaseWorkItem', workItemId: childId, personId: 'claire' }])(),
@@ -352,7 +384,7 @@ describe('a claim on SQLite', () => {
   // Entries written before `20261020130000_add_claim_occupancy` carry no
   // `occupancy`: their claims held nothing, and their undo and redo still apply.
   it('undoes a release and redoes a claim journalled before claim occupancy', async () => {
-    const { runner, projectId, leafId, steps, claims, as } = await seeded();
+    const { runner, workPackageId, leafId, steps, claims, as } = await seeded();
     const [dev] = steps;
     await as(F, [
       { kind: 'claimWorkItem', workItemId: leafId, personId: 'claire', steps: [dev] },
@@ -370,24 +402,24 @@ describe('a claim on SQLite', () => {
         sql`SELECT count(*) AS n FROM command_journal WHERE inverse LIKE '%occupancy%' OR payload LIKE '%occupancy%'`,
       ).n,
     ).toBe(0);
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
     expect(claims()).toEqual([{ person_id: 'claire', step_id: dev }]);
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
     expect(claims()).toEqual([]);
     legacy();
-    expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
     expect(claims()).toEqual([{ person_id: 'claire', step_id: dev }]);
   });
 
   it('refuses a redo of a claim once another holder took the step', async () => {
-    const { runner, projectId, leafId, steps, claims, as } = await seeded();
+    const { runner, workPackageId, leafId, steps, claims, as } = await seeded();
     const [dev] = steps;
     await as(F, [
       { kind: 'claimWorkItem', workItemId: leafId, personId: 'claire', steps: [dev] },
     ])();
-    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
     await as(G, [{ kind: 'claimWorkItem', workItemId: leafId, personId: 'codex', steps: [dev] }])();
-    expect(await runner.redo(projectId, F)).toMatchObject({ ok: false });
+    expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: false });
     expect(claims()).toEqual([{ person_id: 'codex', step_id: dev }]);
   });
 });

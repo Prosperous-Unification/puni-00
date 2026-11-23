@@ -57,7 +57,7 @@ export const StepEstimate = type({
 export type StepEstimate = typeof StepEstimate.infer;
 
 /**
- * The coefficients one project weighs the three points of a PERT estimate by.
+ * The coefficients one work package weighs the three points of a PERT estimate by.
  *
  * The divisor is **their sum**, which is what makes 1/4/1 the textbook
  * `(o + 4r + p) / 6` and 1/1/1 the plain average of the three. A weight of zero
@@ -65,7 +65,7 @@ export type StepEstimate = typeof StepEstimate.infer;
  * zero-day estimate.
  *
  * Validated as a value rather than checked by its callers, because the two
- * places it enters this system are boundaries — a PATCH body and a `project`
+ * places it enters this system are boundaries — a PATCH body and a `workPackage`
  * row — and every use after them is arithmetic that must not have to ask. The
  * narrow refuses the three triples that cannot average anything: a negative
  * coefficient (a duration that shrinks as the estimate grows), a non-finite one
@@ -84,7 +84,7 @@ export const PertWeights = type({
 export type PertWeights = typeof PertWeights.infer;
 
 /**
- * The weights every project has until it says otherwise: the textbook PERT
+ * The weights every work package has until it says otherwise: the textbook PERT
  * 1/4/1, which is the arithmetic every plan in this tool was computed with
  * before the weights could be set at all.
  */
@@ -96,13 +96,13 @@ export const DEFAULT_PERT_WEIGHTS: PertWeights = {
 
 /**
  * The weighted PERT duration of a three-point estimate, in days, **before** the
- * project's rounding.
+ * work package's rounding.
  *
  * `(w.o × o + w.r × r + w.p × p) / (w.o + w.r + w.p)`. Under the default
  * weights the realistic figure counts four times because it is the one somebody
  * actually thought about, and the other two are the edges of the distribution —
  * which is why a `2 / 3 / 10` estimate expects 4 days rather than the midpoint's
- * 6. A project that disagrees about that shape says so in its weights; see
+ * 6. A work package that disagrees about that shape says so in its weights; see
  * {@link PertWeights}.
  *
  * Fractional on purpose, and it stays that way here: the whole-day figure a plan
@@ -118,7 +118,7 @@ export function expectedDays(estimate: ThreePointEstimate, weights: PertWeights)
 }
 
 /**
- * How a project turns its three-point estimates into the one number it plans
+ * How a work package turns its three-point estimates into the one number it plans
  * with.
  *
  * PERT is the default and the reason three points are collected at all. The
@@ -126,7 +126,7 @@ export function expectedDays(estimate: ThreePointEstimate, weights: PertWeights)
  * "this date has to hold": a team committing a deadline plans on `pessimistic`,
  * a team quoting a possibility plans on `optimistic`, and `realistic` is the
  * single figure most people mean when they say "the estimate". Which one a
- * project uses is a decision about risk appetite, not a calculation, so it is
+ * work package uses is a decision about risk appetite, not a calculation, so it is
  * stored rather than inferred.
  */
 export const ESTIMATE_METHODS = ['pert', 'optimistic', 'realistic', 'pessimistic'] as const;
@@ -138,7 +138,7 @@ export function isEstimateMethod(value: unknown): value is EstimateMethod {
 }
 
 /**
- * How a project turns one step's combined figure into the days it is charged:
+ * How a work package turns one step's combined figure into the days it is charged:
  * `floor`, `round`, `ceil` — or `exact`, which charges the figure as it came
  * out of the method.
  *
@@ -149,11 +149,11 @@ export function isEstimateMethod(value: unknown): value is EstimateMethod {
  * cancel out across a plan.
  *
  * **`exact` is the arithmetic every plan in this tool had until 2026-08-30**,
- * and it is kept for two reasons rather than as a courtesy. A project that
+ * and it is kept for two reasons rather than as a courtesy. A work package that
  * genuinely plans in half days loses nothing to a default it did not choose;
  * and the whole fractional machinery below the schedule — `snapWorkdays` and
  * the calendar boundaries it guards — would otherwise be reachable by no
- * project at all, which turns a shipped guard and its proofs into checks that
+ * work package at all, which turns a shipped guard and its proofs into checks that
  * cannot fail. It is the arm the identity oracles replay on, exactly as
  * `anchor-slice` is for `DependencyReach`.
  */
@@ -166,13 +166,13 @@ export function isEstimateRounding(value: unknown): value is EstimateRounding {
 }
 
 /**
- * A project's whole answer to "what one number does this estimate mean": the
+ * A work package's whole answer to "what one number does this estimate mean": the
  * method that combines the three points, the weights PERT combines them by, and
  * the rounding the combined figure is charged at.
  *
  * One value rather than three parameters. Passing them apart lets a caller
- * combine one project's method with another's weights and the compiler says
- * nothing; a rule is assembled once, from the project being read.
+ * combine one work package's method with another's weights and the compiler says
+ * nothing; a rule is assembled once, from the work package being read.
  */
 export interface EstimateRule {
   method: EstimateMethod;
@@ -181,7 +181,7 @@ export interface EstimateRule {
 }
 
 /**
- * The rule a project has until it says otherwise: PERT, weighted 1/4/1, charged
+ * The rule a work package has until it says otherwise: PERT, weighted 1/4/1, charged
  * whole days rounded up.
  *
  * `ceil` rather than the fractions this tool carried until 2026-08-30 — Dany's
@@ -241,7 +241,7 @@ function roundDays(days: number, rounding: EstimateRounding): number {
 }
 
 /**
- * A project step's estimate allowance as the percentage a planner types:
+ * A work package step's estimate allowance as the percentage a planner types:
  * `30` is `+30%`, `0` is no allowance.
  *
  * Finite, 0 to 1000 inclusive, at most two decimal places — so it is always a
@@ -317,7 +317,7 @@ export function beforeRoundingFigure(
 }
 
 /**
- * The whole number of days a project charges for one step of one work item:
+ * The whole number of days a work package charges for one step of one work item:
  * the three points combined, the step's allowance added, then rounded.
  *
  * The single place the choice is applied, and the order is the product decision:
@@ -326,7 +326,7 @@ export function beforeRoundingFigure(
  * (`rollUpFinals` in be-01). Summing first and rounding once would charge two
  * half-day steps as one day when the plan runs them as two. Rounding before the
  * allowance would charge `1.1` days at `+30%` as `3` rather than `2`
- * (`add-project-step-estimate-allowances`).
+ * (`add-work-package-step-estimate-allowances`).
  *
  * `allowance` is required: a caller that forgot the step's policy would
  * charge base days and look right on every step whose policy is zero.
@@ -346,7 +346,7 @@ export function chargedDays(
   return roundDays(beforeRoundingFigure(estimate, rule, allowance), rule.rounding);
 }
 
-/** A project step as the charge reads it: its id and its allowance. */
+/** A work package step as the charge reads it: its id and its allowance. */
 export interface StepPolicy {
   readonly id: string;
   readonly allowancePercent: AllowancePercent;
@@ -354,7 +354,7 @@ export interface StepPolicy {
 }
 
 /**
- * Each project step's allowance by step id, as one plan read holds them.
+ * Each work package step's allowance by step id, as one plan read holds them.
  *
  * {@link allowanceOf} is the only reader, so a step missing from the map is one
  * loud error rather than a silent zero.
@@ -365,7 +365,7 @@ export type StepAllowances = ReadonlyMap<string, AllowancePercent>;
  * The allowance `stepId` carries in `allowances`.
  *
  * @throws Error when the step is not in the map. Every estimate references a
- *   step of its own project, so a missing entry is a read that took estimates
+ *   step of its own work package, so a missing entry is a read that took estimates
  *   and steps from different states — defaulting it to zero would charge base
  *   days silently.
  */
@@ -396,14 +396,14 @@ export function minuteTrioProblem(
   return null;
 }
 
-/** Charges whole minutes after allowance, independently of project rounding (ADR 0042). */
+/** Charges whole minutes after allowance, independently of work package rounding (ADR 0042). */
 export function chargedMinutes(
   estimate: ThreePointEstimate,
   rule: EstimateRule,
   allowance: AllowancePercent,
 ): number {
   // Proof: Math.round charged 51 rather than 52; charges a minute step to the whole minute failed (2026-10-12).
-  // Proof: roundDays with rule.rounding charged 51 under floor; never consults the project rounding failed (2026-10-12).
+  // Proof: roundDays with rule.rounding charged 51 under floor; never consults the work package rounding failed (2026-10-12).
   return Math.ceil(beforeRoundingFigure(estimate, rule, allowance));
 }
 

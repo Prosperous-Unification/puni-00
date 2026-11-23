@@ -1,9 +1,11 @@
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -18,23 +20,56 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { runCli, validatorHandlers } from './cli';
 import {
   commandNamesOf,
-  delegatedGrammars,
   type Grammar,
   installedGrammar,
   readInvocation,
   registerShortName,
+  UsageRefusal,
   type ValidatorCommand,
   validatorGrammar,
 } from './cli-parser';
 import { type CliInvocation, invokeCli } from './invoke-cli';
-import { prepareActivationUsage } from './policy/prepare-activation-cli';
-import { prepareRelocationActivationUsage } from './policy/prepare-relocation-activation-cli';
-import { checkUsage, explainUsage } from './rules/check';
-import { scenarioUsage } from './rules/scenario-command';
-import { templateUsage } from './templates/verify';
-import { workflowBindingUsage } from './workflow-binding';
 
 const repositories: string[] = [];
+const captures: string[] = [];
+
+/** Real subprocess outputs on exclusively owned files; Bun nested pipe writes are denied in this sandbox. */
+function spawnCaptured(
+  argv: readonly string[],
+  options: { cwd?: string; env?: Record<string, string | undefined> } = {},
+) {
+  const directory = mkdtempSync(join(tmpdir(), 'burokrat-cli-capture-'));
+  captures.push(directory);
+  const stdoutPath = join(directory, 'stdout'),
+    stderrPath = join(directory, 'stderr');
+  const stdout = openSync(stdoutPath, 'wx', 0o600);
+  let child: ReturnType<typeof Bun.spawnSync>;
+  try {
+    const stderr = openSync(stderrPath, 'wx', 0o600);
+    try {
+      child = Bun.spawnSync({
+        cmd: [...argv],
+        ...options,
+        stdin: 'ignore',
+        stdout,
+        stderr,
+        timeout: 30000,
+      });
+    } finally {
+      closeSync(stderr);
+    }
+  } finally {
+    closeSync(stdout);
+  }
+  const signal: unknown = child.signalCode;
+  if (signal !== undefined && signal !== null)
+    throw Error('Burokrat CLI child terminated by signal');
+  return {
+    exitCode: child.exitCode,
+    stdout: readFileSync(stdoutPath),
+    stderr: readFileSync(stderrPath),
+  };
+}
 const cliPath = join(import.meta.dir, 'cli.ts');
 
 interface GitEntry {
@@ -43,8 +78,11 @@ interface GitEntry {
   blob: string;
 }
 
+const fixtureGitConfig = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+
 function runGit(repository: string, argv: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
+    env: { ...process.env, ...fixtureGitConfig },
     stderr: 'pipe',
     stdout: 'pipe',
   });
@@ -89,12 +127,10 @@ async function runCandidateCli(
   env?: Record<string, string>,
 ): Promise<CliInvocation> {
   const argv = ['read-candidate', kind, repository, base];
-  if (env === undefined) return invokeCli(argv);
-  const invocation = Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+  if (env === undefined) return invokeCli(argv, fixtureGitConfig);
+  const invocation = spawnCaptured([process.execPath, 'run', cliPath, ...argv], {
     cwd: import.meta.dir,
-    env: { ...process.env, ...env },
-    stderr: 'pipe',
-    stdout: 'pipe',
+    env: { ...process.env, ...fixtureGitConfig, ...env },
   });
   return {
     exitCode: invocation.exitCode,
@@ -122,6 +158,7 @@ function expectCandidate(
 }
 
 afterEach(() => {
+  for (const directory of captures.splice(0)) rmSync(directory, { recursive: true });
   for (const repository of repositories.splice(0)) {
     rmSync(repository, { force: true, recursive: true });
   }
@@ -510,18 +547,15 @@ test('submit-admission is an unknown command', () => {
   // exit `null` instead of 1 (2026-10-11). Both entries now parse with `cli-parser.ts`, whose
   // refusal reads `Unsupported Burokrat command:` (twilight-cli-optique C3).
   for (const entry of [cliPath, join(import.meta.dir, 'bin.ts')]) {
-    const invocation = Bun.spawnSync(
-      [
-        process.execPath,
-        entry,
-        'submit-admission',
-        repository,
-        join(repository, 'packet.json'),
-        'staged',
-        base,
-      ],
-      { stderr: 'pipe', stdout: 'pipe' },
-    );
+    const invocation = spawnCaptured([
+      process.execPath,
+      entry,
+      'submit-admission',
+      repository,
+      join(repository, 'packet.json'),
+      'staged',
+      base,
+    ]);
     expect(invocation.exitCode, entry).toBe(1);
     expect(invocation.stderr.toString('utf8'), entry).toContain(
       'error: Unsupported Burokrat command: submit-admission',
@@ -539,10 +573,8 @@ function spawnEntry(
   argv: readonly string[],
   environment: Record<string, string> = {},
 ): { exitCode: number | null; stdout: string; stderr: string } {
-  const invocation = Bun.spawnSync([process.execPath, entry, ...argv], {
+  const invocation = spawnCaptured([process.execPath, entry, ...argv], {
     env: { ...process.env, ...environment },
-    stderr: 'pipe',
-    stdout: 'pipe',
   });
   return {
     exitCode: invocation.exitCode,
@@ -673,11 +705,11 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
   test('check refuses an odd flag tail and explain a two-word tail before reading', async () => {
     await expectUsageRefusal(
       ['check', 'working', absentRepository, 'HEAD', 'policy.json', '--rule'],
-      /^error: usage: twilight-burokrat check <committed\|staged\|working> .* \(takes 4 operands and up to 2 flags, got 5 words\)\n$/u,
+      /^error: usage: twilight-burokrat check .*\(`--rule` requires `RULE`\.\)\n$/u,
     );
     await expectUsageRefusal(
       ['explain', 'MOD-INDEX', absentRepository],
-      /^error: usage: twilight-burokrat explain <rule-id> \[<repository> <rule-policy-json>\] \(takes 1 or 3 words, got 2\)\n$/u,
+      /^error: usage: twilight-burokrat explain .*RULE-POLICY/u,
     );
   });
 
@@ -768,55 +800,44 @@ describe('Burokrat command line (twilight-cli-optique)', () => {
       expect(printedBy(installedGrammar, line.split(' ')), line).toMatch(stdout);
     }
     expect(printedBy(installedGrammar, ['help', 'check']).replace(/\s+/gu, ' ')).toContain(
-      '<committed|staged|working> <repository> <revision-or-base> <rule-policy-json>',
+      'SELECTION REPOSITORY REVISION-OR-BASE RULE-POLICY',
     );
     const candidates = printedBy(installedGrammar, ['completion', 'zsh', '']);
     for (const name of commandNamesOf(installedGrammar)) expect(candidates).toContain(name);
   });
 
-  test("every delegated grammar is its module's usage line", () => {
-    // Proof: restoring `template`'s `<id>` metavars in `delegatedGrammars` failed this test with
-    // `<template-id>` expected (2026-11-03).
-    const moduleUsages: Record<keyof typeof delegatedGrammars, string> = {
-      check: checkUsage,
-      explain: explainUsage,
-      scenario: scenarioUsage,
-      template: templateUsage,
-      'validate workflow-binding': workflowBindingUsage,
-      'prepare-activation': prepareActivationUsage,
-      'prepare-relocation-activation': prepareRelocationActivationUsage,
-    };
-    for (const [words, grammar] of Object.entries(delegatedGrammars)) {
-      expect(moduleUsages[words as keyof typeof delegatedGrammars], words).toBe(
-        `usage: twilight-burokrat ${words} ${grammar}`,
-      );
+  test('formerly delegated help derives from typed options and nested commands', () => {
+    for (const [words, expected] of [
+      [['check'], '--performance-evidence PATH'],
+      [['explain'], 'RULE'],
+      [['scenario', 'allocate'], '--predecessor ID'],
+      [['template', 'verify'], 'SUBJECT'],
+      [['validate', 'workflow-binding'], '--steps STEPS'],
+      [['prepare-activation'], '--candidate-mapping PATH'],
+      [['prepare-relocation-activation'], '--base-activation PATH'],
+    ] as const) {
+      const help = printedBy(installedGrammar, [...words, '--help']);
+      expect(help).toContain('Usage: twilight-burokrat ' + words.join(' '));
+      expect(help).toContain(expected);
+      expect(help).not.toContain('[...]');
     }
+    for (const tail of [['--version'], ['--now=2026-11-02T00:00:00.000Z'], ['--', '--help']])
+      expect(() =>
+        readInvocation(validatorGrammar, ['check', ...tail], { stdout: () => undefined }),
+      ).toThrow(UsageRefusal);
+    expect(
+      readInvocation(validatorGrammar, ['check', 'working', '.', 'HEAD', 'policy.json', '--help'], {
+        stdout: () => undefined,
+      }),
+    ).toEqual({ kind: 'printed' });
   });
 
-  test('<delegated command> --help prints its help; other words reach the module', () => {
-    for (const argv of [
-      ['check', '--help'],
-      ['validate', 'workflow-binding', '--help'],
-      ['template', '--help'],
-    ]) {
-      const words = argv.slice(0, -1).join(' ');
-      expect(printedBy(installedGrammar, argv), words).toContain(
-        `Usage: twilight-burokrat ${words} [...]`,
-      );
-    }
-    for (const tail of [
-      ['--version'],
-      ['--now=2026-11-02T00:00:00.000Z'],
-      ['--', '--help'],
-      ['working', '.', 'HEAD', 'policy.json', '--help'],
-    ]) {
-      expect(
-        readInvocation(validatorGrammar, ['check', ...tail], { stdout: () => undefined }),
-      ).toEqual({
-        kind: 'command',
-        command: { command: 'check', argv: tail },
-      });
-    }
+  test('workflow binding help exposes both typed applicability sources', () => {
+    const printed = printedBy(installedGrammar, ['validate', 'workflow-binding', '--help']);
+    expect(printed).toContain('Usage: twilight-burokrat validate workflow-binding');
+    expect(printed).toContain('--manifest FILE');
+    expect(printed).toContain('--steps STEPS');
+    expect(printed).not.toContain('workflow-binding [...]');
   });
 
   test('completion scripts register twib beside twilight-burokrat', () => {

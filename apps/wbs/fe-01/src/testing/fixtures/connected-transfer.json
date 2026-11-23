@@ -1,5 +1,5 @@
 {
-  "project": {
+  "workPackage": {
     "id": "4931db2b-046c-4530-a980-71a96e3d9be6",
     "name": "Source",
     "ownerId": "0053c25f-1f3d-4ec0-84e0-52784c4cebbc",
@@ -25,7 +25,7 @@
   "workItems": [
     {
       "id": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "parentId": null,
       "position": 5,
       "name": "Source tail",
@@ -105,7 +105,7 @@
     },
     {
       "id": "4069c03b-7970-4211-9877-c5855fdbd0e0",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "parentId": null,
       "position": 10,
       "name": "Source parent",
@@ -181,7 +181,7 @@
     },
     {
       "id": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "parentId": "4069c03b-7970-4211-9877-c5855fdbd0e0",
       "position": 10,
       "name": "Source leaf",
@@ -269,9 +269,9 @@
         "scope": "descendant-step",
         "workItemId": "fcc24ad3-ffee-4dbb-88e1-01a710ebeae4",
         "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "display": {
-          "projectName": "Remote",
+          "workPackageName": "Remote",
           "abbreviation": "REM",
           "workItemName": "Remote parent",
           "address": "REM.020",
@@ -293,9 +293,9 @@
         "scope": "node",
         "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
         "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "display": {
-          "projectName": "Remote",
+          "workPackageName": "Remote",
           "abbreviation": "REM",
           "workItemName": "Remote leaf",
           "address": "REM.020.1",
@@ -317,9 +317,9 @@
         "scope": "node",
         "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
         "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "display": {
-          "projectName": "Remote",
+          "workPackageName": "Remote",
           "abbreviation": "REM",
           "workItemName": "Remote leaf",
           "address": "REM.020.1",
@@ -340,9 +340,9 @@
         "scope": "node",
         "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
         "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "display": {
-          "projectName": "Remote",
+          "workPackageName": "Remote",
           "abbreviation": "REM",
           "workItemName": "Remote leaf",
           "address": "REM.020.1",
@@ -362,9 +362,9 @@
         "kind": "external",
         "scope": "whole",
         "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "display": {
-          "projectName": "Remote",
+          "workPackageName": "Remote",
           "abbreviation": "REM",
           "workItemName": "Remote leaf",
           "address": "REM.020.1"
@@ -485,7 +485,7 @@
   "steps": [
     {
       "id": "39100b6f-0284-4291-9e50-95873425943a",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "name": "Dev",
       "position": 10,
       "code": "dev",
@@ -494,7 +494,7 @@
     },
     {
       "id": "55b9efef-ae4a-445f-b26a-510cdb4254c4",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "name": "QA",
       "position": 20,
       "code": "qa",
@@ -540,23 +540,23 @@
   "estimateRounding": "exact",
   "depReach": "whole-item",
   "startDate": "2026-10-19",
-  "projectRevision": 0,
+  "workPackageRevision": 0,
   "connectedDependencies": [
     {
       "id": "incoming-descendant",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "SS",
       "predecessor": {
         "endpoint": {
           "scope": "descendant-step",
           "workItemId": "fcc24ad3-ffee-4dbb-88e1-01a710ebeae4",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "isLeaf": false,
         "revision": 1,
         "name": "Remote parent",
-        "projectAbbreviation": "REM",
+        "workPackageAbbreviation": "REM",
         "workItemNumber": "020",
         "step": {
           "id": "0e623a90-4078-44a7-9567-5266507c2541",
@@ -573,12 +573,12 @@
           "scope": "descendant-step",
           "workItemId": "4069c03b-7970-4211-9877-c5855fdbd0e0",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": false,
         "revision": 1,
         "name": "Source parent",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020",
         "step": {
           "id": "39100b6f-0284-4291-9e50-95873425943a",
@@ -593,19 +593,19 @@
     },
     {
       "id": "incoming-finish",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "FF",
       "predecessor": {
         "endpoint": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Remote leaf",
-        "projectAbbreviation": "REM",
+        "workPackageAbbreviation": "REM",
         "workItemNumber": "020.1",
         "step": {
           "id": "0e623a90-4078-44a7-9567-5266507c2541",
@@ -622,12 +622,12 @@
           "scope": "node",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Source leaf",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020.1",
         "step": {
           "id": "39100b6f-0284-4291-9e50-95873425943a",
@@ -642,19 +642,19 @@
     },
     {
       "id": "incoming-node-a",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "FS",
       "predecessor": {
         "endpoint": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Remote leaf",
-        "projectAbbreviation": "REM",
+        "workPackageAbbreviation": "REM",
         "workItemNumber": "020.1",
         "step": {
           "id": "0e623a90-4078-44a7-9567-5266507c2541",
@@ -670,12 +670,12 @@
         "endpoint": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Source leaf",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020.1",
         "step": null,
         "stepReference": null,
@@ -685,19 +685,19 @@
     },
     {
       "id": "incoming-node-b",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "FS",
       "predecessor": {
         "endpoint": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Remote leaf",
-        "projectAbbreviation": "REM",
+        "workPackageAbbreviation": "REM",
         "workItemNumber": "020.1",
         "step": {
           "id": "14a0019c-436b-40e6-beab-f57edd52182d",
@@ -713,12 +713,12 @@
         "endpoint": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Source leaf",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020.1",
         "step": null,
         "stepReference": null,
@@ -728,18 +728,18 @@
     },
     {
       "id": "incoming-whole",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "FS",
       "predecessor": {
         "endpoint": {
           "scope": "whole",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Remote leaf",
-        "projectAbbreviation": "REM",
+        "workPackageAbbreviation": "REM",
         "workItemNumber": "020.1",
         "step": null,
         "stepReference": null,
@@ -750,12 +750,12 @@
         "endpoint": {
           "scope": "whole",
           "workItemId": "4069c03b-7970-4211-9877-c5855fdbd0e0",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": false,
         "revision": 1,
         "name": "Source parent",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020",
         "step": null,
         "stepReference": null,
@@ -765,19 +765,19 @@
     },
     {
       "id": "internal-node",
-      "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+      "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
       "type": "SS",
       "predecessor": {
         "endpoint": {
           "scope": "node",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Source leaf",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020.1",
         "step": {
           "id": "39100b6f-0284-4291-9e50-95873425943a",
@@ -793,12 +793,12 @@
         "endpoint": {
           "scope": "whole",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 0,
         "name": "Source tail",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "010",
         "step": null,
         "stepReference": null,
@@ -808,18 +808,18 @@
     },
     {
       "id": "outgoing",
-      "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+      "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
       "type": "FS",
       "predecessor": {
         "endpoint": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Source leaf",
-        "projectAbbreviation": "SOU",
+        "workPackageAbbreviation": "SOU",
         "workItemNumber": "020.1",
         "step": null,
         "stepReference": null,
@@ -830,12 +830,12 @@
         "endpoint": {
           "scope": "whole",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
         },
         "isLeaf": true,
         "revision": 1,
         "name": "Downstream leaf",
-        "projectAbbreviation": "DOW",
+        "workPackageAbbreviation": "DOW",
         "workItemNumber": "020.1",
         "step": null,
         "stepReference": null,
@@ -915,11 +915,11 @@
   "budgets": [],
   "connected": {
     "kind": "connected",
-    "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+    "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
     "mode": "isolated",
-    "projects": [
+    "workPackages": [
       {
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "name": "Remote",
         "abbreviation": "REM",
         "rank": 1,
@@ -929,7 +929,7 @@
         "seq": 2
       },
       {
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "name": "Source",
         "abbreviation": "SOU",
         "rank": 2,
@@ -939,7 +939,7 @@
         "seq": 2
       },
       {
-        "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+        "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
         "name": "Downstream",
         "abbreviation": "DOW",
         "rank": 3,
@@ -949,7 +949,7 @@
         "seq": 2
       },
       {
-        "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+        "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
         "name": "Unrelated",
         "abbreviation": "UNR",
         "rank": 4,
@@ -962,144 +962,144 @@
     "relationships": [
       {
         "id": "component-other",
-        "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+        "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
         "predecessor": {
           "scope": "whole",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "9d6b8241-e602-4e54-8863-37c7675ea20d",
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29"
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29"
         },
         "type": "FS"
       },
       {
         "id": "incoming-descendant",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "descendant-step",
           "workItemId": "fcc24ad3-ffee-4dbb-88e1-01a710ebeae4",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "descendant-step",
           "workItemId": "4069c03b-7970-4211-9877-c5855fdbd0e0",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "SS"
       },
       {
         "id": "incoming-finish",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "node",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "FF"
       },
       {
         "id": "incoming-node-a",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "FS"
       },
       {
         "id": "incoming-node-b",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "FS"
       },
       {
         "id": "incoming-whole",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "whole",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "4069c03b-7970-4211-9877-c5855fdbd0e0",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "FS"
       },
       {
         "id": "internal-node",
-        "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+        "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
         "predecessor": {
           "scope": "node",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "type": "SS"
       },
       {
         "id": "outgoing",
-        "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+        "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
         "predecessor": {
           "scope": "whole",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6"
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9"
         },
         "type": "FS"
       },
       {
         "id": "remote-internal",
-        "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+        "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
         "predecessor": {
           "scope": "node",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "successor": {
           "scope": "whole",
           "workItemId": "140b1749-1378-47db-bdc9-3e9aa8495dad",
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c"
         },
         "type": "SS"
       }
@@ -1109,112 +1109,112 @@
       "originOrdinal": 14820,
       "baseline": [
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
           "stepId": "3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7",
           "start": 5,
           "finish": 6
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
           "stepId": "658cb01c-6452-4bda-8201-a2483feb88e1",
           "start": 4,
           "finish": 5
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "f1e5bf98-f927-4a63-9add-0a8bc1c91023",
           "stepId": "3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "f1e5bf98-f927-4a63-9add-0a8bc1c91023",
           "stepId": "658cb01c-6452-4bda-8201-a2483feb88e1",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "140b1749-1378-47db-bdc9-3e9aa8495dad",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
           "start": 2,
           "finish": 3
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "140b1749-1378-47db-bdc9-3e9aa8495dad",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
           "start": 3,
           "finish": 4
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
           "start": 4,
           "finish": 5
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
           "stepId": "55b9efef-ae4a-445f-b26a-510cdb4254c4",
           "start": 5,
           "finish": 6
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
           "start": 2,
           "finish": 3
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "55b9efef-ae4a-445f-b26a-510cdb4254c4",
           "start": 3,
           "finish": 4
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "44b80064-5265-45df-9ba6-f37cc1acb01b",
           "stepId": "4a7c790b-d915-4d53-90d3-e807eed31268",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "44b80064-5265-45df-9ba6-f37cc1acb01b",
           "stepId": "a06743c6-001f-4c4f-b888-32add29547e7",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "9d6b8241-e602-4e54-8863-37c7675ea20d",
           "stepId": "4a7c790b-d915-4d53-90d3-e807eed31268",
           "start": 6,
           "finish": 7
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "9d6b8241-e602-4e54-8863-37c7675ea20d",
           "stepId": "a06743c6-001f-4c4f-b888-32add29547e7",
           "start": 7,
@@ -1223,128 +1223,128 @@
       ],
       "selected": [
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
           "stepId": "3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7",
           "start": 5,
           "finish": 6
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "1692856b-7a99-44be-b85c-8a32557a2e81",
           "stepId": "658cb01c-6452-4bda-8201-a2483feb88e1",
           "start": 4,
           "finish": 5
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "f1e5bf98-f927-4a63-9add-0a8bc1c91023",
           "stepId": "3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "workItemId": "f1e5bf98-f927-4a63-9add-0a8bc1c91023",
           "stepId": "658cb01c-6452-4bda-8201-a2483feb88e1",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "140b1749-1378-47db-bdc9-3e9aa8495dad",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
           "start": 2,
           "finish": 3
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "140b1749-1378-47db-bdc9-3e9aa8495dad",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
           "start": 3,
           "finish": 4
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "0e623a90-4078-44a7-9567-5266507c2541",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "workItemId": "702a281d-ce16-4a03-af2e-df5698274238",
           "stepId": "14a0019c-436b-40e6-beab-f57edd52182d",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
           "start": 4,
           "finish": 5
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "520ec1ae-63e8-40f2-9f77-5c0220cc7bf8",
           "stepId": "55b9efef-ae4a-445f-b26a-510cdb4254c4",
           "start": 5,
           "finish": 6
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "39100b6f-0284-4291-9e50-95873425943a",
           "start": 2,
           "finish": 3
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "workItemId": "6071f1f9-922d-4f4f-8ab6-c35ede914d78",
           "stepId": "55b9efef-ae4a-445f-b26a-510cdb4254c4",
           "start": 3,
           "finish": 4
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "44b80064-5265-45df-9ba6-f37cc1acb01b",
           "stepId": "4a7c790b-d915-4d53-90d3-e807eed31268",
           "start": 0,
           "finish": 1
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "44b80064-5265-45df-9ba6-f37cc1acb01b",
           "stepId": "a06743c6-001f-4c4f-b888-32add29547e7",
           "start": 1,
           "finish": 2
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "9d6b8241-e602-4e54-8863-37c7675ea20d",
           "stepId": "4a7c790b-d915-4d53-90d3-e807eed31268",
           "start": 6,
           "finish": 7
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "workItemId": "9d6b8241-e602-4e54-8863-37c7675ea20d",
           "stepId": "a06743c6-001f-4c4f-b888-32add29547e7",
           "start": 7,
           "finish": 8
         }
       ],
-      "idleProjects": [],
+      "idleWorkPackages": [],
       "stages": [
         {
-          "projectId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
+          "workPackageId": "35a0ea68-a8de-4442-8a43-d9897d02de2c",
           "engine": "fast",
           "objective": "pri",
           "boundary": {
             "format": "wbs-connected-stage",
             "version": 1,
-            "canonical": "{\"kind\":\"connected-stage\",\"projectId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"projects\":[{\"projectId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"projectId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"projectId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"projectId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"workPackages\":[{\"workPackageId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"workPackageId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"workPackageId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"workPackageId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
           },
           "optimization": null,
           "decisions": {
@@ -1354,13 +1354,13 @@
           "chosen": null
         },
         {
-          "projectId": "4931db2b-046c-4530-a980-71a96e3d9be6",
+          "workPackageId": "4931db2b-046c-4530-a980-71a96e3d9be6",
           "engine": "fast",
           "objective": "pri",
           "boundary": {
             "format": "wbs-connected-stage",
             "version": 1,
-            "canonical": "{\"kind\":\"connected-stage\",\"projectId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"projects\":[{\"projectId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"projectId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"projectId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"projectId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"workPackages\":[{\"workPackageId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"workPackageId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"workPackageId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"workPackageId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
           },
           "optimization": null,
           "decisions": {
@@ -1370,13 +1370,13 @@
           "chosen": null
         },
         {
-          "projectId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
+          "workPackageId": "1bd5ed8c-0f03-47f1-a42b-edd6d66265d9",
           "engine": "fast",
           "objective": "pri",
           "boundary": {
             "format": "wbs-connected-stage",
             "version": 1,
-            "canonical": "{\"kind\":\"connected-stage\",\"projectId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"projects\":[{\"projectId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"projectId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"projectId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"projectId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"workPackages\":[{\"workPackageId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"workPackageId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"workPackageId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"workPackageId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
           },
           "optimization": null,
           "decisions": {
@@ -1386,13 +1386,13 @@
           "chosen": null
         },
         {
-          "projectId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
+          "workPackageId": "73371b01-e992-43b2-a5ee-4ed4e4755a29",
           "engine": "fast",
           "objective": "pri",
           "boundary": {
             "format": "wbs-connected-stage",
             "version": 1,
-            "canonical": "{\"kind\":\"connected-stage\",\"projectId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"projects\":[{\"projectId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"projectId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"projectId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"projectId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"mode\":\"isolated\",\"originOrdinal\":14820,\"workPackages\":[{\"workPackageId\":\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"rank\":1,\"anchorOrdinal\":14820},{\"workPackageId\":\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"rank\":2,\"anchorOrdinal\":14820},{\"workPackageId\":\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"rank\":3,\"anchorOrdinal\":14820},{\"workPackageId\":\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"rank\":4,\"anchorOrdinal\":14820}],\"rows\":[{\"id\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"parentId\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"position\":10,\"priority\":50},{\"id\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"parentId\":\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"position\":10,\"priority\":50},{\"id\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"parentId\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"position\":10,\"priority\":50},{\"id\":\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"parentId\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"position\":10,\"priority\":50},{\"id\":\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"parentId\":null,\"position\":10,\"priority\":50},{\"id\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"parentId\":null,\"position\":5,\"priority\":50},{\"id\":\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"parentId\":null,\"position\":10,\"priority\":50}],\"ownership\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"4931db2b-046c-4530-a980-71a96e3d9be6\"],[\"702a281d-ce16-4a03-af2e-df5698274238\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"],[\"7b6c708b-8b49-4fad-8189-25b0c4c82b19\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"9f5c6570-453c-49a4-996a-724275f1e01c\",\"73371b01-e992-43b2-a5ee-4ed4e4755a29\"],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\"],[\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"35a0ea68-a8de-4442-8a43-d9897d02de2c\"]],\"ranks\":[[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",3],[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",1],[\"4931db2b-046c-4530-a980-71a96e3d9be6\",2],[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",4]],\"slices\":[{\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"steps\":[{\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"steps\":[{\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"steps\":[{\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"steps\":[{\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]},{\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"39100b6f-0284-4291-9e50-95873425943a\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"stepId\":\"55b9efef-ae4a-445f-b26a-510cdb4254c4\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"0e623a90-4078-44a7-9567-5266507c2541\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"stepId\":\"14a0019c-436b-40e6-beab-f57edd52182d\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"4a7c790b-d915-4d53-90d3-e807eed31268\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"stepId\":\"a06743c6-001f-4c4f-b888-32add29547e7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"3ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"stepId\":\"658cb01c-6452-4bda-8201-a2483feb88e1\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":1},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"component-other\"},{\"predecessor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":0},\"successor\":{\"leafId\":\"44b80064-5265-45df-9ba6-f37cc1acb01b\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"internal-node\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"1692856b-7a99-44be-b85c-8a32557a2e81\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"outgoing\"},{\"predecessor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":1},\"successor\":{\"leafId\":\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"remote-internal\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FF\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-finish\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-a\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"SS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-descendant\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":0},\"successor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"140b1749-1378-47db-bdc9-3e9aa8495dad\",\"at\":0},\"type\":\"FS\",\"provenance\":\"legacy\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-node-b\"},{\"predecessor\":{\"leafId\":\"702a281d-ce16-4a03-af2e-df5698274238\",\"at\":1},\"successor\":{\"leafId\":\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"incoming-whole\"},{\"predecessor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":0},\"successor\":{\"leafId\":\"9d6b8241-e602-4e54-8863-37c7675ea20d\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":0},\"successor\":{\"leafId\":\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"}],\"relationships\":[{\"id\":\"component-other\",\"type\":\"FS\",\"predecessor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"],\"successor\":[\"73371b01-e992-43b2-a5ee-4ed4e4755a29\",\"whole\",\"9d6b8241-e602-4e54-8863-37c7675ea20d\"]},{\"id\":\"incoming-descendant\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"descendant-step\",\"fcc24ad3-ffee-4dbb-88e1-01a710ebeae4\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"descendant-step\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-finish\",\"type\":\"FF\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"]},{\"id\":\"incoming-node-a\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-node-b\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"14a0019c-436b-40e6-beab-f57edd52182d\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"]},{\"id\":\"incoming-whole\",\"type\":\"FS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"702a281d-ce16-4a03-af2e-df5698274238\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"4069c03b-7970-4211-9877-c5855fdbd0e0\"]},{\"id\":\"internal-node\",\"type\":\"SS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"node\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",\"39100b6f-0284-4291-9e50-95873425943a\"],\"successor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\"]},{\"id\":\"outgoing\",\"type\":\"FS\",\"predecessor\":[\"4931db2b-046c-4530-a980-71a96e3d9be6\",\"whole\",\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\"],\"successor\":[\"1bd5ed8c-0f03-47f1-a42b-edd6d66265d9\",\"whole\",\"1692856b-7a99-44be-b85c-8a32557a2e81\"]},{\"id\":\"remote-internal\",\"type\":\"SS\",\"predecessor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"node\",\"702a281d-ce16-4a03-af2e-df5698274238\",\"0e623a90-4078-44a7-9567-5266507c2541\"],\"successor\":[\"35a0ea68-a8de-4442-8a43-d9897d02de2c\",\"whole\",\"140b1749-1378-47db-bdc9-3e9aa8495dad\"]}],\"notBefore\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\",0],[\"1692856b-7a99-44be-b85c-8a32557a2e81\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\",0],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\",0],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\",0],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\",0],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",2],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",3],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",5],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",4],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",0],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",1],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",4],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",5],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",2],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",3],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",0],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",1],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",6],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",7],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",1],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",0]],\"finishes\":[[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u00000e623a90-4078-44a7-9567-5266507c2541\",3],[\"140b1749-1378-47db-bdc9-3e9aa8495dad\\u000014a0019c-436b-40e6-beab-f57edd52182d\",4],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",6],[\"1692856b-7a99-44be-b85c-8a32557a2e81\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",5],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",1],[\"44b80064-5265-45df-9ba6-f37cc1acb01b\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",2],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000039100b6f-0284-4291-9e50-95873425943a\",5],[\"520ec1ae-63e8-40f2-9f77-5c0220cc7bf8\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",6],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000039100b6f-0284-4291-9e50-95873425943a\",3],[\"6071f1f9-922d-4f4f-8ab6-c35ede914d78\\u000055b9efef-ae4a-445f-b26a-510cdb4254c4\",4],[\"702a281d-ce16-4a03-af2e-df5698274238\\u00000e623a90-4078-44a7-9567-5266507c2541\",1],[\"702a281d-ce16-4a03-af2e-df5698274238\\u000014a0019c-436b-40e6-beab-f57edd52182d\",2],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u00004a7c790b-d915-4d53-90d3-e807eed31268\",7],[\"9d6b8241-e602-4e54-8863-37c7675ea20d\\u0000a06743c6-001f-4c4f-b888-32add29547e7\",8],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u00003ff8d57d-e3df-49f1-86cd-5a2db86b0fa7\",2],[\"f1e5bf98-f927-4a63-9add-0a8bc1c91023\\u0000658cb01c-6452-4bda-8201-a2483feb88e1\",1]]}"
           },
           "optimization": null,
           "decisions": {

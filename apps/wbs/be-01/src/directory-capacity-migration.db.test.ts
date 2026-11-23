@@ -1,12 +1,12 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ORGANIZATION_AUDIT_ACTIONS, ORGANIZATION_AUDIT_SUBJECT_KINDS } from '@wbs/core';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { duplicateMigrationStamps } from '@wbs/store-sqlite/migrate-down';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -15,10 +15,11 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const AGENT_POOL_WIDENING = '20261028100100_widen_organization_audit_agent_pools';
 const AUDIT_WIDENING = '20261101100000_widen_organization_audit_directory_capacity';
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
-/** The folder stamped above this change's pair (`dash-host-jobs`); every rollback below it reverses it right after {@link ACCESS_GRANTS}. */
+/** The folder stamped immediately above this change's pair (`dash-host-jobs`). */
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
-/** `wbs-permissions`' access grants, the newest folder, which reverses first. */
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
+const ACCESS_AUDIT = '20261102130000_widen_organization_audit_access';
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -28,13 +29,16 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** A store migrated to the latest, with an organization, an account and a resource. */
-function migratedStore(): { root: string; dbPath: string } {
+/** The store through initial access for rollback, or through the directory capacity pair for audit checks. */
+function migratedStore(
+  through: typeof INITIAL_ACCESS | typeof DIRECTORY_CAPACITY = INITIAL_ACCESS,
+): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-directory-capacity-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   run(dbPath, [
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
@@ -47,11 +51,8 @@ function migratedStore(): { root: string; dbPath: string } {
 function baselineStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-directory-capacity-baseline-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY, HOST_JOB_PROJECTION])
-    rmSync(join(root, 'drizzle', name), { recursive: true });
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, copyRecoveryPrefix(root, AGENT_POOL_WIDENING));
   return { root, dbPath };
 }
 
@@ -131,8 +132,50 @@ it('is the pair right after the agent pool widening, below every later folder, c
 
 /** The audit vocabulary widening (`wbs-shared-occupancy` task 1.0). */
 describe(AUDIT_WIDENING, () => {
-  const earlierActions = ORGANIZATION_AUDIT_ACTIONS.filter((action) => action !== NEW_ACTION);
-  const earlierKinds = ORGANIZATION_AUDIT_SUBJECT_KINDS.filter((kind) => kind !== NEW_KIND);
+  // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
+  const earlierActions = [
+    'restricted_project_recovery',
+    'sso_connection_created',
+    'sso_connection_updated',
+    'sso_connection_deleted',
+    'sso_connection_proven',
+    'sso_enforcement_changed',
+    'provisioning_token_issued',
+    'provisioning_token_rotated',
+    'provisioning_token_revoked',
+    'scim_user_provisioned',
+    'scim_user_updated',
+    'scim_user_deprovisioned',
+    'pending_membership_activated',
+    'session_policy_changed',
+    'machine_credential_created',
+    'machine_credential_rotated',
+    'machine_credential_revoked',
+    'trusted_issuer_registered',
+    'trusted_issuer_removed',
+    'organization_limits_changed',
+    'compute_provider_registered',
+    'compute_provider_updated',
+    'compute_provider_removed',
+    'machine_token_issued',
+    'machine_token_issued_overflow',
+    'agent_pool_created',
+    'agent_pool_revoked',
+    'agent_pool_rekeyed',
+  ];
+  // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
+  const earlierKinds = [
+    'project',
+    'sso_connection',
+    'provisioning_token',
+    'scim_user',
+    'session_policy',
+    'machine_credential',
+    'trusted_issuer',
+    'organization_limits',
+    'compute_provider',
+    'agent_pool',
+  ];
 
   // Every earlier value is main's latest vocabulary: the machine token and
   // agent pool acts and the `agent_pool` kind included.
@@ -142,7 +185,7 @@ describe(AUDIT_WIDENING, () => {
   // With `agent_pool_rekeyed`, or the `agent_pool` kind, dropped from that
   // CHECK, this failed the same way (9 pass, 1 fail); watched 2026-11-01.
   it('keeps one row of every earlier action and subject kind through the rebuild', () => {
-    const { dbPath } = baselineStore();
+    const { root, dbPath } = baselineStore();
     run(dbPath, [
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
       "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
@@ -151,8 +194,9 @@ describe(AUDIT_WIDENING, () => {
         audit(`k${String(index)}`, 'restricted_project_recovery', kind),
       ),
     ]);
-    // The whole folder: the baseline's own copy lacks this change's migrations.
-    runMigrations(dbPath, MIGRATIONS);
+    const forward = join(root, 'forward');
+    mkdirSync(forward);
+    runMigrations(dbPath, copyRecoveryPrefix(forward, DIRECTORY_CAPACITY));
     expect(
       count(
         dbPath,
@@ -178,7 +222,7 @@ describe(AUDIT_WIDENING, () => {
   });
 
   it('admits the new action and kind, refuses an unknown one, and stays append-only', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(DIRECTORY_CAPACITY);
     run(dbPath, [audit('d1', NEW_ACTION, NEW_KIND)]);
     expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(1);
     expect(() => {
@@ -204,7 +248,7 @@ describe(AUDIT_WIDENING, () => {
       'organization_audit_machine_token_issued_overflow_day',
       'organization_audit_machine_token_issued_run',
     ]);
-    expect(issuanceIndexes(migratedStore().dbPath)).toEqual(baseline);
+    expect(issuanceIndexes(migratedStore(DIRECTORY_CAPACITY).dbPath)).toEqual(baseline);
   });
 
   it('restores the table, indexes and triggers the agent pool rebuild left, byte for byte', async () => {
@@ -215,7 +259,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+      `rolled back: ${INITIAL_ACCESS}, ${ACCESS_AUDIT}, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
     );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
@@ -260,7 +304,7 @@ describe(DIRECTORY_CAPACITY, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
+      `rolled back: ${INITIAL_ACCESS}, ${ACCESS_AUDIT}, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
     );
     expect(
       count(

@@ -327,6 +327,47 @@ async function fixture(path: string, body: unknown): Promise<unknown> {
   return await response.json();
 }
 
+async function createProjectFixture(username: 'dany' | 'grace'): Promise<string> {
+  const project = await fixture('create-project', {
+    username,
+    name: username + ' engagement',
+    token: await upstreamToken('auth0|' + username, 900),
+  });
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id.length === 0
+  )
+    throw new Error('fixture project identity absent');
+  return project.id;
+}
+
+async function createWorkPackageFixture(
+  username: 'dany' | 'grace',
+  body: { name: string },
+): Promise<{ workPackage: { id: string }; steps: { id: string }[] }> {
+  const created = (await fixture('create-work-package', {
+    username,
+    projectId: username === 'dany' ? ids.primaryProject : ids.foreignProject,
+    ...body,
+    token: await upstreamToken(`auth0|${username}`, 900),
+  })) as { status: number; body: { workPackage: { id: string }; steps: { id: string }[] } };
+  expect(created.status).toBe(200);
+  return created.body;
+}
+
+async function grantConsent(
+  access: string,
+  roleId: string,
+  scope: { kind: 'organization' } | { kind: 'work_package'; id: string },
+): Promise<void> {
+  const familyId = decodeJwt(access)['mcp_family_id'];
+  if (typeof familyId !== 'string') throw new Error('fixture access has no consent family');
+  await fixture('grant-consent', { familyId, roleId, scope });
+}
+
 async function refreshWith(refresh: string, clientId: string): Promise<Response> {
   return await oauthCall(
     new Request(`${OAUTH}/token`, {
@@ -379,18 +420,18 @@ async function tool(
   };
 }
 
-/** Runs a successful project operation using the selected production transport. */
-async function projectOperation(
+/** Runs a successful work package operation using the selected production transport. */
+async function workPackageOperation(
   transport: 'HTTP' | 'MCP',
   operation: 'commands',
   body: Record<string, unknown>,
 ): Promise<{ results: { id: string }[] }>;
-async function projectOperation(
+async function workPackageOperation(
   transport: 'HTTP' | 'MCP',
   operation: 'undo' | 'redo',
   body: Record<string, unknown>,
 ): Promise<unknown>;
-async function projectOperation(
+async function workPackageOperation(
   transport: 'HTTP' | 'MCP',
   operation: 'commands' | 'undo' | 'redo',
   body: Record<string, unknown>,
@@ -401,7 +442,7 @@ async function projectOperation(
   if (transport === 'MCP') {
     const answer = await tool(
       access,
-      `postApiProjectsById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
+      `postApiWorkPackagesById${operation.charAt(0).toUpperCase()}${operation.slice(1)}`,
       { id: ids.launch, ...body },
     );
     expect({ error: answer.isError, text: answer.isError ? answer.text : '' }).toEqual({
@@ -415,7 +456,7 @@ async function projectOperation(
     'read',
     'write',
   ]);
-  const response = await fetch(`${beUrl}/api/projects/${ids.launch}/${operation}`, {
+  const response = await fetch(`${beUrl}/api/work-packages/${ids.launch}/${operation}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
     ...(operation === 'commands' ? { body: JSON.stringify(body) } : {}),
@@ -435,7 +476,10 @@ async function refuseCommands(
     throw new Error('organization-bound parity session missing');
   const access = sessions['dany'];
   const before = await fixture('write-state', {});
-  const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+  const viaMcp = await tool(access, 'postApiWorkPackagesByIdCommands', {
+    id: ids.launch,
+    commands,
+  });
   expect(viaMcp.isError).toBe(true);
   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
   expect(JSON.parse(viaMcp.text.slice(viaMcp.text.indexOf('\n') + 1))).toEqual(refusal);
@@ -445,7 +489,7 @@ async function refuseCommands(
     'read',
     'write',
   ]);
-  const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/commands`, {
+  const direct = await fetch(`${beUrl}/api/work-packages/${ids.launch}/commands`, {
     method: 'POST',
     headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
     body: JSON.stringify({ commands }),
@@ -459,32 +503,37 @@ async function refuseCommands(
 async function assertScopedRelationship(
   access: string,
   dependencyId: string,
-  predecessor: { projectId: string; scope: string; workItemId: string; stepId: string },
-  successor: { projectId: string; scope: string; workItemId: string; stepId: string },
+  predecessor: { workPackageId: string; scope: string; workItemId: string; stepId: string },
+  successor: { workPackageId: string; scope: string; workItemId: string; stepId: string },
   type: string,
   journalKind: 'add_typed_dependency' | 'batch' = 'add_typed_dependency',
 ): Promise<void> {
   const state = (await fixture('write-state', {})) as Record<string, unknown>[][];
   const relationships = state[4];
   const journal = state[7];
-  // Proof: dropping explicit endpoint project binding and substituting descendant-step
+  // Proof: dropping explicit endpoint work package binding and substituting descendant-step
   // with node each failed the new consented scoped cases in the booted OAuth suite.
   expect(relationships.find((row) => row['id'] === dependencyId)).toMatchObject({
     id: dependencyId,
-    predecessor_project_id: predecessor.projectId,
+    predecessor_work_package_id: predecessor.workPackageId,
     predecessor_work_item_id: predecessor.workItemId,
     predecessor_scope: predecessor.scope,
     predecessor_step_id: predecessor.stepId,
-    successor_project_id: successor.projectId,
+    successor_work_package_id: successor.workPackageId,
     successor_work_item_id: successor.workItemId,
     successor_scope: successor.scope,
     successor_step_id: successor.stepId,
     type,
   });
   const recorded = journal.find(
-    (entry) => entry['project_id'] === ids.launch && JSON.stringify(entry).includes(dependencyId),
+    (entry) =>
+      entry['work_package_id'] === ids.launch && JSON.stringify(entry).includes(dependencyId),
   );
-  expect(recorded).toMatchObject({ project_id: ids.launch, user_id: 'u-dany', kind: journalKind });
+  expect(recorded).toMatchObject({
+    work_package_id: ids.launch,
+    user_id: 'u-dany',
+    kind: journalKind,
+  });
   if (recorded === undefined || typeof recorded['payload'] !== 'string')
     throw new Error('scoped command journal missing');
   expect(recorded['id']).toBeString();
@@ -493,13 +542,13 @@ async function assertScopedRelationship(
   };
   expect(journalKind === 'batch' ? payload.forward.steps?.at(-1) : payload.forward).toMatchObject({
     do: 'add_typed_dependency',
-    dependency: { id: dependencyId, projectId: ids.launch, predecessor, successor, type },
+    dependency: { id: dependencyId, workPackageId: ids.launch, predecessor, successor, type },
   });
-  const viaMcp = await tool(access, 'getApiProjectsByIdWork-items', { id: ids.launch });
+  const viaMcp = await tool(access, 'getApiWorkPackagesByIdWork-items', { id: ids.launch });
   expect(viaMcp.isError).toBe(false);
   const caller = await oauth.callerSessionFor(access);
   const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, ['read']);
-  const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/work-items`, {
+  const direct = await fetch(`${beUrl}/api/work-packages/${ids.launch}/work-items`, {
     headers: { authorization: `Bearer ${delegated}` },
   });
   expect(direct.status).toBe(200);
@@ -555,16 +604,25 @@ async function machineToken(): Promise<string> {
   return ((await response.json()) as { access_token: string }).access_token;
 }
 
-const projectNames = (text: string) =>
-  (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
+const workPackageNames = (text: string) =>
+  (JSON.parse(text) as { workPackages: { name: string }[] }).workPackages
+    .map((p) => p.name)
+    .toSorted();
 
 const sessions: Record<string, string> = {};
-const ids = { launch: '', foreign: '', leaf: '', firstStep: '' };
+const ids = {
+  primaryProject: '',
+  foreignProject: '',
+  launch: '',
+  foreign: '',
+  leaf: '',
+  firstStep: '',
+};
 const claire = { access: '', refresh: '', clientId: '' };
 
 /** One eligible first-step `claimWorkItem` for `personId` through `access`. */
 function claimLeaf(access: string, personId: string) {
-  return tool(access, 'postApiProjectsByIdCommands', {
+  return tool(access, 'postApiWorkPackagesByIdCommands', {
     id: ids.launch,
     commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId, steps: [ids.firstStep] }],
   });
@@ -574,11 +632,15 @@ describe('MCP organization delegation against a booted be-01', () => {
   test('before activation an MCP session works exactly as before', async () => {
     const dany = await connect('auth0|dany');
     sessions['legacy'] = dany.access;
-    const created = await tool(dany.access, 'postApiProjects', { name: 'Launch' });
-    expect(created.isError).toBe(false);
-    ids.launch = (JSON.parse(created.text) as { project: { id: string } }).project.id;
-    const listed = await tool(dany.access, 'getApiProjects', {});
-    expect(projectNames(listed.text)).toEqual(['Launch']);
+    const created = await tool(dany.access, 'postApiDirectoryCommands', {
+      commands: [{ kind: 'createPerson', name: 'Legacy directory member', teamIds: [] }],
+    });
+    expect(created, created.text).toMatchObject({ isError: false });
+    const listed = await tool(dany.access, 'getApiPeople', {});
+    expect(listed, listed.text).toMatchObject({ isError: false });
+    expect(
+      (JSON.parse(listed.text) as { people: { name: string }[] }).people.map(({ name }) => name),
+    ).toContain('Legacy directory member');
   });
 
   test('the operator activates organizations', async () => {
@@ -587,20 +649,32 @@ describe('MCP organization delegation against a booted be-01', () => {
       status: 200,
     });
     // The pre-activation session bound no organization: be-01 refuses its raw token.
-    const legacy = await tool(sessions['legacy'] ?? '', 'getApiProjects', {});
+    const legacy = await tool(sessions['legacy'] ?? '', 'getApiWorkPackages', {});
     expect(legacy.isError).toBe(true);
     expect(legacy.text).toContain('no_active_organization');
   });
 
-  test('a session bound at consent lists projects and runs a command batch', async () => {
+  test('a session bound at consent lists work packages and runs a command batch', async () => {
     const dany = await connect('auth0|dany');
     sessions['dany'] = dany.access;
     sessions['danyRefresh'] = dany.refresh;
     sessions['danyClient'] = dany.clientId;
-    const listed = await tool(dany.access, 'getApiProjects', {});
+    const people = await tool(dany.access, 'getApiPeople', {});
+    expect(people, people.text).toMatchObject({ isError: false });
+    expect(
+      (JSON.parse(people.text) as { people: { name: string }[] }).people.map(({ name }) => name),
+    ).toContain('Legacy directory member');
+    ids.primaryProject = await createProjectFixture('dany');
+    const created = await tool(dany.access, 'postApiWorkPackages', {
+      name: 'Launch',
+      projectId: ids.primaryProject,
+    });
+    expect(created, created.text).toMatchObject({ isError: false });
+    ids.launch = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage.id;
+    const listed = await tool(dany.access, 'getApiWorkPackages', {});
     expect(listed.isError).toBe(false);
-    expect(projectNames(listed.text)).toEqual(['Launch']);
-    const batch = await tool(dany.access, 'postApiProjectsByIdCommands', {
+    expect(workPackageNames(listed.text)).toEqual(['Launch']);
+    const batch = await tool(dany.access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [
         { kind: 'createWorkItem', ref: 'epic', parentId: null, afterId: null, name: 'Payments' },
@@ -611,20 +685,26 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect((JSON.parse(batch.text) as { results: unknown[] }).results).toHaveLength(2);
   });
 
-  test("the same session is refused on another organization's project", async () => {
+  test("the same session is refused on another organization's work package", async () => {
     const grace = await connect('auth0|grace');
     sessions['grace'] = grace.access;
-    const created = await tool(grace.access, 'postApiProjects', { name: 'Foreign' });
+    ids.foreignProject = await createProjectFixture('grace');
+    const created = await tool(grace.access, 'postApiWorkPackages', {
+      name: 'Foreign',
+      projectId: ids.foreignProject,
+    });
     expect(created.isError).toBe(false);
-    ids.foreign = (JSON.parse(created.text) as { project: { id: string } }).project.id;
-    expect(projectNames((await tool(grace.access, 'getApiProjects', {})).text)).toEqual([
+    ids.foreign = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage.id;
+    expect(workPackageNames((await tool(grace.access, 'getApiWorkPackages', {})).text)).toEqual([
       'Foreign',
     ]);
-    const foreign = await tool(sessions['dany'] ?? '', 'getApiProjectsById', { id: ids.foreign });
+    const foreign = await tool(sessions['dany'] ?? '', 'getApiWorkPackagesById', {
+      id: ids.foreign,
+    });
     expect(foreign.isError).toBe(true);
     expect(foreign.text).toContain('HTTP 404');
     // A forged organization argument is not an input any tool declares.
-    const forged = await tool(sessions['dany'] ?? '', 'getApiProjects', {
+    const forged = await tool(sessions['dany'] ?? '', 'getApiWorkPackages', {
       organizationId: 'org-b',
     });
     expect(forged.isError).toBe(true);
@@ -636,13 +716,13 @@ describe('MCP organization delegation against a booted be-01', () => {
     // was half run (`wbs-mcp-agent-surface` M13, "Markers disagree").
     const raw = await upstreamToken('auth0|dany', 900);
     const before = faults.length;
-    const viaMcp = await tool(raw, 'getApiProjects', {});
+    const viaMcp = await tool(raw, 'getApiWorkPackages', {});
     expect(viaMcp.status).toBe(502);
     expect(faults.slice(before).map((fault) => fault.constructor)).toEqual([
       ActivationMarkersDisagree,
     ]);
     // Straight at be-01 it is refused too.
-    const direct = await fetch(`${beUrl}/api/projects`, {
+    const direct = await fetch(`${beUrl}/api/work-packages`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(direct.status).toBe(403);
@@ -710,13 +790,13 @@ describe('MCP organization delegation against a booted be-01', () => {
             jsonrpc: '2.0',
             id: 1,
             method: 'tools/call',
-            params: { name: 'getApiProjects', arguments: {} },
+            params: { name: 'getApiWorkPackages', arguments: {} },
           }),
         }),
       );
       // Proof: with the upstream fallback restored (the epoch refusal in `admitUpstream` and the
       // throw in `bearerFor` removed), this answered 200 and be-01 was asked
-      // `/api/projects` with the Auth0 token; watched 2026-10-27.
+      // `/api/work-packages` with the Auth0 token; watched 2026-10-27.
       expect(response.status).toBe(401);
       expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"');
       expect(reached).toEqual([]);
@@ -731,10 +811,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     const dany = await connect('auth0|dany', { lifetimeSeconds: 2 });
     await Bun.sleep(3_000);
     const before = refreshes;
-    const listed = await tool(dany.access, 'getApiProjects', {});
+    const listed = await tool(dany.access, 'getApiWorkPackages', {});
     expect(refreshes).toBe(before + 1);
     expect(listed.isError).toBe(false);
-    expect(projectNames(listed.text)).toEqual(['Launch']);
+    expect(workPackageNames(listed.text)).toEqual(['Launch']);
   });
 
   test("offers dany's agents at consent, and a consent as claire mints her credential", async () => {
@@ -742,26 +822,27 @@ describe('MCP organization delegation against a booted be-01', () => {
     await fixture('agent', { id: 'codex', account: 'dany', name: 'Atlas' });
     await fixture('agent', { id: 'loose', account: null, name: 'Loose' });
     const connected = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(connected.access, 'project-contributor', { kind: 'organization' });
     // The names people read, by name: never the person ids `codex` and `claire`.
     expect(offeredAgents).toEqual(['Atlas', 'Claire']);
     Object.assign(claire, connected);
     expect(await consents()).toEqual([{ personId: 'claire', issuedBy: 'u-dany', revokedAt: null }]);
-    const listed = await tool(claire.access, 'getApiProjects', {});
+    const listed = await tool(claire.access, 'getApiWorkPackages', {});
     expect(listed.isError).toBe(false);
-    expect(projectNames(listed.text)).toEqual(['Launch']);
+    expect(workPackageNames(listed.text)).toEqual(['Launch']);
   });
 
   test("a consent session's tool call claims as its agent, never with the human's reach", async () => {
-    const created = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdCommands', {
+    const created = await tool(sessions['dany'] ?? '', 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Claimable' }],
     });
     expect(created.isError).toBe(false);
     ids.leaf = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(0)?.id ?? '';
-    const tree = await tool(sessions['dany'] ?? '', 'getApiProjectsById', { id: ids.launch });
-    if (tree.isError) throw new Error(`project tree refused: ${tree.text}`);
+    const tree = await tool(sessions['dany'] ?? '', 'getApiWorkPackagesById', { id: ids.launch });
+    if (tree.isError) throw new Error(`work package tree refused: ${tree.text}`);
     ids.firstStep = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id ?? '';
-    if (ids.firstStep.length === 0) throw new Error('project tree has no first step');
+    if (ids.firstStep.length === 0) throw new Error('work package tree has no first step');
     // Another of dany's persons: the pin refuses it.
     const asCodex = await claimLeaf(claire.access, 'codex');
     expect(asCodex.isError).toBe(true);
@@ -769,7 +850,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     // A person bound to nobody: dany is super-admin, but the agent acts as a member (A23).
     const asLoose = await claimLeaf(claire.access, 'loose');
     expect(asLoose.isError).toBe(true);
-    expect(asLoose.text).toContain('person_not_bound');
+    expect(asLoose.text).toContain('HTTP 404 unknown_person');
     const asClaire = await claimLeaf(claire.access, 'claire');
     expect(asClaire.isError).toBe(false);
     // The eligible first-step claim belongs to claire.
@@ -780,37 +861,41 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(new Set(claimed.map((row) => row.personId))).toEqual(new Set(['claire']));
     // The members routes are humanOnly (M8): no tool at all, not a refused one.
     const listed = (await listTools(claire.access)).map(({ name }) => name);
-    expect(listed).toContain('getApiProjects');
+    expect(listed).toContain('getApiWorkPackages');
     expect(listed).not.toContain('getApiOrganizationMembers');
   });
 
-  test('a consent cannot borrow its super-admin account’s restricted-project recovery', async () => {
-    const saved = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdSaved-plans', {
+  test('a consent cannot borrow its super-admin account’s restricted-work-package recovery', async () => {
+    const saved = await tool(sessions['dany'] ?? '', 'postApiWorkPackagesByIdSaved-plans', {
       id: ids.launch,
       name: 'Consent cap original',
     });
     expect(saved.isError).toBe(false);
     const savedId = (JSON.parse(saved.text) as { savedPlan: { id: string } }).savedPlan.id;
-    await fixture('restrict-project', { id: ids.launch, restricted: true });
+    await grantConsent(claire.access, 'package-viewer', { kind: 'work_package', id: ids.launch });
+    await fixture('restrict-work-package', { id: ids.launch, restricted: true });
     try {
       const before = await fixture('write-state', {});
       for (const [name, args] of [
-        ['postApiProjectsByIdSaved-plans', { id: ids.launch, name: 'Outside consent cap' }],
+        ['postApiWorkPackagesByIdSaved-plans', { id: ids.launch, name: 'Outside consent cap' }],
         ['patchApiSaved-plansById', { id: savedId, name: 'Outside consent cap' }],
         ['deleteApiSaved-plansById', { id: savedId }],
         [
-          'postApiProjectsByIdCommands',
+          'postApiWorkPackagesByIdCommands',
           { id: ids.launch, commands: [{ kind: 'createWorkItem', name: 'Outside consent cap' }] },
         ],
-        ['postApiProjectsByIdUndo', { id: ids.launch }],
-        ['postApiProjectsByIdRedo', { id: ids.launch }],
-        ['postApiProjectsByIdSteps', { id: ids.launch, name: 'Outside consent cap' }],
+        ['postApiWorkPackagesByIdUndo', { id: ids.launch }],
+        ['postApiWorkPackagesByIdRedo', { id: ids.launch }],
         [
-          'postApiProjectsByIdOptimizationRetry',
+          'patchWorkPackageStepValues',
+          { id: ids.launch, stepId: ids.firstStep, allowanceBps: 500 },
+        ],
+        [
+          'postApiWorkPackagesByIdOptimizationRetry',
           { id: ids.launch, objective: 'pri', inputHash: 'ignored' },
         ],
         [
-          'postApiProjectsByIdCalendar-markers',
+          'postApiWorkPackagesByIdCalendar-markers',
           { id: ids.launch, name: 'Outside consent cap', date: '2026-10-22' },
         ],
       ] as const) {
@@ -820,7 +905,7 @@ describe('MCP organization delegation against a booted be-01', () => {
         expect(await fixture('write-state', {})).toEqual(before);
       }
     } finally {
-      await fixture('restrict-project', { id: ids.launch, restricted: false });
+      await fixture('restrict-work-package', { id: ids.launch, restricted: false });
     }
   });
 
@@ -828,13 +913,13 @@ describe('MCP organization delegation against a booted be-01', () => {
   // Proof: with `CommandContext.claimant`'s acting-person default removed, this
   // claim answered HTTP 400 person_required; watched 2026-10-26.
   test("a consent session's claim naming no person claims as its agent", async () => {
-    const created = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdCommands', {
+    const created = await tool(sessions['dany'] ?? '', 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Own' }],
     });
     const own = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id;
     const before = (await (await fetch(`${beUrl}/__fixture/claims`)).json()) as unknown[];
-    const claimed = await tool(claire.access, 'postApiProjectsByIdCommands', {
+    const claimed = await tool(claire.access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'claimWorkItem', workItemId: own, steps: [ids.firstStep] }],
     });
@@ -861,12 +946,12 @@ describe('MCP organization delegation against a booted be-01', () => {
     const dany = await connect('auth0|dany');
     expect(await consents()).toHaveLength(1);
     // The human's own session is unpinned: dany may claim for any of dany's persons.
-    const created = await tool(dany.access, 'postApiProjectsByIdCommands', {
+    const created = await tool(dany.access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Human' }],
     });
     const human = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(0)?.id;
-    const asCodex = await tool(dany.access, 'postApiProjectsByIdCommands', {
+    const asCodex = await tool(dany.access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [
         { kind: 'claimWorkItem', workItemId: human, personId: 'codex', steps: [ids.firstStep] },
@@ -876,7 +961,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     // `wbs-claim-own-person`: the human session acts as its account, so it names a person.
     // Proof: with `claimant` falling back to the actor id, this answered HTTP 404
     // unknown_person instead of 400 person_required; watched 2026-10-26.
-    const unnamed = await tool(dany.access, 'postApiProjectsByIdCommands', {
+    const unnamed = await tool(dany.access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'releaseWorkItem', workItemId: human }],
     });
@@ -911,6 +996,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   test('a second consent for the same agent mints a second credential', async () => {
     const second = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(second.access, 'project-contributor', { kind: 'organization' });
     sessions['claireSecond'] = second.access;
     expect(await consents()).toEqual([
       { personId: 'claire', issuedBy: 'u-dany', revokedAt: null },
@@ -924,10 +1010,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     const refreshed = await refreshWith(claire.refresh, claire.clientId);
     expect(refreshed.status).toBe(400);
     expect(await refreshed.json()).toEqual({ error: 'invalid_grant' });
-    const next = await tool(claire.access, 'getApiProjects', {});
+    const next = await tool(claire.access, 'getApiWorkPackages', {});
     expect(next.status).toBe(401);
     // The second family learns it on its own next call.
-    expect((await tool(sessions['claireSecond'] ?? '', 'getApiProjects', {})).status).toBe(401);
+    expect((await tool(sessions['claireSecond'] ?? '', 'getApiWorkPackages', {})).status).toBe(401);
     // be-01 denied both families' authority, so mcp-01 revoked each at that request; the sweep
     // reports both now (be-01 answers already_revoked), and then nothing.
     expect(await oauth.reportEndedConsents()).toBe(2);
@@ -936,6 +1022,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   test('a family mcp-01 ends marks its credential revoked in WBS', async () => {
     const third = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(third.access, 'project-contributor', { kind: 'organization' });
     expect((await consents()).at(-1)).toEqual({
       personId: 'claire',
       issuedBy: 'u-dany',
@@ -953,23 +1040,79 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(typeof (await consents()).at(-1)?.revokedAt).toBe('number');
   });
 
+  test('a CP14-blocked consent end stays durable across the real backend and repairs exactly once', async () => {
+    const connected = await connect('auth0|dany', { agent: 'Claire' });
+    await grantConsent(connected.access, 'project-contributor', { kind: 'organization' });
+    const familyId = decodeJwt(connected.access)['mcp_family_id'];
+    if (typeof familyId !== 'string') throw new Error('consent family missing');
+    const before = await fixture('cp14-consent', { familyId, action: 'clear' });
+    let repaired = false;
+    try {
+      const revoked = await oauthCall(
+        new Request(OAUTH + '/revoke', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token: connected.access }),
+        }),
+      );
+      expect(revoked.status).toBe(200);
+      expect((await tool(connected.access, 'getApiWorkPackages', {})).status).toBe(401);
+      expect(await oauth.reportEndedConsents()).toEqual({
+        kind: 'blocked',
+        reason: 'last_super_admin',
+        acknowledged: 0,
+      });
+      expect(await fixture('cp14-consent', { familyId, action: 'state' })).toEqual(before);
+      expect((await tool(connected.access, 'getApiWorkPackages', {})).status).toBe(401);
+      await fixture('cp14-consent', { familyId, action: 'repair' });
+      repaired = true;
+      expect(await oauth.reportEndedConsents()).toBe(1);
+      const settled = (await fixture('cp14-consent', { familyId, action: 'state' })) as {
+        credential: { id: string; revoked_at: number };
+        grants: unknown[];
+        revoked: { action: string; actor_id: string }[];
+      };
+      expect(typeof settled.credential.revoked_at).toBe('number');
+      expect(settled.grants).toEqual([]);
+      expect(settled.revoked.map((event) => event.action).sort()).toEqual([
+        'access_revoked',
+        'machine_credential_revoked',
+      ]);
+      expect(settled.revoked.every((event) => event.actor_id === 'mcp-01')).toBe(true);
+      const replay = await fetch(beUrl + '/internal/mcp/credentials/ended', {
+        method: 'POST',
+        headers: { 'x-internal-auth': BOOTED_INTERNAL_SECRET, 'content-type': 'application/json' },
+        body: JSON.stringify({ credentialId: settled.credential.id, family: familyId }),
+      });
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toEqual({ outcome: 'already_revoked' });
+      expect(await fixture('cp14-consent', { familyId, action: 'state' })).toEqual(settled);
+      expect(await oauth.reportEndedConsents()).toBe(0);
+    } finally {
+      if (!repaired) await fixture('cp14-consent', { familyId, action: 'repair' });
+    }
+  });
+
   test('MCP and direct HTTP carry the same scoped external command to the dormant backend', async () => {
     if (!Object.hasOwn(sessions, 'dany'))
       throw new Error('the organization-bound session is missing');
     const access = sessions['dany'];
-    const created = await tool(access, 'postApiProjects', { name: 'External prerequisite' });
+    const created = await tool(access, 'postApiWorkPackages', {
+      name: 'External prerequisite',
+      projectId: ids.primaryProject,
+    });
     expect(created.isError).toBe(false);
-    const predecessorProjectId = (JSON.parse(created.text) as { project: { id: string } }).project
-      .id;
-    const predecessor = await tool(access, 'postApiProjectsByIdCommands', {
-      id: predecessorProjectId,
+    const predecessorWorkPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
+      .workPackage.id;
+    const predecessor = await tool(access, 'postApiWorkPackagesByIdCommands', {
+      id: predecessorWorkPackageId,
       commands: [{ kind: 'createWorkItem', name: 'Remote design' }],
     });
     expect(predecessor.isError).toBe(false);
     const predecessorId = (
       JSON.parse(predecessor.text) as { results: { id: string }[] }
     ).results.at(0)?.id;
-    const successor = await tool(access, 'postApiProjectsByIdCommands', {
+    const successor = await tool(access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [{ kind: 'createWorkItem', name: 'Local build' }],
     });
@@ -983,16 +1126,16 @@ describe('MCP organization delegation against a booted be-01', () => {
     const command = {
       kind: 'addTypedDependency',
       predecessor: {
-        projectId: predecessorProjectId,
+        workPackageId: predecessorWorkPackageId,
         scope: 'whole',
         workItemId: predecessorId,
       },
-      successor: { projectId: ids.launch, scope: 'whole', workItemId: successorId },
+      successor: { workPackageId: ids.launch, scope: 'whole', workItemId: successorId },
       type: 'FS',
     };
-    // Proof: stripping nested projectId during MCP serialization made this real
+    // Proof: stripping nested workPackageId during MCP serialization made this real
     // booted call answer 404 not_found instead of the direct HTTP 409 dormant refusal.
-    const viaMcp = await tool(access, 'postApiProjectsByIdCommands', {
+    const viaMcp = await tool(access, 'postApiWorkPackagesByIdCommands', {
       id: ids.launch,
       commands: [command],
     });
@@ -1001,7 +1144,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       'read',
       'write',
     ]);
-    const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/commands`, {
+    const direct = await fetch(`${beUrl}/api/work-packages/${ids.launch}/commands`, {
       method: 'POST',
       headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
       body: JSON.stringify({ commands: [command] }),
@@ -1022,20 +1165,24 @@ describe('MCP organization delegation against a booted be-01', () => {
     if (!Object.hasOwn(sessions, 'dany'))
       throw new Error('organization-bound parity session missing');
     const access = sessions['dany'];
-    const created = await tool(access, 'postApiProjects', { name: 'Dormant matrix prerequisite' });
+    const created = await tool(access, 'postApiWorkPackages', {
+      projectId: ids.primaryProject,
+      name: 'Dormant matrix prerequisite',
+    });
     expect(created.isError).toBe(false);
-    const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
-    const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+    const workPackageId = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage
+      .id;
+    const tree = await tool(access, 'getApiWorkPackagesById', { id: workPackageId });
     expect(tree.isError).toBe(false);
     const remoteStepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
-    if (remoteStepId === undefined) throw new Error('remote project has no step');
-    const remote = await tool(access, 'postApiProjectsByIdCommands', {
-      id: projectId,
+    if (remoteStepId === undefined) throw new Error('remote work package has no step');
+    const remote = await tool(access, 'postApiWorkPackagesByIdCommands', {
+      id: workPackageId,
       commands: [{ kind: 'createWorkItem', name: 'Remote prerequisite' }],
     });
     expect(remote.isError).toBe(false);
     const remoteId = (JSON.parse(remote.text) as { results: { id: string }[] }).results.at(0)?.id;
-    const local = await projectOperation('HTTP', 'commands', {
+    const local = await workPackageOperation('HTTP', 'commands', {
       commands: [
         { kind: 'createWorkItem', name: 'Local predecessor' },
         { kind: 'createWorkItem', name: 'Local successor' },
@@ -1045,7 +1192,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     const successorId = local.results.at(1)?.id;
     if (remoteId === undefined || localId === undefined || successorId === undefined)
       throw new Error('matrix endpoints not minted');
-    const added = await projectOperation('HTTP', 'commands', {
+    const added = await workPackageOperation('HTTP', 'commands', {
       commands: [
         {
           kind: 'addTypedDependency',
@@ -1059,12 +1206,12 @@ describe('MCP organization delegation against a booted be-01', () => {
     if (dependencyId === undefined) throw new Error('local relationship not minted');
     for (const scope of ['whole', 'node', 'descendant-step']) {
       if (scope === 'descendant-step') {
-        const child = await tool(access, 'postApiProjectsByIdCommands', {
-          id: projectId,
+        const child = await tool(access, 'postApiWorkPackagesByIdCommands', {
+          id: workPackageId,
           commands: [{ kind: 'createWorkItem', parentId: remoteId, name: 'Remote descendant' }],
         });
         expect(child.isError).toBe(false);
-        await projectOperation('HTTP', 'commands', {
+        await workPackageOperation('HTTP', 'commands', {
           commands: [{ kind: 'createWorkItem', parentId: successorId, name: 'Local descendant' }],
         });
       }
@@ -1077,13 +1224,13 @@ describe('MCP organization delegation against a booted be-01', () => {
                 kind,
                 ...(kind === 'updateTypedDependency' ? { dependencyId } : {}),
                 predecessor: {
-                  projectId,
+                  workPackageId,
                   scope,
                   workItemId: remoteId,
                   ...(scope === 'whole' ? {} : { stepId: remoteStepId }),
                 },
                 successor: {
-                  projectId: ids.launch,
+                  workPackageId: ids.launch,
                   scope,
                   workItemId: successorId,
                   ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
@@ -1101,7 +1248,7 @@ describe('MCP organization delegation against a booted be-01', () => {
 
   for (const transport of ['HTTP', 'MCP'] as const) {
     test(`${transport} preserves legacy aliases and typed local stable relationship history`, async () => {
-      const created = await projectOperation(transport, 'commands', {
+      const created = await workPackageOperation(transport, 'commands', {
         commands: [
           { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Alias predecessor' },
           { kind: 'createWorkItem', ref: 'successor', name: 'Alias successor' },
@@ -1112,12 +1259,12 @@ describe('MCP organization delegation against a booted be-01', () => {
       const successorId = created.results.at(1)?.id;
       if (predecessorId === undefined || successorId === undefined)
         throw new Error('local endpoints not minted');
-      await projectOperation(transport, 'commands', {
+      await workPackageOperation(transport, 'commands', {
         commands: [{ kind: 'removeDependency', workItemId: successorId, predecessorId }],
       });
       for (const scope of ['whole', 'node', 'descendant-step'] as const) {
         if (scope === 'descendant-step')
-          await projectOperation(transport, 'commands', {
+          await workPackageOperation(transport, 'commands', {
             commands: [
               { kind: 'createWorkItem', parentId: predecessorId, name: 'Predecessor descendant' },
               { kind: 'createWorkItem', parentId: successorId, name: 'Successor descendant' },
@@ -1128,27 +1275,27 @@ describe('MCP organization delegation against a booted be-01', () => {
             scope,
             workItemId: predecessorId,
             ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
-            ...(explicit ? { projectId: ids.launch } : {}),
+            ...(explicit ? { workPackageId: ids.launch } : {}),
           };
           const successor = {
             scope,
             workItemId: successorId,
             ...(scope === 'whole' ? {} : { stepId: ids.firstStep }),
-            ...(explicit ? { projectId: ids.launch } : {}),
+            ...(explicit ? { workPackageId: ids.launch } : {}),
           };
-          const added = await projectOperation(transport, 'commands', {
+          const added = await workPackageOperation(transport, 'commands', {
             commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
           });
           const dependencyId = added.results.at(0)?.id;
           if (dependencyId === undefined) throw new Error('typed relationship not minted');
-          await projectOperation(transport, 'commands', {
+          await workPackageOperation(transport, 'commands', {
             commands: [
               { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'SS' },
             ],
           });
           const expected = {
             id: dependencyId,
-            project_id: ids.launch,
+            work_package_id: ids.launch,
             predecessor_work_item_id: predecessorId,
             successor_work_item_id: successorId,
             predecessor_scope: scope,
@@ -1160,23 +1307,23 @@ describe('MCP organization delegation against a booted be-01', () => {
           expect(await fixture('typed-dependencies', {})).toContainEqual(
             expect.objectContaining(expected),
           );
-          await projectOperation(transport, 'commands', {
+          await workPackageOperation(transport, 'commands', {
             commands: [{ kind: 'removeTypedDependency', dependencyId }],
           });
           expect(await fixture('typed-dependencies', {})).not.toContainEqual(
             expect.objectContaining({ id: dependencyId }),
           );
-          await projectOperation(transport, 'undo', {});
+          await workPackageOperation(transport, 'undo', {});
           expect(await fixture('typed-dependencies', {})).toContainEqual(
             expect.objectContaining(expected),
           );
-          await projectOperation(transport, 'redo', {});
+          await workPackageOperation(transport, 'redo', {});
           expect(await fixture('typed-dependencies', {})).not.toContainEqual(
             expect.objectContaining({ id: dependencyId }),
           );
         }
       }
-      const aliased = await projectOperation(transport, 'commands', {
+      const aliased = await workPackageOperation(transport, 'commands', {
         commands: [
           { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Node alias predecessor' },
           { kind: 'createWorkItem', ref: 'node-successor', name: 'Node alias successor' },
@@ -1191,12 +1338,12 @@ describe('MCP organization delegation against a booted be-01', () => {
       expect(aliased.results.at(2)?.id).toBeString();
       const nodeId = aliased.results.at(0)?.id;
       if (nodeId === undefined) throw new Error('node alias not minted');
-      await projectOperation(transport, 'commands', {
+      await workPackageOperation(transport, 'commands', {
         commands: [
           {
             kind: 'addTypedDependency',
             predecessor: {
-              projectId: ids.launch,
+              workPackageId: ids.launch,
               scope: 'node',
               stepNodeId: `sn1.${nodeId}.${ids.firstStep}`,
             },
@@ -1217,7 +1364,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       [{ ...endpoint, workItemId: 7 }, 'invalid_typed_endpoint'],
       [{ ...endpoint, stepId: ids.firstStep }, 'invalid_typed_endpoint'],
       [
-        { projectId: ids.launch, scope: 'whole', workItemRef: 'PUNI.080.39' },
+        { workPackageId: ids.launch, scope: 'whole', workItemRef: 'PUNI.080.39' },
         'invalid_typed_endpoint',
       ],
       [{ scope: 'node', stepNodeId: 'sn1.broken' }, 'invalid_step_node_id'],
@@ -1260,10 +1407,10 @@ describe('MCP organization delegation against a booted be-01', () => {
   test('explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP', async () => {
     for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
       for (const side of ['predecessor', 'successor']) {
-        for (const field of ['projectId', 'workItemId', 'stepId']) {
+        for (const field of ['workPackageId', 'workItemId', 'stepId']) {
           for (const malformed of ['', ' ', ' identity ']) {
             const endpoint = {
-              projectId: ids.launch,
+              workPackageId: ids.launch,
               scope: 'node',
               workItemId: ids.leaf,
               stepId: ids.firstStep,
@@ -1293,22 +1440,28 @@ describe('MCP organization delegation against a booted be-01', () => {
     await fixture('active-commands', {});
     const access = sessions['dany'];
     if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
-    const created = await tool(access, 'postApiProjects', { name: 'Consented predecessor' });
+    const created = await tool(access, 'postApiWorkPackages', {
+      name: 'Consented predecessor',
+      projectId: ids.primaryProject,
+    });
     // Proof: replacing server.ts's per-call bearerFor with the raw upstream
     // token made this active tool call answer 403 no_active_organization.
     expect(created, created.text).toMatchObject({ isError: false });
-    const predecessorProjectId = (JSON.parse(created.text) as { project: { id: string } }).project
-      .id;
-    const successor = await tool(access, 'postApiProjects', { name: 'Consented successor' });
+    const predecessorWorkPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
+      .workPackage.id;
+    const successor = await tool(access, 'postApiWorkPackages', {
+      name: 'Consented successor',
+      projectId: ids.primaryProject,
+    });
     expect(successor.isError).toBe(false);
-    const successorProjectId = (JSON.parse(successor.text) as { project: { id: string } }).project
-      .id;
-    const predecessorRow = await tool(access, 'postApiProjectsByIdCommands', {
-      id: predecessorProjectId,
+    const successorWorkPackageId = (JSON.parse(successor.text) as { workPackage: { id: string } })
+      .workPackage.id;
+    const predecessorRow = await tool(access, 'postApiWorkPackagesByIdCommands', {
+      id: predecessorWorkPackageId,
       commands: [{ kind: 'createWorkItem', name: 'Design' }],
     });
-    const successorRow = await tool(access, 'postApiProjectsByIdCommands', {
-      id: successorProjectId,
+    const successorRow = await tool(access, 'postApiWorkPackagesByIdCommands', {
+      id: successorWorkPackageId,
       commands: [{ kind: 'createWorkItem', name: 'Build' }],
     });
     expect(predecessorRow.isError).toBe(false);
@@ -1323,15 +1476,19 @@ describe('MCP organization delegation against a booted be-01', () => {
       throw new Error('command fixture did not mint endpoint IDs');
     const command = {
       kind: 'addTypedDependency',
-      predecessor: { projectId: predecessorProjectId, scope: 'whole', workItemId: predecessorId },
-      successor: { projectId: successorProjectId, scope: 'whole', workItemId: successorId },
+      predecessor: {
+        workPackageId: predecessorWorkPackageId,
+        scope: 'whole',
+        workItemId: predecessorId,
+      },
+      successor: { workPackageId: successorWorkPackageId, scope: 'whole', workItemId: successorId },
       type: 'FS',
     };
-    const viaMcp = await tool(access, 'postApiProjectsByIdCommands', {
-      id: successorProjectId,
+    const viaMcp = await tool(access, 'postApiWorkPackagesByIdCommands', {
+      id: successorWorkPackageId,
       commands: [command],
     });
-    // Proof: replacing the serialized predecessor.projectId in wbs-client.ts
+    // Proof: replacing the serialized predecessor.workPackageId in wbs-client.ts
     // with "missing" made this generated command return 404 (17 pass, 5 fail).
     expect(viaMcp.isError).toBe(false);
     const relationshipId = (JSON.parse(viaMcp.text) as { results: { id: string }[] }).results.at(
@@ -1343,22 +1500,25 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(firstState[4]).toHaveLength(1);
     expect(firstState[4].at(0)).toMatchObject({
       id: relationshipId,
-      predecessor_project_id: predecessorProjectId,
+      predecessor_work_package_id: predecessorWorkPackageId,
       predecessor_work_item_id: predecessorId,
-      successor_project_id: successorProjectId,
+      successor_work_package_id: successorWorkPackageId,
       successor_work_item_id: successorId,
       type: 'FS',
     });
     const addedJournal = firstState[7].find((entry) =>
       JSON.stringify(entry).includes(relationshipId),
     );
-    expect(addedJournal).toMatchObject({ project_id: successorProjectId, user_id: 'u-dany' });
+    expect(addedJournal).toMatchObject({
+      work_package_id: successorWorkPackageId,
+      user_id: 'u-dany',
+    });
     const caller = await oauth.callerSessionFor(access);
     const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
       'read',
       'write',
     ]);
-    const direct = await fetch(`${beUrl}/api/projects/${successorProjectId}/commands`, {
+    const direct = await fetch(`${beUrl}/api/work-packages/${successorWorkPackageId}/commands`, {
       method: 'POST',
       headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -1376,12 +1536,17 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(secondState[4].at(0)).toMatchObject({ id: relationshipId, type: 'SS' });
     const updatedJournal = secondState[7].find(
       (entry) =>
-        entry['project_id'] === successorProjectId &&
+        entry['work_package_id'] === successorWorkPackageId &&
         entry['kind'] === 'update_typed_dependency' &&
         JSON.stringify(entry).includes(relationshipId),
     );
-    expect(updatedJournal).toMatchObject({ project_id: successorProjectId, user_id: 'u-dany' });
-    const reading = await tool(access, 'getApiProjectsByIdWork-items', { id: successorProjectId });
+    expect(updatedJournal).toMatchObject({
+      work_package_id: successorWorkPackageId,
+      user_id: 'u-dany',
+    });
+    const reading = await tool(access, 'getApiWorkPackagesByIdWork-items', {
+      id: successorWorkPackageId,
+    });
     expect(reading.isError).toBe(false);
     expect(JSON.parse(reading.text)).toMatchObject({
       connectedDependencies: [
@@ -1395,7 +1560,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
     const graceAccess = sessions['grace'];
     if (!Object.hasOwn(sessions, 'grace')) throw new Error('foreign organization session missing');
-    const foreignRow = await tool(graceAccess, 'postApiProjectsByIdCommands', {
+    const foreignRow = await tool(graceAccess, 'postApiWorkPackagesByIdCommands', {
       id: ids.foreign,
       commands: [{ kind: 'createWorkItem', name: 'Foreign design' }],
     });
@@ -1406,7 +1571,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     if (foreignId === undefined) throw new Error('foreign endpoint was not created');
     const snapshot = await fixture('write-state', {});
     let indexedRefusal: unknown;
-    for (const [transport, projectId] of [
+    for (const [transport, workPackageId] of [
       ['MCP', ids.foreign],
       ['HTTP', ids.foreign],
       ['MCP', crypto.randomUUID()],
@@ -1416,16 +1581,16 @@ describe('MCP organization delegation against a booted be-01', () => {
         { kind: 'patchWorkItem', workItemId: successorId, patch: { name: 'Must roll back' } },
         {
           ...command,
-          predecessor: { ...command.predecessor, projectId, workItemId: foreignId },
+          predecessor: { ...command.predecessor, workPackageId, workItemId: foreignId },
         },
       ];
       let refusal: unknown;
       if (transport === 'MCP') {
-        const answer = await tool(access, 'postApiProjectsByIdCommands', {
-          id: successorProjectId,
+        const answer = await tool(access, 'postApiWorkPackagesByIdCommands', {
+          id: successorWorkPackageId,
           commands,
         });
-        // Proof: reading the predecessor project with legacy access instead
+        // Proof: reading the predecessor work package with legacy access instead
         // of scoped access in dependency-endpoint-evidence.ts turned this
         // foreign refusal into an unexpected 500, failing this test.
         expect(answer.isError).toBe(true);
@@ -1438,19 +1603,22 @@ describe('MCP organization delegation against a booted be-01', () => {
           freshCaller.upstreamToken,
           ['read', 'write'],
         );
-        const response = await fetch(`${beUrl}/api/projects/${successorProjectId}/commands`, {
-          method: 'POST',
-          headers: {
-            authorization: `Bearer ${freshBearer}`,
-            'content-type': 'application/json',
+        const response = await fetch(
+          `${beUrl}/api/work-packages/${successorWorkPackageId}/commands`,
+          {
+            method: 'POST',
+            headers: {
+              authorization: `Bearer ${freshBearer}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ commands }),
           },
-          body: JSON.stringify({ commands }),
-        });
+        );
         expect(response.status).toBe(404);
         refusal = await response.json();
       }
       if (indexedRefusal === undefined) indexedRefusal = refusal;
-      expect(refusal).toEqual({ error: 'not_found', at: 1, kind: 'addTypedDependency' });
+      expect(refusal).toEqual({ error: 'not_found' });
       expect(refusal).toEqual(indexedRefusal);
       expect(await fixture('write-state', {})).toEqual(snapshot);
     }
@@ -1460,17 +1628,21 @@ describe('MCP organization delegation against a booted be-01', () => {
     test(`${transport} consented active node SS/FF preserves scoped identity and connected read parity`, async () => {
       const access = sessions['dany'];
       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
-      const created = await tool(access, 'postApiProjects', { name: `${transport} scoped remote` });
+      const created = await tool(access, 'postApiWorkPackages', {
+        projectId: ids.primaryProject,
+        name: `${transport} scoped remote`,
+      });
       // Proof: raw upstream token in place of per-call bearerFor made this
       // consented setup call answer no_active_organization.
       expect(created.isError).toBe(false);
-      const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
-      const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+      const workPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
+        .workPackage.id;
+      const tree = await tool(access, 'getApiWorkPackagesById', { id: workPackageId });
       expect(tree.isError).toBe(false);
       const stepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
-      if (stepId === undefined) throw new Error('remote project has no step');
-      const remote = await tool(access, 'postApiProjectsByIdCommands', {
-        id: projectId,
+      if (stepId === undefined) throw new Error('remote work package has no step');
+      const remote = await tool(access, 'postApiWorkPackagesByIdCommands', {
+        id: workPackageId,
         commands: [{ kind: 'createWorkItem', name: 'Remote scoped leaf' }],
       });
       expect(remote.isError).toBe(false);
@@ -1478,30 +1650,30 @@ describe('MCP organization delegation against a booted be-01', () => {
         0,
       )?.id;
       if (workItemId === undefined) throw new Error('remote leaf not minted');
-      const local = await projectOperation(transport, 'commands', {
+      const local = await workPackageOperation(transport, 'commands', {
         commands: [{ kind: 'createWorkItem', name: 'Local scoped leaf' }],
       });
       const successorId = local.results.at(0)?.id;
       if (successorId === undefined) throw new Error('local leaf not minted');
       for (const type of ['SS', 'FF'] as const) {
-        const predecessor = { projectId, scope: 'node', workItemId, stepId };
+        const predecessor = { workPackageId, scope: 'node', workItemId, stepId };
         const successor = {
-          projectId: ids.launch,
+          workPackageId: ids.launch,
           scope: 'node',
           workItemId: successorId,
           stepId: ids.firstStep,
         };
-        const added = await projectOperation(transport, 'commands', {
+        const added = await workPackageOperation(transport, 'commands', {
           commands: [{ kind: 'addTypedDependency', predecessor, successor, type }],
         });
         const dependencyId = added.results.at(0)?.id;
         if (dependencyId === undefined) throw new Error('scoped relationship not minted');
         await assertScopedRelationship(access, dependencyId, predecessor, successor, type);
-        await projectOperation(transport, 'commands', {
+        await workPackageOperation(transport, 'commands', {
           commands: [{ kind: 'removeTypedDependency', dependencyId }],
         });
       }
-      // Proof: corrupting MCP stepId or projectId request serialization changed
+      // Proof: corrupting MCP stepId or workPackageId request serialization changed
       // this scoped refusal from expected 409 to 404; generated scoped writes also failed.
       // Proof: unconditional COMMIT left the valid patch durable; refuseCommands'
       // full 13-table equality failed through the real mounted command path.
@@ -1514,9 +1686,9 @@ describe('MCP organization delegation against a booted be-01', () => {
           },
           {
             kind: 'addTypedDependency',
-            predecessor: { projectId, scope: 'descendant-step', workItemId, stepId },
+            predecessor: { workPackageId, scope: 'descendant-step', workItemId, stepId },
             successor: {
-              projectId: ids.launch,
+              workPackageId: ids.launch,
               scope: 'node',
               workItemId: successorId,
               stepId: ids.firstStep,
@@ -1532,17 +1704,19 @@ describe('MCP organization delegation against a booted be-01', () => {
     test(`${transport} consented remote descendant-step FS resolves dotted batch refs without changing scope`, async () => {
       const access = sessions['dany'];
       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
-      const created = await tool(access, 'postApiProjects', {
+      const created = await tool(access, 'postApiWorkPackages', {
+        projectId: ids.primaryProject,
         name: `${transport} descendant remote`,
       });
       expect(created.isError).toBe(false);
-      const projectId = (JSON.parse(created.text) as { project: { id: string } }).project.id;
-      const tree = await tool(access, 'getApiProjectsById', { id: projectId });
+      const workPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
+        .workPackage.id;
+      const tree = await tool(access, 'getApiWorkPackagesById', { id: workPackageId });
       expect(tree.isError).toBe(false);
       const stepId = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps.at(0)?.id;
-      if (stepId === undefined) throw new Error('remote project has no step');
-      const remote = await tool(access, 'postApiProjectsByIdCommands', {
-        id: projectId,
+      if (stepId === undefined) throw new Error('remote work package has no step');
+      const remote = await tool(access, 'postApiWorkPackagesByIdCommands', {
+        id: workPackageId,
         commands: [
           { kind: 'createWorkItem', ref: 'REMOTE.080.39', name: 'Remote parent' },
           { kind: 'createWorkItem', parentRef: 'REMOTE.080.39', name: 'Remote child' },
@@ -1553,8 +1727,8 @@ describe('MCP organization delegation against a booted be-01', () => {
         0,
       )?.id;
       if (workItemId === undefined) throw new Error('remote parent not minted');
-      const predecessor = { projectId, scope: 'descendant-step', workItemId, stepId };
-      const added = await projectOperation(transport, 'commands', {
+      const predecessor = { workPackageId, scope: 'descendant-step', workItemId, stepId };
+      const added = await workPackageOperation(transport, 'commands', {
         commands: [
           { kind: 'createWorkItem', ref: 'PUNI.080.39', name: 'Local parent' },
           { kind: 'createWorkItem', parentRef: 'PUNI.080.39', name: 'Local child' },
@@ -1579,7 +1753,7 @@ describe('MCP organization delegation against a booted be-01', () => {
         dependencyId,
         predecessor,
         {
-          projectId: ids.launch,
+          workPackageId: ids.launch,
           scope: 'descendant-step',
           workItemId: successorId,
           stepId: ids.firstStep,
@@ -1668,15 +1842,21 @@ describe('MCP organization delegation against a booted be-01', () => {
             },
           };
         })();
-        const createProject = async (name: string): Promise<string> => {
-          const created = await tool(consent.access, 'postApiProjects', { name });
-          expect(created, created.text).toMatchObject({ isError: false });
-          return (JSON.parse(created.text) as { project: { id: string } }).project.id;
+        await grantConsent(consent.access, 'project-contributor', { kind: 'organization' });
+        const createWorkPackage = async (name: string): Promise<string> => {
+          const denied = await tool(consent.access, 'postApiWorkPackages', {
+            name,
+            projectId: ids.primaryProject,
+          });
+          expect(denied.isError).toBe(true);
+          expect(denied.text).toContain('HTTP 403 forbidden');
+          const created = await createWorkPackageFixture('dany', { name });
+          return created.workPackage.id;
         };
-        const predecessorProjectId = await createProject(`Queued ${fault} predecessor`);
-        const successorProjectId = await createProject(`Queued ${fault} successor`);
+        const predecessorWorkPackageId = await createWorkPackage(`Queued ${fault} predecessor`);
+        const successorWorkPackageId = await createWorkPackage(`Queued ${fault} successor`);
         const createLeaf = async (id: string): Promise<string> => {
-          const created = await tool(consent.access, 'postApiProjectsByIdCommands', {
+          const created = await tool(consent.access, 'postApiWorkPackagesByIdCommands', {
             id,
             commands: [{ kind: 'createWorkItem', name: `Queued ${fault} leaf` }],
           });
@@ -1687,20 +1867,20 @@ describe('MCP organization delegation against a booted be-01', () => {
           if (workItemId === undefined) throw new Error('queued consent leaf not minted');
           return workItemId;
         };
-        const predecessorId = await createLeaf(predecessorProjectId);
-        const successorId = await createLeaf(successorProjectId);
+        const predecessorId = await createLeaf(predecessorWorkPackageId);
+        const successorId = await createLeaf(successorWorkPackageId);
         const predecessor = {
-          projectId: predecessorProjectId,
+          workPackageId: predecessorWorkPackageId,
           scope: 'whole',
           workItemId: predecessorId,
         };
         const successor = {
-          projectId: successorProjectId,
+          workPackageId: successorWorkPackageId,
           scope: 'whole',
           workItemId: successorId,
         };
-        const added = await tool(consent.access, 'postApiProjectsByIdCommands', {
-          id: successorProjectId,
+        const added = await tool(consent.access, 'postApiWorkPackagesByIdCommands', {
+          id: successorWorkPackageId,
           commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
         });
         expect(added, added.text).toMatchObject({ isError: false });
@@ -1708,15 +1888,15 @@ describe('MCP organization delegation against a booted be-01', () => {
           0,
         )?.id;
         if (dependencyId === undefined) throw new Error('queued consent relationship not minted');
-        const read = await tool(consent.access, 'getApiProjectsByIdWork-items', {
-          id: predecessorProjectId,
+        const read = await tool(consent.access, 'getApiWorkPackagesByIdWork-items', {
+          id: predecessorWorkPackageId,
         });
         expect(read, read.text).toMatchObject({ isError: false });
         const writeAccess =
           consent.refresh === undefined ? consent.access : await consent.refresh();
         await fixture('arm-consent-write', {});
-        const pending = tool(writeAccess, 'postApiProjectsByIdCommands', {
-          id: successorProjectId,
+        const pending = tool(writeAccess, 'postApiWorkPackagesByIdCommands', {
+          id: successorWorkPackageId,
           commands: [
             {
               kind: 'patchWorkItem',
@@ -1775,7 +1955,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       body: JSON.stringify({ username: 'dany' }),
     });
     expect(removed.status).toBe(200);
-    const next = await tool(sessions['dany'] ?? '', 'getApiProjects', {});
+    const next = await tool(sessions['dany'] ?? '', 'getApiWorkPackages', {});
     // Proof: neutralizing the fixture membership delete while reporting success
     // made this next real MCP call answer 200 instead of 401.
     expect(next.status).toBe(401);
@@ -1797,7 +1977,7 @@ describe('MCP organization delegation against a booted be-01', () => {
   // Task 3.9 (M17): claude.ai's connector registers `client_secret_post`, because the metadata
   // lists the machine grants' methods. The MCP SDK stands in for claude.ai at the token
   // endpoint: it reads the method from the registration answer and sends the secret by it.
-  // It signs in as grace, whom no earlier test removes, and makes its own project, so it reads
+  // It signs in as grace, whom no earlier test removes, and makes its own work package, so it reads
   // nothing an earlier test wrote.
   // Proof: 2026-10-31, with registration accepting only `none` again (oauth.ts `register`) this
   // failed at `registerClient` with the live `invalid_client_metadata`.
@@ -1838,18 +2018,21 @@ describe('MCP organization delegation against a booted be-01', () => {
     const exchanged = new URLSearchParams(await sent[0]?.text());
     expect(exchanged.get('client_secret')).toBe(client.client_secret);
     expect(sent[0]?.headers.get('authorization')).toBeNull();
-    const created = await tool(tokens.access_token, 'postApiProjects', { name: 'Confidential' });
+    const created = await tool(tokens.access_token, 'postApiWorkPackages', {
+      name: 'Confidential',
+      projectId: ids.foreignProject,
+    });
     expect(created.isError).toBe(false);
-    const listed = await tool(tokens.access_token, 'getApiProjects', {});
+    const listed = await tool(tokens.access_token, 'getApiWorkPackages', {});
     expect(listed.isError).toBe(false);
-    expect(projectNames(listed.text)).toContain('Confidential');
+    expect(workPackageNames(listed.text)).toContain('Confidential');
     const refreshed = await refreshAuthorization(OAUTH, {
       metadata,
       clientInformation: client,
       refreshToken: tokens.refresh_token ?? '',
       fetchFn,
     });
-    expect((await tool(refreshed.access_token, 'getApiProjects', {})).isError).toBe(false);
+    expect((await tool(refreshed.access_token, 'getApiWorkPackages', {})).isError).toBe(false);
 
     // Without its secret, the same client is refused, and so is an API key on either grant.
     const withoutSecret = await oauthCall(

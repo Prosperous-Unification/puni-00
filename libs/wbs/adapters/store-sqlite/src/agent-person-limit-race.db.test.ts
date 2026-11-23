@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OrganizationLimitGauge, ResourceAccess, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -14,19 +14,19 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
   maxCapacityUnitsPerResource: 10_000,
 };
 const SCOPED: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 let directory: string;
@@ -35,7 +35,10 @@ let source: SqliteSource;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'agent-person-limit-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -45,6 +48,7 @@ beforeEach(() => {
     sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`,
     sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`,
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('race-dany','org-a','organization','org-a','user','dany','org-admin','route',1)`,
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 8, 200, 10000, 1)`,
   ])
     source.db.run(statement);
@@ -79,7 +83,7 @@ interface Hold {
 function runnerWith(hold: Hold) {
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -100,8 +104,8 @@ function runnerWith(hold: Hold) {
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
       readDirectoryCapacityLimit: (organizationId, resourceId) =>
         gauge.readDirectoryCapacityLimit(organizationId, resourceId),
-      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
-        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
+      readCapacityCap: (organizationId, resourceId, exceptWorkPackageId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptWorkPackageId),
     };
   };
   return createPlanCommandRunner({

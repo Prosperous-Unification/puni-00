@@ -7,24 +7,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const TYPED = '20260927213000_add_typed_dependency';
 /** The migration below this one, where every rollback here stops. */
 const BASELINE = '20260927200000_freeze_organization_ownership';
-/** Every migration after the baseline, newest first: what a rollback to it reverses. */
-const REVERSED_TO_BASELINE = readMigrationFolders(FOLDER)
-  .map(({ name }) => name)
-  .filter((name) => name > BASELINE)
-  .reverse();
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, TYPED);
+  runMigrations(path, migrations);
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -207,7 +204,7 @@ describe(TYPED, () => {
   });
 
   it('rolls an empty table back and reapplies', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(REVERSED_TO_BASELINE);
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([TYPED]);
     expect(
       withDatabase((sqlite) =>
         sqlite
@@ -217,7 +214,7 @@ describe(TYPED, () => {
           .all(),
       ),
     ).toEqual([]);
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(
       withDatabase((sqlite) =>
         sqlite
@@ -237,7 +234,6 @@ describe(TYPED, () => {
    * 2026-10-24: the same missing-throw failure remains observable.
    */
   it('refuses rollback with typed rows and retains the row and migration record', () => {
-    rollbackTo(path, FOLDER, TYPED);
     withDatabase((sqlite) => {
       seed(sqlite);
       insert(sqlite, 'first');
@@ -249,7 +245,7 @@ describe(TYPED, () => {
         )
         .all(),
     );
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'docs/runbook-prod-deploy.md#typed-dependency-rollback',
     );
     withDatabase((sqlite) => {
@@ -275,10 +271,9 @@ describe(TYPED, () => {
    * a scratch guard omission reached that index error, not a newer down script.
    */
   it('refuses rollback when the typed table is missing', () => {
-    rollbackTo(path, FOLDER, TYPED);
     withDatabase((sqlite) => {
       sqlite.run('DROP TABLE typed_dependency');
     });
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('no such table: typed_dependency');
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow('no such table: typed_dependency');
   });
 });

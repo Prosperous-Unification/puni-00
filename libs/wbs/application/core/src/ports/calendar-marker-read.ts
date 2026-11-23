@@ -1,43 +1,46 @@
+import type { Permission } from '@wbs/domain';
+
 import type { CalendarMarker } from './calendar-marker-store';
 
 /**
  * Why a marker could not be listed, stored or changed. All four are states.
  *
- * `not_found` covers **both** "no such project" and "no such marker of this
- * project", and it stays one reason on the wire: a caller who could tell the
+ * `not_found` covers **both** "no such work package" and "no such marker of this
+ * work package", and it stays one reason on the wire: a caller who could tell the
  * two apart by the reason would learn that a marker it may not see exists
- * (spec.md, "a marker of another project answers `not_found` rather than
+ * (spec.md, "a marker of another work package answers `not_found` rather than
  * `forbidden`"). Which of the two it was is carried beside the reason instead,
  * as {@link CalendarMarkerSubject}.
  */
 export type CalendarMarkerRefusal = 'not_found' | 'forbidden' | 'taken';
 
 /**
- * What a refusal is **about** — the project the request addressed, or the
+ * What a refusal is **about** — the work package the request addressed, or the
  * marker inside it.
  *
  * This is not a second reason and never reaches a client as one. It exists so a
  * route can answer the spec's `field` honestly: the refusal table blames
- * `markerId` for a marker that is absent or another project's, and the routes
- * used to blame it for an **absent project** too, naming a value that had
+ * `markerId` for a marker that is absent or another work package's, and the routes
+ * used to blame it for an **absent work package** too, naming a value that had
  * nothing to do with the refusal (TASK-279 AC #7). Only the Calendar marker
- * service knows which check failed — its gate reads the project, the store
+ * service knows which check failed — its gate reads the work package, the store
  * reads the marker inside its own transaction — so only it can say.
  *
- * It leaks nothing the reason did not already: an existing project the caller
+ * It leaks nothing the reason did not already: an existing work package the caller
  * may not write answers `forbidden` and an absent one answers `not_found`, so
- * project existence is already distinguishable from outside. Marker existence
+ * work package existence is already distinguishable from outside. Marker existence
  * is not, and stays that way — `about` never reaches the wire, and the routes
  * turn it into a `field` only for a request that named a marker id itself. A
  * create that let the service mint one can still be refused `about: 'marker'`
  * (the minted id collided), and the route blames nothing for it, because the
  * two questions are separate and both are asked.
  */
-export type CalendarMarkerSubject = 'project' | 'marker';
+export type CalendarMarkerSubject = 'work_package' | 'marker';
 
 export interface CalendarMarkerRefused {
   ok: false;
   reason: CalendarMarkerRefusal;
+  readonly permission?: Permission;
   about: CalendarMarkerSubject;
 }
 
@@ -45,7 +48,7 @@ export type CalendarMarkerListOutcome =
   { ok: true; value: CalendarMarker[] } | CalendarMarkerRefused;
 
 /**
- * A project's markers, read by something that does not own them.
+ * A work package's markers, read by something that does not own them.
  *
  * Plan document needs the list and nothing else. Naming that here rather than
  * accepting `CalendarMarkerService` is what keeps one resource out of another
@@ -59,5 +62,5 @@ export type CalendarMarkerListOutcome =
  * with `not_found` or `taken` only and has no notion of `forbidden`.
  */
 export interface CalendarMarkerReader {
-  list(projectId: string): Promise<CalendarMarkerListOutcome>;
+  list(workPackageId: string): Promise<CalendarMarkerListOutcome>;
 }

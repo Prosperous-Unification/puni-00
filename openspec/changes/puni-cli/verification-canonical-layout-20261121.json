@@ -1,0 +1,2060 @@
+{
+  "schema": "puni-current-canonical-layout-v118",
+  "recordedAt": "2026-11-21T16:33:47.957Z",
+  "classification": "progress",
+  "parent": {
+    "path": "/tmp/puni-goal-continuation-20261121-v117.json",
+    "sha256": "6334e06f3c53f837eaedc0fe72221b57633a18a1bf18d715eb8f32cdc85c9062",
+    "bytes": 27347,
+    "mode": 384
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/build.test.ts",
+      "sha256": "9a24b85229358e3f28dc9f3f114237bd468cb7f9403bb6ace037b6d1f9b4fd18",
+      "bytes": 57246,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/test-level-installation.test.fixture.ts",
+      "sha256": "b5a517a4a3df1367894fc131efc3e3cf9679804a485b91501a9a77d2103c640f",
+      "bytes": 34070,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/installed-placement.ts",
+      "sha256": "5b0e15d3e72f7788624c1214dd9d7f8e0e9ddfe7ff7907500e40477836e1035f",
+      "bytes": 3748,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/packaging/current-assets.test.ts",
+      "sha256": "8a8a1130c56dca3b124606656172d5ff1abf3d67519c428bb6ddccc0d39968fd",
+      "bytes": 5271,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/packaging/puni-test-levels.ts",
+      "sha256": "6a7c8acc14673fed36d8daf5ff03dd195b742164f5f0ed2348fe5565d97e8430",
+      "bytes": 5058,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/build-bun-toolkit.ts",
+      "sha256": "dd321472d41d1dc6907c3f22815122cb91c453cb5111270551c735938836572c",
+      "bytes": 22149,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-directory.ts",
+      "sha256": "a75c986e234ecf14c2c755effc18af5da08e6c04de6810425185fc8764114fca",
+      "bytes": 8026,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-notices.test.ts",
+      "sha256": "828e9cc5fdb32431d6026d74102b856e81f62f53225a25839ad067253f431c81",
+      "bytes": 3855,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-notices.ts",
+      "sha256": "727195f7dbd8e4ea557613014e2252b627592688c923a7e3c91cebb2077d4414",
+      "bytes": 2015,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "sha256": "07f992eb33be60db4c55c2a74a34b08ac1f7147185af74ba3c8c167d851b62ef",
+      "bytes": 44362,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.ts",
+      "sha256": "108249a42177c4acc4a2cb43721ab2818b80924e1f145ab5e609e2ced696cceb",
+      "bytes": 16024,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+      "sha256": "88988b34a4508fcba0be45074d3d7b14c7e4d603bf9e9740c17bbc59606dc239",
+      "bytes": 12542,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/selected-toolkit.test.ts",
+      "sha256": "47385c371d0e704206f7da766489b04f6827056b7b0ccb02bfb477230dd14a91",
+      "bytes": 10846,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.ts",
+      "sha256": "955cd3e4d56986bc06799b006359bf284bee2606486dabfa970c11609b8cb2d8",
+      "bytes": 13828,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "44441364a0faaa063c483053ae297ffd81d687b9df808d5c83de00f11f5e7cf3",
+      "bytes": 24714,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/performance-execution-fixture.ts",
+      "sha256": "19c5fea793ae91b4bd99182a41357b5939275b39dfc278eef5ba12e1d68d9bbb",
+      "bytes": 9151,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/performance-execution-vectors.test.ts",
+      "sha256": "c67a3d3445c35952c44aeb87b106e7dacdf12d01ffc4235a39670218036edc55",
+      "bytes": 17654,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-devsync/src/puni-boundaries.test.ts",
+      "sha256": "1fe1208feff90a396fb44c9f7ef63b4ec6a9db5226c6046dd8c995f2c7c7704d",
+      "bytes": 20918,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/eslint.product.mjs",
+      "sha256": "8b2f83708e7ec5b253783fa4a2a6686aca5254c7be5da9ca3bc4f958bcdc9837",
+      "bytes": 6637,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tsconfig.base.json",
+      "sha256": "9e0d1c31b5f2ef188564912a8171211e6896758eb290fcab852269fda197f964",
+      "bytes": 13600,
+      "mode": 436
+    }
+  ],
+  "checks": [
+    {
+      "name": "canonical-forge-selection-timing-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-selection-timing-v118.receipt.json",
+        "sha256": "cd890e2f129ef2c4d37a06c15286f6f9dec3691e9524d1c7f26f33b0d9a09922",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-selection-timing-v118.log",
+        "sha256": "6ed935270a6e23f3059c63e67c560559fde549551a4ae1f18e8d630f29f97897",
+        "bytes": 79,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-selection-timing-v118.validation.json",
+        "sha256": "cceb661f01c7b30a3b09b38cf579cedd69f0cb6ba5e1ed10485f07ee8a24f8c6",
+        "bytes": 505,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-forge-probe-owner-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-probe-owner-v118.receipt.json",
+        "sha256": "bc0111588df420f7ef85ddee356cac94aee8e4a0337d42b8e28ec8516c7e333f",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-probe-owner-v118.log",
+        "sha256": "38b74cf051a9b484b69c6c7f504d58d4c36185966a061e8c6f3fd1579b6211d7",
+        "bytes": 140,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-probe-owner-v118.validation.json",
+        "sha256": "47317ffe11416719570e3c0d21c5fff64c87888e433b9f33219b47c72831f848",
+        "bytes": 496,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-regression-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-regression-v118.receipt.json",
+        "sha256": "fdc167598291a64e590fa7342c1be3b0669135b98ad682e6dfad67fd28bdf365",
+        "bytes": 1705,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-regression-v118.log",
+        "sha256": "8c4241d2e99d9f0d31a3f296a637bc46ca9c55864f93253c1e2e84e53d271f5f",
+        "bytes": 21328,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-regression-v118.validation.json",
+        "sha256": "3bcfdeb68cb29a1364592a2f3a99837d1879cc7837384e73322946f0aec588c4",
+        "bytes": 496,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-vectors-final-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-vectors-final-v118.receipt.json",
+        "sha256": "009ddcfbfea95826cedd557aa9adbba01c28837feb281fc925b6aee4304e477a",
+        "bytes": 1345,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-vectors-final-v118.log",
+        "sha256": "82b8dceadf3725d4e0ae741f2d16561b746dcc56d9b3468113ff4d3491393b1e",
+        "bytes": 844,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-vectors-final-v118.validation.json",
+        "sha256": "d76482ce25cd8a4172d1659e189696342bed1a55043bb1f4a0e320ded14cee8b",
+        "bytes": 488,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-canonical-runtime-recheck-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-recheck-v118.receipt.json",
+        "sha256": "ddcebfd4abf6f572f7c2e16e4484b36318433fb8b624c7886eddbbbf2e969385",
+        "bytes": 1344,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-recheck-v118.log",
+        "sha256": "5f7c46c55b774a9495eae3dbf7a8d5e8a82c4c37e5849a7f3a34fb4a162161f3",
+        "bytes": 590,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-recheck-v118.validation.json",
+        "sha256": "8ae2c5db763f679a4f75251217d693ab3c96081a7adfd0387024a572cb2431a5",
+        "bytes": 510,
+        "mode": 384
+      }
+    },
+    {
+      "name": "installed-aliases-source-absent-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-source-absent-v118.receipt.json",
+        "sha256": "b8ff00f40ae55e60297644412e0bb1a57026016fb3e5ef7e552f2a449705dc52",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-source-absent-v118.log",
+        "sha256": "62800a2a655c760e69ecfb0a38ae6b7bc10af574b06f45334189ee1dc9fb91eb",
+        "bytes": 896,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-source-absent-v118.validation.json",
+        "sha256": "c7a7addeaa13a4f6f0b49ab676e1c6bfffdae4ca1798273e0eb4b35d6278a3b6",
+        "bytes": 504,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-types-repaired-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-repaired-v118.receipt.json",
+        "sha256": "eb55dc096228c1d971bcd765e71f10c9c5c34dc07cb4b3478d6a5cea9c66f09d",
+        "bytes": 1343,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-repaired-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-repaired-v118.validation.json",
+        "sha256": "99438155f22f620593833f0b893142050b954d6e4d08dfdb3574d0148364c5a7",
+        "bytes": 500,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-lint-repaired-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-repaired-v118.receipt.json",
+        "sha256": "c44f18b379473c9f144171d430b12dfd9372ba464a8287ba1edeaac47e933614",
+        "bytes": 1299,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-repaired-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-repaired-v118.validation.json",
+        "sha256": "5d782be6f574234f0b6075efaa53b7abd4c3c4445b1452dd64d35db5e822b0f9",
+        "bytes": 498,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-faults-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-faults-v118.receipt.json",
+        "sha256": "15dd28e6e5e0a4c6761175b8da84e7ff27ae8872f69ba6e8c4c089c12f0ee5d9",
+        "bytes": 1288,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-faults-v118.log",
+        "sha256": "e0d144738878546722f01d23585575a19170f57a58d82ae6ce642c5f6fed5984",
+        "bytes": 33,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-faults-v118.validation.json",
+        "sha256": "5547323593badeee828c20490286b685afd537a945a68c06d95622751173f305",
+        "bytes": 503,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-faults-v118",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-faults-v118.receipt.json",
+        "sha256": "f10aa88038cadc0c2a4474d5926d4f71b76a25a05e6737bede206891a28b14a6",
+        "bytes": 1274,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-faults-v118.log",
+        "sha256": "dff1c6c92fc5876ea06d6592c2724d063f1c071a3c2c1166536726b305e0ac55",
+        "bytes": 52,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-faults-v118.validation.json",
+        "sha256": "0ee2dce611ae75af794162e5964dc9a3b01e255103b3566116276e7813f55d2e",
+        "bytes": 487,
+        "mode": 384
+      }
+    }
+  ],
+  "finalPackage": {
+    "name": "canonical-package-budget-v118",
+    "exit": 1,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-budget-v118.receipt.json",
+      "sha256": "70cd6aede565ba72f0bb7786fecd635bf09d693b0d5064c779fd73747fada196",
+      "bytes": 1389,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-budget-v118.log",
+      "sha256": "c93033a917361ca1c9aab61f95c594554f1bbb1437dc5154a3dda131bf87177e",
+      "bytes": 1356,
+      "mode": 384
+    },
+    "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+  },
+  "receipts": [
+    {
+      "name": "canonical-quality-lint-fix-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-fix-v118.receipt.json",
+        "sha256": "8798de3550502116e5d55f760b0630acbe1c06d4496cbb7aba0f8c82aa1c9421",
+        "bytes": 1297,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-fix-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-green-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-green-v118.receipt.json",
+        "sha256": "95d26f30d854788b81fb65d3452671ed5acccea6c0b905b3748d2453c41255ae",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-green-v118.log",
+        "sha256": "b461c699fd6001f25e7b7baf2579f859f95d407cc3bf2ac502b4e560edf3f5f0",
+        "bytes": 10626,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-fixed-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-fixed-v118.receipt.json",
+        "sha256": "bee081a905bb4f14a64786ec929bc36e5a4829a7f293c5ef0fc1dd992e81862f",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-fixed-v118.log",
+        "sha256": "0831efb8a0cb9e68b39a7735326c1401eec49e48e55d455bec0e75ce5615be0a",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-faults-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-faults-v118.receipt.json",
+        "sha256": "f10aa88038cadc0c2a4474d5926d4f71b76a25a05e6737bede206891a28b14a6",
+        "bytes": 1274,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-faults-v118.log",
+        "sha256": "dff1c6c92fc5876ea06d6592c2724d063f1c071a3c2c1166536726b305e0ac55",
+        "bytes": 52,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-types-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-v118.receipt.json",
+        "sha256": "d18d62d5d364f18986ff5f60cc3542f8a9e8e9626c9ec2a1b037718289322521",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-v118.log",
+        "sha256": "82fc1edaa95a286bf058a9e87cbbfbed57c8554b3d99781c7f759635878508fa",
+        "bytes": 58,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-descriptor-location-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118.receipt.json",
+        "sha256": "e789cffb9263f91c4b4f89d1a39c377ad43c1e2e506e8913fc18da4119124ed9",
+        "bytes": 1499,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118.log",
+        "sha256": "7e399c822ec176374eceb3afce653c2d922f93e846b61745efb734065389695e",
+        "bytes": 9740,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-types-clean-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-clean-v118.receipt.json",
+        "sha256": "d92a08a8841c840ad2df37748068d22760e9aa8d96c75ef46e1d3ea274ecc090",
+        "bytes": 1335,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-clean-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-canonical-home-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-canonical-home-v118.receipt.json",
+        "sha256": "604ff7134db490269caea8110e46a85128c1fa51923e3d164cb4e6b1463d0e37",
+        "bytes": 1393,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-canonical-home-v118.log",
+        "sha256": "3823c104d672793697b6ac2a6cc347af985bbc842650e159d1b2965f11fa1bb2",
+        "bytes": 2583,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-assets-after-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-assets-after-v118.receipt.json",
+        "sha256": "9077ca7c06b0cc3dd462b67182959743c058525d17b70914991528341448523a",
+        "bytes": 1364,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-assets-after-v118.log",
+        "sha256": "ce2a8d99b13b62d433bf8bd8a899d0444c4ce7be0e14a0c96b3d740d32d088f5",
+        "bytes": 419,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-regression-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-regression-v118.receipt.json",
+        "sha256": "9458135095def3d0359ffd98a04bd40ad48f85735f311f0aab31250e6f1d22d4",
+        "bytes": 1649,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-regression-v118.log",
+        "sha256": "0aa92100471e18fd6f64e8fe0b672f14516ec0eb8813256847c09452112391b3",
+        "bytes": 10530,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-consumer-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118.receipt.json",
+        "sha256": "59ccf6ba5134aed367e8db314387f8e187eea63f738d6b1e2cd82e21e96f021d",
+        "bytes": 1440,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118.log",
+        "sha256": "008078112c39e003ab1990e337f2ad5dfdce7af358af39778687b9faa8dcb516",
+        "bytes": 2041,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-before-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-before-v118.receipt.json",
+        "sha256": "ea8fa9e1bed6258a102467bc903364c02a5afb25753e9c8b9a22ea9a297be889",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-before-v118.log",
+        "sha256": "8edc5a76ec089acae0092b82d807c620f16f5162f376a8cdc316196af4e2b358",
+        "bytes": 739,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-types-fixed-v118.receipt.json",
+      "exit": 2,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-fixed-v118.receipt.json",
+        "sha256": "72ebad88c4c4456f32d624d97d58fa5db0ccab0f535ca2d27773713fb29341c8",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-types-fixed-v118.log",
+        "sha256": "f6063fca72abd111042a2fa5122194a680f22dc916a3809c7eaaa3e4172a8abf",
+        "bytes": 1892,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-runtime-restoration-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-runtime-restoration-v118.receipt.json",
+        "sha256": "6081492f55087c853fdbe744fb264ede5db8157d6b95a5399ca5739cf625653e",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-runtime-restoration-v118.log",
+        "sha256": "b19598ca395e2c32c5042551bfe348934e301bf4c3a56c72d738aa300adf580a",
+        "bytes": 284,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-format-types-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-format-types-v118.receipt.json",
+        "sha256": "97ee43b34267e4b60a1a4bc60ee5e7fe54f4a4ddb62fb937ce77babf31da162a",
+        "bytes": 1306,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-format-types-v118.log",
+        "sha256": "d2f664691ffe470078bcf24976462f245ae7de87dc93df13c3473cb43eb16fa1",
+        "bytes": 1791,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-historical-route-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118.receipt.json",
+        "sha256": "d2e364a232b3d5bd7dd42696d86c96aec0502f0825297125017a257ebba01ee1",
+        "bytes": 1490,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118.log",
+        "sha256": "00b33e72ab9b7924fc8deb227582845f7d2246cce18a7eb79e3f91dad7efb6f3",
+        "bytes": 2685,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-lint-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-lint-v118.receipt.json",
+        "sha256": "a5c673d5d37545e1b1a79188005dc976a1f8d6df14559a83714d3fac3c03c4fa",
+        "bytes": 1278,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-lint-v118.log",
+        "sha256": "0de7eefdaab0271cf43d29c19ef01e56206c021fc02b929e53d912437ad8dadc",
+        "bytes": 9838,
+        "mode": 384
+      }
+    },
+    {
+      "name": "installed-aliases-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-v118.receipt.json",
+        "sha256": "9d5d580c6a9794a1c74ab1b85668b613534e9c58a7430c79eb7eee748b53adb4",
+        "bytes": 1310,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-v118.log",
+        "sha256": "09c334be9d3560818d51a3f7afb4d69b4982eab1473c1d9afdf4f00ca8acce0f",
+        "bytes": 896,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-regression-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-regression-v118.receipt.json",
+        "sha256": "fdc167598291a64e590fa7342c1be3b0669135b98ad682e6dfad67fd28bdf365",
+        "bytes": 1705,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-regression-v118.log",
+        "sha256": "8c4241d2e99d9f0d31a3f296a637bc46ca9c55864f93253c1e2e84e53d271f5f",
+        "bytes": 21328,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-pack-probe-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-pack-probe-v118.receipt.json",
+        "sha256": "b936b8c8dd82a73c165610cceab1a8437895b5a956d0dce68820597817bdfffe",
+        "bytes": 1266,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-pack-probe-v118.log",
+        "sha256": "1ca0ad046288645aac76f8c09407102d1c8bd1b5d4073614bb88863294f5c73a",
+        "bytes": 301,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-format-final-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-format-final-v118.receipt.json",
+        "sha256": "09ec833728deb61fd7658e681a8fc213c55628b6262bfe6df409df9910c74a90",
+        "bytes": 1356,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-format-final-v118.log",
+        "sha256": "20aedfc67b97fed3ff6ad77aa77689bb4eafb53ea4ab7cd0337ccd741e8ef339",
+        "bytes": 67,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-types-v118.receipt.json",
+      "exit": 2,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-v118.receipt.json",
+        "sha256": "23cbaffc9dbebe5d7738805c96a9e9dbdb949cdb3cde95004e3dfcbdeff49080",
+        "bytes": 1327,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-v118.log",
+        "sha256": "8baa6d39089881e1674bc858140b25aff9fc690aa2f0de96efe59a9927ea3e0a",
+        "bytes": 724,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-placement-controls-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-placement-controls-v118.receipt.json",
+        "sha256": "595b744ec2d13bb3872a73cdcf35334d2ec9e057398a0088f6e042effbf983ed",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-placement-controls-v118.log",
+        "sha256": "63f7cb7525f5dca280f2faeae30d9f645b9ea0f7c0f2ee8160c8d9af705c0092",
+        "bytes": 4757,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-inherited-options-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118-restored.receipt.json",
+        "sha256": "bc7e6d71e1a6a79f5d58676118e280c124b9a382d60c34e3b358dda3a2e56393",
+        "bytes": 1476,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118-restored.log",
+        "sha256": "6a08cf5934e4267437930dddd75ec8b06da203f14f72a5e8c7f6d2f5e1c0d34f",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-private-runtime-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118-restored.receipt.json",
+        "sha256": "44a5c3d5b980e1263f993fa85c09c2afdb92626a9bc7551faedb1d3b63c1ac64",
+        "bytes": 1472,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118-restored.log",
+        "sha256": "1817cd941dad989de83b84f45357d912f35503b8249f94c34395d82278e2d4a4",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-descriptor-location-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118-restored.receipt.json",
+        "sha256": "2a1e9297176e50fef6cab1541cbe61faf81d057831a9019d2666b0a2f33f7bee",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118-restored.log",
+        "sha256": "dad5f070b8253ccafb5f0898cf74b788774e9b45f9bceadb1c35e1b594b2241e",
+        "bytes": 419,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-forge-probe-owner-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-probe-owner-v118.receipt.json",
+        "sha256": "bc0111588df420f7ef85ddee356cac94aee8e4a0337d42b8e28ec8516c7e333f",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-probe-owner-v118.log",
+        "sha256": "38b74cf051a9b484b69c6c7f504d58d4c36185966a061e8c6f3fd1579b6211d7",
+        "bytes": 140,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-ancestor-placement-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118-restored.receipt.json",
+        "sha256": "3fc14ac53ca815b33e0e000695e770d26556ec66e413b796f6202bd2add791fe",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118-restored.log",
+        "sha256": "879e6799f5fbbb640aca2057e212cb0b70a9150b8a5b0f5a9d9c6e660105bea9",
+        "bytes": 397,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-types-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-types-v118.receipt.json",
+        "sha256": "5e2ccec2793afac3bad4897f8242f559f387fc8574368a440628501eaa18e37b",
+        "bytes": 1321,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-types-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-forge-selection-timing-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-selection-timing-v118.receipt.json",
+        "sha256": "cd890e2f129ef2c4d37a06c15286f6f9dec3691e9524d1c7f26f33b0d9a09922",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-selection-timing-v118.log",
+        "sha256": "6ed935270a6e23f3059c63e67c560559fde549551a4ae1f18e8d630f29f97897",
+        "bytes": 79,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-current-route-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118-restored.receipt.json",
+        "sha256": "c076a8c24ccea7f0dd609c6ddc04c58b58c7b44d182134453e4d854c17ca9628",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118-restored.log",
+        "sha256": "19ac9bd1e4551649173a7e0f704cebe14671f5aab17073213e0aba179161cfc4",
+        "bytes": 416,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-performance-vectors-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-performance-vectors-v118.receipt.json",
+        "sha256": "1f4caadeeab469ce1df0cd84c1ab07dfd43cecdb9dae2a39b16b818fd100f2e6",
+        "bytes": 1358,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-performance-vectors-v118.log",
+        "sha256": "8a830e6d2754fde3fa1471d9c69ad2fa58081bc0dcbfe9c269617f96c9453567",
+        "bytes": 2589,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-anchors-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118.receipt.json",
+        "sha256": "2ae4da45fc9c22e74a637c51cab910db28bfd7da35ad662c30c6c099dfcb7d07",
+        "bytes": 1438,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118.log",
+        "sha256": "4dea85a6d36dcf7fc4432abc22437cb6c4f00de5e5544edfe7a839cbf8da5148",
+        "bytes": 2459,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-fixture-import-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118-restored.receipt.json",
+        "sha256": "f1dfaeade55773325b82dc28e93117db0a9ad5ac53a402174d4d1113528a7994",
+        "bytes": 1470,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118-restored.log",
+        "sha256": "5aecf9259b4ba05330f08a6e1f900a7336a66472caab4590ac2a900f48b7e666",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-inherited-options-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118.receipt.json",
+        "sha256": "6d9dcf910df4b221d5d9ab9202e219a7bee92ac81d267175acdefebc37428502",
+        "bytes": 1458,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118.log",
+        "sha256": "c98f73f227fb63aa7bf982c94f8c7530c731d17ba6bd5b76056624f4fca9caf5",
+        "bytes": 2571,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-physical-placement-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118.receipt.json",
+        "sha256": "3af2023ee30f9af86f725aa3aa734def81237b654a1bdb0a2ad8feefaaeabed7",
+        "bytes": 1497,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118.log",
+        "sha256": "18255c36f230f2b88b6d5ae25cd3c135be6a92dabf85d872bd3de2bf59941ebc",
+        "bytes": 2187,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-forge-entry-probe-v118.receipt.json",
+      "exit": 65,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-entry-probe-v118.receipt.json",
+        "sha256": "9273e6cb0c119671c53e3586318065d25f336cadbc07f800d16072dc379574ec",
+        "bytes": 2675,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-forge-entry-probe-v118.log",
+        "sha256": "7620605278822e1a7b01f8cbc27334aea5b59a9a218413624dc0f59b4a00268f",
+        "bytes": 321,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-format-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-format-v118.receipt.json",
+        "sha256": "87d3da192981ecba987622100c629295dbbc95a794e160287b829f0723823c5b",
+        "bytes": 1294,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-format-v118.log",
+        "sha256": "6824d49076beb5aff8988f24b0e3c477756ebd9f04e4fd08b40f60ee6e586a4b",
+        "bytes": 1696,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-package-full-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-full-v118.receipt.json",
+        "sha256": "915bce0b14f9d1bae2da905cdce4c78d101c7a2b471a6ad3153f8127397c6dc5",
+        "bytes": 1385,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-full-v118.log",
+        "sha256": "5ede1bbaef1e4f7385819342b06b265c15bf64738ee19edd393a517994147a55",
+        "bytes": 1529,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-lint-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-v118.receipt.json",
+        "sha256": "b0df37ddeb3b417d151056b606ffa2cead31adae2a570e26cea39ef2231787a0",
+        "bytes": 1281,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-consumer-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118-restored.receipt.json",
+        "sha256": "5f4167f76a5cee2381ae30883fa1b2fc5b481fdb496c5aa2a0d38bebd61e69bf",
+        "bytes": 1458,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118-restored.log",
+        "sha256": "e36a94dce843444c0f12aae1a5e605253e68c685544dda6aea298ee5572a2b64",
+        "bytes": 1529,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-canonical-runtime-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-v118.receipt.json",
+        "sha256": "227c7f475c4ae4d12cadbf177c85c261a1769ee84da5599fe3fee1e6f26198c3",
+        "bytes": 1329,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-v118.log",
+        "sha256": "4d813aae603e1e5767edee93754c5db1593139bf263f94ecc496f7270b737fec",
+        "bytes": 2217,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-canonical-runtime-recheck-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-recheck-v118.receipt.json",
+        "sha256": "ddcebfd4abf6f572f7c2e16e4484b36318433fb8b624c7886eddbbbf2e969385",
+        "bytes": 1344,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-canonical-runtime-recheck-v118.log",
+        "sha256": "5f7c46c55b774a9495eae3dbf7a8d5e8a82c4c37e5849a7f3a34fb4a162161f3",
+        "bytes": 590,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-assets-controls-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-assets-controls-v118.receipt.json",
+        "sha256": "3bd1e1b463f85a8454f0903a4a60154e834897eaeb9fef463dafe3b06c966f61",
+        "bytes": 1371,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-assets-controls-v118.log",
+        "sha256": "2d311e37bfcf91bd47f9e041438e67c295369a537fb1c9922e5bdef3bc5a2d90",
+        "bytes": 1863,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-budget-format-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-budget-format-v118.receipt.json",
+        "sha256": "4fca59a5e8cf6fe5ada18b3c586390bac547ad1f9616eec967739ae874eaad82",
+        "bytes": 1292,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-budget-format-v118.log",
+        "sha256": "efcdb66cbd240cae61b7bb95eb243d58bb99611f4539d7f495638384df3af5b5",
+        "bytes": 1782,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-native-before-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-native-before-v118.receipt.json",
+        "sha256": "b07f6947cc769226941a3ae961ce70f5c971e12de7c5791e31cd733c10c785c9",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-native-before-v118.log",
+        "sha256": "1b4d65b403b46802cf1ea45e2caa4931ec9aabe18c414f4933e441cbaf5a671f",
+        "bytes": 4131,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-types-repaired-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-repaired-v118.receipt.json",
+        "sha256": "eb55dc096228c1d971bcd765e71f10c9c5c34dc07cb4b3478d6a5cea9c66f09d",
+        "bytes": 1343,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-types-repaired-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-canonical-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-canonical-v118.receipt.json",
+        "sha256": "8abb5bb786f954e3adb2669f83dd7389e696043ac66a0cb6b8e9f35b419abbbf",
+        "bytes": 1383,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-canonical-v118.log",
+        "sha256": "1e81a3f910ae4ac7cf2bbe148b51d2aa364702f967b9288f9a50d57ab2dd237e",
+        "bytes": 2962,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-toolkit-before-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-toolkit-before-v118.receipt.json",
+        "sha256": "75d508bb03f08de9090812d7b4641caa519e0a7ef59c0ddccc5ea516ccd71c8a",
+        "bytes": 1368,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-toolkit-before-v118.log",
+        "sha256": "6be700e2025bb2a843cb95b00fd58fa7c23c3c823110a929dc7a945bf6d020ab",
+        "bytes": 5670,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-preview-vector-after-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-preview-vector-after-v118.receipt.json",
+        "sha256": "47872236fbcc0fce5dae1bdfa3b6e79f44f2920660e33f458717a170899878b4",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-preview-vector-after-v118.log",
+        "sha256": "deca4cfb6f6f4973808fc5008476762a278b7b31640d868863a27270e9ee3943",
+        "bytes": 263,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-red-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-red-v118.receipt.json",
+        "sha256": "8b45788d48df9c952b5ae214c326fde07d529b996e7f5524bbbce6ac735f1228",
+        "bytes": 1423,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-red-v118.log",
+        "sha256": "b0c5c3fd4713e34e1a8a99c0e0f04d621ecf027aad0f3b1dd7851bbfe5fa4c3e",
+        "bytes": 3398,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-anchors-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118-restored.receipt.json",
+        "sha256": "14d75f1ec1fe28dc4fb21b629f8d09598692872dfe77e05d30d71ba0aad16f72",
+        "bytes": 1456,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118-restored.log",
+        "sha256": "09280001f7fc0f34dd3ee67f480302a3f39ff2e2b929b977fa2a3965c5d801d6",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-historical-route-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118-restored.receipt.json",
+        "sha256": "ec19929879887a1563d2e8a72b612e9a60a5a7fc9605b24d589b00d180e2e51d",
+        "bytes": 1507,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118-restored.log",
+        "sha256": "8efcaaa931c87762bea5e5063189b692885b483ace05dff0a2bcfaf573fd7a19",
+        "bytes": 506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-boundary-after-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-after-v118.receipt.json",
+        "sha256": "ebf5d878c94718781c42ddcb5eee7d063817af33e5eec10da27b47c6166ac991",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-boundary-after-v118.log",
+        "sha256": "3d38c7499ad1f36030085daf65cfb8d7e0bd30c8f0ef9a272f174448ca5b132b",
+        "bytes": 10626,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-format-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-format-v118.receipt.json",
+        "sha256": "da5097b7396cbd3d47bd713c428863303cb198461e09aa6fe27b5e104a6da006",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-format-v118.log",
+        "sha256": "be5fabdbadc17e8a55b2d0703c5e7d7ae027475bd545048798329416a4f049ec",
+        "bytes": 1468,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-toolkit-after-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-toolkit-after-v118.receipt.json",
+        "sha256": "75a725812a7b53af304632a29132aa6db1393d8a5388ba89d52108084b22bd53",
+        "bytes": 1546,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-toolkit-after-v118.log",
+        "sha256": "e30e0415d26dc2f780184d692600039ec99c64afb464aac8e6c560816cf1a8f2",
+        "bytes": 9786,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-lint-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-v118.receipt.json",
+        "sha256": "5d5c0523aeb40f3c07b3914452c441e669cee12143047696400837c72c30ee05",
+        "bytes": 1287,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-v118.log",
+        "sha256": "301430346a9dedb9b6e7e9dcaaca6974198a564803fc4fed69d7882e1140650b",
+        "bytes": 290,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-lint-final-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-final-v118.receipt.json",
+        "sha256": "22634ad642ea44528f316450419b4ef7d5ab6503847e3e58968d516ca8acf3eb",
+        "bytes": 1297,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-lint-final-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-lint-fix-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-lint-fix-v118.receipt.json",
+        "sha256": "2f3c875a0b738fcfbe88bd32922cdf13c157ff3c3cfc1a349d9a77cdbde94f38",
+        "bytes": 1276,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-lint-fix-v118.log",
+        "sha256": "5aa8beed88130c64c5ce1d1f816dba0191e6bb46aa633786225b0a21610f4fe2",
+        "bytes": 5449,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-placement-after-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-placement-after-v118.receipt.json",
+        "sha256": "558bccfb471afca3b3dacddd43e68227497158031e253745b5633713f4dec78f",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-placement-after-v118.log",
+        "sha256": "c549a067f007fe5d0a5e2c08000be270d9a9fda0efbf742c99acebe05268c368",
+        "bytes": 1280,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-faults-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-faults-v118.receipt.json",
+        "sha256": "15dd28e6e5e0a4c6761175b8da84e7ff27ae8872f69ba6e8c4c089c12f0ee5d9",
+        "bytes": 1288,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-faults-v118.log",
+        "sha256": "e0d144738878546722f01d23585575a19170f57a58d82ae6ce642c5f6fed5984",
+        "bytes": 33,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-quality-proof-format-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-proof-format-v118.receipt.json",
+        "sha256": "63706c6567b9182cd6663e835fc8f239aa4058875dd3f55b9d58267474929dcc",
+        "bytes": 1306,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-quality-proof-format-v118.log",
+        "sha256": "089233dc8e9b257ffcd899f1d3c3c1c19c3205c0cc581395168af162df2ec041",
+        "bytes": 1791,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-package-budget-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-budget-v118.receipt.json",
+        "sha256": "70cd6aede565ba72f0bb7786fecd635bf09d693b0d5064c779fd73747fada196",
+        "bytes": 1389,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-package-budget-v118.log",
+        "sha256": "c93033a917361ca1c9aab61f95c594554f1bbb1437dc5154a3dda131bf87177e",
+        "bytes": 1356,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-owner-import-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118-restored.receipt.json",
+        "sha256": "8641de093d3e6f2c4278926c56c17e1f53a4561d8815c71b777fc1e3d2cdd12d",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118-restored.log",
+        "sha256": "93865a5da015265161b04d61807280a46d3c69f8ba1071735e564092cabc4eef",
+        "bytes": 1528,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-puni-types-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-puni-types-v118.receipt.json",
+        "sha256": "86505ef52e6b6b7d33fd2c52e4dbd1b141def0d211544f2cb9bb15671559b299",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-puni-types-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-fixture-import-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118.receipt.json",
+        "sha256": "7811e78794dc87e65d3ad2a1b7cdacd327dce60090fa056a137d1a746d610164",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118.log",
+        "sha256": "c927a9ecfe1b30412eb61649ae85d27e6dcae330e8601abb3571c7077854a133",
+        "bytes": 3354,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-physical-placement-v118-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118-restored.receipt.json",
+        "sha256": "bce7a46160149c476e6f51e16014a93f6ce6dc934c1ca68d79c68474471174b3",
+        "bytes": 1514,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118-restored.log",
+        "sha256": "9de1b8c0819b5eb35fe92cb18fcfefbd8eb0d8aa4853dcd35edeac6bbf1564d9",
+        "bytes": 431,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-vectors-final-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-vectors-final-v118.receipt.json",
+        "sha256": "009ddcfbfea95826cedd557aa9adbba01c28837feb281fc925b6aee4304e477a",
+        "bytes": 1345,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-vectors-final-v118.log",
+        "sha256": "82b8dceadf3725d4e0ae741f2d16561b746dcc56d9b3468113ff4d3491393b1e",
+        "bytes": 844,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-owner-import-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118.receipt.json",
+        "sha256": "1fcb541ff356a9dcd93cc4217bc32030df0d441cf6fc8e84ec66c5291ed3757d",
+        "bytes": 1448,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118.log",
+        "sha256": "f2a75cd8ed469feb708a81676b82a652e60ad150befb19394dce659d1186c348",
+        "bytes": 3122,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-ancestor-placement-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118.receipt.json",
+        "sha256": "844d7141e3b374432e1cdf531d623e36a9ce3bbf8a07f0e85992485bd17cbbef",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118.log",
+        "sha256": "b1d40e045d29877c533e0d4a44d732601f08f60d7b7c914b228e85e56a7c9377",
+        "bytes": 2139,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-final-lint-repaired-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-repaired-v118.receipt.json",
+        "sha256": "c44f18b379473c9f144171d430b12dfd9372ba464a8287ba1edeaac47e933614",
+        "bytes": 1299,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-final-lint-repaired-v118.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "installed-aliases-source-absent-v118.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-source-absent-v118.receipt.json",
+        "sha256": "b8ff00f40ae55e60297644412e0bb1a57026016fb3e5ef7e552f2a449705dc52",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/installed-aliases-source-absent-v118.log",
+        "sha256": "62800a2a655c760e69ecfb0a38ae6b7bc10af574b06f45334189ee1dc9fb91eb",
+        "bytes": 896,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-layout-fault-current-route-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118.receipt.json",
+        "sha256": "dd7d578b41ce547694af41e09d98d4f89ddc0771d654d1f8d5bc17267dc76fa8",
+        "bytes": 1470,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118.log",
+        "sha256": "81d25f15e09e052bf68fbee0d2c811cce89ca8bff7d96b8e7e0c36e55c97dc24",
+        "bytes": 2021,
+        "mode": 384
+      }
+    },
+    {
+      "name": "canonical-fixture-policy-fault-private-runtime-v118.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118.receipt.json",
+        "sha256": "fc6b3c2fcfe564729d7d7af311a5657d7430a8c83beffcdb4ed0d064a808da64",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118.log",
+        "sha256": "c089442ca16fe1e5da7286668f6885d7eb8240fc43ca38589597fbd7d2ac0dee",
+        "bytes": 2877,
+        "mode": 384
+      }
+    }
+  ],
+  "faults": [
+    {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-state-v118.json",
+        "sha256": "3e4a78967b5a3918efcd10b0aa74eb8d3a48c05e4b76a03cf8d4a04b41e43e6e",
+        "bytes": 1340,
+        "mode": 384
+      },
+      "controls": [
+        {
+          "name": "current-route",
+          "negative": {
+            "name": "canonical-layout-fault-current-route-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118.receipt.json",
+              "sha256": "dd7d578b41ce547694af41e09d98d4f89ddc0771d654d1f8d5bc17267dc76fa8",
+              "bytes": 1470,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118.log",
+              "sha256": "81d25f15e09e052bf68fbee0d2c811cce89ca8bff7d96b8e7e0c36e55c97dc24",
+              "bytes": 2021,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-layout-fault-current-route-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118-restored.receipt.json",
+              "sha256": "c076a8c24ccea7f0dd609c6ddc04c58b58c7b44d182134453e4d854c17ca9628",
+              "bytes": 1487,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-current-route-v118-restored.log",
+              "sha256": "19ac9bd1e4551649173a7e0f704cebe14671f5aab17073213e0aba179161cfc4",
+              "bytes": 416,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "historical-route",
+          "negative": {
+            "name": "canonical-layout-fault-historical-route-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118.receipt.json",
+              "sha256": "d2e364a232b3d5bd7dd42696d86c96aec0502f0825297125017a257ebba01ee1",
+              "bytes": 1490,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118.log",
+              "sha256": "00b33e72ab9b7924fc8deb227582845f7d2246cce18a7eb79e3f91dad7efb6f3",
+              "bytes": 2685,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-layout-fault-historical-route-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118-restored.receipt.json",
+              "sha256": "ec19929879887a1563d2e8a72b612e9a60a5a7fc9605b24d589b00d180e2e51d",
+              "bytes": 1507,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-historical-route-v118-restored.log",
+              "sha256": "8efcaaa931c87762bea5e5063189b692885b483ace05dff0a2bcfaf573fd7a19",
+              "bytes": 506,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "physical-placement",
+          "negative": {
+            "name": "canonical-layout-fault-physical-placement-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118.receipt.json",
+              "sha256": "3af2023ee30f9af86f725aa3aa734def81237b654a1bdb0a2ad8feefaaeabed7",
+              "bytes": 1497,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118.log",
+              "sha256": "18255c36f230f2b88b6d5ae25cd3c135be6a92dabf85d872bd3de2bf59941ebc",
+              "bytes": 2187,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-layout-fault-physical-placement-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118-restored.receipt.json",
+              "sha256": "bce7a46160149c476e6f51e16014a93f6ce6dc934c1ca68d79c68474471174b3",
+              "bytes": 1514,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-physical-placement-v118-restored.log",
+              "sha256": "9de1b8c0819b5eb35fe92cb18fcfefbd8eb0d8aa4853dcd35edeac6bbf1564d9",
+              "bytes": 431,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "ancestor-placement",
+          "negative": {
+            "name": "canonical-layout-fault-ancestor-placement-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118.receipt.json",
+              "sha256": "844d7141e3b374432e1cdf531d623e36a9ce3bbf8a07f0e85992485bd17cbbef",
+              "bytes": 1487,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118.log",
+              "sha256": "b1d40e045d29877c533e0d4a44d732601f08f60d7b7c914b228e85e56a7c9377",
+              "bytes": 2139,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-layout-fault-ancestor-placement-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118-restored.receipt.json",
+              "sha256": "3fc14ac53ca815b33e0e000695e770d26556ec66e413b796f6202bd2add791fe",
+              "bytes": 1504,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-ancestor-placement-v118-restored.log",
+              "sha256": "879e6799f5fbbb640aca2057e212cb0b70a9150b8a5b0f5a9d9c6e660105bea9",
+              "bytes": 397,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "descriptor-location",
+          "negative": {
+            "name": "canonical-layout-fault-descriptor-location-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118.receipt.json",
+              "sha256": "e789cffb9263f91c4b4f89d1a39c377ad43c1e2e506e8913fc18da4119124ed9",
+              "bytes": 1499,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118.log",
+              "sha256": "7e399c822ec176374eceb3afce653c2d922f93e846b61745efb734065389695e",
+              "bytes": 9740,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-layout-fault-descriptor-location-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118-restored.receipt.json",
+              "sha256": "2a1e9297176e50fef6cab1541cbe61faf81d057831a9019d2666b0a2f33f7bee",
+              "bytes": 1516,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-layout-fault-descriptor-location-v118-restored.log",
+              "sha256": "dad5f070b8253ccafb5f0898cf74b788774e9b45f9bceadb1c35e1b594b2241e",
+              "bytes": 419,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        }
+      ]
+    },
+    {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-state-v118.json",
+        "sha256": "a1f50007c52bb112a25b24bc2bbbde4cdcc63ba778bc798445a93d468aedce02",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "controls": [
+        {
+          "name": "fixture-import",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-fixture-import-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118.receipt.json",
+              "sha256": "7811e78794dc87e65d3ad2a1b7cdacd327dce60090fa056a137d1a746d610164",
+              "bytes": 1452,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118.log",
+              "sha256": "c927a9ecfe1b30412eb61649ae85d27e6dcae330e8601abb3571c7077854a133",
+              "bytes": 3354,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-fixture-import-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118-restored.receipt.json",
+              "sha256": "f1dfaeade55773325b82dc28e93117db0a9ad5ac53a402174d4d1113528a7994",
+              "bytes": 1470,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-fixture-import-v118-restored.log",
+              "sha256": "5aecf9259b4ba05330f08a6e1f900a7336a66472caab4590ac2a900f48b7e666",
+              "bytes": 1528,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "owner-import",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-owner-import-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118.receipt.json",
+              "sha256": "1fcb541ff356a9dcd93cc4217bc32030df0d441cf6fc8e84ec66c5291ed3757d",
+              "bytes": 1448,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118.log",
+              "sha256": "f2a75cd8ed469feb708a81676b82a652e60ad150befb19394dce659d1186c348",
+              "bytes": 3122,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-owner-import-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118-restored.receipt.json",
+              "sha256": "8641de093d3e6f2c4278926c56c17e1f53a4561d8815c71b777fc1e3d2cdd12d",
+              "bytes": 1466,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-owner-import-v118-restored.log",
+              "sha256": "93865a5da015265161b04d61807280a46d3c69f8ba1071735e564092cabc4eef",
+              "bytes": 1528,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "consumer",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-consumer-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118.receipt.json",
+              "sha256": "59ccf6ba5134aed367e8db314387f8e187eea63f738d6b1e2cd82e21e96f021d",
+              "bytes": 1440,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118.log",
+              "sha256": "008078112c39e003ab1990e337f2ad5dfdce7af358af39778687b9faa8dcb516",
+              "bytes": 2041,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-consumer-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118-restored.receipt.json",
+              "sha256": "5f4167f76a5cee2381ae30883fa1b2fc5b481fdb496c5aa2a0d38bebd61e69bf",
+              "bytes": 1458,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-consumer-v118-restored.log",
+              "sha256": "e36a94dce843444c0f12aae1a5e605253e68c685544dda6aea298ee5572a2b64",
+              "bytes": 1529,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "private-runtime",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-private-runtime-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118.receipt.json",
+              "sha256": "fc6b3c2fcfe564729d7d7af311a5657d7430a8c83beffcdb4ed0d064a808da64",
+              "bytes": 1454,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118.log",
+              "sha256": "c089442ca16fe1e5da7286668f6885d7eb8240fc43ca38589597fbd7d2ac0dee",
+              "bytes": 2877,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-private-runtime-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118-restored.receipt.json",
+              "sha256": "44a5c3d5b980e1263f993fa85c09c2afdb92626a9bc7551faedb1d3b63c1ac64",
+              "bytes": 1472,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-private-runtime-v118-restored.log",
+              "sha256": "1817cd941dad989de83b84f45357d912f35503b8249f94c34395d82278e2d4a4",
+              "bytes": 1528,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "anchors",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-anchors-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118.receipt.json",
+              "sha256": "2ae4da45fc9c22e74a637c51cab910db28bfd7da35ad662c30c6c099dfcb7d07",
+              "bytes": 1438,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118.log",
+              "sha256": "4dea85a6d36dcf7fc4432abc22437cb6c4f00de5e5544edfe7a839cbf8da5148",
+              "bytes": 2459,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-anchors-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118-restored.receipt.json",
+              "sha256": "14d75f1ec1fe28dc4fb21b629f8d09598692872dfe77e05d30d71ba0aad16f72",
+              "bytes": 1456,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-anchors-v118-restored.log",
+              "sha256": "09280001f7fc0f34dd3ee67f480302a3f39ff2e2b929b977fa2a3965c5d801d6",
+              "bytes": 1528,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        },
+        {
+          "name": "inherited-options",
+          "negative": {
+            "name": "canonical-fixture-policy-fault-inherited-options-v118",
+            "exit": 1,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118.receipt.json",
+              "sha256": "6d9dcf910df4b221d5d9ab9202e219a7bee92ac81d267175acdefebc37428502",
+              "bytes": 1458,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118.log",
+              "sha256": "c98f73f227fb63aa7bf982c94f8c7530c731d17ba6bd5b76056624f4fca9caf5",
+              "bytes": 2571,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          },
+          "restored": {
+            "name": "canonical-fixture-policy-fault-inherited-options-v118-restored",
+            "exit": 0,
+            "receipt": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118-restored.receipt.json",
+              "sha256": "bc7e6d71e1a6a79f5d58676118e280c124b9a382d60c34e3b358dda3a2e56393",
+              "bytes": 1476,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-combined-proposal-v1/control/canonical-fixture-policy-fault-inherited-options-v118-restored.log",
+              "sha256": "6a08cf5934e4267437930dddd75ec8b06da203f14f72a5e8c7f6d2f5e1c0d34f",
+              "bytes": 1528,
+              "mode": 384
+            },
+            "wrapperValidation": "absent; expected-outcome wrapper rejected this recorded native outcome"
+          }
+        }
+      ]
+    }
+  ],
+  "bridges": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/canonical-emission-bridge-v118.json",
+      "sha256": "515f5615e4494d8ad20bf58338274ba0afe548b58717c52033fb59a81b6cdb66",
+      "bytes": 3360,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/canonical-current-capture-bridge-v118.json",
+      "sha256": "963e5f33ccd7082d9233393ee03426b106666b13f2cd7904880cbba3e66c3661",
+      "bytes": 2258,
+      "mode": 384
+    }
+  ],
+  "restoration": {
+    "path": "/tmp/puni-combined-proposal-v1/control/retained-runtime-restoration-v118.json",
+    "sha256": "6f42492a65d2976a58ef9fc850741d8283f4acf6d4986f9d2d826b35d18bf423",
+    "bytes": 368,
+    "mode": 384
+  },
+  "verification": {
+    "toolkitAndBoundary": {
+      "pass": 168,
+      "fail": 0,
+      "assertions": 479,
+      "files": 5
+    },
+    "performanceVectors": {
+      "pass": 6,
+      "fail": 0,
+      "assertions": 105
+    },
+    "retainedRuntime": {
+      "pass": 2,
+      "fail": 0,
+      "assertions": 103
+    },
+    "sourceAbsentInstalledAliases": {
+      "pass": 8,
+      "fail": 0,
+      "assertions": 34
+    },
+    "layoutFiniteControls": 5,
+    "policyFiniteControls": 6,
+    "changedTypeScriptTypecheckRoots": 18,
+    "lintOwners": 19,
+    "fullPackageExit": 1,
+    "installedForgeDiagnostic": {
+      "exit": 65,
+      "elapsedMs": 27329,
+      "qualification": "Separate90s read-only observation, not the existing20s full-package owner."
+    },
+    "selectionTimingMs": [6558.717151, 6510.2733100000005]
+  },
+  "decisions": [
+    "Unreleased current0.4 toolkit schema3 carries its authenticated physical closure at toolkit/node_modules so normal sibling resolution works. Explicit helper selection retains trusted-node-modules for supported historical1/2. Current producer, byte verifier, source/installed environment and preparation input consumers use one selector; no ambient fallback. Historical activation output layouts remain their own contract.",
+    "The exact installed test helper alone imports the tools fixture alias and existing Dash process-owner facade. No relative cross-project shortcut or generic test exemption. Two missing-alias faults, broad consumer, private runtime, anchors and inherited options are independently killed and exactly restored.",
+    "A missing HOME caused Bun cache writes under the strict Browser candidate; the fixture now owns external HOME/cache. Real current ordinary-service fixture filenames and independent env-prefixed judge argv expectations are corrected without changing guards or native budgets.",
+    "The expanded aggregate package test reached352 assertions and Forge at its300000ms harness timeout. Its aggregate budget is600000ms; individual20s/15s/180s command/ownership limits stay unchanged. The failed300s attempt and unconfirmed Forge settlement remain retained; no unreachable tail receives credit."
+  ],
+  "limits": [
+    "Read-only production selection verification of the genuine178MiB retained archive takes6558.7ms and6510.3ms. Code inspection shows repeated full verification before Forge child launch. A separate90s diagnostic observation of the real installed Forge reaches explicit install-required refusal with normal exit65 and settled native owner; this supports the test-budget/cost diagnosis but does not repair or pass the existing20s full-package check. Its later tails remain open.",
+    "The fresh600s aggregate attempt still fails3pass1fail352assertions/336.29s at the installed Forge supervision20s command limit, with native/pipe settlement unconfirmed. It retains /tmp/puni captured package integration YSyX5R. Source and installed Browser/Performance plus their rejection/restored controls have passed before it; later development/MCP/ordinary-client tails remain uncredited. Root-cause the Forge verification/runtime cost without blindly increasing that inner limit.",
+    "All9 original requirements remain open. Current Browser/Performance execution uses actual Vite/Playwright with controlled mini BE/GW services and synthetic performance observations; it does not certify real WBS browser/performance or all four Nx clients.",
+    "All eight aliases pass actual plan-reference/template/authority operations from the retained authenticated local package outside checkout, with producer paths absent and poisoned startup. This is not public installation, release, default activation or complete script embedding.",
+    "The initial older retained runtime attempt failed two argv assertions after real operations completed. Its exact authority directories were restored only after host PID absence and native settlement; the corrected run passes2/0. Earlier captured builds failed at HOME cache contamination or stale fixture service names, and are preserved.",
+    "The old retained package emission comparison equals4/10 changed production modules after import sorting, so it does not bridge all current production owners. The fresh timed-out package capture equals10/10 raw production owner bytes while live. These module comparisons are not sealed full-package/sourceRevision equivalence.",
+    "The first new boundary run in the restricted sandbox failed Nx IO EPERM, without reaching boundary assertions. Native rerun then had an invalid invented neighbor; corrected real peer run gives8pass2fail before allowances. Two malformed-policy edit attempts failed loader admission and remain excluded. Literal staged-policy restoration plus the exact block produces10/0; full regression168/0.",
+    "A mistaken tsc executable path was unavailable, then type checks found narrow expect inference in fixtures and the new policy test; all were repaired before the final18-root check. Initial47 lint errors are addressed without dropping awaited channel ownership or caught causes.",
+    "All7 existing local-installer controls still stop at their stale healthy historical profile prerequisite; later duplicate/alias/link/metadata refusal tails are not credited. Full package outcome is recorded separately, with any failed tail open.",
+    "Formal Astra review, including the unreleased0.4 layout/version decision, remains pending until recorded2026-11-22 10:09AM,timezone unspecified. No premature retry/substitute/new agent. Full repository/build/secrets/migration/exact-SHA clean h2/h4 gates and authorized delivery remain open.",
+    "V115 WBS204/0 and timing variability, V116 Docker175/0 with803sites583unresolved, and all entity/catalogue/settings/spaces/13facts/15history/Source/API/UI/move/delete work remain intact. No narrowing to green CLI checks."
+  ]
+}

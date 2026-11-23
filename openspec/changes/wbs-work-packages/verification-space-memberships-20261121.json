@@ -1,0 +1,1142 @@
+{
+  "schema": "puni-space-memberships-verification-v1",
+  "recordedAt": "2026-11-21T05:00:52.923Z",
+  "goalStatus": "active",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v100.json",
+    "sha256": "48f4d5747ff06a39804619f55beb03db4916d3e65c86bde8494b07626cda51e5",
+    "bytes": 11336,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-memberships-before-v1.json",
+    "sha256": "bb90ecf71e2973bde0c111c688915b46954aabf1c864d7565d957261238d34f2",
+    "bytes": 934275,
+    "mode": 384
+  },
+  "assumptions": [
+    "Implement the already specified POST/DELETE people/personId and teams/teamId paths without body/query under current admitted manage-spaces authority.",
+    "Expose required sorted personIds/serviceTeamIds identities, not names or new authority, through one detached SpaceStore.readContents observation.",
+    "Use the existing committed SQLite read pool for public plain/bound Sources and staged stores for loans; Memory must distinguish directory identity kinds.",
+    "Do not close parent task4.6 before actual UI/project grouping, directory deletion/cascade invariants and formal Astra review."
+  ],
+  "changes": [
+    {
+      "relative": "apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+        "sha256": "8e638e316b0bb28f3ea0f8f41212e9f2dc79a5808282541e727f2b7446dc93f2",
+        "bytes": 11473,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/testing/space-fixture.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/space-fixture.ts",
+        "sha256": "d13570b6a16f05877457bb5234c4d938404a69d7c3339ba958ad72373c464031",
+        "bytes": 684,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/mcp-01/README.md",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/README.md",
+        "sha256": "4b274f3dfe91056669b0636fc276f98e0cd6b48e4330f486dd57ff635049c552",
+        "bytes": 25654,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/mcp-01/src/openapi-tools.test.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi-tools.test.ts",
+        "sha256": "20f3244c361b3cdc812bc1cb34dd45da88bc8dc98cc32082f350f9156f694291",
+        "bytes": 34847,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+        "sha256": "c3d28f3b6a03e4dba4872181c139c55b2ebebb15e397dcfd66c57b0d6de2eb41",
+        "bytes": 72091,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-memory/src/source.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "sha256": "b3d88a6757663a13f432820365617c4d1cee100d6eed56bc131c6da4c9b6e357",
+        "bytes": 96961,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+        "sha256": "4c0edef54b594ef667610fbad14422e2de69eae44199af12de44be0112a97dff",
+        "bytes": 7391,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/space-fixture.ts",
+        "sha256": "ecade43afa0c2e9ead13330e53845e6908878dd53503ce4983638d6b400b0006",
+        "bytes": 12457,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/source.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "sha256": "96123dca5a4371070affa37a16525219cb7a76275cf520ecb14865a63583d267",
+        "bytes": 35106,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/space-read-owner.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read-owner.ts",
+        "sha256": "3ec5dcdd9949b32f5211de03e19ab8da4f09f730e113b142ac2cf1b9c7480087",
+        "bytes": 1055,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/space.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space.ts",
+        "sha256": "ad0eccec2d98ac97f329f852f71d2b79e350d4f2351c36a68a555e2e8787817d",
+        "bytes": 18280,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+        "sha256": "9a1152c41a2cb812ec189ad7ad0416e6f7b5bf6de74c90000eedbf5782a6c202",
+        "bytes": 5642,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/application/core/src/http/space.routes.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/space.routes.ts",
+        "sha256": "cffbc7462028a53e9dde0a2c70cd8faed01380eea7f151a488a911b70d398cfe",
+        "bytes": 14633,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/application/core/src/ports/space-store.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/space-store.ts",
+        "sha256": "6c0fc8a2960a08fdec62c8459ffad0525e7017a41dac695a8a7dd85c1f235e25",
+        "bytes": 6916,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/application/core/src/service/space.resource.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/space.resource.ts",
+        "sha256": "11314e5aba983f5aaec6e0892bbdaffcbb809def8ca4c02afb7f7d55e35e921e",
+        "bytes": 37009,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/domain/contracts/src/http/shapes.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/shapes.ts",
+        "sha256": "98d82fde5a8172bc66b4eddd1141ffbf3561cb8ddce381f9a52ab087a7359818",
+        "bytes": 9968,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/space-shapes.ts",
+        "sha256": "af09b9071ef7ce520ba1a725419d4d0cc1afb2031a5267e7fd06a3a3722d1294",
+        "bytes": 13805,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "openspec/changes/wbs-work-packages/design.md",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-work-packages/design.md",
+        "sha256": "a8d7c3cddea5fe0eab234affa2efcc276a56496da6cca0b760e72e042520935a",
+        "bytes": 151223,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+        "sha256": "722c8e884d85815dfd678dc3c9cbfd03311d0753001fcf8eae21f6980fc98f0b",
+        "bytes": 85821,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "openspec/changes/wbs-work-packages/tasks.md",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-work-packages/tasks.md",
+        "sha256": "cefaa5be6f5cf6680d1166437c12c65e56271d1af040c7f29ffb637b0f2fc7a0",
+        "bytes": 51400,
+        "mode": 436
+      }
+    }
+  ],
+  "verification": {
+    "core": {
+      "pass": 2124,
+      "fail": 0,
+      "assertions": 13069,
+      "tests": 2124,
+      "files": 171
+    },
+    "memory": {
+      "pass": 802,
+      "fail": 0,
+      "assertions": 23837,
+      "tests": 802,
+      "files": 51
+    },
+    "organizationSpaceAndSqlite": {
+      "pass": 46,
+      "fail": 0,
+      "assertions": 511,
+      "tests": 46,
+      "files": 4
+    },
+    "finalMemoryAndSqlite": {
+      "pass": 810,
+      "fail": 0,
+      "assertions": 23977,
+      "tests": 810,
+      "files": 52
+    },
+    "contractsOpenApiMcp": {
+      "pass": 69,
+      "fail": 0,
+      "assertions": 576,
+      "tests": 69,
+      "files": 4
+    },
+    "compilerEntries": 321,
+    "lintFiles": 16,
+    "mcpTools": 99
+  },
+  "checks": [
+    {
+      "name": "space-membership-memory-red-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-memory-red-v2.receipt.json",
+        "sha256": "f92ab67dabd19208c0c8f025d7e3eddb32e0cb86bbbd740de805eb4ee82d4655",
+        "bytes": 1346,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-memory-red-v2.log",
+        "sha256": "3714904f1bc8f0fb8e3effe6c4f7cca2cd05a9f5beb45b9b08ca18e436e5c1eb",
+        "bytes": 2242,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-http-red-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-http-red-v2.receipt.json",
+        "sha256": "f33d7b077e1474d3e042601917963228b61147b21953f7190e82b4036fe69c47",
+        "bytes": 1382,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-http-red-v2.log",
+        "sha256": "473ed57ddc506ade2aa1c069d7f959b227d65e8b84c82408ece809af77f3d40f",
+        "bytes": 6900,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-sqlite-red-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-sqlite-red-v2.receipt.json",
+        "sha256": "6686ff17c3503de6259ab31aa2dc7bcee659aeec5d8a70fbba3e1962d8aa822b",
+        "bytes": 1386,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-sqlite-red-v2.log",
+        "sha256": "65023fbb7c06d240b5580eb97d7e06dfcba6736ca7d3dceaa096c94b2e4b97e8",
+        "bytes": 2157,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-http-implemented-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-http-implemented-v1.receipt.json",
+        "sha256": "ae69626ac11412f606cad5564346b7430e185a62217ec13ba8563b5cc5e8a852",
+        "bytes": 1478,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-http-implemented-v1.log",
+        "sha256": "749d736b909bc6e28fdfe8874b57e6f979576424c8ca7ba77ebfe70e1fc6aa10",
+        "bytes": 2017,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-mcp-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "--test-name-pattern",
+          "bodyless person and service-team",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-mcp-red-v1.receipt.json",
+        "sha256": "91f4e8d4d37dc433de9a1a8ecd61f316294eb7955b3d405c8e3bb60ded65be13",
+        "bytes": 1395,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-mcp-red-v1.log",
+        "sha256": "fd2130b8df41aa1fb6df1594309fd4f1160e72057a77405442167197e64dace5",
+        "bytes": 1020,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-mcp-emit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+          "apps/wbs/mcp-01/src/openapi.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-mcp-emit-v1.receipt.json",
+        "sha256": "58de2a146b961e60f0f46fee89d95b948abd123f6107c9689776da1b0249bcd3",
+        "bytes": 1320,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-mcp-emit-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-full-core-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/application/core/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-full-core-final-v1.receipt.json",
+        "sha256": "aad2888c83051b9f174729d6cadb972b3041722f9c7658a1d170d52a849244b6",
+        "bytes": 1330,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-full-core-final-v1.log",
+        "sha256": "2959ca61ce01d799185dc7b946a823813bcd3e2b6fdec81be2b341cb132ab4d1",
+        "bytes": 232927,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-full-memory-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/adapters/store-memory/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-full-memory-final-v1.receipt.json",
+        "sha256": "65a0e6ce57475f75f683c5a1a823e13f85fb7357af38b0cae48bd4fd700ac8fe",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-full-memory-final-v1.log",
+        "sha256": "f7c16d9863f211d70f034cdc46f8a9dd002abe3a150163e444fec6971707cf77",
+        "bytes": 90734,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-api-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-api-final-v1.receipt.json",
+        "sha256": "db3d2abd693364704ee40f0a4626713e6927b92663062a6d9c669d2e7a3e67ad",
+        "bytes": 1636,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-api-final-v1.log",
+        "sha256": "02143e48f11eac08866c709703bb8c0c41026c6f65cf0d7deebbf6df3f70ae37",
+        "bytes": 18202,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-final-test-regression-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-regression-v1.receipt.json",
+        "sha256": "86a7542a01bfde3444c2fb151aadf983a2adc131b376097ce8135201017020e1",
+        "bytes": 1455,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-regression-v1.log",
+        "sha256": "68fb285a4df0bd1cad5e774273023ca61218087ccd849fe991eeddf2e3cacde9",
+        "bytes": 91434,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-contracts-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts",
+          "./apps/wbs/be-01/src/openapi/openapi-document.test.ts",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "./libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-contracts-final-v1.receipt.json",
+        "sha256": "ed46b6c4dc19608da8a09aa182f347a6c525ba6cbec90d0074057062b81099a4",
+        "bytes": 1554,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-contracts-final-v1.log",
+        "sha256": "b1a46881816eff2a746734c8194a0d512b2da6fa67cfe7ca1095c88322186418",
+        "bytes": 8239,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-types-final-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-membership-types-v2.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-types-final-v3.receipt.json",
+        "sha256": "943e31f62bb4020cf081145fcb3363ecad4b5cadc7ea6e05c2b720dbdd64fbf1",
+        "bytes": 1339,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-types-final-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-lint-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "apps/wbs/be-01/src/testing/space-fixture.ts",
+          "apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "libs/wbs/adapters/store-memory/src/source.ts",
+          "libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read-owner.ts",
+          "libs/wbs/adapters/store-sqlite/src/space.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "libs/wbs/application/core/src/http/space.routes.ts",
+          "libs/wbs/application/core/src/ports/space-store.ts",
+          "libs/wbs/application/core/src/service/space.resource.ts",
+          "libs/wbs/domain/contracts/src/http/shapes.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-lint-final-v1.receipt.json",
+        "sha256": "b0c40d35a699e5c8232c560d5138fe49438b0a6f46b62ff53f2145875828379e",
+        "bytes": 2242,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-lint-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-final-test-lint-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-lint-v1.receipt.json",
+        "sha256": "d68988d4f0d120980f28e20ffa0107bf17faf1a45c18a13bab036936cb8966aa",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-format-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "apps/wbs/be-01/src/testing/space-fixture.ts",
+          "apps/wbs/mcp-01/README.md",
+          "apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "libs/wbs/adapters/store-memory/src/source.ts",
+          "libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read-owner.ts",
+          "libs/wbs/adapters/store-sqlite/src/space.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "libs/wbs/application/core/src/http/space.routes.ts",
+          "libs/wbs/application/core/src/ports/space-store.ts",
+          "libs/wbs/application/core/src/service/space.resource.ts",
+          "libs/wbs/domain/contracts/src/http/shapes.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+          "openspec/changes/wbs-work-packages/tasks.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-format-v2.receipt.json",
+        "sha256": "c7bc075aeb436abbb79d4c053c9b0cacde3cacf73eb7e82632f76f28a8dd334f",
+        "bytes": 2473,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-format-v2.log",
+        "sha256": "80086f70b8e5df5ba4c00f754b2f7b944a61e26601696ec153595e466c0db50c",
+        "bytes": 1310,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-final-test-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-format-v1.receipt.json",
+        "sha256": "b374373540e6635495824baf628d48a2c16dd37443ef612e8d8396b35579dc74",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-final-test-format-v1.log",
+        "sha256": "e79fcd954afe343ddb86444d59d3d00e6d8bed0ee9facd19c530916cc52deabd",
+        "bytes": 162,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-source-audit-final-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v42.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-source-audit-final-v1.receipt.json",
+        "sha256": "dd508ee331aab63ed60888452b0ded0804e0232aaf3e430a3d765f4acb444aab",
+        "bytes": 1299,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-source-audit-final-v1.log",
+        "sha256": "d512ab7f841131a89807d6e9b6bde9d1463ecf3dce806b9171b2963b8329e033",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-entry-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "writes after Source close",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-entry-v1.receipt.json",
+        "sha256": "787c40d3d0c68217a069cdfa009c362cda89d294f2fd1bd2d4139896c9a2bf8e",
+        "bytes": 1412,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-entry-v1.log",
+        "sha256": "26f52341924f5d3440565d2a39e7dfdd56873299ed0622f35c7340072da39409",
+        "bytes": 1741,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-continuation-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "closure during their continuation",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-continuation-v1.receipt.json",
+        "sha256": "60a9484e16a465b71fdac5dfdea78cc0af2c8176be61c5df627ff5e25580588f",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-continuation-v1.log",
+        "sha256": "777fed515317ca72717a815c3487ccbd0836e447f9c0f3939fced3d027b9b184",
+        "bytes": 766,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-person-kind-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "different directory identity kind",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-person-kind-v1.receipt.json",
+        "sha256": "be56a42d2cd204adb09b47255848b8c160145929126660813eaf37de579448a9",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-person-kind-v1.log",
+        "sha256": "11b6792cf582aa28d121acd562f4af74bfaa5e84679876a182aaac50247fcb6a",
+        "bytes": 823,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-team-kind-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "different directory identity kind",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-team-kind-v1.receipt.json",
+        "sha256": "437e5342d68cb777537341f90700fcaf17a4160687a937a007ecf506ebaaf199",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-team-kind-v1.log",
+        "sha256": "b055fcefa50ff51dcedc15ed8fe2161710ea9b130273518c536bad89e50306d3",
+        "bytes": 914,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-committed-reader-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--test-name-pattern",
+          "stay committed",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-committed-reader-v1.receipt.json",
+        "sha256": "4d9e318243817e9da50323b124008645d6a2a4ba1d243a604522c1b5307e012a",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-committed-reader-v1.log",
+        "sha256": "176f7af072b783085ff8a8b021becbbed90ac5c0e24f1171cf9ddaefc6cb3baf",
+        "bytes": 3365,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-sqlite-loans-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--test-name-pattern",
+          "expire the",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-loans-v1.receipt.json",
+        "sha256": "18b0e1cd51f7ba46f4f0448be7bbdb1d61bb1a6252ed0113421cd9d7b54c4434",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-loans-v1.log",
+        "sha256": "9ee85578beeb4780a3e6942436a4295c127b20bc81c30b343b1a8b08810ec5ac",
+        "bytes": 7537,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-memory-loans-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "expire the",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-memory-loans-v1.receipt.json",
+        "sha256": "f5f040ad13ac8bf9717fb90194f99ca7fa2b99df9056e67ba736cc170681c487",
+        "bytes": 1411,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-memory-loans-v1.log",
+        "sha256": "32c04454182bcf304cd70adabe0f2003ebc83feed83af1e6a9db62a1fbec6129",
+        "bytes": 2482,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-memory-repair-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/space-contents.test.ts",
+          "--test-name-pattern",
+          "expire the repair",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-memory-repair-v2.receipt.json",
+        "sha256": "15200ed465cdd49df2640dbea7680d33b939095d31fa6187dcaa973858f4bd95",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-memory-repair-v2.log",
+        "sha256": "f8cf462875d24653f4e7862861bee20e6f84c83414e56662c9257ce5430de280",
+        "bytes": 970,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-sqlite-plain-repair-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--test-name-pattern",
+          "expire the repair",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-plain-repair-v2.receipt.json",
+        "sha256": "893533112ab61d7fed393818963f74c29672370e5a574ebfc5907858c25f7cc5",
+        "bytes": 1472,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-plain-repair-v2.log",
+        "sha256": "3d4d4cd18b946d51fe59315442f9f44913785692c999bc228f7d63706dfc3c77",
+        "bytes": 1172,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-sqlite-bound-repair-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "--test-name-pattern",
+          "expire the repair",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-bound-repair-v2.receipt.json",
+        "sha256": "61b2df945f76e839e69cfe4546ded9cf9d0cd506e1cc7ed0809cd839b3c53470",
+        "bytes": 1472,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-sqlite-bound-repair-v2.log",
+        "sha256": "2e4b3366b243331fb29c7e581aef4c3fccf35a7512909a87cbcf30afcc2678c6",
+        "bytes": 1172,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-membership-authority-v3",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "--test-name-pattern",
+          "conceal foreign and wrong-kind",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-membership-authority-v3.receipt.json",
+        "sha256": "757bdb349d5e4b3817583359faab22c4f7cc2e09c089b925d6a9efbb159413b8",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-membership-authority-v3.log",
+        "sha256": "22be0b37bb759450582fd8894bbf40077dec9bb2ba7bd481a26e681995010a4e",
+        "bytes": 1863,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-virtual-membership-v3",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts",
+          "--test-name-pattern",
+          "conceal foreign and wrong-kind",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-virtual-membership-v3.receipt.json",
+        "sha256": "91edb5ea8caf09224a1d38355ea65f2df93052182e6c77a66923de2769446ed7",
+        "bytes": 1483,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-virtual-membership-v3.log",
+        "sha256": "8281ce54f8d10473f0bd2de5646cfe2f42142f8b52aee773a1b809fd02ce841c",
+        "bytes": 1892,
+        "mode": 384
+      }
+    }
+  ],
+  "proofs": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-membership-owner-faults-v1.state.json",
+      "sha256": "a55795ac8b2105bc391c621e2ccaa9ccf633275c841ca634e361146f4ad431e0",
+      "bytes": 8369,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-membership-owner-faults-v2.state.json",
+      "sha256": "b26bb35ddfd7c9c7aa6c4db20b8fd7cfb1d730ca153997fb10c69a7f9369b77c",
+      "bytes": 3685,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-membership-owner-faults-v3.state.json",
+      "sha256": "ed719267984335a4a23fd91ab373deb9b45a0be77bee41639e1e590526515929",
+      "bytes": 2551,
+      "mode": 384
+    }
+  ],
+  "nativeRevisionProof": {
+    "beforeGuard": "space-membership-http-implemented-v1",
+    "observed": "Actual RAISE(IGNORE) returned204 while revision0 and the new link survived. The new exact-row-count guard now returns500 and rolls back the link; actual mounted API final run passes.",
+    "guard": "libs/wbs/adapters/store-sqlite/src/space.ts:bumpRevision"
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v42.json",
+    "sha256": "918e8437ffea5223a85bd12afad2bab9021529290998295da621a3356c4832a8",
+    "bytes": 1880939,
+    "mode": 384
+  },
+  "generatedMcpDocument": {
+    "previous": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "527e97a57e87a7e8ec93ebe394d6f6b59526296a398ddf6b23dfdc832617a2ee",
+      "bytes": 4590260,
+      "mode": 436
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "79844ab909012211251261b63499cffbbe3dcce39507dc54987992bf92411222",
+      "bytes": 4634019,
+      "mode": 436
+    }
+  },
+  "reviewed": false,
+  "reviews": {
+    "status": "Astra unavailable until previously recorded2026-11-22 10:09AM, timezone unspecified. No retry/substitute/new agent before that deadline; formal review remains required."
+  },
+  "skippedOrUnverified": [
+    "No full browser/build/secrets/migration or exact-SHA host gate; no public commit/push/PR/merge/deploy/activation.",
+    "Named space people/team UI, project-folded reads/UI/rollups, directory deletion/cascade membership and revision parity remain required; task4.6 and4.6.4–4.6.5 stay open.",
+    "The old empty SQL certificate custody remains unresolved; its whole Source actor was not restarted. This SQLite8-case file is not the full SQLite Source certificate.",
+    "Original nine requirements and all15 historical guarantees remain open; latest prior current work-package HTTP56/1 is not rerun or declared green here.",
+    "Early test setups failed before reaching the target, compiler/lint attempts failed and were corrected; they receive no passing credit. A command accidentally invoked a nonexistent root1 wrapper and produced Module not found; it ran no verification or source mutation.",
+    "An initial regression command named a nonexistent organization file; Bun skipped it. Final46/0 run names four verified real files and includes all19 organization cases.",
+    "Fault restorations refer to each original fault epoch. Later Proof comments, format/import order, a local boolean rename and test type fixes are separately pinned and verified."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

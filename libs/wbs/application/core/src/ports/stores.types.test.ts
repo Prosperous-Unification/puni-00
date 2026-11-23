@@ -5,7 +5,7 @@ export interface ScopeFixture {
   stores: PlanTransactionalStores;
 }
 
-export type ProjectStoreInScope = ScopeFixture['stores']['projects'];
+export type WorkPackageStoreInScope = ScopeFixture['stores']['workPackages'];
 
 // Proof: removing this expectation failed core:typecheck on TS2339:
 // PlanTransactionalStores has no property 'savedPlans' (2026-09-09).

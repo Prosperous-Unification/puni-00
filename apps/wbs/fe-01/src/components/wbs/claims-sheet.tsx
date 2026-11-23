@@ -51,24 +51,24 @@ type HistoryState =
 
 /**
  * Whether the plan offers the Claims sheet: once any claims read installed in
- * this table for `projectId` has listed a claim, and from then on until the
- * project changes (`wbs-claim-display` C16). A never-claimed plan offers none,
+ * this table for `workPackageId` has listed a claim, and from then on until the
+ * work package changes (`wbs-claim-display` C16). A never-claimed plan offers none,
  * so its toolbar is what it was; a plan whose last claim was just reaped keeps
  * the offer, so the reason it went stays one click away (C13).
  *
  * Held by the table and not by the sheet: on a phone the sheet is mounted only
  * while `Plan actions` is open, and a latch there would forget each time.
  */
-export function useClaimsOffered(projectId: string, claims: InstalledClaims | null): boolean {
+export function useClaimsOffered(workPackageId: string, claims: InstalledClaims | null): boolean {
   const [offeredFor, setOfferedFor] = useState<string | null>(null);
   const holding = claims !== null && claims.claims.length > 0;
   // Set during render, React's pattern for state derived from a change of props.
-  if (holding && offeredFor !== projectId) setOfferedFor(projectId);
+  if (holding && offeredFor !== workPackageId) setOfferedFor(workPackageId);
   // Proof: returning `holding` alone made `stays, with no number, when the last
   // claim is reaped while it is closed` fail on `expected undefined to be
   // 'Claims'`, and the open case's focus check on `expected <body …> to be
   // <button …>`; watched 2026-10-24.
-  return holding || offeredFor === projectId;
+  return holding || offeredFor === workPackageId;
 }
 
 /**
@@ -90,7 +90,7 @@ function RunWords({ runId }: { runId: string }) {
   );
 }
 
-/** `24 Oct 10:42` in the project's zone, or null from a read without one. */
+/** `24 Oct 10:42` in the work package's zone, or null from a read without one. */
 function sinceWords(epochMs: number, zone: string | null): string | null {
   if (zone === null) return null;
   const moment = zonedMoment(epochMs, zone);
@@ -108,11 +108,11 @@ export interface ClaimsSheetProps {
    * (C13); a heartbeat's `claims_changed` moves only `claims` and does not.
    */
   treeGeneration: number;
-  /** The project's claim history read; called only while the sheet is open. */
+  /** The work package's claim history read; called only while the sheet is open. */
   readHistory: () => Promise<ClaimHistoryEventView[]>;
   /** The tree's steps, to name a claim's step. */
   steps: readonly StepView[];
-  /** The project's zone; null leaves the instants out. */
+  /** The work package's zone; null leaves the instants out. */
   zone: string | null;
   /** The plan's one lease clock, so the sheet counts as the chips do. */
   leaseClock: LeaseClock;
@@ -235,7 +235,7 @@ export function ClaimsSheet({
       </ModalTrigger>
       <ModalContent
         side="right"
-        // The whole screen on a phone, as Project settings is (F-054): it opens
+        // The whole screen on a phone, as Work package settings is (F-054): it opens
         // from the `Plan actions` sheet, which would otherwise show under it.
         className="flex max-h-dvh flex-col gap-4 overflow-y-auto max-md:w-full max-md:max-w-none max-md:border-0"
       >

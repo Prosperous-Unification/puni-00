@@ -25,7 +25,7 @@ import { SavedPlanRepository } from '../repository/saved-plan';
  * `BEGIN IMMEDIATE`, taken the same way, for the same duration a slow save
  * would.
  *
- * Usage: `bun saved-plan-lock-holder.ts <dbPath> <projectId> <planId>
+ * Usage: `bun saved-plan-lock-holder.ts <dbPath> <workPackageId> <planId>
  * <releaseAfterMs>`. It prints `held` **after** the lock is held, then holds
  * until stdin says when to let go, and commits:
  *
@@ -36,21 +36,21 @@ import { SavedPlanRepository } from '../repository/saved-plan';
  * - stdin closing commits now, so a parent that died does not strand the lock.
  */
 async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
-  // Checked as an arity rather than element by element: this project does not
+  // Checked as an arity rather than element by element: this work package does not
   // run `noUncheckedIndexedAccess`, so the destructured names are `string` to
   // the compiler whatever the array holds, and four `=== undefined` tests are
   // four conditions lint can prove dead. The count is the thing that can
   // actually be wrong.
   if (argv.length !== 4) {
     throw new Error(
-      `usage: <dbPath> <projectId> <planId> <releaseAfterMs>; got ${String(argv.length)}`,
+      `usage: <dbPath> <workPackageId> <planId> <releaseAfterMs>; got ${String(argv.length)}`,
     );
   }
-  const [dbPath, projectId, planId, releaseAfterMs] = argv;
+  const [dbPath, workPackageId, planId, releaseAfterMs] = argv;
 
   const plan: SavedPlanWrite = {
     id: planId,
-    projectId,
+    workPackageId,
     name: planId,
     createdBy: 'The other process',
     createdById: null,

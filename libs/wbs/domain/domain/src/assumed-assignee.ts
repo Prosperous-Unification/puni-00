@@ -37,7 +37,7 @@ export interface AssumedAssigneeFlip {
  * wrote, so a removal that did not name them would change who the plan says is
  * doing the work without saying so.
  *
- * Takes **every** assignment in the project rather than the step's own: what a
+ * Takes **every** assignment in the work package rather than the step's own: what a
  * work item is assumed to be is decided by what it holds for the other steps.
  *
  * Sorted by work item id, because a confirmation that lists the same work items

@@ -1,6 +1,11 @@
-import type { WriteStamp } from '@wbs/core';
-import { assertStepParallel } from '@wbs/domain';
-import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  readCatalogueId,
+  readPackageStepValues,
+  readStepIdentity,
+  readStoredParallel,
+  type WriteStamp,
+} from '@wbs/core';
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
@@ -10,29 +15,96 @@ import {
   externalDependency,
   optimizationGeneration,
   optimizedScheduleCache,
-  project,
-  projectAccess,
   type SolverObjectiveName,
   solverQueue,
   solverSlot,
-  step,
-  stepParallel,
   typedDependency,
   workItem,
+  workPackage,
+  workPackageAccess,
+  workPackageStep,
 } from './schema';
+import { readSettingTargetIn } from './settings';
+import { readTypedDependency } from './typed-dependency';
 
 /** The handle a caller's own transaction hands to the helpers below. */
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
+/**
+ * Terminal identity evidence uses explicit package values, never live binding/type applicability.
+ * The caller has verified the actual package/parent/organization chain on this writer;
+ * matching that actual organization proves the definition organization exists as well.
+ */
+function assertDrainStepIdentity(
+  tx: Transaction,
+  workPackageId: string,
+  stepId: string,
+  organizationId: string,
+): void {
+  const metadata = tx
+    .all<{
+      definitionId: unknown;
+      definitionOrganizationId: unknown;
+      code: unknown;
+      name: unknown;
+      workPackageId: unknown;
+      stepId: unknown;
+      estimateUnit: unknown;
+      allowanceBps: unknown;
+      allowanceRevision: unknown;
+    }>(
+      sql`SELECT d.id AS "definitionId",d.organization_id AS "definitionOrganizationId",
+      d.code,d.name,v.work_package_id AS "workPackageId",
+      v.step_id AS "stepId",v.estimate_unit AS "estimateUnit",v.allowance_bps AS "allowanceBps",
+      v.allowance_revision AS "allowanceRevision"
+    FROM step_definition d
+    LEFT JOIN work_package_step v ON v.work_package_id=${workPackageId} AND v.step_id=d.id
+    WHERE d.id=${stepId}`,
+    )
+    .at(0);
+  // Proof: removing this guard changed `finish throws on missing-step sparse evidence`
+  // to an undefined-metadata TypeError; exact restoration recovered its precise refusal (v321).
+  if (metadata === undefined) throw new Error('step parallelism has an invalid step reference');
+  const definition = readStepIdentity({
+    id: metadata.definitionId,
+    organizationId: metadata.definitionOrganizationId,
+    code: metadata.code,
+    name: metadata.name,
+  });
+  // Proof: omitting this comparison made `finish throws on foreign-organization sparse
+  // evidence` return finished; restoration refused before cleanup (v321).
+  if (definition.organizationId !== organizationId)
+    throw new Error('drain step definition organization is absent or foreign');
+  // Proof: removing this decoder made `finish throws on missing-package-values sparse
+  // evidence` return finished; restoration refused the exact missing pair (v321).
+  readPackageStepValues(metadata, workPackageId, stepId);
+}
+
+/**
+ * Physical ownership remains readable after the durable delete-pending fence closes admission.
+ * Proof: bypassing this chain read made the selected missing-mapping and mismatched-parent
+ * finish cases return finished; exact restoration recovered both refusals (v321).
+ */
+function readDrainOrganization(tx: Transaction, workPackageId: string): string {
+  const target = readSettingTargetIn(tx, { level: 'work_package', id: workPackageId }, null);
+  // Proof: a real same-writer lookup at an injected nonexistent address returned null.
+  // Removing only this guard failed the precise diagnostic observer with a TypeError;
+  // restoration recovered it and the healthy finish (v323). Diagnostic proof only.
+  if (target === null) throw new Error('drain work package is absent');
+  return target.chain.organizationId;
+}
+
 /** Throws naming the external relationship before destructive drain state can commit. */
-function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
+function assertWorkPackageUnreferenced(tx: Transaction, workPackageId: string): void {
   const reference = tx
     .select({ id: externalDependency.id })
     .from(externalDependency)
-    .where(eq(externalDependency.predecessorProjectId, projectId))
+    .where(eq(externalDependency.predecessorWorkPackageId, workPackageId))
     .get();
   if (reference !== undefined)
-    throw new Error(`project ${projectId} has externally referenced predecessor ${reference.id}`);
+    throw new Error(
+      `work package ${workPackageId} has externally referenced predecessor ${reference.id}`,
+    );
 }
 
 /**
@@ -40,15 +112,15 @@ function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
  *
  * The target is what `contractVersion` selects, and the two targets are not two
  * policies: **naming a release retires that contract version**, and **omitting
- * it deletes the whole project**, closing every release it has. The steps below
+ * it deletes the whole work package**, closing every release it has. The steps below
  * are the same steps in both cases, widened from one generation row to all of
- * them, plus one extra write the project case needs and the release case must
+ * them, plus one extra write the work package case needs and the release case must
  * not make — the durable `optimization_delete_pending_at` marker.
  *
  * **Why deletion is two-phase at all.** The immediate cascade — delete the row
  * and let `ON DELETE CASCADE` take the slot rows with it — frees the capacity
  * accounting before the children are proved dead. That is the fault that let six
- * real solver processes run while SQLite counted two: a second project admitted
+ * real solver processes run while SQLite counted two: a second work package admitted
  * into capacity the first had not actually given back. So phase 1 closes the
  * door and phase 2 deletes, and between them the slot rows stay **counted and
  * undeleted** until each is released by its owner or passes its stored
@@ -69,7 +141,7 @@ function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
  *    no process behind it, so nothing is freed early by removing it — the
  *    asymmetry with the slot rows above is the whole point.
  *
- * **Deleting a project writes the marker first, before any generation row.**
+ * **Deleting a work package writes the marker first, before any generation row.**
  * Within one transaction the order of two writes is not observable, so this is
  * about what a *reader* of the marker is promised rather than about the
  * interleaving: the marker is the durable fence a coordinator in another process
@@ -79,24 +151,24 @@ function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
  * as the first thing the deletion establishes, which is what
  * `finishOptimizationDrain` and the reconciler both re-read.
  *
- * **A deletion never gets the project's physical row taken out from under it
+ * **A deletion never gets the work package's physical row taken out from under it
  * here.** The row remains, because the slot rows reference it and their capacity
  * accounting has to stay alive while the children it counts are still running —
  * that is the same reason a slot row survives a retirement. Phase 2 is what
- * removes the project, once it has observed no slots left.
+ * removes the work package, once it has observed no slots left.
  *
  * **The generation rows are not deleted here and admission is never reopened.**
  * `finishOptimizationDrain` is the only writer that removes them, and it may run
  * from a different coordinator than the one that began the drain.
  *
  * The stamp is a {@link WriteStamp} rather than a bare instant because the
- * deletion arm's marker lands on `project`, which carries audit columns, and
+ * deletion arm's marker lands on `workPackage`, which carries audit columns, and
  * `auditOnUpdate` is how every write in this folder proves it filled them. It
  * asks no caller to invent an actor it does not have: `auditOnUpdate` writes
  * `updatedAt` and nothing else, so a retirement triggered by a deploy supplies
  * the same instant it always did.
  *
- * Whole-project deletion refuses external predecessor references before any
+ * Whole-work-package deletion refuses external predecessor references before any
  * drain write; named contract retirement leaves those relationships intact.
  *
  * Returns the number of slot rows the caller must still wait for. Zero means
@@ -104,7 +176,7 @@ function assertProjectUnreferenced(tx: Transaction, projectId: string): void {
  */
 export function beginOptimizationDrain(
   db: SQLiteBunDatabase,
-  projectId: string,
+  workPackageId: string,
   stamp: WriteStamp,
   contractVersion?: string,
 ): number {
@@ -112,14 +184,16 @@ export function beginOptimizationDrain(
     if (contractVersion === undefined) {
       // Proof: removing this call committed marker/audit, queue deletion and
       // generation/slot cancellation in installed and raw begin tests (2026-10-22).
-      assertProjectUnreferenced(tx, projectId);
+      assertWorkPackageUnreferenced(tx, workPackageId);
       // `isNull` for the same reason the slot stamp carries one: the marker
       // records when the deletion was FIRST requested, and a reader judging how
       // long a drain has been stuck needs that instant rather than the instant
       // of the most recent attempt to make it.
-      tx.update(project)
+      tx.update(workPackage)
         .set({ optimizationDeletePendingAt: stamp.at, ...auditOnUpdate(stamp) })
-        .where(and(eq(project.id, projectId), isNull(project.optimizationDeletePendingAt)))
+        .where(
+          and(eq(workPackage.id, workPackageId), isNull(workPackage.optimizationDeletePendingAt)),
+        )
         .run();
     }
 
@@ -128,7 +202,7 @@ export function beginOptimizationDrain(
       .from(optimizationGeneration)
       .where(
         and(
-          eq(optimizationGeneration.projectId, projectId),
+          eq(optimizationGeneration.workPackageId, workPackageId),
           ...(contractVersion === undefined
             ? []
             : [eq(optimizationGeneration.contractVersion, contractVersion)]),
@@ -138,7 +212,7 @@ export function beginOptimizationDrain(
 
     // **Every write below is a no-op on an absent target, and none of them needs
     // a guard to be one.** Draining a release that never allocated updates no
-    // generation because the loop has nothing to loop over; deleting a project
+    // generation because the loop has nothing to loop over; deleting a work package
     // that is not there matches no row in any of the four statements. An
     // early return asserting either would be a branch no mutation can red, which
     // is a guard that documents a belief rather than enforcing one. What the
@@ -146,7 +220,7 @@ export function beginOptimizationDrain(
     //
     // Row by row, because `cancelEpoch` advances from each row's own value and a
     // single statement cannot read one column per row without dropping to SQL.
-    // A project holds one generation row per live contract version — two during
+    // A work package holds one generation row per live contract version — two during
     // a swap — so this is a loop over two, not over a table.
     for (const row of affected) {
       tx.update(optimizationGeneration)
@@ -157,7 +231,7 @@ export function beginOptimizationDrain(
         })
         .where(
           and(
-            eq(optimizationGeneration.projectId, projectId),
+            eq(optimizationGeneration.workPackageId, workPackageId),
             eq(optimizationGeneration.contractVersion, row.contractVersion),
           ),
         )
@@ -168,7 +242,7 @@ export function beginOptimizationDrain(
       .set({ cancelRequestedAt: stamp.at })
       .where(
         and(
-          eq(solverSlot.projectId, projectId),
+          eq(solverSlot.workPackageId, workPackageId),
           ...(contractVersion === undefined
             ? []
             : [eq(solverSlot.contractVersion, contractVersion)]),
@@ -180,7 +254,7 @@ export function beginOptimizationDrain(
     tx.delete(solverQueue)
       .where(
         and(
-          eq(solverQueue.projectId, projectId),
+          eq(solverQueue.workPackageId, workPackageId),
           ...(contractVersion === undefined
             ? []
             : [eq(solverQueue.contractVersion, contractVersion)]),
@@ -193,7 +267,7 @@ export function beginOptimizationDrain(
       .from(solverSlot)
       .where(
         and(
-          eq(solverSlot.projectId, projectId),
+          eq(solverSlot.workPackageId, workPackageId),
           ...(contractVersion === undefined
             ? []
             : [eq(solverSlot.contractVersion, contractVersion)]),
@@ -215,9 +289,9 @@ export function beginOptimizationDrain(
  * - `waiting` — the closed state holds and affected slot rows remain. The
  *   children are still running and their capacity is still theirs.
  * - `open` — the durable closed state does **not** hold, so there is nothing to
- *   finish. This is the one that must never delete: a project with no slots is
- *   the ordinary state of most projects, and a `finish` that deleted on a
- *   zero-slot observation alone would delete a live project the moment anybody
+ *   finish. This is the one that must never delete: a work package with no slots is
+ *   the ordinary state of most work packages, and a `finish` that deleted on a
+ *   zero-slot observation alone would delete a live work package the moment anybody
  *   called it.
  * - `absent` — the target is already gone. The loser of a race, and a no-op.
  */
@@ -227,8 +301,8 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  * Phase 2 of the two-phase cancel-and-drain (tasks.md 3.9b).
  *
  * **Finish is not the initiator's job.** A crash between `begin` and `finish`
- * left the project hidden with admission closed for ever, and admission is
- * exactly what a draining project rejects, so no later read could sweep it.
+ * left the work package hidden with admission closed for ever, and admission is
+ * exactly what a draining work package rejects, so no later read could sweep it.
  * Three callers therefore run this same transaction: the initiator, every slot
  * release and reclaim sweep that removes the last affected row, and
  * `reconcileOptimizationDrains()` on its interval. All three are idempotent and
@@ -242,12 +316,12 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  * proceed. So the loser of a race either blocks or comes back and observes the
  * row already gone, and never deletes on a view of the world that has moved.
  *
- * **What the delete takes.** The project arm explicitly removes its owned
+ * **What the delete takes.** The work package arm explicitly removes its owned
  * incoming external relationships, estimates, access, work items and steps before
  * its root; the work-item delete cascades valid local legacy and typed dependencies. The
  * migrated schema deliberately restricts deletion of a populated root. Root
  * cascades then remove optimizer, placement and history rows, preserving shared
- * directory entries and unrelated projects. Incident sparse step policy is
+ * directory entries and unrelated work packages. Incident sparse step policy is
  * validated in this transaction before cleanup; malformed or unreadable trusted
  * evidence throws, while valid local facts cascade with the deleted graph.
  * Retiring one contract version
@@ -267,10 +341,10 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  */
 export function finishOptimizationDrain(
   db: SQLiteBunDatabase,
-  projectId: string,
+  workPackageId: string,
   contractVersion?: string,
 ): OptimizationDrainFinish {
-  return db.transaction((tx) => finishDrainIn(tx, projectId, contractVersion));
+  return db.transaction((tx) => finishDrainIn(tx, workPackageId, contractVersion));
 }
 
 /**
@@ -289,7 +363,7 @@ export function finishOptimizationDrain(
  */
 function finishDrainIn(
   tx: Transaction,
-  projectId: string,
+  workPackageId: string,
   contractVersion?: string,
 ): OptimizationDrainFinish {
   const outstanding = (): number =>
@@ -298,7 +372,7 @@ function finishDrainIn(
       .from(solverSlot)
       .where(
         and(
-          eq(solverSlot.projectId, projectId),
+          eq(solverSlot.workPackageId, workPackageId),
           ...(contractVersion === undefined
             ? []
             : [eq(solverSlot.contractVersion, contractVersion)]),
@@ -307,18 +381,18 @@ function finishDrainIn(
       .all().length;
 
   if (contractVersion === undefined) {
-    const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+    const target = tx.select().from(workPackage).where(eq(workPackage.id, workPackageId)).get();
     if (target === undefined) return 'absent';
-    // Proof: bypassing this marker fence deleted an ordinary unmarked project
+    // Proof: bypassing this marker fence deleted an ordinary unmarked work package
     // instead of returning `open` in the raw finalizer test.
     if (target.optimizationDeletePendingAt === null) return 'open';
-    // Proof: bypassing this counted-slot fence deleted a populated project
+    // Proof: bypassing this counted-slot fence deleted a populated work package
     // while its child still occupied capacity instead of returning `waiting`.
     if (outstanding() > 0) return 'waiting';
 
     // Proof: removing this call reached the first-cleanup estimate trigger
     // instead of the external-reference refusal in raw finalization (2026-10-22).
-    assertProjectUnreferenced(tx, projectId);
+    assertWorkPackageUnreferenced(tx, workPackageId);
 
     // Proof: independently bypassing either ownership refusal made the raw
     // finalizer return `finished` and erase a bystander-owned dependency edge.
@@ -331,91 +405,97 @@ function finishDrainIn(
         JOIN work_item successor ON successor.id = ${dependency.successorId}
         WHERE predecessor.id = ${dependency.predecessorId}
           AND (
-            ${dependency.projectId} = ${projectId}
-            OR predecessor.project_id = ${projectId}
-            OR successor.project_id = ${projectId}
+            ${dependency.workPackageId} = ${workPackageId}
+            OR predecessor.work_package_id = ${workPackageId}
+            OR successor.work_package_id = ${workPackageId}
           )
           AND (
-            ${dependency.projectId} <> predecessor.project_id
-            OR ${dependency.projectId} <> successor.project_id
+            ${dependency.workPackageId} <> predecessor.work_package_id
+            OR ${dependency.workPackageId} <> successor.work_package_id
           )
       )`,
       )
       .get();
     if (foreignLegacy !== undefined)
-      throw new Error(`project ${projectId} has cross-project dependency ${foreignLegacy.id}`);
+      throw new Error(
+        `work package ${workPackageId} has cross-work-package dependency ${foreignLegacy.id}`,
+      );
 
-    const foreignTyped = tx
-      .select({ id: typedDependency.id })
+    // Proof: omitting actual endpoint incidence made the foreign-declared predecessor
+    // and successor cases both finish instead of refusing; restoration passed both (v322).
+    const incidentTyped = tx
+      .select()
       .from(typedDependency)
       .where(
-        sql`EXISTS (
-        SELECT 1 FROM work_item predecessor
-        JOIN work_item successor ON successor.id = ${typedDependency.successorWorkItemId}
-        LEFT JOIN step predecessor_step ON predecessor_step.id = ${typedDependency.predecessorStepId}
-        LEFT JOIN step successor_step ON successor_step.id = ${typedDependency.successorStepId}
-        WHERE predecessor.id = ${typedDependency.predecessorWorkItemId}
-          AND (
-            ${typedDependency.projectId} = ${projectId}
-            OR predecessor.project_id = ${projectId}
-            OR successor.project_id = ${projectId}
-            OR predecessor_step.project_id = ${projectId}
-            OR successor_step.project_id = ${projectId}
-          )
-          AND (
-            ${typedDependency.projectId} <> predecessor.project_id
-            OR ${typedDependency.projectId} <> successor.project_id
-            OR (predecessor_step.id IS NOT NULL AND ${typedDependency.projectId} <> predecessor_step.project_id)
-            OR (successor_step.id IS NOT NULL AND ${typedDependency.projectId} <> successor_step.project_id)
-          )
-      )`,
+        sql`
+      ${typedDependency.workPackageId}=${workPackageId}
+      OR EXISTS (SELECT 1 FROM work_item p WHERE p.id=${typedDependency.predecessorWorkItemId} AND p.work_package_id=${workPackageId})
+      OR EXISTS (SELECT 1 FROM work_item s WHERE s.id=${typedDependency.successorWorkItemId} AND s.work_package_id=${workPackageId})
+    `,
       )
-      .get();
-    if (foreignTyped !== undefined)
-      throw new Error(`project ${projectId} has cross-project typed dependency ${foreignTyped.id}`);
-
-    // Proof: owner-only/step-only selection missed the opposite incident direction;
-    // inner joins hid missing references. Missing/unreadable storage defaulted to
-    // empty accepted deletion; overbroad reads refused nonincident corrupt policy.
-    // Early reads displaced waiting/typed refusals; late reads hit the first-cleanup
-    // witness. Premature release commit lost generation/slot/cache; reclaim commit
-    // lost the slot. Installed UOW error commit failed graph/journal/event snapshots
-    // (optimization-drain-step-parallel and services cases, watched 2026-10-17).
-    const parallels = tx
-      .select({
-        workItemId: stepParallel.workItemId,
-        stepId: stepParallel.stepId,
-        maxParallel: stepParallel.maxParallel,
-        ownerProject: workItem.projectId,
-        stepProject: step.projectId,
-        hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepParallel.workItemId})`,
-      })
-      .from(stepParallel)
-      .leftJoin(workItem, eq(workItem.id, stepParallel.workItemId))
-      .leftJoin(step, eq(step.id, stepParallel.stepId))
-      .where(or(eq(workItem.projectId, projectId), eq(step.projectId, projectId)))
       .all();
+    // Proof: interleaving identity reads masked a foreign successor with its predecessor's
+    // missing pair, and an earlier local missing pair masked a later cross-owner edge.
+    // Both named mixed-corruption controls failed before this complete-set ownership pass
+    // and passed after it, retaining the existing typed-before-sparse refusal order (v317–320).
+    for (const physical of incidentTyped) {
+      for (const endpointId of [physical.predecessorWorkItemId, physical.successorWorkItemId]) {
+        const owner = tx
+          .select({ workPackageId: workItem.workPackageId })
+          .from(workItem)
+          .where(eq(workItem.id, endpointId))
+          .get();
+        if (owner?.workPackageId !== physical.workPackageId)
+          throw new Error(
+            `work package ${workPackageId} has cross-work-package typed dependency ${physical.id}`,
+          );
+      }
+    }
+    for (const physical of incidentTyped) {
+      const dependency = readTypedDependency(physical);
+      const organizationId = readDrainOrganization(tx, dependency.workPackageId);
+      for (const endpoint of [dependency.predecessor, dependency.successor]) {
+        if (endpoint.scope !== 'whole')
+          assertDrainStepIdentity(tx, dependency.workPackageId, endpoint.stepId, organizationId);
+      }
+    }
+
+    // Selected sparse facts belong to actual target work items or have no attributable owner.
+    // Shared definition identity alone never selects another package's facts.
+    // Proof: removing the orphan arm let the missing-owner case finish (v321); selecting
+    // all rows instead made the corrupt shared-definition bystander veto a valid finish
+    // at the owner guard (v322). Exact selection restoration passed each control.
+    // Historical 2026-10-17 proofs on package-owned steps also covered missing/unreadable
+    // storage, early refusal precedence, first-cleanup ordering and slot/event rollback;
+    // current owner/definition incidence is qualified by the controls above.
+    const parallels = tx.all<{
+      workItemId: unknown;
+      stepId: unknown;
+      maxParallel: unknown;
+      ownerWorkPackage: unknown;
+      hasChildren: unknown;
+    }>(sql`SELECT f.work_item_id AS "workItemId",f.step_id AS "stepId",f.max_parallel AS "maxParallel",
+        i.work_package_id AS "ownerWorkPackage",
+        EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id=f.work_item_id) AS "hasChildren"
+      FROM step_parallel f LEFT JOIN work_item i ON i.id=f.work_item_id
+      WHERE i.work_package_id=${workPackageId} OR i.id IS NULL`);
     for (const parallel of parallels) {
-      // Proof: omitting each null check independently returned project mismatch
-      // instead of the required missing-owner/missing-step sparse diagnostic.
-      if (parallel.ownerProject === null)
+      // Proof: omitting this refusal let the selected global orphan finish (v321).
+      if (parallel.ownerWorkPackage !== workPackageId)
         throw new Error('step parallelism has an invalid work-item reference');
-      if (parallel.stepProject === null)
-        throw new Error('step parallelism has an invalid step reference');
-      // Proof: dropping either project predicate accepted cross-project evidence
-      // or reached an independent FK failure instead of the sparse refusal.
-      if (parallel.ownerProject !== projectId || parallel.stepProject !== projectId)
-        throw new Error('step parallelism project mismatch');
-      // Proof: omitting leaf validation accepted the corrupt parent policy case.
+      const stepId = readCatalogueId(parallel.stepId, 'parallel step');
+      assertDrainStepIdentity(tx, workPackageId, stepId, readDrainOrganization(tx, workPackageId));
+      // Historical Proof: omitted leaf validation accepted corrupt parent policy (2026-10-17).
       if (parallel.hasChildren !== 0) throw new Error('step parallelism owner is not a leaf');
-      // Proof: omitting range validation accepted zero/fraction/1001; watched 2026-10-17.
-      assertStepParallel(parallel.maxParallel);
+      // Proof: removing this physical decoder accepted the selected BLOB maximum (v322).
+      // Historical range-guard omissions also accepted zero/fraction/1001 (2026-10-17).
+      readStoredParallel(parallel);
     }
 
     const ownedWorkItems = tx
       .select({ id: workItem.id })
       .from(workItem)
-      .where(eq(workItem.projectId, projectId));
+      .where(eq(workItem.workPackageId, workPackageId));
     // Proof: moving the estimate delete into the raw wrapper before this
     // transaction left it committed after a later step-cleanup trigger aborted.
     // Proof: omitting any one of these four deletes made installed populated
@@ -425,29 +505,33 @@ function finishDrainIn(
     // cleanup fixture; late step failure restored both links (2026-10-22).
     // Incoming links belong to the deleted successor; surviving predecessors
     // retain their facts and revisions. This lifecycle has no undo journal.
-    tx.delete(externalDependency).where(eq(externalDependency.successorProjectId, projectId)).run();
+    tx.delete(externalDependency)
+      .where(eq(externalDependency.successorWorkPackageId, workPackageId))
+      .run();
     tx.delete(estimate).where(inArray(estimate.workItemId, ownedWorkItems)).run();
-    tx.delete(projectAccess).where(eq(projectAccess.projectId, projectId)).run();
-    tx.delete(workItem).where(eq(workItem.projectId, projectId)).run();
-    tx.delete(step).where(eq(step.projectId, projectId)).run();
-    tx.delete(project).where(eq(project.id, projectId)).run();
+    tx.delete(workPackageAccess).where(eq(workPackageAccess.workPackageId, workPackageId)).run();
+    tx.delete(workItem).where(eq(workItem.workPackageId, workPackageId)).run();
+    // Proof: broadening this predicate erased B's explicit values in the shared-definition
+    // retention case; exact scope restoration preserved its complete snapshot (v322).
+    tx.delete(workPackageStep).where(eq(workPackageStep.workPackageId, workPackageId)).run();
+    tx.delete(workPackage).where(eq(workPackage.id, workPackageId)).run();
     return 'finished';
   }
 
-  // A project drain also retires contracts first. Refuse before that retirement
-  // can commit a reclaimed slot or generation ahead of project finalization.
-  const target = tx.select().from(project).where(eq(project.id, projectId)).get();
-  // Proof: bypassing this pending-project defense committed retirement and
-  // lost slot/generation before raw reclaim refused the project (2026-10-22).
+  // A work package drain also retires contracts first. Refuse before that retirement
+  // can commit a reclaimed slot or generation ahead of work package finalization.
+  const target = tx.select().from(workPackage).where(eq(workPackage.id, workPackageId)).get();
+  // Proof: bypassing this pending-work-package defense committed retirement and
+  // lost slot/generation before raw reclaim refused the work package (2026-10-22).
   if (target !== undefined && target.optimizationDeletePendingAt !== null)
-    assertProjectUnreferenced(tx, projectId);
+    assertWorkPackageUnreferenced(tx, workPackageId);
 
   const generation = tx
     .select()
     .from(optimizationGeneration)
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
       ),
     )
@@ -459,7 +543,7 @@ function finishDrainIn(
   tx.delete(optimizedScheduleCache)
     .where(
       and(
-        eq(optimizedScheduleCache.projectId, projectId),
+        eq(optimizedScheduleCache.workPackageId, workPackageId),
         eq(optimizedScheduleCache.contractVersion, contractVersion),
       ),
     )
@@ -468,7 +552,7 @@ function finishDrainIn(
   tx.delete(optimizationGeneration)
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
       ),
     )
@@ -479,12 +563,12 @@ function finishDrainIn(
 /**
  * Why an admission or a dequeue must refuse, or `null` when neither is closed.
  *
- * - `deleting` — the project carries `optimization_delete_pending_at`. Reported
+ * - `deleting` — the work package carries `optimization_delete_pending_at`. Reported
  *   in preference to `draining` when both hold, because a deletion closes every
- *   release of the project and saying so is the more useful of two true things.
+ *   release of the work package and saying so is the more useful of two true things.
  * - `draining` — that contract version alone is retiring. Its siblings are
  *   unaffected, which is the whole difference between the two targets.
- * - `absent` — there is no generation row, or no project. **This is a refusal,
+ * - `absent` — there is no generation row, or no work package. **This is a refusal,
  *   not a shrug**, and it is the one that is easy to get wrong: `finish` deletes
  *   the generation row, so a caller that read absence as "nothing closed here"
  *   would admit work for a contract version that has just been retired, one
@@ -499,9 +583,9 @@ export type OptimizationClosedReason = 'deleting' | 'draining' | 'absent';
  * removes "either closed-state predicate" and requires work to start between
  * the zero-slot observation and the final delete — a red that only means
  * something if there is a single thing to remove. Admission (6.2) and dequeue
- * (6.3) both reject unless the matching generation is `open` and the project
+ * (6.3) both reject unless the matching generation is `open` and the work package
  * carries no delete marker; the rest of the dequeue's re-check — generation
- * currency, `cancelEpoch`, the project toggle — is 6.3's own and is not here.
+ * currency, `cancelEpoch`, the work package toggle — is 6.3's own and is not here.
  *
  * Read inside the caller's transaction so the two reads and the caller's insert
  * commit together. {@link readOptimizationClosedState} is the same read for a
@@ -510,10 +594,10 @@ export type OptimizationClosedReason = 'deleting' | 'draining' | 'absent';
  */
 function closedStateIn(
   tx: Transaction,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
 ): OptimizationClosedReason | null {
-  const target = tx.select().from(project).where(eq(project.id, projectId)).get();
+  const target = tx.select().from(workPackage).where(eq(workPackage.id, workPackageId)).get();
   if (target === undefined) return 'absent';
   if (target.optimizationDeletePendingAt !== null) return 'deleting';
 
@@ -522,7 +606,7 @@ function closedStateIn(
     .from(optimizationGeneration)
     .where(
       and(
-        eq(optimizationGeneration.projectId, projectId),
+        eq(optimizationGeneration.workPackageId, workPackageId),
         eq(optimizationGeneration.contractVersion, contractVersion),
       ),
     )
@@ -534,15 +618,15 @@ function closedStateIn(
 /** {@link closedStateIn} for a caller that has no transaction open. */
 export function readOptimizationClosedState(
   db: SQLiteBunDatabase,
-  projectId: string,
+  workPackageId: string,
   contractVersion: string,
 ): OptimizationClosedReason | null {
-  return db.transaction((tx) => closedStateIn(tx, projectId, contractVersion));
+  return db.transaction((tx) => closedStateIn(tx, workPackageId, contractVersion));
 }
 
 /** Which slot row a release means, and which attempt is entitled to release it. */
 export interface SolverSlotRelease {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -557,7 +641,7 @@ export interface SolverSlotReleaseOutcome {
   readonly released: boolean;
   /** Phase 2 on the slot's own contract version. */
   readonly retirement: OptimizationDrainFinish;
-  /** Phase 2 on the slot's project. */
+  /** Phase 2 on the slot's work package. */
   readonly deletion: OptimizationDrainFinish;
 }
 
@@ -581,13 +665,13 @@ export interface SolverSlotReleaseOutcome {
  * **Both finishes run even when nothing was released**, and both run even when
  * no drain is in progress. A release that removed nothing is precisely the case
  * where another path already took the row, which is the moment a target may
- * have gone quiet; and on an ordinary project neither target is closed, so both
+ * have gone quiet; and on an ordinary work package neither target is closed, so both
  * calls read a marker, return `open` and write nothing. Two reads is what the
  * ordinary path pays for never needing to know whether it is the last one out.
  *
  * **Retirement before deletion**, for the reason the reconciler orders its two
- * loops the same way: a delete-pending project has every release draining, and
- * retiring them first is what makes the observation. Deleting the project first
+ * loops the same way: a delete-pending work package has every release draining, and
+ * retiring them first is what makes the observation. Deleting the work package first
  * reaches the same end state by cascade, without it.
  */
 export function releaseSolverSlot(
@@ -596,7 +680,7 @@ export function releaseSolverSlot(
 ): SolverSlotReleaseOutcome {
   return db.transaction((tx) => {
     const held = and(
-      eq(solverSlot.projectId, slot.projectId),
+      eq(solverSlot.workPackageId, slot.workPackageId),
       eq(solverSlot.contractVersion, slot.contractVersion),
       eq(solverSlot.generation, slot.generation),
       eq(solverSlot.objective, slot.objective),
@@ -611,8 +695,8 @@ export function releaseSolverSlot(
 
     return {
       released,
-      retirement: finishDrainIn(tx, slot.projectId, slot.contractVersion),
-      deletion: finishDrainIn(tx, slot.projectId),
+      retirement: finishDrainIn(tx, slot.workPackageId, slot.contractVersion),
+      deletion: finishDrainIn(tx, slot.workPackageId),
     };
   });
 }
@@ -632,28 +716,28 @@ export interface OptimizationDrainReconciliation {
 
 /** Limit a reclaim pass to one drain target; omit it for admission's global sweep. */
 export interface SolverSlotReclaimScope {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion?: string;
 }
 
 /** Read one reconciliation phase's targets; each caller later rechecks under its own writer. */
 export function reconciliationTargets(
   db: SQLiteBunDatabase,
-  phase: 'generations' | 'projects',
+  phase: 'generations' | 'work_packages',
 ): readonly SolverSlotReclaimScope[] {
   if (phase === 'generations')
     return db
       .select({
-        projectId: optimizationGeneration.projectId,
+        workPackageId: optimizationGeneration.workPackageId,
         contractVersion: optimizationGeneration.contractVersion,
       })
       .from(optimizationGeneration)
       .where(eq(optimizationGeneration.admissionState, 'draining'))
       .all();
   return db
-    .select({ projectId: project.id })
-    .from(project)
-    .where(isNotNull(project.optimizationDeletePendingAt))
+    .select({ workPackageId: workPackage.id })
+    .from(workPackage)
+    .where(isNotNull(workPackage.optimizationDeletePendingAt))
     .all();
 }
 
@@ -669,16 +753,16 @@ export function reconciliationTargetIsCurrent(
         .from(optimizationGeneration)
         .where(
           and(
-            eq(optimizationGeneration.projectId, target.projectId),
+            eq(optimizationGeneration.workPackageId, target.workPackageId),
             eq(optimizationGeneration.contractVersion, target.contractVersion),
           ),
         )
         .get()?.state === 'draining'
     );
   const current = db
-    .select({ pendingAt: project.optimizationDeletePendingAt })
-    .from(project)
-    .where(eq(project.id, target.projectId))
+    .select({ pendingAt: workPackage.optimizationDeletePendingAt })
+    .from(workPackage)
+    .where(eq(workPackage.id, target.workPackageId))
     .get();
   return current !== undefined && current.pendingAt !== null;
 }
@@ -700,14 +784,14 @@ export function reclaimExpiredSolverSlotsIn(
 ): OptimizationDrainReconciliation {
   const expiring = and(
     // Proof: admitting all deadlines during installed initial reclaim deleted
-    // the future E project and slot in the two-organization mounted fixture.
+    // the future E work package and slot in the two-organization mounted fixture.
     // Proof: omitting the persisted-deadline predicate in installed startup
     // reconciliation deleted future-counted C while expired A was eligible.
     lte(solverSlot.admittedDeadlineAt, now),
     ...(scope === undefined
       ? []
       : [
-          eq(solverSlot.projectId, scope.projectId),
+          eq(solverSlot.workPackageId, scope.workPackageId),
           ...(scope.contractVersion === undefined
             ? []
             : [eq(solverSlot.contractVersion, scope.contractVersion)]),
@@ -715,7 +799,7 @@ export function reclaimExpiredSolverSlotsIn(
   );
   const expired = tx
     .select({
-      projectId: solverSlot.projectId,
+      workPackageId: solverSlot.workPackageId,
       contractVersion: solverSlot.contractVersion,
     })
     .from(solverSlot)
@@ -728,18 +812,18 @@ export function reclaimExpiredSolverSlotsIn(
     targets.push(scope);
   } else {
     const contracts = new Map<string, SolverSlotReclaimScope>();
-    const projects = new Map<string, SolverSlotReclaimScope>();
+    const workPackages = new Map<string, SolverSlotReclaimScope>();
     for (const row of expired) {
-      contracts.set(`${row.projectId}\u0000${row.contractVersion}`, row);
-      projects.set(row.projectId, { projectId: row.projectId });
+      contracts.set(`${row.workPackageId}\u0000${row.contractVersion}`, row);
+      workPackages.set(row.workPackageId, { workPackageId: row.workPackageId });
     }
-    targets.push(...contracts.values(), ...projects.values());
+    targets.push(...contracts.values(), ...workPackages.values());
   }
 
   let finished = 0;
   let waiting = 0;
   for (const target of targets) {
-    const outcome = finishDrainIn(tx, target.projectId, target.contractVersion);
+    const outcome = finishDrainIn(tx, target.workPackageId, target.contractVersion);
     if (outcome === 'finished') {
       finished += 1;
       // Proof: omitting the finished-target callback lost B's selected
@@ -756,9 +840,9 @@ export function reclaimExpiredSolverSlotsIn(
  * (tasks.md 3.9b).
  *
  * **Why it has to exist.** Without it, a coordinator that died after `begin`
- * left the project hidden with admission closed for ever — and admission is
- * exactly what a draining project rejects, so no ordinary read could ever sweep
- * it up again. Remove this function and that project is wedged and undeletable
+ * left the work package hidden with admission closed for ever — and admission is
+ * exactly what a draining work package rejects, so no ordinary read could ever sweep
+ * it up again. Remove this function and that work package is wedged and undeletable
  * by any code path in the system. Called on coordinator startup and every
  * {@link DRAIN_RECONCILE_INTERVAL_MS}.
  *
@@ -771,10 +855,10 @@ export function reclaimExpiredSolverSlotsIn(
  * that is still inside its own deadline — the fault that would put the six
  * processes back by another route.
  *
- * **Generations before projects.** A delete-pending project has every one of
+ * **Generations before work packages.** A delete-pending work package has every one of
  * its generations draining, so the first pass retires them release by release
- * and the second deletes the project once nothing is left. Running it the other
- * way would delete the project first and take the generation rows with it by
+ * and the second deletes the work package once nothing is left. Running it the other
+ * way would delete the work package first and take the generation rows with it by
  * cascade — the same end state, reached without ever observing the releases,
  * which is the observation the drain exists to make.
  *
@@ -791,7 +875,7 @@ export function reconcileOptimizationDrains(
   let finished = 0;
   let waiting = 0;
 
-  const sweep = (projectId: string, contractVersion?: string): void => {
+  const sweep = (workPackageId: string, contractVersion?: string): void => {
     // Reclaim and finish in ONE transaction, which is what 3.9b asks of a
     // reclaim sweep in the same words it asks it of a slot release: the marker
     // is re-read in the transaction that removes the last affected row. The
@@ -802,7 +886,7 @@ export function reconcileOptimizationDrains(
     // `.run()` is typed `void` here, so `.changes` is reachable at runtime but
     // untyped, and a number nobody can typecheck is a number nobody can trust.
     const pass = db.transaction((tx) =>
-      reclaimExpiredSolverSlotsIn(tx, now, { projectId, contractVersion }),
+      reclaimExpiredSolverSlotsIn(tx, now, { workPackageId, contractVersion }),
     );
     reclaimed += pass.reclaimed;
     finished += pass.finished;
@@ -814,12 +898,12 @@ export function reconcileOptimizationDrains(
     .from(optimizationGeneration)
     .where(eq(optimizationGeneration.admissionState, 'draining'))
     .all();
-  for (const row of draining) sweep(row.projectId, row.contractVersion);
+  for (const row of draining) sweep(row.workPackageId, row.contractVersion);
 
   const pending = db
     .select()
-    .from(project)
-    .where(isNotNull(project.optimizationDeletePendingAt))
+    .from(workPackage)
+    .where(isNotNull(workPackage.optimizationDeletePendingAt))
     .all();
   for (const row of pending) sweep(row.id);
 

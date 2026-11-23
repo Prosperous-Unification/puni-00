@@ -70,8 +70,22 @@ function stubPanel(routes: Parameters<typeof stubServer>[0] = {}) {
       () =>
         answer(200, {
           members: [
-            { userId: 'u1', username: 'dany', email: null, role: 'admin', createdAt: 1 },
-            { userId: 'u2', username: 'ada', email: null, role: 'member', createdAt: 1 },
+            {
+              userId: 'u1',
+              username: 'dany',
+              email: null,
+              effectiveRole: null,
+              grantCount: 0,
+              createdAt: 1,
+            },
+            {
+              userId: 'u2',
+              username: 'ada',
+              email: null,
+              effectiveRole: null,
+              grantCount: 0,
+              createdAt: 1,
+            },
           ],
         }),
     ],

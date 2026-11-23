@@ -1,66 +1,72 @@
 import type { CredentialAuthentication } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 import type { OrganizationScope } from '@wbs/domain';
 
 import type { DependencyFanout, FanoutObservation } from '../service/shared-people-fanout';
+import type { AccessTarget } from './access-decisions';
 import type { NamedCatalog } from './directory-store';
 import type { ResourceAccess } from './organization-access';
+import type { WorkPackagePatch } from './work-package-store';
 
 export type FanoutWriteAuthority =
-  { readonly ok: true } | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' };
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'forbidden';
+      readonly permission?: Permission;
+    };
 
 /**
  * Fresh read-only admission applies detached verifier metadata to the current role
- * before project classification, without recovery audit. Explicit undefined preserves
+ * before work package classification, without recovery audit. Explicit undefined preserves
  * existing direct-context callers without credential metadata.
  */
-export type ResolveProjectWriteScope = (
-  projectId: string,
+export type ResolveWorkPackageWriteScope = (
+  workPackageId: string,
   organizationId: string,
   actorId: string,
   authentication: CredentialAuthentication | undefined,
 ) => Promise<
   | { readonly ok: true; readonly scope: OrganizationScope }
-  | { readonly ok: false; readonly reason: 'not_found' | 'forbidden' }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'forbidden';
+      readonly permission?: Permission;
+    }
 >;
 
-/** Read-only fresh project-write authority on the borrowed writer, before observation. */
-export type BeforeProjectUpdate = (
-  projectId: string,
+/** Read-only fresh work-package-write authority on the borrowed writer, before observation. */
+export type BeforeWorkPackageUpdate = (
+  workPackageId: string,
   actorId: string,
   access: ResourceAccess,
+  patch: WorkPackagePatch,
 ) => Promise<FanoutWriteAuthority>;
 
 /** Existing scoped recovery admission stays live while step preflights ask for observation. */
 export type BeforeStepRemoval = (
-  projectId: string,
+  workPackageId: string,
   actorId: string,
   access: ResourceAccess,
 ) => Promise<FanoutWriteAuthority>;
 
 /** Scoped add/rename observation after service authority, name and graph preflights. */
 export type BeforeStepWrite = (
-  projectId: string,
+  workPackageId: string,
   actorId: string,
   access: ResourceAccess,
 ) => Promise<FanoutWriteAuthority>;
-
-/** Current organization rank authority on the borrowed writer; no recovery grant or audit. */
-export type BeforeRankMove = (
-  organizationId: string,
-  actorId: string,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
-
-/** Current organization super-admin authority on the borrowed writer; no delegation, no audit. */
-export type BeforeModeSwitch = (
-  organizationId: string,
-  actorId: string,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
 
 /** Fresh import write-role admission on the borrowed writer, before observation. */
 export type BeforeImport = (
   actorId: string,
   access: ResourceAccess,
-) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
+  project: Extract<AccessTarget, { readonly kind: 'project' }>,
+) => Promise<
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'not_found' }
+  | { readonly ok: false; readonly reason: 'forbidden'; readonly permission?: Permission }
+>;
 
 /**
  * The catalogs a standalone directory act may address. Resources are written
@@ -103,7 +109,7 @@ export type DirectoryWriteResolution =
   | { readonly ok: true; readonly organizationIds: readonly string[] }
   | { readonly ok: false; readonly reason: 'not_found' | 'unknown_team' | 'unknown_service' };
 
-/** Trusted project ownership read inside the lifecycle writer, without human admission. */
+/** Trusted work package ownership read inside the lifecycle writer, without human admission. */
 export type LifecycleOwnership =
   | { readonly kind: 'absent' }
   | { readonly kind: 'legacy' }
@@ -117,16 +123,14 @@ export interface CapturedFanout {
   readonly localFacts: ReadonlyMap<string, string>;
 }
 
-/** Borrowed writer capture; project order is already the rank repository's authoritative order. */
+/** Borrowed writer capture; work package order is already the rank repository's authoritative order. */
 export interface FanoutCaptureStore {
   /** Optional for legacy fixtures; runtime observation requires this fresh authority capability. */
-  resolveProjectWriteScope?: ResolveProjectWriteScope;
+  resolveWorkPackageWriteScope?: ResolveWorkPackageWriteScope;
   capture(organizationId: string): Promise<CapturedFanout>;
-  resolveLifecycleOwner?: (projectId: string) => Promise<LifecycleOwnership>;
-  authorizeProjectUpdate: BeforeProjectUpdate;
+  resolveLifecycleOwner?: (workPackageId: string) => Promise<LifecycleOwnership>;
+  authorizeWorkPackageUpdate: BeforeWorkPackageUpdate;
   authorizeStepRemoval: BeforeStepRemoval;
-  authorizeRankMove?: BeforeRankMove;
-  authorizeModeSwitch?: BeforeModeSwitch;
   authorizeImport?: BeforeImport;
   resolveDirectoryWrite?: (address: DirectoryWriteAddress) => Promise<DirectoryWriteResolution>;
 }

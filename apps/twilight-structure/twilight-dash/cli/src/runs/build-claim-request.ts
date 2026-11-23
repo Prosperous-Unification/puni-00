@@ -8,7 +8,7 @@ import { equalRecords } from './record-codecs';
 import { readTargetObservation } from './record-preparation';
 import type { ArtifactRef } from './records';
 import type { RunStore, ScopedAttemptGuard, StoreRefusal } from './run-store';
-import { equalRuntimeScopes } from './runtime-codecs';
+import { equalRuntimeScopes, mapCurrentScope } from './runtime-codecs';
 import { readRuntimeHistory } from './runtime-history';
 import { ArtifactRefCodec } from './value-codecs';
 
@@ -103,7 +103,10 @@ export async function buildClaimRequest(
     kind: 'built',
     request: {
       // Proof: C23 substituted operation-only JSON and the existing parser rejected actual output. C24-C35 independently changed command/ledger/authority/basis/work/step/parent/store/run/attempt/session/evidence; complete-field, refreshed-basis/evidence or non-null-parent assertions failed. Exact restoration passed.
-      canonicalRequest: canonicalRuntimeRequest(snapshotGuard.scope, {
+      // Proof: dash-claim-fresh-current-scope: passing local scope directly to the current claim encoder.
+      // 'memory claim request > constructs complete prepared claim fields without mutation and stages the exact bytes' failed; exact restoration passed.
+      // Current producer/schema consistency failure; envelope2/body1 stays required.
+      canonicalRequest: canonicalRuntimeRequest(mapCurrentScope(snapshotGuard.scope), {
         schemaVersion: 1,
         commandId: snapshot.commandId,
         expectedLedgerId: scope.pin.ledgerId,

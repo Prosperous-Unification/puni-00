@@ -1,16 +1,19 @@
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { PlanEvent } from '../../ports/plan-event-values';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { limitOf } from '../../service/list-query';
+import { bindFixtureSteps } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -20,18 +23,18 @@ import { CLAIM_HISTORY_LIMIT } from './claim-history';
 const F = 'account-f';
 
 /**
- * A project with its starting steps Dev and QA; root `080` (frozen) with leaf
+ * A work package with its starting steps Dev and QA; root `080` (frozen) with leaf
  * `080.1`, and a free leaf `090`, over the memory source and the real batch
  * runner, its clock moved by hand so every act has its own instant.
  */
 async function seeded() {
   const fixture = openMemorySourceFixture();
-  const { source } = fixture;
+  const source = ownTestSource(fixture.source);
   const broadcast = recordingBroadcaster();
   let now = 1_000;
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: clockOf({ now: () => now, newId: () => crypto.randomUUID() }),
     broadcast,
     scheduler: fastScheduler,
@@ -41,21 +44,67 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Claims', F));
-  const projectId = created.project.id;
-  // The memory source keeps a project's steps apart from the step table its progress reads.
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-      { at: 1, by: F },
-    );
-  }
-  const steps = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  await bindFixtureSteps(
+    source,
+    'fixture-legacy-org',
+    [
+      {
+        definition: {
+          id: 'fixture-dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+      {
+        definition: {
+          id: 'fixture-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-qa-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
+        },
+      },
+    ],
+    { at: 1, by: F },
+  );
+  const created = expectCreated(await graph.workPackages.create('Claims', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+
+  const steps = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   for (const row of [
-    workItemRow({ id: '080', projectId, parentId: null, position: 1, frozenNumber: '080' }),
-    workItemRow({ id: '080.1', projectId, parentId: '080', position: 1, name: 'Billing' }),
+    workItemRow({ id: '080', workPackageId, parentId: null, position: 1, frozenNumber: '080' }),
+    workItemRow({ id: '080.1', workPackageId, parentId: '080', position: 1, name: 'Billing' }),
     // Named like a reap's label, so a reason read off the label reads it wrong.
-    workItemRow({ id: '090', projectId, parentId: null, position: 2, name: 'x (lease expired)' }),
+    workItemRow({
+      id: '090',
+      workPackageId,
+      parentId: null,
+      position: 2,
+      name: 'x (lease expired)',
+    }),
   ])
     await source.stores.workItems.insert(row, [], { at: 1, by: F });
   // Existing in-progress nodes let history retain both workflow steps while
@@ -75,6 +124,7 @@ async function seeded() {
     });
     const bound = await source.stores.directory.patchPerson(id, { accountId: F }, { at: 1, by: F });
     if (!bound.ok) throw new Error(`binding ${id} was refused: ${bound.reason}`);
+    fixture.ownPersonInOrganization(id, 'fixture-legacy-org', [F]);
   }
   const runner = createPlanCommandRunner({
     uow: source.uow,
@@ -91,7 +141,7 @@ async function seeded() {
   /** Runs one batch at the next instant and answers the claim ids it wrote, if any. */
   const run = async (commands: Parameters<typeof runner.run>[2]): Promise<string[]> => {
     now += 1_000;
-    const answer = await runner.run(projectId, F, commands);
+    const answer = await runner.run(workPackageId, F, commands);
     if (!answer.ok) throw new Error(`the batch was refused: ${JSON.stringify(answer)}`);
     return answer.results.flatMap((each) => ('claimIds' in each ? each.claimIds : []));
   };
@@ -121,13 +171,13 @@ async function seeded() {
   /** Moves the clock to `at` and lets the sweep release what ran out. */
   const reap = async (at: number) => {
     now = at;
-    return graph.workItems.releaseExpiredLeases(projectId);
+    return graph.workItems.releaseExpiredLeases(workPackageId);
   };
   const history = (limit: number = CLAIM_HISTORY_LIMIT.default) =>
-    graph.workItems.claimHistoryWithin(projectId, LEGACY_ACCESS, limit);
+    graph.workItems.claimHistoryWithin(workPackageId, LEGACY_ACCESS, limit);
   const appendEvent = (event: Partial<PlanEvent> & { id: string; createdAt: number }) =>
     source.stores.journal.appendEvent({
-      projectId,
+      workPackageId,
       userId: F,
       kind: 'release',
       label: 'release',
@@ -142,7 +192,7 @@ async function seeded() {
     source,
     graph,
     runner,
-    projectId,
+    workPackageId,
     steps,
     run,
     leased,
@@ -167,7 +217,7 @@ const item080 = { number: '080.1', numberIsFrozen: false, name: 'Billing' };
 
 describe('the claim history read', () => {
   it('lists claims, releases and reaps newest first, each with its reason', async () => {
-    const { fixture, source, projectId, steps, run, leased, reap, history } = await seeded();
+    const { fixture, source, workPackageId, steps, run, leased, reap, history } = await seeded();
     const [dev, qa] = steps;
     try {
       const claimed = await run([
@@ -233,7 +283,7 @@ describe('the claim history read', () => {
         { act: 0, at: 2_000, kind: 'claim', reason: 'claimed', claims: byClaim(claire) },
       ]);
       // Each event is the stored plan event, by id.
-      const stored = await source.stores.planEvents.listFor(projectId, {
+      const stored = await source.stores.planEvents.listFor(workPackageId, {
         kinds: ['claim', 'release'],
       });
       expect(read?.map(({ eventId }) => eventId)).toEqual(stored.map(({ id }) => id));
@@ -283,12 +333,12 @@ describe('the claim history read', () => {
   });
 
   it('lists no undo, redo or other command', async () => {
-    const { source, projectId, steps, run, history, runner } = await seeded();
+    const { source, workPackageId, steps, run, history, runner } = await seeded();
     const [dev] = steps;
     try {
       await run([{ kind: 'claimWorkItem', workItemId: '090', personId: 'claire' }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       await run([
         {
           kind: 'setEstimate',
@@ -335,7 +385,7 @@ describe('the claim history read', () => {
   });
 
   it('lists a claim made beside other commands in one batch', async () => {
-    const { source, projectId, steps, run, history } = await seeded();
+    const { source, workPackageId, steps, run, history } = await seeded();
     const [dev] = steps;
     try {
       const claimed = await run([
@@ -347,7 +397,7 @@ describe('the claim history read', () => {
           days: { optimistic: 1, realistic: 2, pessimistic: 3 },
         },
       ]);
-      const [batch] = await source.stores.planEvents.listFor(projectId, { kinds: ['batch'] });
+      const [batch] = await source.stores.planEvents.listFor(workPackageId, { kinds: ['batch'] });
       expect(
         (await history())?.map(({ eventId, act, kind, reason, claims }) => ({
           eventId,
@@ -417,7 +467,7 @@ describe('the claim history read', () => {
   });
 
   it('lists nothing for a batch that deleted a claimed item', async () => {
-    const { source, projectId, steps, run, history } = await seeded();
+    const { source, workPackageId, steps, run, history } = await seeded();
     const [dev] = steps;
     try {
       await run([{ kind: 'claimWorkItem', workItemId: '090', personId: 'claire' }]);
@@ -431,7 +481,7 @@ describe('the claim history read', () => {
           days: { optimistic: 1, realistic: 2, pessimistic: 3 },
         },
       ]);
-      const [deleted] = await source.stores.planEvents.listFor(projectId, { kinds: ['batch'] });
+      const [deleted] = await source.stores.planEvents.listFor(workPackageId, { kinds: ['batch'] });
       expect(JSON.stringify(deleted.before)).toContain('add_claims');
       expect((await history())?.map(({ kind }) => kind)).toEqual(['claim']);
     } finally {
@@ -486,10 +536,10 @@ describe('the claim history read', () => {
   });
 
   it('fails the read for a row the tree cannot number, never reading it as deleted', async () => {
-    const { source, projectId, history, appendEvent } = await seeded();
+    const { source, workPackageId, history, appendEvent } = await seeded();
     try {
       await source.stores.workItems.insert(
-        workItemRow({ id: 'w-orphan', projectId, parentId: 'no-such-parent', position: 1 }),
+        workItemRow({ id: 'w-orphan', workPackageId, parentId: 'no-such-parent', position: 1 }),
         [],
         { at: 1, by: F },
       );
@@ -541,12 +591,12 @@ describe('the claim history read', () => {
     }
   });
 
-  it('answers null for a project nothing holds', async () => {
+  it('answers null for a work package nothing holds', async () => {
     const { source, graph } = await seeded();
     try {
-      expect(await graph.workItems.claimHistoryWithin('no-such-project', LEGACY_ACCESS, 50)).toBe(
-        null,
-      );
+      expect(
+        await graph.workItems.claimHistoryWithin('no-such-work-package', LEGACY_ACCESS, 50),
+      ).toBe(null);
     } finally {
       await source.close();
     }

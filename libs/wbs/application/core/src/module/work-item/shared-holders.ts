@@ -7,11 +7,11 @@ import {
 
 import type { ClaimStore } from '../../ports/claim-store';
 import type { DirectoryStore } from '../../ports/directory-store';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type {
-  ProjectReadAccess,
-  ProjectReadOrigin,
-  ResourceAccess,
-} from '../../ports/organization-access';
+  WorkPackageReadAccess,
+  WorkPackageReadOrigin,
+} from '../../ports/work-package-report-store';
 import type { NamedOccupancyHolder } from './claims';
 
 interface SharedShortage {
@@ -25,21 +25,21 @@ interface Holders {
 }
 
 /** One authorization decision per verified origin, for one actor and one observation. */
-export function projectVisibility(
-  reader: ProjectReadAccess,
+export function workPackageVisibility(
+  reader: WorkPackageReadAccess,
   actorId: string,
   access: ResourceAccess,
 ) {
   const observed = new Map<string, { organizationId: string; readable: Promise<boolean> }>();
-  return (origin: ProjectReadOrigin): Promise<boolean> => {
+  return (origin: WorkPackageReadOrigin): Promise<boolean> => {
     const previous = observed.get(origin.id);
     if (previous !== undefined) {
       if (previous.organizationId !== origin.organizationId)
-        throw new Error('inconsistent holder project ownership');
+        throw new Error('inconsistent holder work package ownership');
       return previous.readable;
     }
-    const readable = reader.mayReadProjectWithin(origin, actorId, access).then((decision) => {
-      if (typeof decision !== 'boolean') throw new Error('no project read decision');
+    const readable = reader.mayReadWorkPackageWithin(origin, actorId, access).then((decision) => {
+      if (typeof decision !== 'boolean') throw new Error('no work package read decision');
       return decision;
     });
     observed.set(origin.id, { organizationId: origin.organizationId, readable });
@@ -51,10 +51,10 @@ export function projectVisibility(
 export async function sharedHolders(
   authority: {
     readonly claims: Pick<ClaimStore, 'organizationOccupancyOf'>;
-    readonly projects: ProjectReadAccess;
+    readonly workPackages: WorkPackageReadAccess;
     readonly actorId: string;
     readonly access: ResourceAccess;
-    readonly askingProject: string;
+    readonly askingWorkPackageId: string;
   },
   shortages: readonly SharedShortage[],
 ): Promise<(shortage: SharedShortage, askingLeaf: string) => Holders> {
@@ -66,13 +66,14 @@ export async function sharedHolders(
     needed.add(shortage.scope);
     scope.set(shortage.resourceId, needed);
   }
-  const decide = projectVisibility(authority.projects, authority.actorId, authority.access);
+  const decide = workPackageVisibility(authority.workPackages, authority.actorId, authority.access);
   const groups = new Map<string, { row: OrganizationOccupancyRow; readable: boolean }[]>();
   for (const row of rows) {
     const needed = scope.get(row.resourceId);
     if (needed === undefined) throw new Error('holder read returned an unasked resource');
-    if (!needed.has('organization') && row.projectId !== authority.askingProject) continue;
-    const readable = await decide({ id: row.projectId, organizationId: row.organizationId });
+    if (!needed.has('organization') && row.workPackageId !== authority.askingWorkPackageId)
+      continue;
+    const readable = await decide({ id: row.workPackageId, organizationId: row.organizationId });
     const group = groups.get(row.resourceId) ?? [];
     // Proof: unfiltered-holder exposed private-origin-person in the mounted refusal.
     group.push({ row, readable });
@@ -82,16 +83,19 @@ export async function sharedHolders(
     const relevant = (groups.get(resourceId) ?? []).filter(
       ({ row }) =>
         row.workItemId !== askingLeaf &&
-        (bound === 'organization' || row.projectId === authority.askingProject),
+        (bound === 'organization' || row.workPackageId === authority.askingWorkPackageId),
     );
     const visible = relevant.filter(({ readable }) => readable).map(({ row }) => row);
     const hidden = relevant.filter(({ readable }) => !readable).map(({ row }) => row);
-    const origins = new Map(visible.map((row) => [row.workItemId, row.projectId]));
+    const origins = new Map(visible.map((row) => [row.workItemId, row.workPackageId]));
     return {
       holders: (occupancyByResource(visible).at(0)?.holders ?? []).map((holder) => {
-        const projectId = origins.get(holder.workItemId);
-        if (projectId === undefined) throw new Error('named holder has no verified project origin');
-        return projectId === authority.askingProject ? holder : { ...holder, projectId };
+        const workPackageId = origins.get(holder.workItemId);
+        if (workPackageId === undefined)
+          throw new Error('named holder has no verified work package origin');
+        return workPackageId === authority.askingWorkPackageId
+          ? holder
+          : { ...holder, workPackageId };
         // Proof: double-count reported 32 instead of 16 for two claims on one denied leaf.
       }),
       hiddenHolders: { units: occupancyByResource(hidden).at(0)?.occupied ?? 0 },

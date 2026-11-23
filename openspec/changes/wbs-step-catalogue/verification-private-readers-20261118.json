@@ -1,0 +1,1183 @@
+{
+  "schema": "private-wbs-reader-constructor-observations-v1",
+  "date": "2026-11-18",
+  "status": "bounded private implementation progress; full goal remains active",
+  "sourceBeforeNotes": {
+    "path": "/tmp/puni-step-subtree-estimate-first-live-v1/source-pins.json",
+    "sha256": "af453a5914b6a882018879e5de8323e5d557ffc2b5a9e83baab4c12aadbc826f",
+    "bytes": 5171296,
+    "mode": 384
+  },
+  "observations": [
+    {
+      "qualification": "Actual current memory/SQLite reader after-control; earlier preguard lifetime failures and removed-step/order reader failures are retained in preceding private records. This does not independently prove every entry/post-await condition.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.receipt.json",
+          "sha256": "1a5cbeae8adcb24494cb007f5ac941bf68368f2ce6fd7625c3202b6830605a49",
+          "bytes": 1497,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.log",
+          "sha256": "a25761cc31820ea2c69b0d3c4b9f0bf7484acc6f148954199850def8a922e5de",
+          "bytes": 343,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.validation.json",
+          "sha256": "92374453afbf161dcb6eca1a4cfb4e113e42ee584e63dbbc4adcd4dc1a947106",
+          "bytes": 1370,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "--test-name-pattern",
+            "^memory stepCatalogue.factRead:estimate-(borrowed-expiry|public-source-close)$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:36:33.998Z",
+        "endedAt": "2026-11-18T09:36:36.518Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.log",
+          "sha256": "a25761cc31820ea2c69b0d3c4b9f0bf7484acc6f148954199850def8a922e5de",
+          "bytes": 343
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factRead:estimate-borrowed-expiry [36.89ms]\n(pass) memory stepCatalogue.factRead:estimate-public-source-close [5.45ms]\n\n 2 pass\n 32 filtered out\n 0 fail\n 88 expect() calls\nRan 2 tests across 1 file. [2.48s]\n",
+      "validation": {
+        "phase": "readerLifetime-memory",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/source-pins.json",
+            "sha256": "7e3898a869d1a65299287f2f98babaa47bf4a80350d4526a338dec9708ed8c1f",
+            "bytes": 5170262,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.log",
+            "sha256": "a25761cc31820ea2c69b0d3c4b9f0bf7484acc6f148954199850def8a922e5de",
+            "bytes": 343,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-memory/native.receipt.json",
+            "sha256": "1a5cbeae8adcb24494cb007f5ac941bf68368f2ce6fd7625c3202b6830605a49",
+            "bytes": 1497,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Actual current memory/SQLite reader after-control; earlier preguard lifetime failures and removed-step/order reader failures are retained in preceding private records. This does not independently prove every entry/post-await condition.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.receipt.json",
+          "sha256": "40cee62958fddf8bfe85406a9f1f0c7b8dccd479dbaa6001c2db997c4ed11eea",
+          "bytes": 1500,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.log",
+          "sha256": "4cdaf3425a4612b396a7f023fbe4a13c6c073028eafb5bbfc26c148ff2f0aa51",
+          "bytes": 350,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.validation.json",
+          "sha256": "38dc470f846374df252e16bb7c7ace2b4653cace7f920f2e2efdaf576e87d3af",
+          "bytes": 1370,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+            "--test-name-pattern",
+            "^sqlite stepCatalogue.factRead:estimate-(borrowed-expiry|public-source-close)$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:36:40.404Z",
+        "endedAt": "2026-11-18T09:36:44.287Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.log",
+          "sha256": "4cdaf3425a4612b396a7f023fbe4a13c6c073028eafb5bbfc26c148ff2f0aa51",
+          "bytes": 350
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factRead:estimate-borrowed-expiry [647.75ms]\n(pass) sqlite stepCatalogue.factRead:estimate-public-source-close [553.02ms]\n\n 2 pass\n 31 filtered out\n 0 fail\n 100 expect() calls\nRan 2 tests across 1 file. [3.84s]\n",
+      "validation": {
+        "phase": "readerLifetime-sqlite",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/source-pins.json",
+            "sha256": "7e3898a869d1a65299287f2f98babaa47bf4a80350d4526a338dec9708ed8c1f",
+            "bytes": 5170262,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.log",
+            "sha256": "4cdaf3425a4612b396a7f023fbe4a13c6c073028eafb5bbfc26c148ff2f0aa51",
+            "bytes": 350,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/readerLifetime-sqlite/native.receipt.json",
+            "sha256": "40cee62958fddf8bfe85406a9f1f0c7b8dccd479dbaa6001c2db997c4ed11eea",
+            "bytes": 1500,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Actual current memory/SQLite reader after-control; earlier preguard lifetime failures and removed-step/order reader failures are retained in preceding private records. This does not independently prove every entry/post-await condition.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.receipt.json",
+          "sha256": "68dac13642d7cd93ea0634acf740a8d2d69b0ce3a415db8638dc11bb64e864e5",
+          "bytes": 1470,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.log",
+          "sha256": "cc5aa9dd02af057cd8df87c80dcf778ab3c34e3d9350467878b31720e2c1fd33",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.validation.json",
+          "sha256": "734dbd485013893672355c8f3cd5ddddacfb665c2086a80a800beb76b41df389",
+          "bytes": 1364,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "--test-name-pattern",
+            "stepCatalogue.factRead:work-package-catalogue-values$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:36:49.067Z",
+        "endedAt": "2026-11-18T09:36:51.585Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.log",
+          "sha256": "cc5aa9dd02af057cd8df87c80dcf778ab3c34e3d9350467878b31720e2c1fd33",
+          "bytes": 272
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factRead:work-package-catalogue-values [35.41ms]\n\n 1 pass\n 33 filtered out\n 0 fail\n 24 expect() calls\nRan 1 test across 1 file. [2.47s]\n",
+      "validation": {
+        "phase": "packageReaderMemory",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/source-pins.json",
+            "sha256": "7e3898a869d1a65299287f2f98babaa47bf4a80350d4526a338dec9708ed8c1f",
+            "bytes": 5170262,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.log",
+            "sha256": "cc5aa9dd02af057cd8df87c80dcf778ab3c34e3d9350467878b31720e2c1fd33",
+            "bytes": 272,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/packageReaderMemory/native.receipt.json",
+            "sha256": "68dac13642d7cd93ea0634acf740a8d2d69b0ce3a415db8638dc11bb64e864e5",
+            "bytes": 1470,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Actual current memory/SQLite reader after-control; earlier preguard lifetime failures and removed-step/order reader failures are retained in preceding private records. This does not independently prove every entry/post-await condition.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.receipt.json",
+          "sha256": "74d1662aa28e9b83f91e8d166b197ae2185a2f7f6e230b64c9b56c6b51685038",
+          "bytes": 1473,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.log",
+          "sha256": "d46054340278444c98a27edfd3be11ced6d4a9f23a5fe6f0acd350886ac1e6eb",
+          "bytes": 276,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.validation.json",
+          "sha256": "10d67f2059fd300a3b70e1de43a18f9540f6ce35a65ee40f5cffc08393600ee2",
+          "bytes": 1364,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+            "--test-name-pattern",
+            "stepCatalogue.factRead:work-package-catalogue-values$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:36:55.579Z",
+        "endedAt": "2026-11-18T09:36:59.003Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.log",
+          "sha256": "d46054340278444c98a27edfd3be11ced6d4a9f23a5fe6f0acd350886ac1e6eb",
+          "bytes": 276
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factRead:work-package-catalogue-values [757.14ms]\n\n 1 pass\n 32 filtered out\n 0 fail\n 30 expect() calls\nRan 1 test across 1 file. [3.38s]\n",
+      "validation": {
+        "phase": "packageReaderSqlite",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/source-pins.json",
+            "sha256": "7e3898a869d1a65299287f2f98babaa47bf4a80350d4526a338dec9708ed8c1f",
+            "bytes": 5170262,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.log",
+            "sha256": "d46054340278444c98a27edfd3be11ced6d4a9f23a5fe6f0acd350886ac1e6eb",
+            "bytes": 276,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-package-readers-live-v1/packageReaderSqlite/native.receipt.json",
+            "sha256": "74d1662aa28e9b83f91e8d166b197ae2185a2f7f6e230b64c9b56c6b51685038",
+            "bytes": 1473,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Actual healthy service write/fact/journal/publication first, then real binding removal at the actual set dependency after structural admission. Refusal leaves no extra history/event/fact.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.receipt.json",
+          "sha256": "c7999b2145bb15c0c259c60d177a162e64dd5f27a4fcbe22722f0ba4d196eb53",
+          "bytes": 1384,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.log",
+          "sha256": "038bf64c4f463dc9878b53fc36db5f5e53dcc259cbc4deae245224fa77ca6491",
+          "bytes": 295,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.validation.json",
+          "sha256": "adf09c40968eea4dda1062c0849c25ad0529574fadd95030a0c896b27667ae61",
+          "bytes": 1382,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:40:02.679Z",
+        "endedAt": "2026-11-18T09:40:05.244Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.log",
+          "sha256": "038bf64c4f463dc9878b53fc36db5f5e53dcc259cbc4deae245224fa77ca6491",
+          "bytes": 295
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/application/core/src/testing/estimate-service-boundary.test.ts:\n(pass) actual current service recaptures estimate applicability after structural admission without false success [43.67ms]\n\n 1 pass\n 0 fail\n 12 expect() calls\nRan 1 test across 1 file. [2.52s]\n",
+      "validation": {
+        "phase": "serviceBoundary",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-estimate-service-boundary-live-v1/source-pins.json",
+            "sha256": "a3779d17e61f174cca8f6bfcacbe3e1cc2d1eeef820d00a93d604db5797bac1c",
+            "bytes": 5171037,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.log",
+            "sha256": "038bf64c4f463dc9878b53fc36db5f5e53dcc259cbc4deae245224fa77ca6491",
+            "bytes": 295,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-estimate-service-boundary-live-v1/serviceBoundary/native.receipt.json",
+            "sha256": "c7999b2145bb15c0c259c60d177a162e64dd5f27a4fcbe22722f0ba4d196eb53",
+            "bytes": 1384,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Four normal WBS roots passed at018f5f3b, before the later three subtree test registrations. No backend or full repository type verdict.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.receipt.json",
+          "sha256": "9752d26e8bbdcbe94adc899dec8324f3d6221023bfc41e266f4e1685289e8249",
+          "bytes": 1528,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.validation.json",
+          "sha256": "7458d16e6c9089c347f9d1e0adb39f6b20d6c5ea83ef1d361637145c8d98b932",
+          "bytes": 1353,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/domain/domain/tsconfig.json",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:40:56.072Z",
+        "endedAt": "2026-11-18T09:41:14.655Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "transcript": "",
+      "validation": {
+        "phase": "types",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/source-pins.json",
+            "sha256": "018f5f3b838021f039ef82338d94487bd2ceeaf1b1cb9ac9409697626db8dd6e",
+            "bytes": 5171037,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/types/native.receipt.json",
+            "sha256": "9752d26e8bbdcbe94adc899dec8324f3d6221023bfc41e266f4e1685289e8249",
+            "bytes": 1528,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Nineteen genuine116/E37/117 scope cases:6pass13fail66assertions. Failures name remaining old step-table joins in actual/progress/claim observations; fixtures did not fake old tables.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.receipt.json",
+          "sha256": "208bb1aa4b69bd23b7dec360e80be54d9bb9ac0be0bcfcdab466087e6c12a165",
+          "bytes": 1600,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.log",
+          "sha256": "978d8195fe9372f604e1dd7d4bcab5279d686e2272f83c1049ab8e3096f377de",
+          "bytes": 33190,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.validation.json",
+          "sha256": "e67c0ba01e0465174fb1350a29575ec0c3a82808f264d105dcb5eb6ba8f4c0ac",
+          "bytes": 1384,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/adapters/store-sqlite/src/startable-scope.db.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/assignment-scope.db.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/person-work-scope.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:41:57.707Z",
+        "endedAt": "2026-11-18T09:42:14.122Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.log",
+          "sha256": "978d8195fe9372f604e1dd7d4bcab5279d686e2272f83c1049ab8e3096f377de",
+          "bytes": 33190
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/startable-scope.db.test.ts:\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"step_progress\".\"work_item_id\", \"step_progress\".\"step_id\", \"step_progress\".\"state\", \"step_progress\".\"stated_at\", \"work_item\".\"work_package_id\", \"step\".\"work_package_id\", \"step\".\"position\" from \"step_progress\" left join \"step\" on \"step_progress\".\"step_id\" = \"step\".\"id\" left join \"work_item\" on \"step_progress\".\"work_item_id\" = \"work_item\".\"id\" where ((\"step_progress\".\"work_item_id\" in (?)) and (((\"work_item\".\"work_package_id\" = ?) or ((\"work_item\".\"work_package_id\" is null))))) order by \"step_progress\".\"work_item_id\", \"step\".\"position\", \"step_progress\".\"step_id\"\nparams: claimed,work-package-0\n  query: \"select \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step_progress\\\".\\\"step_id\\\", \\\"step_progress\\\".\\\"state\\\", \\\"step_progress\\\".\\\"stated_at\\\", \\\"work_item\\\".\\\"work_package_id\\\", \\\"step\\\".\\\"work_package_id\\\", \\\"step\\\".\\\"position\\\" from \\\"step_progress\\\" left join \\\"step\\\" on \\\"step_progress\\\".\\\"step_id\\\" = \\\"step\\\".\\\"id\\\" left join \\\"work_item\\\" on \\\"step_progress\\\".\\\"work_item_id\\\" = \\\"work_item\\\".\\\"id\\\" where ((\\\"step_progress\\\".\\\"work_item_id\\\" in (?)) and (((\\\"work_item\\\".\\\"work_package_id\\\" = ?) or ((\\\"work_item\\\".\\\"work_package_id\\\" is null))))) order by \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step\\\".\\\"position\\\", \\\"step_progress\\\".\\\"step_id\\\"\",\n params: [\n  \"claimed\", \"work-package-0\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n(fail) a refused claim under legacy access > reads only the people a refused claim names [916.20ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"step_progress\".\"work_item_id\", \"step_progress\".\"step_id\", \"step_progress\".\"state\", \"step_progress\".\"stated_at\" from \"step_progress\" inner join \"step\" on \"step_progress\".\"step_id\" = \"step\".\"id\" inner join \"work_item\" on \"step_progress\".\"work_item_id\" = \"work_item\".\"id\" where \"work_item\".\"work_package_id\" = ? order by \"step_progress\".\"work_item_id\", \"step\".\"position\", \"step_progress\".\"step_id\"\nparams: work-package-0\n  query: \"select \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step_progress\\\".\\\"step_id\\\", \\\"step_progress\\\".\\\"state\\\", \\\"step_progress\\\".\\\"stated_at\\\" from \\\"step_progress\\\" inner join \\\"step\\\" on \\\"step_progress\\\".\\\"step_id\\\" = \\\"step\\\".\\\"id\\\" inner join \\\"work_item\\\" on \\\"step_progress\\\".\\\"work_item_id\\\" = \\\"work_item\\\".\\\"id\\\" where \\\"work_item\\\".\\\"work_package_id\\\" = ? order by \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step\\\".\\\"position\\\", \\\"step_progress\\\".\\\"step_id\\\"\",\n params: [\n  \"work-package-0\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n(fail) the startable read under legacy access > materializes only the assignee and the claim holder during a tiny startable read [800.36ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"step_progress\".\"work_item_id\", \"step_progress\".\"step_id\", \"step_progress\".\"state\", \"step_progress\".\"stated_at\" from \"step_progress\" inner join \"step\" on \"step_progress\".\"step_id\" = \"step\".\"id\" inner join \"work_item\" on \"step_progress\".\"work_item_id\" = \"work_item\".\"id\" where \"work_item\".\"work_package_id\" = ? order by \"step_progress\".\"work_item_id\", \"step\".\"position\", \"step_progress\".\"step_id\"\nparams: work-package-0\n  query: \"select \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step_progress\\\".\\\"step_id\\\", \\\"step_progress\\\".\\\"state\\\", \\\"step_progress\\\".\\\"stated_at\\\" from \\\"step_progress\\\" inner join \\\"step\\\" on \\\"step_progress\\\".\\\"step_id\\\" = \\\"step\\\".\\\"id\\\" inner join \\\"work_item\\\" on \\\"step_progress\\\".\\\"work_item_id\\\" = \\\"work_item\\\".\\\"id\\\" where \\\"work_item\\\".\\\"work_package_id\\\" = ? order by \\\"step_progress\\\".\\\"work_item_id\\\", \\\"step\\\".\\\"position\\\", \\\"step_progress\\\".\\\"step_id\\\"\",\n params: [\n  \"work-package-0\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n(fail) resource fit in the startable read > reads capacities, demands and occupancy once each, whatever the number of leaves [867.06ms]\n\nlibs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:136:38)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:136:38)\n(fail) the claims observation > settles and closes its one owned connection after a successful claim read [576.58ms]\n(pass) the claims observation > settles and closes its one owned connection after not-found and modeled refusal [598.01ms]\n(pass) the claims observation > rolls back and closes its one owned connection after a trusted-state read failure [704.70ms]\n(pass) the claims observation > closes an acquired owned connection when BEGIN fails before the read [739.36ms]\n201 |       const reading = service.claimsWithin('work_package', LEGACY).then(\n202 |         (answer) => (answer === null || 'kind' in answer ? 'refused' : 'answered'),\n203 |         (error: unknown) => String(error),\n204 |       );\n205 |       const [outcome] = await Promise.all([reading, claimNewRow(`w-${String(delay)}`, delay)]);\n206 |       expect({ delay, outcome }).toEqual({ delay, outcome: 'answered' });\n                                       ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"delay\": 0,\n-   \"outcome\": \"answered\",\n+   \"outcome\": \n+ \"DrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\n+ params: work_package\"\n+ ,\n  }\n\n- Expected  - 1\n+ Received  + 4\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:206:34)\n(fail) the claims observation > answers whatever a racing claim on a new row lands before or after [747.71ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:211:26)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:211:26)\n(fail) the claims observation > refuses legacy access once the deployment is activated [749.91ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:229:37)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:229:37)\n(fail) the claims observation > does not see a claim an open batch has not committed [732.67ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at claimsWithin (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2211:51)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:271:38)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at claimsWithin (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2211:51)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:271:38)\n(fail) the claims observation > holds one snapshot while another connection commits a row and its claim [657.79ms]\n(pass) the claims observation > throws both failures when the savepoint does not roll back [565.20ms]\n(pass) the claims observation > answers an absent work package as not found [620.57ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeNow (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:276:18)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:261:17)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:360:43)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:55:30)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeNow (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:276:18)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:261:17)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:360:43)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:55:30)\n(fail) the source's public claims read > does not see an open batch's claim (plain source) [659.92ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeNow (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:276:18)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:261:17)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:360:43)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:55:30)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeNow (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:276:18)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:261:17)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:360:43)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:55:30)\n(fail) the source's public claims read > does not see an open batch's claim (bound source) [662.40ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"id\" from \"step\" where \"step\".\"work_package_id\" = ? order by \"step\".\"position\", \"step\".\"id\"\nparams: work_package\n  query: \"select \\\"id\\\" from \\\"step\\\" where \\\"step\\\".\\\"work_package_id\\\" = ? order by \\\"step\\\".\\\"position\\\", \\\"step\\\".\\\"id\\\"\",\n params: [\n  \"work_package\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:393:46)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:26:15)\n      at observeIn (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:621:6)\n      at observeCommitted (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n      at observeWorkPackage (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts:257:14)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts:393:46)\n(fail) the source's public claims read > reuses one read connection and closes every pooled one with the source [663.47ms]\n\nlibs/wbs/adapters/store-sqlite/src/assignment-scope.db.test.ts:\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"actual\".\"work_item_id\", \"actual\".\"step_id\", \"actual\".\"days\", \"actual\".\"recorded_at\" from \"actual\" inner join \"step\" on \"actual\".\"step_id\" = \"step\".\"id\" inner join \"work_item\" on \"actual\".\"work_item_id\" = \"work_item\".\"id\" where \"work_item\".\"work_package_id\" = ? order by \"actual\".\"work_item_id\", \"step\".\"position\", \"actual\".\"step_id\"\nparams: work-package-0\n  query: \"select \\\"actual\\\".\\\"work_item_id\\\", \\\"actual\\\".\\\"step_id\\\", \\\"actual\\\".\\\"days\\\", \\\"actual\\\".\\\"recorded_at\\\" from \\\"actual\\\" inner join \\\"step\\\" on \\\"actual\\\".\\\"step_id\\\" = \\\"step\\\".\\\"id\\\" inner join \\\"work_item\\\" on \\\"actual\\\".\\\"work_item_id\\\" = \\\"work_item\\\".\\\"id\\\" where \\\"work_item\\\".\\\"work_package_id\\\" = ? order by \\\"actual\\\".\\\"work_item_id\\\", \\\"step\\\".\\\"position\\\", \\\"actual\\\".\\\"step_id\\\"\",\n params: [\n  \"work-package-0\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n(fail) work-package-scoped assignment reads > [PROJECT-ASSIGNMENT-READS-001] materializes only assigned project rows and names during a tiny tree read [807.77ms]\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n              ^\nDrizzleQueryError: Failed query: select \"actual\".\"work_item_id\", \"actual\".\"step_id\", \"actual\".\"days\", \"actual\".\"recorded_at\" from \"actual\" inner join \"step\" on \"actual\".\"step_id\" = \"step\".\"id\" inner join \"work_item\" on \"actual\".\"work_item_id\" = \"work_item\".\"id\" where \"work_item\".\"work_package_id\" = ? order by \"actual\".\"work_item_id\", \"step\".\"position\", \"actual\".\"step_id\"\nparams: work-package-0\n  query: \"select \\\"actual\\\".\\\"work_item_id\\\", \\\"actual\\\".\\\"step_id\\\", \\\"actual\\\".\\\"days\\\", \\\"actual\\\".\\\"recorded_at\\\" from \\\"actual\\\" inner join \\\"step\\\" on \\\"actual\\\".\\\"step_id\\\" = \\\"step\\\".\\\"id\\\" inner join \\\"work_item\\\" on \\\"actual\\\".\\\"work_item_id\\\" = \\\"work_item\\\".\\\"id\\\" where \\\"work_item\\\".\\\"work_package_id\\\" = ? order by \\\"actual\\\".\\\"work_item_id\\\", \\\"step\\\".\\\"position\\\", \\\"actual\\\".\\\"step_id\\\"\",\n params: [\n  \"work-package-0\"\n],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:10)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n                           ^\nSQLiteError: no such table: step\n      errno: 1,\n byteOffset: -1,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at execute (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/select.js:35:15)\n      at then (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/query-promise.js:20:15)\n(fail) work-package-scoped assignment reads > [PROJECT-ASSIGNMENT-READS-002] uses an indexed prior assignment read during one assignment write [797.22ms]\n\nlibs/wbs/adapters/store-sqlite/src/person-work-scope.db.test.ts:\n(pass) the by-person read under legacy access > materializes only the person read during a tiny by-person read [794.56ms]\n\n 6 pass\n 13 fail\n 66 expect() calls\nRan 19 tests across 4 files. [16.36s]\n",
+      "validation": {
+        "phase": "scopedFixtures",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/source-pins.json",
+            "sha256": "018f5f3b838021f039ef82338d94487bd2ceeaf1b1cb9ac9409697626db8dd6e",
+            "bytes": 5171037,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.log",
+            "sha256": "978d8195fe9372f604e1dd7d4bcab5279d686e2272f83c1049ab8e3096f377de",
+            "bytes": 33190,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-constructor-types-repaired-live-v1/scopedFixtures/native.receipt.json",
+            "sha256": "208bb1aa4b69bd23b7dec360e80be54d9bb9ac0be0bcfcdab466087e6c12a165",
+            "bytes": 1600,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "First test-only restore owner: real healthy subtree/fact/remove/unbind first; public and borrowed outcomes are undefined instead of estimate_refused. Borrowed first refusal assertion follows explicit outer COMMIT. Later no-write tails are unreached. Memory53assertions;SQLite65.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.receipt.json",
+          "sha256": "120b37235e929e9af00791f93b60b4bce9357b855d16ff7ea8d038ba2959634b",
+          "bytes": 1517,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.log",
+          "sha256": "575bfd4a5f2e637131c46a082b14b2aa0e02c26e815e77b32b3034cc6d552eb9",
+          "bytes": 2019,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.validation.json",
+          "sha256": "2957b756c053294b9449b161c580357beeec8cb307cc34fed516f33a8972fe92",
+          "bytes": 1371,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "--test-name-pattern",
+            "stepCatalogue\\.factWrite:(subtree-estimate-after-unbind|borrowed-subtree-refusal-keeps-commit)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:44:16.279Z",
+        "endedAt": "2026-11-18T09:44:18.811Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.log",
+          "sha256": "575bfd4a5f2e637131c46a082b14b2aa0e02c26e815e77b32b3034cc6d552eb9",
+          "bytes": 2019
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n- {\n-   \"kind\": \"estimate_refused\",\n-   \"reason\": \"step_not_resolved\",\n-   \"stepId\": \"subtree-estimate-retained\",\n-   \"workItemId\": \"subtree-estimate-leaf\",\n- }\n+ undefined\n\n- Expected  - 6\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:subtree-estimate-after-unbind [39.21ms]\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n- {\n-   \"kind\": \"estimate_refused\",\n-   \"reason\": \"step_not_resolved\",\n-   \"stepId\": \"subtree-estimate-retained\",\n-   \"workItemId\": \"subtree-estimate-leaf\",\n- }\n+ undefined\n\n- Expected  - 6\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit [7.94ms]\n\n 0 pass\n 34 filtered out\n 2 fail\n 53 expect() calls\nRan 2 tests across 1 file. [2.48s]\n",
+      "validation": {
+        "phase": "subtree-memory",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/source-pins.json",
+            "sha256": "af453a5914b6a882018879e5de8323e5d557ffc2b5a9e83baab4c12aadbc826f",
+            "bytes": 5171296,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.log",
+            "sha256": "575bfd4a5f2e637131c46a082b14b2aa0e02c26e815e77b32b3034cc6d552eb9",
+            "bytes": 2019,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-memory/native.receipt.json",
+            "sha256": "120b37235e929e9af00791f93b60b4bce9357b855d16ff7ea8d038ba2959634b",
+            "bytes": 1517,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "First test-only restore owner: real healthy subtree/fact/remove/unbind first; public and borrowed outcomes are undefined instead of estimate_refused. Borrowed first refusal assertion follows explicit outer COMMIT. Later no-write tails are unreached. Memory53assertions;SQLite65.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.receipt.json",
+          "sha256": "988558b4132133ab2a8740255b7f55b8b75d97a3eb5b43f24493feb490efbb7b",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.log",
+          "sha256": "dc9e6791eee3142b5d2ff9d883bcc81d57a8e55a223650b54e6266f17646e1b2",
+          "bytes": 2031,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.validation.json",
+          "sha256": "ff8da17ad2d5f89d766280f9846fc8668a064e34487c8dc26eb0b1e108b50fd7",
+          "bytes": 1371,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+            "--test-name-pattern",
+            "stepCatalogue\\.factWrite:(subtree-estimate-after-unbind|borrowed-subtree-refusal-keeps-commit)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:44:31.447Z",
+        "endedAt": "2026-11-18T09:44:35.521Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.log",
+          "sha256": "dc9e6791eee3142b5d2ff9d883bcc81d57a8e55a223650b54e6266f17646e1b2",
+          "bytes": 2031
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n- {\n-   \"kind\": \"estimate_refused\",\n-   \"reason\": \"step_not_resolved\",\n-   \"stepId\": \"subtree-estimate-retained\",\n-   \"workItemId\": \"subtree-estimate-leaf\",\n- }\n+ undefined\n\n- Expected  - 6\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:subtree-estimate-after-unbind [751.40ms]\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n- {\n-   \"kind\": \"estimate_refused\",\n-   \"reason\": \"step_not_resolved\",\n-   \"stepId\": \"subtree-estimate-retained\",\n-   \"workItemId\": \"subtree-estimate-leaf\",\n- }\n+ undefined\n\n- Expected  - 6\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit [668.39ms]\n\n 0 pass\n 33 filtered out\n 2 fail\n 65 expect() calls\nRan 2 tests across 1 file. [4.02s]\n",
+      "validation": {
+        "phase": "subtree-sqlite",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/source-pins.json",
+            "sha256": "af453a5914b6a882018879e5de8323e5d557ffc2b5a9e83baab4c12aadbc826f",
+            "bytes": 5171296,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.log",
+            "sha256": "dc9e6791eee3142b5d2ff9d883bcc81d57a8e55a223650b54e6266f17646e1b2",
+            "bytes": 2031,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/subtree-sqlite/native.receipt.json",
+            "sha256": "988558b4132133ab2a8740255b7f55b8b75d97a3eb5b43f24493feb490efbb7b",
+            "bytes": 1520,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    },
+    {
+      "qualification": "Backend build still fails: custom organization coordinator, missing PlanSide.comparison fixture evidence, two-source constructor calls and missing EstimateStore.readTarget double. Required repair remains open.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.receipt.json",
+          "sha256": "be7660ed0aac949912ca98e74ce5b3529d0a6caf0203b4fbe70ae29a226da715",
+          "bytes": 1372,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.log",
+          "sha256": "a1bf7874eaf96385deeed58a6f91f64298e25c941f720ea765d06fe63b471dd4",
+          "bytes": 2179,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.validation.json",
+          "sha256": "b3ff572750563b5f918fd5849d39b8e717d9b9ab1a61e1983626144414328270",
+          "bytes": 1365,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:50:15.144Z",
+        "endedAt": "2026-11-18T09:50:26.175Z",
+        "exitCode": 2,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.log",
+          "sha256": "a1bf7874eaf96385deeed58a6f91f64298e25c941f720ea765d06fe63b471dd4",
+          "bytes": 2179
+        },
+        "settled": true
+      },
+      "transcript": "apps/wbs/be-01/src/testing/organization-harness.ts(1212,7): error TS2741: Property 'tail' is missing in type 'Gate' but required in type 'WriteCoordinator'.\napps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts(1958,5): error TS2741: Property 'comparison' is missing in type '{ input: ComparablePlanInput; inputEvidence: SavedInputEvidence; schedule: { present: false; absentReason: string; }; }' but required in type 'PlanSide'.\napps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts(1960,81): error TS2741: Property 'comparison' is missing in type '{ input: ComparablePlanInput; inputEvidence: SavedInputEvidence; schedule: { present: false; absentReason: string; }; }' but required in type 'PlanSide'.\napps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts(2376,5): error TS2741: Property 'comparison' is missing in type '{ input: ComparablePlanInput; inputEvidence: SavedInputEvidence; schedule: { present: true; algorithmId: string; body: PlanScheduleValue; }; }' but required in type 'PlanSide'.\napps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts(663,23): error TS2554: Expected 2-3 arguments, but got 1.\napps/wbs/be-01/src/service/priority-band-identity.db.test.ts(306,23): error TS2554: Expected 2-3 arguments, but got 1.\napps/wbs/be-01/src/service/priority-band-identity.db.test.ts(821,23): error TS2554: Expected 2-3 arguments, but got 1.\napps/wbs/be-01/src/service/step.service.db.test.ts(654,11): error TS2741: Property 'readTarget' is missing in type '{ listByWorkPackage: (of: string) => Promise<StoredEstimate[]>; listByWorkItems: (of: string, ids: readonly string[]) => Promise<StoredEstimate[]>; listPlacements: (of: string, ids: readonly string[]) => Promise<...>; remove: (workItemId: string, stepId: string, stamp: WriteStamp) => Promise<...>; moveAll: (from: st...' but required in type 'EstimateStore'.\napps/wbs/be-01/src/testing/organization-harness.ts(1212,7): error TS2741: Property 'tail' is missing in type 'Gate' but required in type 'WriteCoordinator'.\napps/wbs/be-01/src/testing/organization-harness.ts(1212,7): error TS2741: Property 'tail' is missing in type 'Gate' but required in type 'WriteCoordinator'.\n",
+      "validation": {
+        "phase": "backendTypes",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/source-pins.json",
+            "sha256": "af453a5914b6a882018879e5de8323e5d557ffc2b5a9e83baab4c12aadbc826f",
+            "bytes": 5171296,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.log",
+            "sha256": "a1bf7874eaf96385deeed58a6f91f64298e25c941f720ea765d06fe63b471dd4",
+            "bytes": 2179,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-step-subtree-estimate-first-live-v1/backendTypes/native.receipt.json",
+            "sha256": "be7660ed0aac949912ca98e74ce5b3529d0a6caf0203b4fbe70ae29a226da715",
+            "bytes": 1372,
+            "mode": 384
+          }
+        ],
+        "allOtherInputsMatched": true,
+        "originalExitCode": 2,
+        "formatted": null,
+        "qualification": "Private SC13 source quality only; no runtime cutover or full goal completion."
+      }
+    }
+  ],
+  "requiredRemainder": [
+    "Other fact readers/writers and all13 SC17 families",
+    "Method-local subtree refusal rollback and caller propagation before history/events",
+    "Current explicit metadata seeds for remaining legacy suites",
+    "Backend type closure and full source lint/format/build",
+    "Held post-await/lifetime and other new safety-check necessity proofs",
+    "Command/API/MCP/UI/scheduler/history cutover",
+    "Full exact-SHA host gates, migration/window proofs and integration"
+  ],
+  "qualification": "No parent OpenSpec task tick, formal new guard fault credit, canonical migration activation or whole-goal completion."
+}

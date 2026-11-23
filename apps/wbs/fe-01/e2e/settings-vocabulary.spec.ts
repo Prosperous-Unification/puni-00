@@ -1,9 +1,8 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import { openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
- * The project settings modal in the app's one control vocabulary, measured by a
+ * The work package settings modal in the app's one control vocabulary, measured by a
  * browser (ui-review round 5b, F-117 to F-123): tabs drawn like every other
  * chrome control, a locked unit that says why and still shows which, the
  * priority ladder's columns named on screen, and a scrolling section that ends
@@ -26,6 +25,11 @@ async function openSettings(page: Page, title: string, workerIndex: number): Pro
     page,
     {
       name: 'Settings vocabulary',
+      steps: [
+        { code: 'dev', name: 'Dev' },
+        { code: 'qa', name: 'QA' },
+        { code: 'design', name: 'Design' },
+      ],
       rows: [
         { ref: 'a', name: 'Wire the board', estimates: { Dev: ESTIMATE, QA: ESTIMATE } },
         { ref: 'b', name: 'Paint the hall', estimates: { Dev: ESTIMATE } },
@@ -38,10 +42,10 @@ async function openSettings(page: Page, title: string, workerIndex: number): Pro
   const addWorkItem = page.getByRole('button', { name: 'Add work item' });
   await expect(sheet.or(addWorkItem)).toBeVisible();
   if (await sheet.isVisible()) await sheet.click();
-  const control = page.getByRole('button', { name: 'Project settings' });
+  const control = page.getByRole('button', { name: 'Work package settings' });
   await expect(control).toBeEnabled();
   await control.click();
-  const dialog = page.getByRole('dialog', { name: 'Project settings' });
+  const dialog = page.getByRole('dialog', { name: 'Work package settings' });
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -166,7 +170,7 @@ for (const scheme of ['light', 'dark'] as const) {
       const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
       await dialog.getByRole('tab', { name: 'Steps' }).click();
       const locked = dialog.getByRole('radio', { name: 'Dev minutes' });
-      const live = dialog.getByRole('radio', { name: 'New step minutes' });
+      const live = dialog.getByRole('radio', { name: 'Design minutes' });
       await expect(locked).toBeDisabled();
       await expect(locked).not.toBeChecked();
       await expect(live).toBeEnabled();
@@ -204,9 +208,10 @@ for (const scheme of ['light', 'dark'] as const) {
       expect(liveRing, 'the live ring is louder than the locked one').toBeGreaterThan(lockedRing);
 
       // A radio the palette draws still shows where the keyboard is.
-      await dialog.getByLabel('New step', { exact: true }).focus();
+      const focused = dialog.getByRole('radio', { name: 'Design workdays' });
+      await focused.focus();
       await page.keyboard.press('Tab');
-      const focused = dialog.getByRole('radio', { name: 'New step workdays' });
+      await page.keyboard.press('Shift+Tab');
       await expect(focused).toBeFocused();
       const ring = await focused.evaluate((input) => {
         const style = getComputedStyle(input);

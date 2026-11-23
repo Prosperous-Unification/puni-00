@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
+import { openWorkPackageActions } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
@@ -29,11 +29,11 @@ async function openPlan(page: Page): Promise<string> {
     { run: RUN_TOKEN, worker: info.workerIndex, test: info.title },
   );
   await openSeededPlan(page, seeded);
-  const starts = page.getByLabel('Project start date');
+  const starts = page.getByLabel('Work package start date');
   await starts.fill('2026-09-19');
   await starts.press('Enter');
   await expect(starts).toHaveValue('2026-09-19');
-  return seeded.projectId;
+  return seeded.workPackageId;
 }
 
 /** Every `<details>` popover the toolbar and the header carry, by its summary's words. */
@@ -51,6 +51,7 @@ test.describe('the toolbar popovers', () => {
     await openPlan(page);
     const left: string[] = [];
     for (const words of PANELS) {
+      if (words === 'Saved plans') await openWorkPackageActions(page);
       const summary = summaryOf(page, words);
       await summary.click();
       const details = summary.locator('..');
@@ -82,7 +83,9 @@ test.describe('the toolbar popovers', () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll('details[open] > summary')].map((node) => node.textContent),
+          [...document.querySelectorAll('details[data-dismissible][open] > summary')].map(
+            (node) => node.textContent,
+          ),
         ),
       )
       .toEqual(['Views']);
@@ -195,6 +198,7 @@ test.describe('the toolbar popovers', () => {
     await summaryOf(page, 'Views').click();
     const views = await look('[data-saved-views-panel]', 'Name this view', 'No saved views yet.');
     await summaryOf(page, 'Views').click();
+    await openWorkPackageActions(page);
     await summaryOf(page, 'Saved plans').click();
     // Proof: on 2026-10-14, against the unstyled shelf, this failed on `[data-saved-plans-panel]
     // has no name field` — a heading, a native `Save plan` button and a bare sentence.
@@ -228,6 +232,7 @@ test.describe('the toolbar popovers', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openPlan(page);
+    await openWorkPackageActions(page);
     await summaryOf(page, 'Saved plans').click();
     const panel = page.locator('[data-saved-plans-panel]');
     await panel.getByRole('textbox', { name: 'Name this plan' }).fill('Kept plan');
@@ -250,7 +255,8 @@ test.describe('the toolbar popovers', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    const projectId = await openPlan(page);
+    const workPackageId = await openPlan(page);
+    await openWorkPackageActions(page);
     await summaryOf(page, 'Saved plans').click();
     const panel = page.locator('[data-saved-plans-panel]');
     const banner = panel.getByText('This plan has changed since the comparison below was made.');
@@ -293,9 +299,9 @@ test.describe('the toolbar popovers', () => {
 
     // An edit to the live plan, from anywhere, is a change of the comparison's live side.
     fixtureSuccess(
-      'postApiProjectsByIdCommands',
-      await fixtureClient(page).postApiProjectsByIdCommands({
-        params: { id: projectId },
+      'postApiWorkPackagesByIdCommands',
+      await fixtureClient(page).postApiWorkPackagesByIdCommands({
+        params: { id: workPackageId },
         body: {
           commands: [
             {
@@ -395,7 +401,7 @@ test.describe('the toolbar rows', () => {
         planWith: await top(page.getByLabel('Final estimate')),
         reset: await top(reset),
       };
-      const starts = await top(page.getByLabel('Project start date'));
+      const starts = await top(page.getByLabel('Work package start date'));
       // Proof, watched 2026-10-14 on the code before this change (Undo, Redo,
       // Keyboard shortcuts and Export / Import loose on the bar, the schedule
       // group alone with `ml-auto`): at 1024 it failed on Undo, Redo and Keyboard
@@ -465,7 +471,7 @@ test.describe('the toolbar rows', () => {
       await expect(end.getByRole('button', { name })).toBeVisible();
     await expect(end.locator('details[data-export]')).toBeVisible();
     const schedule = end.getByRole('group', { name: 'Schedule' });
-    await expect(schedule.getByLabel('Project start date')).toBeVisible();
+    await expect(schedule.getByLabel('Work package start date')).toBeVisible();
     await expect(schedule.getByLabel('Final estimate')).toBeVisible();
   });
 
@@ -489,23 +495,23 @@ test.describe('the toolbar rows', () => {
     // the native `09/19/2026` was on screen.
     // At rest: the words show only while the field does not hold the focus, and the commit
     // in `openPlan` may leave it there.
-    await page.getByLabel('Project start date').blur();
+    await page.getByLabel('Work package start date').blur();
     await expect(page.locator('[data-start-day]')).toBeVisible();
     await expect(page.locator('[data-start-day]')).toHaveText('19 Sep 2026');
     const ink = await page
-      .getByLabel('Project start date')
+      .getByLabel('Work package start date')
       .evaluate((node) => getComputedStyle(node).color);
     expect(ink, 'the native date text shows under the overlay').toBe('rgba(0, 0, 0, 0)');
 
     // Focused, the native field is the one on screen, for typing a day.
-    await page.getByLabel('Project start date').focus();
+    await page.getByLabel('Work package start date').focus();
     await expect(page.locator('[data-start-day]')).toBeHidden();
   });
 
   test('an unset start day reads in the app’s words, not mm/dd/yyyy (F-059)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openPlan(page);
-    const starts = page.getByLabel('Project start date');
+    const starts = page.getByLabel('Work package start date');
     await starts.fill('');
     await starts.press('Enter');
     await expect(starts).toHaveValue('');

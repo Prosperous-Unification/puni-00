@@ -32,7 +32,7 @@ export const internalController = (deps: InternalDeps) =>
         req.seq === undefined
           ? wsTransient(req.subscription, req.message)
           : wsData(req.subscription, req.seq, req.message);
-      // Proof: removing this actual send made cross-project-delivery.controller.db.test.ts
+      // Proof: removing this actual send made cross-work-package-delivery.controller.db.test.ts
       // receive only its admitted presence roster, then fail successor delivery (2026-10-23).
       // Proof: omitting await answers before the blocked recipient in delivery.integration.test.ts.
       const outcomes = await Promise.all([...sockets].map((socket) => socket.send(payload)));

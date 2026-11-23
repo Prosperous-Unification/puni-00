@@ -4,23 +4,24 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { openDatabase, openDrizzle, openExistingConnection } from './db';
 import { OPEN } from './gate';
-import { rollbackTo } from './migrate-down';
-import { ProjectRankRepository } from './project-rank';
+import { runMigrations } from './migrate';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { removeSharedPeople, saveSharedPeople } from './shared-people-rollback';
-import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
+import { openSpaceDatabase } from './testing/space-database';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 /**
  * `20261011200000_add_shared_people_audit` and the audited capacity-mode
- * setter (`share-people-across-projects` 8.1), over the organizations of
+ * setter (`share-people-across-work-packages` 8.1), over the organizations of
  * {@link openSpaceDatabase}.
  */
 let directory: string;
 let path: string;
-beforeEach(async () => {
+beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-shared-audit-'));
-  path = await openSpaceDatabase(directory);
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
@@ -36,10 +37,17 @@ function execute(statement: string) {
 }
 
 const stamp = (at: number) => ({ by: 'ada', at });
+const audit = '20261011200000_add_shared_people_audit';
+const predecessor = '20261011120000_add_browser_auth_lifecycle';
+const release = '20261103110000_add_initial_access_offers';
 
 describe('shared people audit', () => {
+  beforeEach(async () => {
+    path = await openSpaceDatabase(directory);
+  });
+
   it('records each switch, and nothing for the mode it already has', async () => {
-    const modes = new ProjectRankRepository(openDrizzle(path), OPEN);
+    const modes = new WorkPackageRankRepository(openDrizzle(path), OPEN);
     expect(await modes.setCapacityMode('org-a', 'isolated', stamp(10), 'audit-0')).toEqual({
       changed: false,
     });
@@ -91,32 +99,8 @@ describe('shared people audit', () => {
     ).toThrow();
   });
 
-  it('refuses to roll back over a recorded switch, keeping schema and ledger', async () => {
-    await new ProjectRankRepository(openDrizzle(path), OPEN).setCapacityMode(
-      'org-a',
-      'shared',
-      stamp(11),
-      'audit-1',
-    );
-    // The newer, empty enterprise SSO migrations roll back first and are not
-    // what this refusal is about.
-    rollbackTo(path, MIGRATIONS_FOLDER, '20261011200000_add_shared_people_audit');
-    const ledger = execute('SELECT * FROM __drizzle_migrations');
-    expect(() =>
-      rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
-    ).toThrow('shared people switches are recorded');
-    // The newer attempts migration, holding no attempt, reverses first and
-    // commits its own step; the refused one keeps its row.
-    expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(
-      ledger.filter(
-        (row) => (row as { name: string }).name !== '20261012120000_add_step_node_attempts',
-      ),
-    );
-    expect(execute('SELECT id FROM shared_people_audit')).toEqual([{ id: 'audit-1' }]);
-  });
-
   it('refuses the shared-people remove once a switch is recorded, changing nothing', async () => {
-    const modes = new ProjectRankRepository(openDrizzle(path), OPEN);
+    const modes = new WorkPackageRankRepository(openDrizzle(path), OPEN);
     await modes.setCapacityMode('org-a', 'shared', stamp(11), 'audit-1');
     await modes.setCapacityMode('org-a', 'isolated', stamp(12), 'audit-2');
     const saved = saveSharedPeople(path);
@@ -128,11 +112,46 @@ describe('shared people audit', () => {
       before,
     );
   });
+});
+
+describe('the shared people audit migration window', () => {
+  function prepare(through: string) {
+    path = join(directory, 'store.db');
+    const folder = copyRecoveryPrefix(directory, through);
+    runMigrations(path, folder);
+    const ledger = readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash }));
+    expect(execute('SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(ledger);
+    return { folder, ledger };
+  }
+
+  it('refuses to roll back over a recorded switch, keeping schema and ledger', async () => {
+    const { folder } = prepare(audit);
+    execute("INSERT INTO users(id,username,password_hash,created_at) VALUES('ada','ada','x',1)");
+    execute("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1)");
+    const connection = openExistingConnection(path);
+    try {
+      const modes = new WorkPackageRankRepository(connection.db, OPEN);
+      expect(await modes.setCapacityMode('org-a', 'shared', stamp(11), 'audit-1')).toEqual({
+        changed: true,
+      });
+    } finally {
+      connection.close();
+    }
+    const before = readRecoveryState(path);
+    expect(() => rollbackTo(path, folder, predecessor)).toThrow(
+      'rolling back ' +
+        audit +
+        ' failed: CHECK constraint failed: shared people switches are recorded: audit evidence is never discarded by a rollback',
+    );
+    expect(readRecoveryState(path)).toEqual(before);
+    expect(execute('SELECT id FROM shared_people_audit')).toEqual([{ id: 'audit-1' }]);
+  });
 
   it('rolls back the empty audit table', () => {
-    expect(
-      rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
-    ).toEqual([
+    const { folder, ledger } = prepare(release);
+    expect(rollbackTo(path, folder, predecessor)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -182,5 +201,8 @@ describe('shared people audit', () => {
     expect(
       execute("SELECT name FROM sqlite_master WHERE name LIKE 'shared_people_audit%'"),
     ).toEqual([]);
+    expect(execute('SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+      ledger.filter(({ name }) => name <= predecessor),
+    );
   });
 });

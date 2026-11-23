@@ -42,40 +42,11 @@ const WORKSPACE = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
 const DASH_SOURCE = join(import.meta.dir, '..');
 
 /**
- * Inside the new mount namespace, create a private gate account. Preserve the real `puni1`
- * home only when the test runs there and needs its checkout or tools. Overlay its existing
- * authority directories without creating paths in that real home.
+ * Preserve this account’s checkout in a private namespace and give the fixed host-pool account
+ * private storage. A foreign home is overlaid; on a gate host whose checkout lives there, only
+ * `.config`, `.cache` and `.local` are overlaid. The setup runs in Bun before execing the suite.
  */
-const NAMESPACE_SETUP = [
-  'set -euo pipefail',
-  'anchor=$1 scratch=$2',
-  'shift 2',
-  'mount --make-rprivate /',
-  'mkdir "$anchor/home" "$anchor/private" "$anchor/scratch"',
-  'mount --rbind /home "$anchor/home"',
-  'mount --bind "$scratch" "$anchor/scratch"',
-  'mount -t tmpfs tmpfs "$anchor/private"',
-  'mount -t tmpfs tmpfs /home',
-  'for entry in "$anchor"/home/* "$anchor"/home/.[!.]*; do',
-  '  [ -e "$entry" ] || continue',
-  '  name=${entry##*/}',
-  '  if [ "$name" = puni1 ] && [ "${HOME:-}" != /home/puni1 ]; then continue; fi',
-  '  mkdir "/home/$name"',
-  '  mount --rbind "$entry" "/home/$name"',
-  'done',
-  'mkdir -p /home/puni1',
-  `for directory in ${AUTHORITY_DIRECTORIES.join(' ')}; do`,
-  '  if [ "${HOME:-}" = /home/puni1 ]; then',
-  '    test -d "/home/puni1/$directory"',
-  '  else',
-  '    mkdir -p "/home/puni1/$directory"',
-  '  fi',
-  '  mkdir "$anchor/private/$directory"',
-  '  mount --bind "$anchor/private/$directory" "/home/puni1/$directory"',
-  'done',
-  `export ${NAMESPACE_ANCHOR}="$anchor" TMPDIR="$anchor/scratch"`,
-  'exec "$@"',
-].join('\n');
+const NAMESPACE_SETUP = join(import.meta.dir, 'testing', 'launcher-namespace.test.fixture.ts');
 
 /** Start the inner runner with a reachable home bind and a child of the caller's assigned scratch. */
 function runInNamespace(args: string[], environment: NodeJS.ProcessEnv) {
@@ -100,10 +71,10 @@ function runInNamespace(args: string[], environment: NodeJS.ProcessEnv) {
           '--mount-proc',
           'setpriv',
           '--bounding-set=-sys_ptrace',
-          'bash',
-          '-c',
+          process.execPath,
+          '--no-env-file',
+          '--config=/dev/null',
           NAMESPACE_SETUP,
-          'launcher-namespace',
           anchor,
           scratch,
           process.execPath,
@@ -278,6 +249,7 @@ import { monotonicClock, wallClock } from ${JSON.stringify(join(DASH_SOURCE, 'cl
 import { ampleHost } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'host-pool.test.fixture'))};
 import { calibrateHostJob, runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
 import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
+import { createLaunch } from ${JSON.stringify(join(WORKSPACE, 'libs/shared/adapters/bun-startup/src/index.ts'))};
 import { fakeScopeTelemetry } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'ops.test.fixture'))};
 import { OpsRefusal } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'refusal'))};
 
@@ -320,7 +292,8 @@ try {
       settleBudgetMs: 20000,
       user: 'puni1',
       // Inside the namespace /home/puni1/.cache is tmpfs: the canonical lock is a fixture.
-      legacyLock: productionLegacyLock(),
+      helperPrefix: createLaunch(process.execPath, ${JSON.stringify(join(DASH_SOURCE, 'entrypoint.ts'))}),
+      legacyLock: await productionLegacyLock(createLaunch(process.execPath, ${JSON.stringify(join(DASH_SOURCE, 'entrypoint.ts'))}), {clock:wallClock(),monotonic:monotonicClock()}),
     },
   );
 } catch (cause) {

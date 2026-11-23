@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -19,7 +20,7 @@ export const claimLimitCrossed = { cap: 'number', current: 'number' } as const;
 
 /**
  * What `capacity_limit` carries beside its code (L2, L9): the resource, the
- * cap, the units the organization's other projects state and the units asked.
+ * cap, the units the organization's other work packages state and the units asked.
  */
 export const capacityLimitCrossed = {
   resourceId: 'string',
@@ -53,8 +54,7 @@ const limitUsage = {
 } as const;
 
 /**
- * Reads the active organization's caps beside its usage, for its admins and
- * super-admins (`organization-limits`). `source` says whether the caps are the
+ * Reads the active organization's caps beside its usage, through organization.read (`organization-limits`). `source` says whether the caps are the
  * organization's own or the deployment default. Nothing writes limits over HTTP.
  */
 export const readOrganizationLimits = defineEndpointShape({
@@ -87,7 +87,16 @@ export const readOrganizationLimits = defineEndpointShape({
     organizationRefusal,
     organizationContextRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: limits-permission-schema-validator failed `requires the catalog permission vocabulary in the actual limits refusal contract` with the injected fault; restored GREEN.
+          permission: type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
   ],
   document: { summary: 'Read the active organization limits with usage beside each.' },
 });

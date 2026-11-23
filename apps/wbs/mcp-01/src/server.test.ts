@@ -24,8 +24,8 @@ const CONFIG: McpConfig = {
 };
 
 const READ: DerivedTool = {
-  name: 'getApiProjectsByIdWorkItems',
-  description: 'Read a project’s work items',
+  name: 'getApiWorkPackagesByIdWorkItems',
+  description: 'Read a work package’s work items',
   inputSchema: {
     type: 'object',
     properties: { id: { type: 'string' } },
@@ -33,7 +33,7 @@ const READ: DerivedTool = {
     additionalProperties: false,
   },
   method: 'get',
-  path: '/api/projects/{id}/work-items',
+  path: '/api/work-packages/{id}/work-items',
   locations: { id: 'path' },
 };
 
@@ -53,8 +53,8 @@ const WRITE: DerivedTool = {
 
 /** The batch route as the committed document derives it, cut to what this test reads. */
 const COMMANDS: DerivedTool = {
-  name: 'postApiProjectsByIdCommands',
-  description: 'Apply a batch of commands to a project, all or none',
+  name: 'postApiWorkPackagesByIdCommands',
+  description: 'Apply a batch of commands to a work package, all or none',
   inputSchema: {
     type: 'object',
     properties: { id: { type: 'string' }, commands: { type: 'array' } },
@@ -62,7 +62,7 @@ const COMMANDS: DerivedTool = {
     additionalProperties: false,
   },
   method: 'post',
-  path: '/api/projects/{id}/commands',
+  path: '/api/work-packages/{id}/commands',
   locations: { id: 'path', commands: 'body' },
 };
 
@@ -136,7 +136,7 @@ describe('the round trip over MCP', () => {
     const listed = await client.listTools();
 
     expect(listed.tools.map((tool) => tool.name)).toEqual([
-      'getApiProjectsByIdWorkItems',
+      'getApiWorkPackagesByIdWorkItems',
       'patchApiWorkItemsById',
     ]);
     // The schema the document produced, not a re-description of it.
@@ -153,13 +153,13 @@ describe('the round trip over MCP', () => {
     const { client } = await connected([READ, WRITE], stub(seen, '{"workItems":[]}'));
 
     const result = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
     expect(seen).toHaveLength(1);
     expect(seen[0]?.method).toBe('GET');
-    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/projects/p-1/work-items');
+    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/work-packages/p-1/work-items');
     expect(seen[0]?.headers['authorization']).toBe('Bearer token-abc');
     expect(seen[0]?.body).toBeUndefined();
     // be-01's body, passed through rather than re-serialised.
@@ -236,16 +236,18 @@ describe('the round trip over MCP', () => {
     ];
 
     const result = await client.callTool({
-      name: 'postApiProjectsByIdCommands',
+      name: 'postApiWorkPackagesByIdCommands',
       arguments: { id: 'p-1', commands: batch },
     });
 
     expect(seen[0]?.method).toBe('POST');
-    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/projects/p-1/commands');
+    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/work-packages/p-1/commands');
     expect(JSON.parse(seen[0]?.body ?? 'null')).toEqual({ commands: batch });
     expect(result.isError).toBe(true);
     const [content] = result.content as [{ type: string; text: string }];
-    expect(content.text).toContain('HTTP 404 unknown_step from POST /api/projects/{id}/commands');
+    expect(content.text).toContain(
+      'HTTP 404 unknown_step from POST /api/work-packages/{id}/commands',
+    );
     expect(content.text).toContain('"at":1');
     expect(content.text).toContain('"kind":"setEstimate"');
   });
@@ -309,7 +311,7 @@ describe('the MCP grant scope', () => {
     const { client } = await connected([READ, WRITE], stub(seen, '[]'), { authInfo: readOnly });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -323,7 +325,7 @@ describe('the MCP grant scope', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -400,7 +402,7 @@ describe('a call that cannot be built', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1', parentID: 'typo' },
     });
 
@@ -408,7 +410,7 @@ describe('a call that cannot be built', () => {
     // The message names the input and what the tool does declare, because that
     // is what the caller has to fix.
     expect(JSON.stringify(toolResponse.content)).toContain('parentID');
-    expect(JSON.stringify(toolResponse.content)).toContain('getApiProjectsByIdWorkItems');
+    expect(JSON.stringify(toolResponse.content)).toContain('getApiWorkPackagesByIdWorkItems');
     // And the request was never made: an undeclared input is refused here, not
     // stripped by be-01 into a write that did something else.
     expect(seen).toHaveLength(0);
@@ -460,7 +462,7 @@ describe('a call that cannot be built', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -490,7 +492,7 @@ describe('a call that cannot be built', () => {
     );
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -530,7 +532,7 @@ describe('an unexpected tool failure', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -780,7 +782,7 @@ describe('describeTool', () => {
     const already: DerivedTool = {
       ...WRITE,
       description:
-        'Add a work item to a project. Numbers are derived from the tree and re-derived on every read.',
+        'Add a work item to a work package. Numbers are derived from the tree and re-derived on every read.',
     };
 
     expect(describeTool(already)).toBe(already.description);
@@ -800,27 +802,28 @@ describe('the tools derived from the real document', () => {
     expect(silent.map((tool) => tool.name)).toEqual([]);
   });
 
-  it('serves the two updated resource descriptions and preserves every other description', async () => {
+  it('serves the work package resource descriptions and pins every other description', async () => {
     const { client } = await connected(tools, failingFetch);
     const listed = await client.listTools();
     const changed = {
-      getApiProjectsByIdStartable:
-        'List the steps a team may claim now, and the steps already claimed.\n\nStartable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the project’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every project of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (project or organization: which count bound it). `resources` lists every capacity stated by this project and every resource with a directory capacity that a leaf of this project demands. Each entry’s `occupied` counts this project’s leaves; its `capacity` is the project capacity when stated or the directory capacity otherwise. For a shared resource, entry `occupancyScope` is organization, `directory` gives organization-wide capacity, occupied and free units, and `free` is directory free limited by project free when the project states a capacity. For a project-only resource, entry `occupancyScope` is project, `directory` is null and `free` is project free. Top-level `occupancyScope` stays project. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
-      getApiProjectsByIdResources:
-        'List the resources, this project’s resource capacities, and its demands.\n\nresources: every resource the caller’s directory holds, with its kind (exclusive: identical units demanded one at a time; divisible: demanded k at a time), unit label, and providerId (the compute provider instance that fulfils it, or null); one with a providerId also carries provider (that instance’s kind and name, never its locator), its latest capacity report, if any, and measurement (declared units of this project, measured units, measuredAt, and state no_report, measured, unreachable or stale past three report cadences), and hostJobs (the host jobs that instance’s resource authority published and has not seen returned: label, type, host and reservations per dimension, beside the report’s reservedUnits), shown only, never used to plan. capacities: the stated pairs of this project, in resource-id order; an absent project capacity constrains nothing only when the resource also has no directory capacity, and a stated 0 means the plan may use none. Each resource carries `directoryCapacity` and `directory`, both null when unstated; otherwise `directory` gives the organization’s capacity, occupied and free units without naming holders. demands: what each work item needs of each resource while any of its steps runs, never inherited down the tree. Write them with postApiDirectoryCommands kinds createResource, patchResource, deleteResource and postApiProjectsByIdCommands kinds setResourceCapacity, setDemand.',
+      getApiWorkPackagesByIdStartable:
+        'List the steps a team may claim now, and the steps already claimed.\n\nStartable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the work package with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the work package’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every work package of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (`work_package` or `organization`: which count bound it). `resources` lists every capacity stated by this work package and every resource with a directory capacity that a leaf of this work package demands. Each entry’s `occupied` counts this work package’s leaves; its `capacity` is the work package capacity when stated or the directory capacity otherwise. For a shared resource, entry `occupancyScope` is `organization`, `directory` gives organization-wide capacity, occupied and free units, and `free` is directory free limited by work package free when the work package states a capacity. For a resource limited to the work package, entry `occupancyScope` is `work_package`, `directory` is null and `free` is work package free. Top-level `occupancyScope` stays `work_package`. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiWorkPackagesByIdCommands kind claimWorkItem.',
+      getApiWorkPackagesByIdResources:
+        'List the resources, this work package’s resource capacities, and its demands.\n\nresources: every resource the caller’s directory holds, with its kind (exclusive: identical units demanded one at a time; divisible: demanded k at a time), unit label, and providerId (the compute provider instance that fulfils it, or null); one with a providerId also carries provider (that instance’s kind and name, never its locator), its latest capacity report, if any, and measurement (declared units of this work package, measured units, measuredAt, and state no_report, measured, unreachable or stale past three report cadences), and hostJobs (the host jobs that instance’s resource authority published and has not seen returned: label, type, host and reservations per dimension, beside the report’s reservedUnits), shown only, never used to plan. capacities: the stated pairs of this work package, in resource-id order; an absent work package capacity constrains nothing only when the resource also has no directory capacity, and a stated 0 means the plan may use none. Each resource carries `directoryCapacity` and `directory`, both null when unstated; otherwise `directory` gives the organization’s capacity, occupied and free units without naming holders. demands: what each work item needs of each resource while any of its steps runs, never inherited down the tree. Write them with postApiDirectoryCommands kinds createResource, patchResource, deleteResource and postApiWorkPackagesByIdCommands kinds setResourceCapacity, setDemand.',
     };
     const untouched: [string, string | undefined][] = [];
     for (const { name, description } of listed.tools) {
-      if (name === 'getApiProjectsByIdStartable' || name === 'getApiProjectsByIdResources')
+      if (name === 'getApiWorkPackagesByIdStartable' || name === 'getApiWorkPackagesByIdResources')
         expect(description, name).toBe(changed[name]);
       else untouched.push([name, description]);
     }
     for (const name of Object.keys(changed))
       expect(listed.tools.filter((tool) => tool.name === name)).toHaveLength(1);
     untouched.sort(([left], [right]) => (left < right ? -1 : left === right ? 0 : 1));
-    // SHA-256 of sorted [name, full served description] pairs at 820f8aa93036.
+    // SHA-256 of sorted [name, full served description] pairs after the entity rename.
+    // Proof: altering the generated getApiTeams summary changed this digest.
     expect(new Bun.CryptoHasher('sha256').update(JSON.stringify(untouched)).digest('hex')).toBe(
-      '8452300516831170c44f077b6d9caef803f92af1c86a45333c3862b8fcb631c7',
+      '0b67d1b900300893377fbc6e844c93db845c9a59ec72c6436e2704e39b339b02',
     );
   });
 

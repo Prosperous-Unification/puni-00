@@ -1,4 +1,4 @@
-import type { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { WorkPackageObservation } from '@wbs/core/ports/work-package-observation';
 import { ValidationError } from '@wbs/validation';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
@@ -11,16 +11,20 @@ import { identityResolver } from '../identity';
 import { mountEndpoints } from './mount';
 
 const secret = 'internal-test-secret';
-// Test double: every project exists, so these cases exercise parsing and
+// Test double: every work package exists, so these cases exercise parsing and
 // callbacks rather than the per-subscription access check.
-const everyProject = {
-  readWithin: () => Promise.resolve({ project: {}, steps: [] }),
-} as unknown as ProjectService;
+const everyWorkPackage: Pick<WorkPackageObservation, 'checkRead'> = {
+  checkRead: () => Promise.resolve({ ok: true, value: true }),
+};
 
 function appFor(deps: Pick<InternalDeps, 'onForward' | 'onResume'>) {
   return new Elysia().use(
     mountEndpoints(
-      internalRoutes({ ...deps, projects: everyProject, organizations: legacyOrganizationAccess }),
+      internalRoutes({
+        ...deps,
+        observation: everyWorkPackage,
+        organizations: legacyOrganizationAccess,
+      }),
       {
         appOrigin: 'https://app.example',
         reportUnexpectedFailure: () => undefined,
@@ -86,12 +90,12 @@ test('mounted resume admits legacy arrays and fractional cursors with unchanged 
       return Promise.resolve({});
     },
   });
-  for (const resume_points of [[], [-1, 0.5], { 'project:p': -1, 'project:q': 0.5 }]) {
+  for (const resume_points of [[], [-1, 0.5], { 'work-package:p': -1, 'work-package:q': 0.5 }]) {
     const response = await app.handle(request('resume', { resume_points, trace_id: 't' }));
     expect(response.status).toBe(200);
   }
-  // Array indices name no project, so they are parsed and then denied.
-  expect(calls).toEqual([{}, {}, { 'project:p': -1, 'project:q': 0.5 }]);
+  // Array indices name no work package, so they are parsed and then denied.
+  expect(calls).toEqual([{}, {}, { 'work-package:p': -1, 'work-package:q': 0.5 }]);
 });
 
 test('mounted internal callbacks keep unknown validation failures as server failures', async () => {

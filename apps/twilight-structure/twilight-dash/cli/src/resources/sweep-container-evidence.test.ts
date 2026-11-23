@@ -10,6 +10,7 @@ import { fakeCredential } from '../compute/testing/credential';
 import { WbsUnreachable } from '../mcp/wbs-tools';
 import { runResources } from './command';
 import { ampleHost, build, hostPoolFixture } from './host-pool.test.fixture';
+import { privateLegacyLock } from './legacy-lock.test.fixture';
 import { type HostJob, loadResourceConfiguration, ResourceRuntime } from './runtime';
 
 /**
@@ -142,7 +143,7 @@ describe('sweep container evidence', () => {
             call: () => Promise.reject(new WbsUnreachable('fixture', {})),
             close: () => Promise.resolve(),
           }),
-          () => ({ library, lockPath: join(base, 'heavy.lock') }),
+          () => ({ ...privateLegacyLock(base), clock, library }),
         ),
       ).toBe(0);
     } finally {

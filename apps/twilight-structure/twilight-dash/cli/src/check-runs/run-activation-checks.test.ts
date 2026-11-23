@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import {
   CheckRunLedger,
   type CheckRunPlan,
@@ -191,6 +192,7 @@ describe('twilight-dash run-activation-checks', () => {
         clock: steppingClock(),
         monotonic: { now: () => 0 },
         planEnrollment: () => Promise.reject(new Error('no enrollment here')),
+        helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../entrypoint.ts')),
         stdout: {
           write: (text: string) => {
             output += text;

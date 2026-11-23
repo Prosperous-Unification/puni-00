@@ -1,30 +1,51 @@
+import type { SavedCurrentCapture } from '@wbs/core/ports/work-package-observation';
+import { connectedReads } from '@wbs/core/testing/connected-plan-fixture';
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { createSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { fastScheduler } from '../service/optimizer-wiring';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { SavedPlanWriteError } from '@wbs/core/module/saved-plans/save-plan';
 import {
   type SavedComparisonSide,
   summarizeSavedComparisonSide,
 } from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { bodySha256 } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
+import type { StoredSavedPlan } from '@wbs/core/ports/saved-plan-values';
+import type { WorkPackageObservation } from '@wbs/core/ports/work-package-observation';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
-import { defaultSavedPlanName } from '@wbs/domain';
+import {
+  canonicalisePlanInputV12,
+  defaultSavedPlanName,
+  planInputRowsOf,
+  type PlanScheduleValue,
+  projectSavedPlanInput,
+  readSavedConnectedScheduleBody,
+} from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
 import { buildApp } from '../app';
-import { openConnection } from '../repository/db';
+import { openConnection, openDatabase } from '../repository/db';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import type { SavedPlanWrite } from '../repository/saved-plan';
-import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec, nodeDigest } from '../runtime/bun-runtime';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
@@ -50,26 +71,31 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { projectRow, testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { savedConnectedHistoryFixture } from '../testing/saved-connected-history-fixture';
 import { savedPlanServiceOn, testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import {
+  createLegacyWorkPackageObservation,
+  testWorkPackageService,
+  workPackageRow,
+} from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import { savedPlanRoutes } from './saved-plan.routes';
 
 const comparisonSide = {
   source: { kind: 'current' as const },
+  parent: { kind: 'recorded' as const, projectId: PROJECT_ID },
   schedule: { present: false as const, absentReason: 'unavailable' },
   provenance: { kind: 'legacy-unknown' as const },
 };
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /**
  * The five saved-plan routes, over HTTP and against real SQLite (task 6.1).
@@ -80,7 +106,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
  * be a different thing rather than a smaller one.
  *
  * Three accounts, registered through `/api/auth/register` so the token names an
- * identity `userFromHeaders` really resolves: `owner` owns the project, `ada`
+ * identity `userFromHeaders` really resolves: `owner` owns the work package, `ada`
  * saves the plans, `mallory` is the third party. Two accounts cannot separate
  * the rule under test from its wrong versions — see
  * `service/saved-plan-touch.db.test.ts`, which proves the rule itself. What is
@@ -91,7 +117,7 @@ describe('the saved-plan routes', () => {
   let dir: string;
   let app: ReturnType<typeof buildApp>;
   let tokens: Record<string, string>;
-  let projectId: string;
+  let workPackageId: string;
   /** The database file behind {@link app}, for the one test that damages it. */
   let path: string;
   /** What would have gone to gw-01, for the broadcast cases (TASK-255). */
@@ -104,13 +130,14 @@ describe('the saved-plan routes', () => {
    */
   let writes: ReturnType<typeof testWrites>;
   let plans: ReturnType<typeof savedPlanServiceOn>;
+  let observation: SqliteWorkPackageObservation;
 
-  /** Seeds access policy through the real store; project-command behavior has its own suites. */
-  const restrictProject = async () => {
+  /** Seeds access policy through the real store; work-package-command behavior has its own suites. */
+  const restrictWorkPackage = async () => {
     const policy = openConnection(path);
     try {
-      const restricted = await new ProjectRepository(policy.db, OPEN).update(
-        projectId,
+      const restricted = await new WorkPackageRepository(policy.db, OPEN).update(
+        workPackageId,
         { restricted: true },
         { at: 1, by: 'fixture' },
       );
@@ -139,23 +166,36 @@ describe('the saved-plan routes', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-http-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
     broadcast = recordingBroadcaster();
     const connection = openConnection(path);
-    const projects = new ProjectRepository(connection.db, OPEN);
-    const projectService = new ProjectService({
-      dependencyContext: sqliteDependencyContext(connection.db, projects),
+    const workPackages = new WorkPackageRepository(connection.db, OPEN);
+    const workPackageService = new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(connection.db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       broadcast,
     });
-    // The same project service the routes use: a project PATCH runs through
-    // the batch graph, and a double there has never seen these projects.
-    writes = testWrites(broadcast, { projects: projectService });
+    // The same work package service the routes use: a work package PATCH runs through
+    // the batch graph, and a double there has never seen these work packages.
+    writes = testWrites(broadcast, {
+      workPackages: workPackageService,
+      workItems: testWorkItemService(openTestSource()),
+    });
 
     plans = savedPlanServiceOn(path);
+    observation = new SqliteWorkPackageObservation({
+      currentCapture: createSavedCurrentCapture({ schedulerOf: () => fastScheduler }),
+      openConnection: () => openPackageObservationConnection(path),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    });
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: observation,
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -165,7 +205,8 @@ describe('the saved-plan routes', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -178,14 +219,14 @@ describe('the saved-plan routes', () => {
         passwords: bunPasswordHasher,
       }),
       // The same recorder the rest of this app is built on, not a second one:
-      // `ProjectServiceOptions.broadcast` is required (project.service.ts), and
+      // `WorkPackageServiceOptions.broadcast` is required (work package.service.ts), and
       // production hands every service one announcer. A private recorder here
-      // would compile and would quietly put this app's project events somewhere
+      // would compile and would quietly put this app's work package events somewhere
       // nothing in the file can read.
-      projects: projectService,
+      workPackages: workPackageService,
       savedPlans: plans,
       steps: testStepService(),
-      workItems: testWorkItemService(),
+      workItems: testWorkItemService(openTestSource()),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -212,13 +253,13 @@ describe('the saved-plan routes', () => {
       tokens[username] = ((await res.json()) as { token: string }).token;
     }
 
-    // Created through the route, so the project's `ownerId` is the account the
-    // token names rather than an id this file invented.
-    const created = await as(tokens['owner'], '/api/projects', {
+    // Route creation records the actual authenticated account as createdBy metadata.
+    // Saved-plan author identity and edit admission remain separate from that metadata.
+    const created = await as(tokens['owner'], '/api/work-packages', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Rewire the shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
     });
-    projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage.id;
   });
 
   afterEach(() => {
@@ -227,20 +268,23 @@ describe('the saved-plan routes', () => {
 
   it('refuses undeclared save fields before capture and undeclared list queries', async () => {
     const before = broadcast.published.length;
-    const refused = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans`, {
+    const refused = await as(tokens['ada'], `/api/work-packages/${workPackageId}/saved-plans`, {
       method: 'POST',
       body: JSON.stringify({ name: 'Before', surprise: true }),
     });
     expect(refused.status).toBe(422);
     expect(await refused.json()).toEqual({ error: 'invalid_body' });
     expect(broadcast.published).toHaveLength(before);
-    const listed = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans?surprise=1`);
+    const listed = await as(
+      tokens['ada'],
+      `/api/work-packages/${workPackageId}/saved-plans?surprise=1`,
+    );
     expect(listed.status).toBe(400);
     expect(await listed.json()).toEqual({ error: 'invalid_query' });
   });
 
   const save = (who: string, name = 'before the rewire') =>
-    as(tokens[who], `/api/projects/${projectId}/saved-plans`, {
+    as(tokens[who], `/api/work-packages/${workPackageId}/saved-plans`, {
       method: 'POST',
       body: JSON.stringify({ name }),
     });
@@ -251,21 +295,49 @@ describe('the saved-plan routes', () => {
   it('reads captured node endpoints after live step and relationship edits', async () => {
     const writing = openConnection(path);
     try {
-      const projects = new ProjectRepository(writing.db, OPEN);
-      const steps = await projects.stepsOf(projectId);
+      const actor = await new UserRepository(writing.db, OPEN).findByUsername('owner');
+      if (actor === null) throw Error('fixture actor is absent');
+      const stamp = { at: 1, by: actor.id };
+      const catalogue = new StepCatalogueRepository(writing.db, OPEN, 'owned');
+      for (const [id, name, position] of [
+        ['capture-dev', 'Dev', 10],
+        ['capture-qa', 'QA', 20],
+      ] as const)
+        expect(
+          (
+            await catalogue.defineAndBindStep(
+              'http-fixture-legacy',
+              {
+                id,
+                code: id,
+                name,
+                position,
+                defaultEstimateUnit: 'workdays',
+                defaultAllowancePercent: 0,
+              },
+              {
+                bindingId: id + '-binding',
+                scopeKind: 'project',
+                scopeId: PROJECT_ID,
+                workItemTypeId: null,
+                position,
+              },
+              stamp,
+            )
+          ).ok,
+        ).toBe(true);
+      const workPackages = new WorkPackageRepository(writing.db, OPEN);
+      const steps = await workPackages.stepsOf(workPackageId);
       const firstStep = steps.at(0);
       const laterStep = steps.at(1);
       if (firstStep === undefined || laterStep === undefined)
-        throw new Error('project has fewer than two steps');
-      const ownerId = (await projects.findById(projectId))?.ownerId;
-      if (ownerId === undefined) throw new Error('project is missing');
-      const stamp = { at: 1, by: ownerId };
+        throw new Error('work package has fewer than two steps');
       const workItems = new WorkItemRepository(writing.db, OPEN);
       for (const [index, id] of ['A', 'B'].entries()) {
         await workItems.insert(
           {
             id,
-            projectId,
+            workPackageId,
             parentId: null,
             position: index * 10,
             name: id,
@@ -289,19 +361,35 @@ describe('the saved-plan routes', () => {
         );
       }
       const typed = new TypedDependencyRepository(writing.db, OPEN);
-      writing.db.run(`UPDATE step SET code = 'captured-code' WHERE id = '${laterStep.id}'`);
+      writing.db.run(
+        `UPDATE step_definition SET code = 'captured-code' WHERE id = '${laterStep.id}'`,
+      );
       const relationship = {
         id: 'captured-ff',
-        projectId,
-        predecessor: { projectId, scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
-        successor: { projectId, scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
+        workPackageId,
+        predecessor: {
+          workPackageId,
+          scope: 'node' as const,
+          workItemId: 'A',
+          stepId: firstStep.id,
+        },
+        successor: { workPackageId, scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
         type: 'FF' as const,
       };
       await typed.add(relationship, stamp);
       const saveResponse = await save('ada');
       expect(saveResponse.status).toBe(201);
       const savedId = await savedIdOf(saveResponse);
-      await new StepRepository(writing.db, OPEN).rename(projectId, laterStep.id, 'Renamed', stamp);
+      expect(
+        (
+          await catalogue.patchStepDefinition(
+            'http-fixture-legacy',
+            laterStep.id,
+            { name: 'Renamed' },
+            stamp,
+          )
+        ).ok,
+      ).toBe(true);
       await typed.update({ ...relationship, type: 'FS' }, stamp);
       const afterEdit = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
       expect(afterEdit.status).toBe(200);
@@ -318,15 +406,31 @@ describe('the saved-plan routes', () => {
         ],
       });
       await typed.remove(relationship.id, stamp);
-      writing.db.run(
-        `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
-      );
-      writing.db.run(`UPDATE step SET position = 30 WHERE id = '${firstStep.id}'`);
-      expect((await projects.stepsOf(projectId)).map(({ id }) => id)).toEqual([
+      writing.db.run(`UPDATE step_definition SET code = 'live-code' WHERE id = '${laterStep.id}'`);
+      expect(
+        (
+          await catalogue.reorderBindings(
+            'http-fixture-legacy',
+            { scopeKind: 'project', scopeId: PROJECT_ID },
+            ['capture-qa-binding', 'capture-dev-binding'],
+            stamp,
+          )
+        ).ok,
+      ).toBe(true);
+      expect((await workPackages.stepsOf(workPackageId)).map(({ id }) => id)).toEqual([
         laterStep.id,
         firstStep.id,
       ]);
-      writing.db.run(`DELETE FROM step WHERE id = '${laterStep.id}'`);
+      expect(
+        (
+          await catalogue.unbindStep(
+            'http-fixture-legacy',
+            'capture-qa-binding',
+            { dryRun: false },
+            stamp,
+          )
+        ).kind,
+      ).toBe('unbound');
       const readResponse = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
       expect(readResponse.status).toBe(200);
       const saved = (await readResponse.json()) as { savedPlan: { input: { bytes: string } } };
@@ -367,7 +471,7 @@ describe('the saved-plan routes', () => {
 
   /**
    * The identity assertion, and the one a body-supplied creator would fail.
-   * `createdBy` is the *caller's* username — the project is unrestricted, so
+   * `createdBy` is the *caller's* username — the work package is unrestricted, so
    * `ada` may save on it, and nothing in the request said who she was except
    * her token.
    */
@@ -394,7 +498,7 @@ describe('the saved-plan routes', () => {
    * so the two cannot drift into agreeing by coincidence.
    */
   it('names a plan saved without one from the same clock that stamped it', async () => {
-    const res = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans`, {
+    const res = await as(tokens['ada'], `/api/work-packages/${workPackageId}/saved-plans`, {
       method: 'POST',
       body: JSON.stringify({}),
     });
@@ -414,7 +518,7 @@ describe('the saved-plan routes', () => {
    * `{}` and `{ name: '' }` indistinguishable to a client debugging a form.
    */
   it('refuses an empty name rather than defaulting it', async () => {
-    const res = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans`, {
+    const res = await as(tokens['ada'], `/api/work-packages/${workPackageId}/saved-plans`, {
       method: 'POST',
       body: JSON.stringify({ name: '' }),
     });
@@ -437,31 +541,31 @@ describe('the saved-plan routes', () => {
    */
   it('refuses a JSON array body without writing a plan', async () => {
     for (const body of ['[]', '[{"name":"from an array"}]']) {
-      const res = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans`, {
+      const res = await as(tokens['ada'], `/api/work-packages/${workPackageId}/saved-plans`, {
         method: 'POST',
         body,
       });
       expect(res.status).toBe(422);
     }
 
-    const list = await as(tokens['ada'], `/api/projects/${projectId}/saved-plans`);
+    const list = await as(tokens['ada'], `/api/work-packages/${workPackageId}/saved-plans`);
     expect(((await list.json()) as { savedPlans: unknown[] }).savedPlans).toHaveLength(0);
   });
 
-  it('lists a project’s plans to any authenticated account', async () => {
+  it('lists a work package’s plans to any authenticated account', async () => {
     await save('ada');
-    const res = await as(tokens['mallory'], `/api/projects/${projectId}/saved-plans`);
+    const res = await as(tokens['mallory'], `/api/work-packages/${workPackageId}/saved-plans`);
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { savedPlans: unknown[] }).savedPlans).toHaveLength(1);
   });
 
   /**
-   * The route-level half of the permission rule. `ada` saved it on a project
-   * she does not own, and the project is unrestricted — so the ordinary write
+   * The route-level half of the permission rule. `ada` saved it on a work package
+   * she does not own, and the work package is unrestricted — so the ordinary write
    * rule says `mallory` may write to it, and the rename must still refuse her.
    */
-  it('lets the creator and the project owner rename, and refuses a third party', async () => {
+  it('lets the saved author rename and refuses the package creator and a third party', async () => {
     const id = await savedIdOf(await save('ada'));
     const rename = (who: string, name: string) =>
       as(tokens[who], `/api/saved-plans/${id}`, {
@@ -471,10 +575,10 @@ describe('the saved-plan routes', () => {
 
     expect((await rename('mallory', 'mine now')).status).toBe(403);
     expect((await rename('ada', 'hers')).status).toBe(200);
-    expect((await rename('owner', 'his')).status).toBe(200);
+    expect((await rename('owner', 'his')).status).toBe(403);
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
-    expect(((await read.json()) as { savedPlan: { name: string } }).savedPlan.name).toBe('his');
+    expect(((await read.json()) as { savedPlan: { name: string } }).savedPlan.name).toBe('hers');
   });
 
   it('answers 204 on a delete and 404 on the read that follows', async () => {
@@ -490,17 +594,17 @@ describe('the saved-plan routes', () => {
   });
 
   /**
-   * A mistyped project id and an empty shelf both list as `[]` at the service,
-   * so the route reads the project first and a client can tell them apart.
+   * A mistyped work package id and an empty shelf both list as `[]` at the service,
+   * so the route reads the work package first and a client can tell them apart.
    */
-  it('answers 404 for a project that is not there', async () => {
-    expect((await as(tokens['owner'], '/api/projects/nope/saved-plans')).status).toBe(404);
+  it('answers 404 for a work package that is not there', async () => {
+    expect((await as(tokens['owner'], '/api/work-packages/nope/saved-plans')).status).toBe(404);
     expect((await save('owner')).status).toBe(201);
   });
 
   it('refuses an unauthenticated caller before it decides anything else', async () => {
     const res = await app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/saved-plans`),
+      new Request(`http://localhost/api/work-packages/${workPackageId}/saved-plans`),
     );
     expect(res.status).toBe(401);
   });
@@ -522,7 +626,7 @@ describe('the saved-plan routes', () => {
   ): Promise<{ status: number; body: unknown }> => {
     const res = await as(
       tokens[who],
-      `/api/projects/${projectId}/saved-plans/compare?left=${left}&right=${right}`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${left}&right=${right}`,
     );
     return { status: res.status, body: await res.json() };
   };
@@ -585,9 +689,9 @@ describe('the saved-plan routes', () => {
     }
   };
 
-  it('reads complete connected history as exact stored bytes and compares it without live foreign projects', async () => {
+  it('reads complete connected history as exact stored bytes and compares it without live foreign work packages', async () => {
     const id = await savedIdOf(await save('ada'));
-    const captured = savedConnectedHistoryFixture(projectId);
+    const captured = savedConnectedHistoryFixture(workPackageId);
     expect(captured.input.workItems.map((row) => row.id)).toEqual(['a', 'root']);
     expect(captured.input.steps.map((step) => step.id)).toEqual(['design', 'test']);
     const inputBytes = JSON.stringify(captured.input);
@@ -603,7 +707,7 @@ describe('the saved-plan routes', () => {
     });
     const compared = await as(
       tokens['ada'],
-      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${id}`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${id}&right=${id}`,
     );
     expect(compared.status).toBe(200);
     const comparison = (await compared.json()) as {
@@ -617,7 +721,7 @@ describe('the saved-plan routes', () => {
         schedule: { present: true, algorithmId: 'connected-selection-v1:retired' },
         provenance: {
           kind: 'connected',
-          targetProjectId: projectId,
+          targetWorkPackageId: workPackageId,
           placementState: { kind: 'scheduled' },
         },
       },
@@ -627,11 +731,11 @@ describe('the saved-plan routes', () => {
       throw new Error('connected summary required');
     expect(comparison.left.provenance.stages[0]?.boundary.fixed).toEqual([
       {
-        projectId: 'B',
+        workPackageId: 'B',
         workItemId: 'b',
         stepId: 'build',
-        projectName: 'Beta',
-        projectAbbreviation: 'B',
+        workPackageName: 'Beta',
+        workPackageAbbreviation: 'B',
         workItemName: 'b',
         stepName: 'Build',
         start: 1,
@@ -640,28 +744,28 @@ describe('the saved-plan routes', () => {
     ]);
 
     const renamedId = await savedIdOf(await save('ada'));
-    const renamed = savedConnectedHistoryFixture(projectId);
+    const renamed = savedConnectedHistoryFixture(workPackageId);
     if (renamed.input.dependencyHistory.kind !== 'connected')
       throw new Error('fixture requires connected context');
     const foreign = renamed.input.dependencyHistory.projects.find(
-      (project) => project.projectId !== projectId,
+      (workPackage) => workPackage.projectId !== workPackageId,
     );
     if (foreign === undefined) throw new Error('foreign fixture required');
     Reflect.set(foreign, 'name', 'Beta at a later capture');
     await replaceSavedBodies(renamedId, JSON.stringify(renamed.input), scheduleBytes);
     const changed = await as(
       tokens['ada'],
-      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${renamedId}`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${id}&right=${renamedId}`,
     );
     expect(changed.status).toBe(200);
     expect(await changed.json()).toMatchObject({
-      diff: { input: [{ path: 'dependencyHistory.projects' }], schedule: [] },
+      diff: { input: [{ path: 'dependencyHistory.workPackages' }], schedule: [] },
     });
   });
 
   it('returns the pre-selection boundary after a later stage moves its foreign member', async () => {
     const id = await savedIdOf(await save('ada'));
-    const captured = savedConnectedHistoryFixture(projectId);
+    const captured = savedConnectedHistoryFixture(workPackageId);
     const connection = captured.schedule.connection;
     const first = connection.stages[0];
     const second = connection.stages[1];
@@ -738,7 +842,7 @@ describe('the saved-plan routes', () => {
 
   it('keeps a boundary-infeasible objective scoped while the captured schedule remains present', async () => {
     const id = await savedIdOf(await save('ada'));
-    const captured = savedConnectedHistoryFixture(projectId);
+    const captured = savedConnectedHistoryFixture(workPackageId);
     const stage = captured.schedule.connection.stages[0];
     const ready = stage.variants?.time;
     if (ready?.state !== 'ready' || stage.variants === null)
@@ -780,8 +884,39 @@ describe('the saved-plan routes', () => {
 
   it('compares unavailable and legacy records using frozen evidence with live readers poisoned', async () => {
     const legacy = await savedIdOf(await save('ada'));
+    // Boundary: this case needs genuinely pre10 context, not a fresh known-local11 save.
+    const legacyBody = JSON.parse(
+      await Bun.file(
+        new URL(
+          '../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-comparison-local-input9.txt',
+          import.meta.url,
+        ),
+      ).text(),
+    ) as { project: { id: string } };
+    legacyBody.project.id = workPackageId;
+    const legacyBytes = JSON.stringify(legacyBody);
+    const legacyHash = await bodySha256(nodeDigest, legacyBytes);
+    const historical = openDatabase(path);
+    try {
+      historical.transaction(() => {
+        historical
+          .query(
+            "UPDATE saved_plan SET input_schema_version=9,input_bytes=?,input_sha256=?,schedule_schema_version=NULL,schedule_bytes=NULL,schedule_sha256=NULL,schedule_input_sha256=NULL,scheduler_algorithm_id=NULL,schedule_absent_reason='unavailable' WHERE id=?",
+          )
+          .run(Buffer.byteLength(legacyBytes), legacyHash, legacy);
+        historical
+          .query("UPDATE saved_plan_body SET bytes=? WHERE saved_plan_id=? AND kind='input'")
+          .run(legacyBytes, legacy);
+        historical
+          .query("DELETE FROM saved_plan_body WHERE saved_plan_id=? AND kind='schedule'")
+          .run(legacy);
+      })();
+    } finally {
+      historical.close();
+    }
+
     const id = await savedIdOf(await save('ada'));
-    const captured = savedConnectedHistoryFixture(projectId);
+    const captured = savedConnectedHistoryFixture(workPackageId);
     if (captured.input.dependencyHistory.kind !== 'connected')
       throw new Error('connected fixture required');
     Reflect.set(captured.input.dependencyHistory, 'placementState', {
@@ -789,7 +924,7 @@ describe('the saved-plan routes', () => {
       reason: 'cycle',
     });
     await replaceSavedBodies(id, JSON.stringify(captured.input), null, 'infeasible');
-    const capture = spyOn(plans, 'projectCurrentPlan').mockImplementation(() => {
+    const capture = spyOn(observation, 'captureSavedCurrent').mockImplementation(() => {
       throw new Error('live capture poisoned');
     });
     try {
@@ -804,7 +939,7 @@ describe('the saved-plan routes', () => {
             kind: 'connected',
             placementState: { kind: 'unavailable', reason: 'cycle' },
             stages: [],
-            idleProjects: [],
+            idleWorkPackages: [],
           },
         },
       });
@@ -826,14 +961,14 @@ describe('the saved-plan routes', () => {
   });
 
   it('captures current/current once and returns identical current summaries', async () => {
-    const capture = spyOn(plans, 'projectCurrentPlan');
+    const capture = spyOn(observation, 'captureSavedCurrent');
     try {
       const compared = await compareOf('ada', 'current', 'current');
       expect(compared.status).toBe(200);
       expect(capture).toHaveBeenCalledTimes(1);
       expect(compared.body).toMatchObject({
         diff: { input: [], schedule: [] },
-        left: { source: { kind: 'current' }, provenance: { kind: 'legacy-unknown' } },
+        left: { source: { kind: 'current' }, provenance: { kind: 'local' } },
       });
       const summaries = compared.body as { left: unknown; right: unknown };
       expect(summaries.right).toEqual(summaries.left);
@@ -845,11 +980,11 @@ describe('the saved-plan routes', () => {
   it.each([
     ['numeric step code', 'input', 'shape', '$.dependencyHistory'],
     ['missing step code', 'input', 'shape', '$.dependencyHistory'],
-    ['target project metadata', 'input', 'target_metadata', '$.project'],
+    ['target work package metadata', 'input', 'target_metadata', '$.project'],
     ['target row metadata', 'input', 'target_metadata', '$.workItems'],
     ['target step metadata', 'input', 'target_metadata', '$.steps'],
-    ['target project date', 'input', 'target_metadata', '$.project'],
-    ['target project timezone', 'input', 'target_metadata', '$.project'],
+    ['target work package date', 'input', 'target_metadata', '$.project'],
+    ['target work package timezone', 'input', 'target_metadata', '$.project'],
     ['target row hold', 'input', 'target_metadata', '$.workItems'],
     ['target step code', 'input', 'target_metadata', '$.steps'],
     ['target step position', 'input', 'target_metadata', '$.steps'],
@@ -867,12 +1002,14 @@ describe('the saved-plan routes', () => {
     async (fault, body, code, path) => {
       const id = await savedIdOf(await save('ada'));
       const healthyId = await savedIdOf(await save('ada'));
-      const captured = savedConnectedHistoryFixture(projectId);
+      const captured = savedConnectedHistoryFixture(workPackageId);
       const history = captured.input.dependencyHistory;
       if (history.kind !== 'connected') throw new Error('connected fixture required');
       const stage = captured.schedule.connection.stages[0];
       if (fault === 'numeric step code' || fault === 'missing step code') {
-        const foreign = history.projects.find((project) => project.projectId !== projectId);
+        const foreign = history.projects.find(
+          (workPackage) => workPackage.projectId !== workPackageId,
+        );
         if (foreign === undefined) throw new Error('foreign fixture required');
         const corruptCode = (step: object) =>
           fault === 'numeric step code'
@@ -883,15 +1020,15 @@ describe('the saved-plan routes', () => {
           for (const end of [relationship.predecessor, relationship.successor])
             if (end.projectId === foreign.projectId && end.step !== null) corruptCode(end.step);
       }
-      if (fault === 'target project metadata')
+      if (fault === 'target work package metadata')
         Reflect.set(captured.input.project, 'name', 'contradiction');
       if (fault === 'target row metadata')
         Reflect.set(captured.input.workItems[0], 'name', 'contradiction');
       if (fault === 'target step metadata')
         Reflect.set(captured.input.steps[0], 'name', 'contradiction');
-      if (fault === 'target project date')
+      if (fault === 'target work package date')
         Reflect.set(captured.input.project, 'startDate', '2026-10-02');
-      if (fault === 'target project timezone')
+      if (fault === 'target work package timezone')
         Reflect.set(captured.input.project, 'timezone', 'Europe/Kyiv');
       if (fault === 'target row hold') Reflect.set(captured.input.workItems[0], 'hold', 'blocked');
       if (fault === 'target step code')
@@ -915,7 +1052,7 @@ describe('the saved-plan routes', () => {
       if (fault === 'observation absence')
         Reflect.set(captured.schedule.connection.stages[1], 'observation', stage.observation);
       if (fault === 'header algorithm')
-        captured.schedule.algorithmId = 'different-retired-algorithm';
+        Reflect.set(captured.schedule, 'algorithmId', 'different-retired-algorithm');
       if (fault === 'absence reason')
         Reflect.set(history, 'placementState', { kind: 'unavailable', reason: 'cycle' });
       if (fault === 'missing calendar reason')
@@ -1139,7 +1276,7 @@ describe('the saved-plan routes', () => {
       },
     ],
     [
-      'external project label',
+      'external work package label',
       'input',
       (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
         if (captured.input.dependencyHistory.kind !== 'connected')
@@ -1184,14 +1321,14 @@ describe('the saved-plan routes', () => {
       'target placement',
       'schedule',
       (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
-        captured.schedule.workItems.a.earliestStart = 1000;
+        Reflect.set(captured.schedule.workItems['a'], 'earliestStart', 1000);
       },
     ],
     [
       'body version',
       'schedule',
       (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
-        captured.schedule.version = 1;
+        Reflect.set(captured.schedule, 'version', 1);
       },
     ],
     [
@@ -1206,7 +1343,7 @@ describe('the saved-plan routes', () => {
     async (fault, body, inject) => {
       const id = await savedIdOf(await save('ada'));
       const healthyId = await savedIdOf(await save('ada'));
-      const captured = savedConnectedHistoryFixture(projectId);
+      const captured = savedConnectedHistoryFixture(workPackageId);
       inject(captured);
       await replaceSavedBodies(
         id,
@@ -1236,7 +1373,7 @@ describe('the saved-plan routes', () => {
       ]) {
         const compared = await as(
           tokens['ada'],
-          `/api/projects/${projectId}/saved-plans/compare?left=${left}&right=${right}`,
+          `/api/work-packages/${workPackageId}/saved-plans/compare?left=${left}&right=${right}`,
         );
         expect(compared.status).toBe(422);
         expect(await compared.json()).toEqual({
@@ -1252,7 +1389,7 @@ describe('the saved-plan routes', () => {
     'refuses correctly hashed invalid %s JSON before returning bytes',
     async (body) => {
       const id = await savedIdOf(await save('ada'));
-      const captured = savedConnectedHistoryFixture(projectId);
+      const captured = savedConnectedHistoryFixture(workPackageId);
       await replaceSavedBodies(
         id,
         body === 'input' ? '{' : JSON.stringify(captured.input),
@@ -1269,7 +1406,7 @@ describe('the saved-plan routes', () => {
 
   it('requires selected evidence but reads an explicitly unavailable connected capture without dates', async () => {
     const id = await savedIdOf(await save('ada'));
-    const captured = savedConnectedHistoryFixture(projectId);
+    const captured = savedConnectedHistoryFixture(workPackageId);
     await replaceSavedBodies(id, JSON.stringify(captured.input), null);
     const missing = await as(tokens['ada'], `/api/saved-plans/${id}`);
     expect(missing.status).toBe(422);
@@ -1292,26 +1429,26 @@ describe('the saved-plan routes', () => {
   });
 
   /**
-   * The cross-project refusal, and the reason the compare route may carry a
-   * project id at all.
+   * The cross-work-package refusal, and the reason the compare route may carry a
+   * work package id at all.
    *
-   * Without it a caller who may read project A's plans names one of them as the
-   * left side and `current` on project B as the right, and the answer contains
-   * project B's live plan — which is exactly the exposure 7.3b's negative
+   * Without it a caller who may read work package A's plans names one of them as the
+   * left side and `current` on work package B as the right, and the answer contains
+   * work package B's live plan — which is exactly the exposure 7.3b's negative
    * names, reached through the *side* rather than through the guard. The status
    * is a plain 404 with no hint that the plan exists somewhere else.
    */
-  it('refuses a saved plan that belongs to another project', async () => {
+  it('refuses a saved plan that belongs to another work package', async () => {
     const foreign = await savedIdOf(await save('ada'));
-    const other = await as(tokens['owner'], '/api/projects', {
+    const other = await as(tokens['owner'], '/api/work-packages', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Somebody else’s shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Somebody else’s shed' }),
     });
-    const otherId = ((await other.json()) as { project: { id: string } }).project.id;
+    const otherId = ((await other.json()) as { workPackage: { id: string } }).workPackage.id;
 
     const res = await as(
       tokens['ada'],
-      `/api/projects/${otherId}/saved-plans/compare?left=${foreign}&right=current`,
+      `/api/work-packages/${otherId}/saved-plans/compare?left=${foreign}&right=current`,
     );
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found', savedPlanId: foreign });
@@ -1338,7 +1475,7 @@ describe('the saved-plan routes', () => {
 
     const res = await as(
       tokens['ada'],
-      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=current`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${id}&right=current`,
     );
     expect(res.status).toBe(422);
     const body = (await res.json()) as { error: string; savedPlanId: string };
@@ -1349,29 +1486,29 @@ describe('the saved-plan routes', () => {
   /**
    * The two cases above, crossed — and the crossing is the defect.
    *
-   * Each of them alone passed on the old code: the cross-project test used
+   * Each of them alone passed on the old code: the cross-work-package test used
    * a *healthy* foreign plan and the corrupt test used a plan in *this*
-   * project.
-   * `sideOf` read and verified the bytes first and checked the project second,
-   * so the one combination neither covered — a corrupt plan in another project
+   * work package.
+   * `sideOf` read and verified the bytes first and checked the work package second,
+   * so the one combination neither covered — a corrupt plan in another work package
    * — left as the 422 above, naming a foreign id and reporting its condition,
    * where every foreign plan is promised the same 404 an id that never existed
    * gets. Sol's I2 on PR 202.
    *
-   * A prober with a list of ids and no access to project A could therefore sort
+   * A prober with a list of ids and no access to work package A could therefore sort
    * them into "exists here and is damaged" and "unknown", which is exactly the
    * distinction the plain 404 above exists to deny them.
    *
    * Watched: with the `principalsOf` scope check removed from `sideOf`, this
    * fails on `expected 422 to be 404`.
    */
-  it('does not admit that another project’s plan exists, even when it is damaged', async () => {
+  it('does not admit that another work package’s plan exists, even when it is damaged', async () => {
     const foreign = await savedIdOf(await save('ada'));
-    const other = await as(tokens['owner'], '/api/projects', {
+    const other = await as(tokens['owner'], '/api/work-packages', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Somebody else’s shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Somebody else’s shed' }),
     });
-    const otherId = ((await other.json()) as { project: { id: string } }).project.id;
+    const otherId = ((await other.json()) as { workPackage: { id: string } }).workPackage.id;
 
     const damaged = openConnection(path);
     damaged.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE kind = 'input'`);
@@ -1379,7 +1516,7 @@ describe('the saved-plan routes', () => {
 
     const res = await as(
       tokens['ada'],
-      `/api/projects/${otherId}/saved-plans/compare?left=${foreign}&right=current`,
+      `/api/work-packages/${otherId}/saved-plans/compare?left=${foreign}&right=current`,
     );
     expect(res.status).toBe(404);
     // Byte-for-byte what the healthy foreign plan answers above: a caller
@@ -1422,7 +1559,7 @@ describe('the saved-plan routes', () => {
 
     const compared = await as(
       tokens['ada'],
-      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=current`,
+      `/api/work-packages/${workPackageId}/saved-plans/compare?left=${id}&right=current`,
     );
     expect(compared.status).toBe(501);
     expect(await compared.json()).toEqual({
@@ -1433,7 +1570,7 @@ describe('the saved-plan routes', () => {
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
       // Proof: omitting schema8 in the production501 payload failed this exact reply (2026-10-17).
-      supported: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      supported: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -1444,7 +1581,7 @@ describe('the saved-plan routes', () => {
    * `current` is a reserved literal, not a lookup, and this is the case that
    * says so about the literal rather than about a status.
    *
-   * The project has **no saved plans at all** and both sides are `current`, so
+   * The work package has **no saved plans at all** and both sides are `current`, so
    * nothing else is moving: a build that resolved every side by id answers 404
    * here because no plan is called `current`, and a build that reserves the
    * literal captures the live plan twice and reports no difference.
@@ -1464,48 +1601,51 @@ describe('the saved-plan routes', () => {
     expect(diff.schedule).toEqual([]);
   });
 
-  it('answers 404 when the compare route names a project that is not there', async () => {
+  it('answers 404 when the compare route names a work package that is not there', async () => {
     const res = await as(
       tokens['ada'],
-      '/api/projects/does-not-exist/saved-plans/compare?left=current&right=current',
+      '/api/work-packages/does-not-exist/saved-plans/compare?left=current&right=current',
     );
     expect(res.status).toBe(404);
   });
 
+  // Historical Task6.2 owner-bearing rationale below is retained as its original record.
+  // Current legacy saves require !restricted; header touches require the saved author.
+  // The account named 'owner' is the package creator, not an authorization grant.
   /**
    * Task 6.2's matrix: every caller a saved-plan route can have, against all
-   * **six** routes, on a project that is unrestricted and then restricted.
+   * **six** routes, on a work package that is unrestricted and then restricted.
    *
    * **The cell that carries the task is `restricted` × `ada`.** She created the
-   * plans and does not own the project, so on a restricted project `canEdit` is
+   * plans and does not own the work package, so on a restricted work package `canEdit` is
    * false for her — she may not save a new plan — and yet she may still rename
    * and delete the ones she already made. No single rule produces both answers,
-   * which is exactly what 6.1 separated: saving is an ordinary project write,
+   * which is exactly what 6.1 separated: saving is an ordinary work package write,
    * renaming and deleting are the creator-or-owner rule. The tests above prove
-   * that rule holds on an *unrestricted* project, where the ordinary rule is
+   * that rule holds on an *unrestricted* work package, where the ordinary rule is
    * permissive; this proves it is not merely `canEdit` wearing a second name on
-   * a project where the ordinary rule is strict.
+   * a work package where the ordinary rule is strict.
    *
    * The `anonymous` row is not padding either: it says the guard runs *before*
-   * the permission rule, so a restricted project answers an unauthenticated
-   * caller 401 and never 403 — a 403 there would tell a stranger the project
+   * the permission rule, so a restricted work package answers an unauthenticated
+   * caller 401 and never 403 — a 403 there would tell a stranger the work package
    * exists.
    *
    * **`compare` is the sixth column and the reason 7.3b extends this table
    * rather than testing its route alone.** It is the only route that can hand
-   * back a restricted project's *live* plan, through the `current` side, and it
+   * back a restricted work package's *live* plan, through the `current` side, and it
    * is therefore the only route whose guard has to be proved against the same
    * four callers as the five that came before. The cell that carries it is
-   * `restricted` × `anonymous`: 401, from the guard, before the project is read
+   * `restricted` × `anonymous`: 401, from the guard, before the work package is read
    * and long before `current` is captured. Drop `signedIn` from the route and
-   * that cell answers 200 with the live plan of a project its caller never
+   * that cell answers 200 with the live plan of a work package its caller never
    * authenticated to see.
    *
    * The `restricted` × `mallory` cell reads 200, and that is this codebase's
    * read rule rather than an oversight: `canEdit` restricts *writing*, and the
    * `read` column beside it has said 200 there since 6.2. What stops a third
-   * party reaching another project's live plan is not this row — it is the
-   * cross-project refusal proved above, which is the other half of 7.3b's
+   * party reaching another work package's live plan is not this row — it is the
+   * cross-work-package refusal proved above, which is the other half of 7.3b's
    * negative and the half a status matrix cannot see.
    */
   describe('the permission matrix', () => {
@@ -1524,18 +1664,18 @@ describe('the saved-plan routes', () => {
     const MATRIX: Record<'unrestricted' | 'restricted', Record<Actor, Row>> = {
       unrestricted: {
         anonymous: { save: 401, list: 401, read: 401, rename: 401, delete: 401, compare: 401 },
-        owner: { save: 201, list: 200, read: 200, rename: 200, delete: 204, compare: 200 },
+        owner: { save: 201, list: 200, read: 200, rename: 403, delete: 403, compare: 200 },
         ada: { save: 201, list: 200, read: 200, rename: 200, delete: 204, compare: 200 },
-        // The ordinary write rule would let her save — the project is open —
+        // The ordinary write rule would let her save — the work package is open —
         // and the creator-or-owner rule still refuses her the other two.
         mallory: { save: 201, list: 200, read: 200, rename: 403, delete: 403, compare: 200 },
       },
       restricted: {
-        // 401 before the project is read and before `current` is captured. This
+        // 401 before the work package is read and before `current` is captured. This
         // is the cell 7.3b's negative moves: with the guard gone it is 200 and
-        // carries the restricted project's live plan.
+        // carries the restricted work package's live plan.
         anonymous: { save: 401, list: 401, read: 401, rename: 401, delete: 401, compare: 401 },
-        owner: { save: 201, list: 200, read: 200, rename: 200, delete: 204, compare: 200 },
+        owner: { save: 403, list: 200, read: 200, rename: 403, delete: 403, compare: 200 },
         // Refused a new plan and allowed to rename and delete her own: the two
         // rules disagreeing about one caller is the point of the whole column.
         ada: { save: 403, list: 200, read: 200, rename: 200, delete: 204, compare: 200 },
@@ -1557,8 +1697,8 @@ describe('the saved-plan routes', () => {
     for (const column of ['unrestricted', 'restricted'] as const) {
       for (const actor of ACTORS) {
         it(`${column}: ${actor} against all six routes`, async () => {
-          // Seeded before the project is restricted, because on a restricted
-          // project `ada` could not create them — and a matrix whose rename and
+          // Seeded before the work package is restricted, because on a restricted
+          // work package `ada` could not create them — and a matrix whose rename and
           // delete targets were the owner's would be asking a different
           // question in the two columns.
           const toRead = await savedIdOf(await save('ada', 'the read target'));
@@ -1566,19 +1706,19 @@ describe('the saved-plan routes', () => {
           const toDelete = await savedIdOf(await save('ada', 'the delete target'));
 
           if (column === 'restricted') {
-            await restrictProject();
+            await restrictWorkPackage();
           }
 
           // Collected into one object and compared whole, so a wrong rule
           // reports every cell it moved rather than stopping at the first.
           const row: Row = {
             save: (
-              await request(actor, `/api/projects/${projectId}/saved-plans`, {
+              await request(actor, `/api/work-packages/${workPackageId}/saved-plans`, {
                 method: 'POST',
                 body: JSON.stringify({ name: 'one more' }),
               })
             ).status,
-            list: (await request(actor, `/api/projects/${projectId}/saved-plans`)).status,
+            list: (await request(actor, `/api/work-packages/${workPackageId}/saved-plans`)).status,
             read: (await request(actor, `/api/saved-plans/${toRead}`)).status,
             rename: (
               await request(actor, `/api/saved-plans/${toRename}`, {
@@ -1593,7 +1733,7 @@ describe('the saved-plan routes', () => {
             compare: (
               await request(
                 actor,
-                `/api/projects/${projectId}/saved-plans/compare?left=${toRead}&right=current`,
+                `/api/work-packages/${workPackageId}/saved-plans/compare?left=${toRead}&right=current`,
               )
             ).status,
           };
@@ -1607,48 +1747,50 @@ describe('the saved-plan routes', () => {
   /**
    * What a collaborator hears (TASK-255).
    *
-   * **Two projects rather than two sockets**, and that is the strongest thing a
-   * test at this level can say. gw-01 fans one project's stream out to every
-   * socket subscribed to `subscriptionFor(projectId)`, so what be-01 decides is
-   * not *who* receives an event but *which project's stream it lands on* —
-   * exactly one publish, carrying exactly one project id. A test that opened two
+   * **Two work packages rather than two sockets**, and that is the strongest thing a
+   * test at this level can say. gw-01 fans one work package's stream out to every
+   * socket subscribed to `subscriptionFor(workPackageId)`, so what be-01 decides is
+   * not *who* receives an event but *which work package's stream it lands on* —
+   * exactly one publish, carrying exactly one work package id. A test that opened two
    * sockets would be re-proving gw-01's fan-out, which
    * `gateway-broadcaster.test.ts` already owns, and would prove nothing about
    * this file.
    *
    * `published` is asserted **whole** with `toEqual` rather than searched. A
-   * `.some(...)` would pass on a save that also announced the second project,
+   * `.some(...)` would pass on a save that also announced the second work package,
    * which is the defect AC #3 exists to catch.
    */
   describe('the broadcast', () => {
-    /** A second project, owned by the same account, that must hear nothing. */
-    const anotherProject = async (): Promise<string> => {
-      const created = await as(tokens['owner'], '/api/projects', {
+    /** A second work package, owned by the same account, that must hear nothing. */
+    const anotherWorkPackage = async (): Promise<string> => {
+      const created = await as(tokens['owner'], '/api/work-packages', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Re-roof the barn' }),
+        body: JSON.stringify({ projectId: PROJECT_ID, name: 'Re-roof the barn' }),
       });
-      return ((await created.json()) as { project: { id: string } }).project.id;
+      return ((await created.json()) as { workPackage: { id: string } }).workPackage.id;
     };
 
-    it('announces a save on the saved project, and on no other', async () => {
-      const other = await anotherProject();
+    it('announces a save on the saved work package, and on no other', async () => {
+      const other = await anotherWorkPackage();
       broadcast.published.length = 0;
 
       expect((await save('ada')).status).toBe(201);
 
-      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
-      // Named separately, so a regression that broadcast to every project fails
-      // on a sentence that says which project was wrong.
-      expect(broadcast.published.map((each) => each.projectId)).not.toContain(other);
+      expect(broadcast.published).toEqual([
+        { workPackageId, event: { type: 'saved_plans_changed' } },
+      ]);
+      // Named separately, so a regression that broadcast to every work package fails
+      // on a sentence that says which work package was wrong.
+      expect(broadcast.published.map((each) => each.workPackageId)).not.toContain(other);
     });
 
     /**
      * The negative that keeps the publish on the branch that changed something.
-     * `mallory` may not write to a restricted project, so this is a 403 — and a
+     * `mallory` may not write to a restricted work package, so this is a 403 — and a
      * 403 has changed no list.
      */
     it('says nothing when the save is refused', async () => {
-      await restrictProject();
+      await restrictWorkPackage();
       broadcast.published.length = 0;
 
       expect((await save('mallory')).status).toBe(403);
@@ -1658,16 +1800,16 @@ describe('the saved-plan routes', () => {
 
     /**
      * Rename and delete address the plan by its own id — `/api/saved-plans/:id`
-     * never names a project — so this is the case that proves the announced
-     * project id came from the plan's own row rather than from the URL, which
+     * never names a work package — so this is the case that proves the announced
+     * work package id came from the plan's own row rather than from the URL, which
      * could not have supplied it.
      *
      * The delete half has its own trap: the row is gone by the time the answer
-     * is written, so an implementation that looked the project up *after* the
+     * is written, so an implementation that looked the work package up *after* the
      * touch would announce `undefined` here and pass any assertion that only
      * counted the events. `toEqual` on the whole array is what catches it.
      */
-    it('announces a rename and a delete on the project the plan belongs to', async () => {
+    it('announces a rename and a delete on the work package the plan belongs to', async () => {
       const saved = await savedIdOf(await save('ada'));
       broadcast.published.length = 0;
 
@@ -1676,12 +1818,16 @@ describe('the saved-plan routes', () => {
         body: JSON.stringify({ name: 'after the rewire' }),
       });
       expect(renamed.status).toBe(200);
-      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+      expect(broadcast.published).toEqual([
+        { workPackageId, event: { type: 'saved_plans_changed' } },
+      ]);
 
       broadcast.published.length = 0;
       const deleted = await as(tokens['ada'], `/api/saved-plans/${saved}`, { method: 'DELETE' });
       expect(deleted.status).toBe(204);
-      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+      expect(broadcast.published).toEqual([
+        { workPackageId, event: { type: 'saved_plans_changed' } },
+      ]);
     });
 
     /**
@@ -1736,7 +1882,9 @@ describe('the saved-plan routes', () => {
       // the event and sent it later would pass the second and fail the first —
       // and would still lose the event on a refusal.
       expect(batchCollector.pending).toEqual([]);
-      expect(broadcast.published).toEqual([{ projectId, event: { type: 'saved_plans_changed' } }]);
+      expect(broadcast.published).toEqual([
+        { workPackageId, event: { type: 'saved_plans_changed' } },
+      ]);
     });
 
     /**
@@ -1765,7 +1913,7 @@ afterEach(() => {
 const principal: AuthenticatedUser = { id: 'actor', username: 'Ada', scopes: ['read', 'write'] };
 const record: SavedPlanWrite = {
   id: 's',
-  projectId: 'p',
+  workPackageId: 'p',
   name: 'Saved',
   createdBy: 'Ada',
   createdById: 'actor',
@@ -1773,30 +1921,152 @@ const record: SavedPlanWrite = {
   input: { schemaVersion: 1, bytes: '{ "historic": true }', sha256: 'digest' },
   schedule: { present: false, absentReason: 'future_reason' },
 };
+const storedRecord: StoredSavedPlan = {
+  stepIdentity: { kind: 'pre_catalogue' },
+  header: {
+    id: 's',
+    workPackageId: 'p',
+    name: 'Saved',
+    createdBy: 'Ada',
+    createdById: 'actor',
+    createdAt: 1,
+    inputSchemaVersion: 1,
+    inputBytes: 20,
+    inputSha256: 'digest',
+    scheduleSchemaVersion: null,
+    scheduleBytes: null,
+    scheduleSha256: null,
+    scheduleInputSha256: null,
+    schedulerAlgorithmId: null,
+    scheduleAbsentReason: 'future_reason',
+  },
+  bodies: { input: '{ "historic": true }', schedule: null },
+};
+const protocolReads = connectedReads('p');
+const protocolCurrent: SavedCurrentCapture = {
+  kind: 'local',
+  reads: { ...protocolReads, workPackage: { ...protocolReads.workPackage, projectId: PROJECT_ID } },
+  scheduled: { kind: 'cycle' },
+};
+const protocolSide = {
+  comparison: { kind: 'captured' as const },
+  ...projectSavedPlanInput(
+    canonicalisePlanInputV12(planInputRowsOf(protocolReads), { kind: 'local' }),
+    12,
+  ),
+  schedule: { present: false as const, absentReason: 'unavailable' },
+};
 function fixture() {
   const plans = testSavedPlanService();
-  const projects = testProjectService();
+  const workPackages = testWorkPackageService();
   const announcements = recordingBroadcaster();
-  const projectRead = spyOn(projects, 'readWithin').mockResolvedValue({
-    project: { ...projectRow({ id: 'p' }), timezone: 'UTC' },
+  const workPackageRead = spyOn(workPackages, 'readWithin').mockResolvedValue({
+    workPackage: { ...workPackageRow({ projectId: PROJECT_ID, id: 'p' }), timezone: 'UTC' },
     steps: [],
   });
-  const save = spyOn(plans, 'save').mockResolvedValue({ outcome: 'saved', record });
+  const save = spyOn(plans, 'saveObserved').mockImplementation(async (request, saveObservation) => {
+    const captured = await saveObservation.captureSavedPlan(
+      { kind: 'human', principal: request.actor, expectedAccess: request.access },
+      request.workPackageId,
+    );
+    if (!captured.ok) return { outcome: 'access_refused', refusal: captured };
+    if (captured.value.kind === 'not_found') return { outcome: 'not_found' };
+    if (captured.value.kind === 'forbidden') return { outcome: 'forbidden' };
+    return { outcome: 'saved', record };
+  });
   const list = spyOn(plans, 'list').mockResolvedValue([]);
-  const read = spyOn(plans, 'read').mockResolvedValue({ outcome: 'read', plan: record });
-  const compare = spyOn(plans, 'compare').mockResolvedValue({
+  const listSaved = spyOn(
+    {
+      listSaved: async (
+        _caller: Parameters<WorkPackageObservation['listSaved']>[0],
+        id: string,
+      ): ReturnType<WorkPackageObservation['listSaved']> => {
+        if (_caller.kind !== 'human' || _caller.expectedAccess.kind !== 'legacy')
+          throw new Error('saved shelf protocol fixture requires explicit legacy caller');
+        if ((await workPackages.readWithin(id, _caller.expectedAccess)) === null)
+          return { ok: true, value: null };
+        return { ok: true, value: [] };
+      },
+    },
+    'listSaved',
+  );
+  const observation: WorkPackageObservation = {
+    ...createLegacyWorkPackageObservation(workPackages, testHistoryService()),
+    listSaved,
+    async captureSavedPlan(caller, id) {
+      if (caller.expectedAccess.kind !== 'legacy')
+        throw Error('save protocol fixture requires explicit legacy caller');
+      const found = await workPackages.readWithin(id, caller.expectedAccess);
+      if (found === null) return { ok: true, value: { kind: 'not_found' } };
+      if (found.workPackage.restricted) return { ok: true, value: { kind: 'forbidden' } };
+      return {
+        ok: true,
+        value: { kind: 'captured', access: caller.expectedAccess, captured: protocolCurrent },
+      };
+    },
+    async captureSavedCurrent(caller, id) {
+      if (caller.kind !== 'human' || caller.expectedAccess.kind !== 'legacy')
+        throw Error('current protocol fixture requires explicit legacy caller');
+      if ((await workPackages.readWithin(id, caller.expectedAccess)) === null)
+        return { ok: true, value: null };
+      return { ok: true, value: protocolCurrent };
+    },
+    async readSaved(caller, address) {
+      if (caller.kind !== 'human' || caller.expectedAccess.kind !== 'legacy')
+        throw Error('saved protocol fixture requires explicit legacy caller');
+      const id =
+        address.kind === 'detail' ? storedRecord.header.workPackageId : address.workPackageId;
+      if ((await workPackages.readWithin(id, caller.expectedAccess)) === null)
+        return { ok: true, value: { kind: 'package_not_found' } };
+      if (
+        address.savedPlanId !== storedRecord.header.id ||
+        id !== storedRecord.header.workPackageId
+      )
+        return { ok: true, value: { kind: 'saved_plan_not_found' } };
+      return { ok: true, value: { kind: 'stored', stored: storedRecord } };
+    },
+  };
+  const read = spyOn(plans, 'readStoredPlan').mockResolvedValue({ outcome: 'read', plan: record });
+  const readStoredSide = spyOn(plans, 'readStoredSide').mockResolvedValue({
+    outcome: 'side',
+    side: protocolSide,
+  });
+  const projectCurrent = spyOn(plans, 'projectCapturedCurrent').mockReturnValue(protocolSide);
+  const compare = spyOn(plans, 'compareSides').mockReturnValue({
     outcome: 'compared',
     diff: { input: [], schedule: [] },
     left: comparisonSide,
     right: comparisonSide,
   });
-  const rename = spyOn(plans, 'rename').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
-  const remove = spyOn(plans, 'delete').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
-  for (const spy of [projectRead, save, list, read, compare, rename, remove])
+  const rename = spyOn(plans, 'rename').mockResolvedValue({
+    outcome: 'touched',
+    workPackageId: 'p',
+  });
+  const remove = spyOn(plans, 'delete').mockResolvedValue({
+    outcome: 'touched',
+    workPackageId: 'p',
+  });
+  for (const spy of [
+    workPackageRead,
+    save,
+    list,
+    read,
+    compare,
+    readStoredSide,
+    projectCurrent,
+    rename,
+    remove,
+  ])
     restorations.push(() => {
       spy.mockRestore();
     });
-  const endpoints = savedPlanRoutes(plans, projects, announcements, legacyOrganizationAccess);
+  const endpoints = savedPlanRoutes(
+    plans,
+    workPackages,
+    announcements,
+    legacyOrganizationAccess,
+    observation,
+  );
   const auth = testAuthService();
   const authenticate = spyOn(auth, 'authenticateOrRefuse').mockImplementation((token) =>
     Promise.resolve(
@@ -1809,8 +2079,12 @@ function fixture() {
   const app = testApp({
     auth,
     savedPlans: plans,
-    projects,
-    writes: testWrites(announcements, { projects }),
+    workPackages,
+    workPackageObservation: observation,
+    writes: testWrites(announcements, {
+      workPackages,
+      workItems: testWorkItemService(openTestSource()),
+    }),
   });
   const call = (
     path: string,
@@ -1835,11 +2109,14 @@ function fixture() {
     call,
     save,
     list,
+    listSaved,
     read,
     compare,
+    readStoredSide,
+    projectCurrent,
     rename,
     remove,
-    projectRead,
+    workPackageRead,
     announcements,
   };
 }
@@ -1850,7 +2127,7 @@ test('mounted contention remains 503 for save, rename and delete without announc
   f.rename.mockResolvedValue({ outcome: 'snapshot_busy' });
   f.remove.mockResolvedValue({ outcome: 'snapshot_busy' });
   for (const [path, method, body] of [
-    ['/api/projects/p/saved-plans', 'POST', '{}'],
+    ['/api/work-packages/p/saved-plans', 'POST', '{}'],
     ['/api/saved-plans/s', 'PATCH', '{"name":"New"}'],
     ['/api/saved-plans/s', 'DELETE', undefined],
   ] as const) {
@@ -1861,22 +2138,22 @@ test('mounted contention remains 503 for save, rename and delete without announc
   expect(f.announcements.published).toEqual([]);
 });
 
-test('mounted quota keeps every limit detail and project disappearance remains 404', async () => {
+test('mounted quota keeps every limit detail and work package disappearance remains 404', async () => {
   const f = fixture();
-  for (const limit of ['body_bytes', 'plan_count', 'project_bytes'] as const) {
+  for (const limit of ['body_bytes', 'plan_count', 'work_package_bytes'] as const) {
     f.save.mockResolvedValueOnce({
       outcome: 'refused',
       refusal: { limit, asked: 12, allowed: 10 },
     });
-    const response = await f.call('/api/projects/p/saved-plans', 'POST', '{}');
+    const response = await f.call('/api/work-packages/p/saved-plans', 'POST', '{}');
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: 'quota',
       refusal: { limit, asked: 12, allowed: 10 },
     });
   }
-  f.save.mockResolvedValueOnce({ outcome: 'no_project' });
-  expect((await f.call('/api/projects/p/saved-plans', 'POST', '{}')).status).toBe(404);
+  f.save.mockResolvedValueOnce({ outcome: 'no_work_package' });
+  expect((await f.call('/api/work-packages/p/saved-plans', 'POST', '{}')).status).toBe(404);
   expect(f.announcements.published).toEqual([]);
 });
 
@@ -1902,22 +2179,22 @@ test('mounted compare preserves last query values, opaque differences, and corru
     input: [{ category: 'other' as const, path: 'old.x', left: { old: [1, 'x'] }, right: null }],
     schedule: [],
   };
-  f.compare.mockResolvedValueOnce({
+  f.compare.mockReturnValueOnce({
     outcome: 'compared',
     diff,
     left: comparisonSide,
     right: comparisonSide,
   });
   const response = await f.call(
-    '/api/projects/p/saved-plans/compare?left=missing&left=current&right=s',
+    '/api/work-packages/p/saved-plans/compare?left=missing&left=current&right=s',
   );
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ diff, left: comparisonSide, right: comparisonSide });
   expect(f.compare).toHaveBeenCalledWith(
-    'p',
     { kind: 'current' },
+    protocolSide,
     { kind: 'saved', savedPlanId: 's' },
-    { kind: 'legacy' },
+    protocolSide,
   );
   const refusal = {
     reason: 'body_hash_mismatch' as const,
@@ -1926,12 +2203,12 @@ test('mounted compare preserves last query values, opaque differences, and corru
     stored: 'before',
     recomputed: 'after',
   };
-  f.compare.mockResolvedValueOnce({ outcome: 'corrupt', savedPlanId: 's', refusal });
-  const corrupt = await f.call('/api/projects/p/saved-plans/compare?left=s&right=current');
+  f.readStoredSide.mockResolvedValueOnce({ outcome: 'corrupt', savedPlanId: 's', refusal });
+  const corrupt = await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current');
   expect(corrupt.status).toBe(422);
   expect(await corrupt.json()).toEqual({ error: 'corrupt', savedPlanId: 's', refusal });
   expect(
-    (await f.call('/api/projects/p/saved-plans/compare?left=s&right=current&extra=1')).status,
+    (await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current&extra=1')).status,
   ).toBe(422);
 });
 
@@ -1945,23 +2222,23 @@ test('mounted name admission distinguishes required bodies and save versus renam
     '{"name":null}',
     '{"name":"N","extra":1}',
   ]) {
-    expect((await f.call('/api/projects/p/saved-plans', 'POST', body)).status).toBe(422);
+    expect((await f.call('/api/work-packages/p/saved-plans', 'POST', body)).status).toBe(422);
     expect((await f.call('/api/saved-plans/s', 'PATCH', body)).status).toBe(422);
   }
   expect(f.save).not.toHaveBeenCalled();
   expect(f.rename).not.toHaveBeenCalled();
   expect((await f.call('/api/saved-plans/s', 'PATCH', '{}')).status).toBe(422);
-  expect((await f.call('/api/projects/p/saved-plans', 'POST', '{}')).status).toBe(201);
+  expect((await f.call('/api/work-packages/p/saved-plans', 'POST', '{}')).status).toBe(201);
   expect(
     (
-      await f.call('/api/projects/p/saved-plans', 'POST', '', {
+      await f.call('/api/work-packages/p/saved-plans', 'POST', '', {
         'content-type': 'application/x-www-form-urlencoded',
       })
     ).status,
   ).toBe(201);
   expect(
     (
-      await f.call('/api/projects/p/saved-plans', 'POST', undefined, {
+      await f.call('/api/work-packages/p/saved-plans', 'POST', undefined, {
         'content-type': 'application/x-www-form-urlencoded',
       })
     ).status,
@@ -1972,19 +2249,25 @@ test('mounted policies precede malformed writes and anonymous malformed comparis
   const f = fixture();
   expect(
     (
-      await f.call('/api/projects/p/saved-plans', 'POST', '{', {
+      await f.call('/api/work-packages/p/saved-plans', 'POST', '{', {
         cookie: '__Host-wbs_session=x',
         origin: 'http://foreign.example',
       })
     ).status,
   ).toBe(403);
   expect(
-    (await f.call('/api/projects/p/saved-plans', 'POST', '{', { authorization: 'Bearer reader' }))
-      .status,
+    (
+      await f.call('/api/work-packages/p/saved-plans', 'POST', '{', {
+        authorization: 'Bearer reader',
+      })
+    ).status,
   ).toBe(403);
   expect(
-    (await f.app.handle(new Request('http://localhost/api/projects/p/saved-plans/compare?bad=1')))
-      .status,
+    (
+      await f.app.handle(
+        new Request('http://localhost/api/work-packages/p/saved-plans/compare?bad=1'),
+      )
+    ).status,
   ).toBe(401);
   expect(f.save).not.toHaveBeenCalled();
   expect(f.compare).not.toHaveBeenCalled();
@@ -1995,7 +2278,7 @@ test('mounted stored-response validation requires creator and schedule fields bu
   const missingCreator = { ...record };
   Reflect.deleteProperty(missingCreator, 'createdById');
   f.save.mockResolvedValueOnce({ outcome: 'saved', record: missingCreator } as never);
-  expect((await f.call('/api/projects/p/saved-plans', 'POST', '{}')).status).toBe(500);
+  expect((await f.call('/api/work-packages/p/saved-plans', 'POST', '{}')).status).toBe(500);
   f.read.mockResolvedValueOnce({
     outcome: 'read',
     plan: { ...record, schedule: { present: true, body: record.input, inputSha256: 'digest' } },
@@ -2022,10 +2305,14 @@ test('mounted malformed-history refusal requires its path and code on read and c
     Reflect.deleteProperty(incomplete, field);
     f.read.mockResolvedValueOnce({ outcome: 'corrupt', refusal: incomplete });
     expect((await f.call('/api/saved-plans/s')).status).toBe(500);
-    f.compare.mockResolvedValueOnce({ outcome: 'corrupt', savedPlanId: 's', refusal: incomplete });
-    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=current')).status).toBe(
-      500,
-    );
+    f.readStoredSide.mockResolvedValueOnce({
+      outcome: 'corrupt',
+      savedPlanId: 's',
+      refusal: incomplete,
+    });
+    expect(
+      (await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current')).status,
+    ).toBe(500);
   }
 });
 
@@ -2071,15 +2358,15 @@ test('mounted integrity variants retain their distinct operational details', asy
   }
 });
 
-it('does not classify project version-shaped failures as saved-plan refusals', async () => {
+it('does not classify work package version-shaped failures as saved-plan refusals', async () => {
   const f = fixture();
   const failure = new UnknownSavedPlanBodyVersionError('unrelated', 'input', 99, [1]);
   for (const [path, method, body] of [
-    ['/api/projects/p/saved-plans', 'POST', '{}'],
-    ['/api/projects/p/saved-plans', 'GET', undefined],
-    ['/api/projects/p/saved-plans/compare?left=current&right=current', 'GET', undefined],
+    ['/api/work-packages/p/saved-plans', 'POST', '{}'],
+    ['/api/work-packages/p/saved-plans', 'GET', undefined],
+    ['/api/work-packages/p/saved-plans/compare?left=current&right=current', 'GET', undefined],
   ] as const) {
-    f.projectRead.mockRejectedValueOnce(failure);
+    f.workPackageRead.mockRejectedValueOnce(failure);
     expect((await f.call(path, method, body)).status).toBe(500);
   }
 });
@@ -2090,7 +2377,7 @@ it('does not classify announcement version-shaped failures as saved-plan refusal
   const publish = spyOn(f.announcements, 'publish').mockRejectedValue(failure);
   try {
     for (const [path, method, body] of [
-      ['/api/projects/p/saved-plans', 'POST', '{}'],
+      ['/api/work-packages/p/saved-plans', 'POST', '{}'],
       ['/api/saved-plans/s', 'PATCH', '{"name":"New"}'],
       ['/api/saved-plans/s', 'DELETE', undefined],
     ] as const)
@@ -2102,32 +2389,38 @@ it('does not classify announcement version-shaped failures as saved-plan refusal
 
 it('rejects a malformed known comparison missing-side id while preserving optional omission', async () => {
   const f = fixture();
-  f.compare.mockResolvedValueOnce({ outcome: 'not_found', savedPlanId: 42 } as never);
-  expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=current')).status).toBe(
-    500,
-  );
-  f.compare.mockResolvedValueOnce({ outcome: 'not_found', savedPlanId: 's' });
-  const named = await f.call('/api/projects/p/saved-plans/compare?left=s&right=current');
+  f.readStoredSide.mockResolvedValueOnce({ outcome: 'not_found', savedPlanId: 42 } as never);
+  expect(
+    (await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current')).status,
+  ).toBe(500);
+  f.readStoredSide.mockResolvedValueOnce({ outcome: 'not_found', savedPlanId: 's' });
+  const named = await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current');
   expect(named.status).toBe(404);
   expect(await named.json()).toEqual({ error: 'not_found', savedPlanId: 's' });
-  f.compare.mockResolvedValueOnce({ outcome: 'no_project' });
-  const missing = await f.call('/api/projects/p/saved-plans/compare?left=s&right=current');
+  f.readStoredSide.mockResolvedValueOnce({ outcome: 'no_work_package' });
+  const missing = await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=current');
   expect(missing.status).toBe(404);
   expect(await missing.json()).toEqual({ error: 'not_found' });
 });
 
-it('classifies saved-plan service versions on each of the six operations', async () => {
+it('classifies saved-plan service versions on the five remaining service operations', async () => {
   const f = fixture();
   const failure = new UnknownSavedPlanBodyVersionError('s', 'schedule', 99, [1]);
   for (const [operation, path, method, body] of [
-    [f.save, '/api/projects/p/saved-plans', 'POST', '{}'],
-    [f.list, '/api/projects/p/saved-plans', 'GET', undefined],
-    [f.compare, '/api/projects/p/saved-plans/compare?left=s&right=current', 'GET', undefined],
+    [f.save, '/api/work-packages/p/saved-plans', 'POST', '{}'],
+    [
+      f.readStoredSide,
+      '/api/work-packages/p/saved-plans/compare?left=s&right=current',
+      'GET',
+      undefined,
+    ],
     [f.read, '/api/saved-plans/s', 'GET', undefined],
     [f.rename, '/api/saved-plans/s', 'PATCH', '{"name":"New"}'],
     [f.remove, '/api/saved-plans/s', 'DELETE', undefined],
   ] as const) {
-    operation.mockRejectedValueOnce(failure);
+    operation.mockRejectedValueOnce(
+      operation === f.save ? new SavedPlanWriteError(failure) : failure,
+    );
     const response = await f.call(path, method, body);
     expect(response.status).toBe(501);
     expect(await response.json()).toEqual({
@@ -2152,17 +2445,23 @@ test('mounted comparison rejects missing required summaries and nested boundary 
   for (const key of ['left', 'right']) {
     const incomplete = structuredClone(valid);
     Reflect.deleteProperty(incomplete, key);
-    f.compare.mockResolvedValueOnce(incomplete as never);
-    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+    f.compare.mockReturnValueOnce(incomplete as never);
+    expect((await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=s')).status).toBe(
+      500,
+    );
   }
   const captured = savedConnectedHistoryFixture('p');
   const side = summarizeSavedComparisonSide(
     {
-      input: captured.input,
+      ...projectSavedPlanInput(captured.input, 10),
+      comparison: { kind: 'captured' },
       schedule: {
         present: true,
         algorithmId: captured.schedule.algorithmId,
-        body: captured.schedule,
+        // Boundary: pinned JSON fixture plus validated current projection is finite JSON.
+        body: JSON.parse(
+          JSON.stringify(readSavedConnectedScheduleBody(captured.schedule)),
+        ) as PlanScheduleValue,
       },
     },
     { kind: 'saved', savedPlanId: 's' },
@@ -2171,7 +2470,65 @@ test('mounted comparison rejects missing required summaries and nested boundary 
     const incomplete = structuredClone(side);
     if (incomplete.provenance.kind !== 'connected') throw new Error('connected summary required');
     Reflect.deleteProperty(incomplete.provenance.stages[0].boundary, key);
-    f.compare.mockResolvedValueOnce({ ...valid, left: incomplete } as never);
-    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+    f.compare.mockReturnValueOnce({ ...valid, left: incomplete } as never);
+    expect((await f.call('/api/work-packages/p/saved-plans/compare?left=s&right=s')).status).toBe(
+      500,
+    );
   }
+});
+
+test('mounted comparison requires parent evidence and preserves known retired differences', async () => {
+  const f = fixture();
+  const valid = {
+    outcome: 'compared' as const,
+    diff: { input: [], schedule: [] },
+    left: comparisonSide,
+    right: comparisonSide,
+  };
+  for (const which of ['left', 'right'] as const) {
+    const incomplete = structuredClone(valid);
+    Reflect.deleteProperty(incomplete[which], 'parent');
+    f.compare.mockReturnValueOnce(incomplete);
+    expect(
+      (await f.call('/api/work-packages/p/saved-plans/compare?left=current&right=current')).status,
+    ).toBe(500);
+  }
+  const malformed = structuredClone(valid);
+  Reflect.set(malformed.right, 'parent', { kind: 'recorded', projectId: null });
+  f.compare.mockReturnValueOnce(malformed);
+  expect(
+    (await f.call('/api/work-packages/p/saved-plans/compare?left=current&right=current')).status,
+  ).toBe(500);
+  const retired = {
+    ...valid,
+    diff: {
+      input: [
+        {
+          category: 'retired-field' as const,
+          path: 'workPackage.ownerId',
+          left: null,
+          right: 'former-owner',
+        },
+      ],
+      schedule: [],
+    },
+  };
+  f.compare.mockReturnValueOnce(retired);
+  const response = await f.call(
+    '/api/work-packages/p/saved-plans/compare?left=current&right=current',
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    diff: retired.diff,
+    left: comparisonSide,
+    right: comparisonSide,
+  });
+});
+
+it('does not classify saved-shelf observation version-shaped failures as stored service versions', async () => {
+  const f = fixture();
+  const failure = new UnknownSavedPlanBodyVersionError('unrelated-observation', 'input', 99, [1]);
+  f.listSaved.mockRejectedValueOnce(failure);
+  expect((await f.call('/api/work-packages/p/saved-plans')).status).toBe(500);
+  expect(f.list).not.toHaveBeenCalled();
 });

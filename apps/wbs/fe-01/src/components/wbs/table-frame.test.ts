@@ -363,7 +363,7 @@ describe('the resolved frame layout', () => {
 });
 
 describe('the earliest-start column is as narrow as the plan lets it be', () => {
-  it('is 84px while any row in the project sets a day, and 60px when none does', () => {
+  it('is 84px while any row in the work package sets a day, and 60px when none does', () => {
     // A width that is a fact about the plan, which is the whole reason
     // `FrameLayoutState` exists. 146 was what a native date input needed, and
     // the column held one on every row; it holds a short date now.
@@ -859,7 +859,7 @@ describe('how wide the steps make the table', () => {
   });
 
   it('has no steps to be wide for at all, and still declares a table', () => {
-    // A project may hold none — `R1`'s spec says the seeded pair is data rather
+    // A work package may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
     expect(foldedTableMinWidth([], DATED)).toBe(956);
   });
@@ -1143,7 +1143,7 @@ describe('a column this browser has dragged to another width', () => {
   });
 
   it('outranks a default that depends on the plan, and freezes it there', () => {
-    // `not-before` is 56px or 84px depending on whether any row in the project
+    // `not-before` is 56px or 84px depending on whether any row in the work package
     // sets a day. An override on it is the reader saying how wide they want it,
     // and a column that jumped the first time somebody dated a row would be a
     // preference that does not hold.
@@ -1316,7 +1316,7 @@ describe('a column this browser has dragged to another width', () => {
 
   it('says which ids can be sized at all, which is what a stored width is checked against', () => {
     expect(sizableColumn('number', DATED)).toBe(true);
-    // A step this project no longer holds is sizable and simply never asked
+    // A step this work package no longer holds is sizable and simply never asked
     // about — the harmlessness a remembered expansion's deleted row ids have.
     expect(sizableColumn('step-gone-final', DATED)).toBe(true);
     // Sizable since `name-column-drag`: a stored `name` entry survives this

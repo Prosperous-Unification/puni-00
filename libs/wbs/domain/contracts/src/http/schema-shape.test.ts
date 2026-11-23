@@ -72,10 +72,10 @@ describe('the HTTP schema declaration boundary', () => {
   });
 
   test('retains additive reply fields while refusing a changed known field type', async () => {
-    const shape = responseSchema(type({ project: { name: 'string' } }));
-    const reply = { project: { name: 'Plan', newFlag: true }, newVersion: 2 };
+    const shape = responseSchema(type({ workPackage: { name: 'string' } }));
+    const reply = { workPackage: { name: 'Plan', newFlag: true }, newVersion: 2 };
     expect(await validateSchema(shape, reply)).toMatchObject({ value: reply });
-    expect((await validateSchema(shape, { project: { name: 42 } })).issues).toBeDefined();
+    expect((await validateSchema(shape, { workPackage: { name: 42 } })).issues).toBeDefined();
   });
 
   test('rejects an unsupported predicate instead of advertising an unconstrained schema', () => {
@@ -204,9 +204,9 @@ test('throws on malformed trusted descriptor-validator diagnostics', () => {
 });
 
 test('refuses array-valued optional-only response objects while retaining additive nested fields', async () => {
-  const shape = responseSchema(type({ project: { 'name?': 'string' } }));
-  expect((await validateSchema(shape, { project: [] })).issues).toBeDefined();
-  const reply = { project: { name: 'Known', added: { anything: [] } }, future: true };
+  const shape = responseSchema(type({ workPackage: { 'name?': 'string' } }));
+  expect((await validateSchema(shape, { workPackage: [] })).issues).toBeDefined();
+  const reply = { workPackage: { name: 'Known', added: { anything: [] } }, future: true };
   expect(await validateSchema(shape, reply)).toEqual({ value: reply });
 });
 

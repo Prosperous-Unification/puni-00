@@ -14,6 +14,7 @@ import type {
 import type { DirectoryStore } from './directory-store';
 import type { ResourceAccess } from './organization-access';
 import type { ProgressKey } from './progress-store';
+import type { WorkPackageReadAccess } from './work-package-report-store';
 import type { WriteStamp } from './write-stamp';
 
 export type { Claim, OccupancyRow, OrganizationOccupancyRow, ResourceUnits } from '@wbs/domain';
@@ -42,7 +43,7 @@ export interface StampedClaim extends Claim {
   readonly leaseRevokedAt: number | null;
 }
 
-/** The claim without its write instant or lease, as {@link ClaimStore.listByProject} answers it. */
+/** The claim without its write instant or lease, as {@link ClaimStore.listByWorkPackage} answers it. */
 export function unstampClaim({
   claimedAt: _claimedAt,
   leaseExpiresAt: _leaseExpiresAt,
@@ -61,10 +62,18 @@ export interface ClaimedTreeRow extends WorkItemPlacement {
   readonly name: string;
 }
 
+/** Detached current catalogue order captured beside claims on the same observation owner. */
+export interface ClaimStepOrder {
+  /** Package-union compatibility metadata; each leaf's order can differ. */
+  readonly stepIds: readonly string[];
+  /** Every actual leaf has an entry, including an explicit empty array for zero-step leaves. */
+  readonly leafSteps: ReadonlyMap<string, readonly string[]>;
+}
+
 /**
- * What {@link ClaimStore.observeProject} answers: one coherent observation of a
- * project's rows, steps in project order, stamped claims and their holders'
- * display names; or the project gone, or the caller's access gone, both
+ * What {@link ClaimStore.observeWorkPackage} answers: one coherent observation of a
+ * work package's rows, current package union and per-leaf step order, stamped claims and their holders'
+ * display names; or the work package gone, or the caller's access gone, both
  * decided inside that same observation.
  */
 export type ClaimObservation =
@@ -72,6 +81,7 @@ export type ClaimObservation =
       readonly kind: 'observed';
       readonly rows: readonly ClaimedTreeRow[];
       readonly stepIds: readonly string[];
+      readonly leafSteps: ReadonlyMap<string, readonly string[]>;
       readonly claims: readonly StampedClaim[];
       /** Each holder's name as the access names them; a holder it cannot name is absent. */
       readonly personNames: ReadonlyMap<string, string>;
@@ -105,7 +115,7 @@ export type { LeaseRenewal, LeaseStanding } from '@wbs/domain';
 export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated' | 'unknown_resource';
 
 /**
- * The claims of one project (`wbs-team-claims` D1–D8) and the one progress
+ * The claims of one work package (`wbs-team-claims` D1–D8) and the one progress
  * statement a claim makes: `in_progress` on a step nobody has spoken about.
  *
  * The two travel in one call so a claim and its statement land in one
@@ -115,26 +125,26 @@ export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated' | 'unkno
  * It also answers the two identity reads the claim rules need
  * ({@link ClaimIdentity}), so the claim and its rules read one admitted scope.
  */
-export interface ClaimStore extends ClaimIdentity {
-  /** Every claim on a work item of the project, ordered by work item then step. */
-  listByProject(projectId: string): Promise<Claim[]>;
+export interface ClaimStore extends ClaimIdentity, WorkPackageReadAccess {
+  /** Every claim on a work item of the work package, ordered by work item then step. */
+  listByWorkPackage(workPackageId: string): Promise<Claim[]>;
   /**
-   * {@link listByProject} with each claim's write instant and lease, for the
+   * {@link listByWorkPackage} with each claim's write instant and lease, for the
    * startable, by-person and claims reads.
    *
    * @throws for a stored claim with no write instant: every claim is written
    * through {@link add}, which stamps it.
    */
-  listStampedByProject(projectId: string): Promise<StampedClaim[]>;
-  /** Reads stamps for the named claims in their verified project, in the caller's observation. */
-  listStampedByIds(projectId: string, ids: readonly string[]): Promise<StampedClaim[]>;
+  listStampedByWorkPackage(workPackageId: string): Promise<StampedClaim[]>;
+  /** Reads stamps for the named claims in their verified work package, in the caller's observation. */
+  listStampedByIds(workPackageId: string, ids: readonly string[]): Promise<StampedClaim[]>;
   /**
-   * The project's rows, steps, stamped claims and holder names in one
+   * The work package's rows, current leaf step inventories, stamped claims and holder names in one
    * observation no write lands inside (`wbs-claim-display` C1, C2), so every
    * claim it answers sits on a row and a step it answers. Under scoped access
    * it rechecks, inside that observation, what the tree read's snapshot
    * rechecks: the deployment is activated, the caller is still a member, and
-   * the project is the organization's; names are the organization's own.
+   * the work package is the organization's; names are the organization's own.
    * Under legacy access the deployment must not be activated, and names are
    * the root names.
    *
@@ -142,25 +152,25 @@ export interface ClaimStore extends ClaimIdentity {
    * are not seen. A batch's own catalog sees its own uncommitted writes, as
    * every read inside the batch does.
    */
-  observeProject(projectId: string, access: ResourceAccess): Promise<ClaimObservation>;
-  /** One claim of the project by id; null when absent, released or another project's. */
-  findById(projectId: string, claimId: string): Promise<Claim | null>;
+  observeWorkPackage(workPackageId: string, access: ResourceAccess): Promise<ClaimObservation>;
+  /** One claim of the work package by id; null when absent, released or another work package's. */
+  findById(workPackageId: string, claimId: string): Promise<Claim | null>;
   /**
-   * Every occupancy row of the project's claims, each with its claim's work
+   * Every occupancy row of the work package's claims, each with its claim's work
    * item, person and run, ordered by work item, resource, then claim. The
    * occupancy a claim reads and the one every per-resource read folds
    * (`occupancyByResource`).
    */
-  occupancyOf(projectId: string): Promise<OccupancyRow[]>;
+  occupancyOf(workPackageId: string): Promise<OccupancyRow[]>;
   /**
-   * Every occupancy row naming one of `resourceIds`, in every project of the
-   * resource's organization, each with its project and that organization
+   * Every occupancy row naming one of `resourceIds`, in every work package of the
+   * resource's organization, each with its work package and that organization
    * (`wbs-shared-occupancy` S2), ordered as {@link occupancyOf}. A row whose
-   * project belongs to no organization or to another organization than the
+   * work package belongs to no organization or to another organization than the
    * resource's is not answered, and neither is any row of a resource with no
    * organization.
    *
-   * Not fenced to a project: a working plan reads it straight through, uncached,
+   * Not fenced to a work package: a working plan reads it straight through, uncached,
    * on the batch's own connection, so inside the batch's write turn it answers
    * every committed claim and the batch's own earlier ones.
    */
@@ -173,7 +183,7 @@ export interface ClaimStore extends ClaimIdentity {
    * holders are {@link organizationOccupancyOf}'s, read only for a refusal.
    * Read like it, on the batch's own connection.
    *
-   * @throws when a resource some organization owns is held in a project that
+   * @throws when a resource some organization owns is held in a work package that
    * belongs to no organization: corrupt trusted state.
    */
   organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]>;
@@ -198,7 +208,7 @@ export interface ClaimStore extends ClaimIdentity {
   ): Promise<ClaimWriteOutcome>;
   /**
    * Moves every lease of `personId` that is in force, not revoked, and due
-   * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
+   * (`renewalAt`) to a fresh expiry, in every work package (`wbs-claim-leases` L4,
    * L5), and answers the person's standing after it. A `runId` scopes both to
    * that person's leases of that run and the person's no-run leases (taken
    * before it opted in; `wbs-mcp-agent-surface` M15, an assumption Dany may
@@ -210,22 +220,22 @@ export interface ClaimStore extends ClaimIdentity {
    * due leases first, and takes the write turn only when one is due; inside
    * the turn it reads `now` again and decides against that instant, so a
    * heartbeat queued behind a long write never renews a lease that ran out
-   * while it waited. The projects it answers are those whose leases that
+   * while it waited. The work packages it answers are those whose leases that
    * decision moved.
    */
   renewLeases(personId: string, runId: string | null, now: () => number): Promise<LeaseRenewal>;
   /**
-   * The project's claims whose lease has run out at `at` (expiry at or before
+   * The work package's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
    * the holder's last live credential was revoked, else `lease_expired`.
    */
-  expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]>;
+  expiredLeasesOf(workPackageId: string, at: number): Promise<ExpiredLease[]>;
   /**
-   * The projects holding a claim whose lease has run out at `at`, at most
-   * `limit` of them, ordered by their oldest expired lease, then project id:
+   * The work packages holding a claim whose lease has run out at `at`, at most
+   * `limit` of them, ordered by their oldest expired lease, then work package id:
    * what one sweep tick works through.
    */
-  projectsWithExpiredLeases(at: number, limit: number): Promise<string[]>;
+  workPackagesWithExpiredLeases(at: number, limit: number): Promise<string[]>;
   /**
    * Removes exactly `claims` by id, with their occupancy rows, and the
    * progress statements on `cleared`.

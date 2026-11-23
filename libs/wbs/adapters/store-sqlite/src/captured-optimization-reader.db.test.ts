@@ -10,13 +10,13 @@ import { describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { capturedOptimizationReaderOf } from './captured-optimization-reader';
-import { type Drizzle, openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { type Drizzle, openConnection, openDatabase } from './db';
 import { allocateGeneration } from './optimization-generation';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizationGeneration, optimizedScheduleCache, solverQueue, solverSlot } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CONTRACT = '7+1.0.0';
 const BUDGET = 60_000;
 const NOW = 100;
@@ -54,22 +54,25 @@ const PLAN = schedule(
 function database(): { readonly db: Drizzle; readonly cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-captured-optimizer-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, { hasUnknownOwner: false });
+  seedLegacyPackageParent(path, 'org', 'parent');
   const raw = openDatabase(path);
   try {
     raw.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Captured plan', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'parent', 'Captured plan', 'u-1', 0, 0, 1)`,
     );
   } finally {
     raw.close();
   }
+  const connection = openConnection(path);
   return {
-    db: openDrizzle(path),
+    db: connection.db,
     cleanup: () => {
+      connection.close();
       rmSync(dir, { recursive: true, force: true });
     },
   };
@@ -92,7 +95,7 @@ function store(
 ): void {
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(values.input ?? INPUT),
       objective: values.objective,
       contractVersion: CONTRACT,
@@ -121,7 +124,7 @@ function encodedPlan(plan: Schedule = PLAN): string {
 }
 
 const ask = (input: ScheduleInput = INPUT) => ({
-  projectId: 'p-1',
+  workPackageId: 'p-1',
   objective: 'pri' as const,
   input,
   enabled: false,
@@ -225,7 +228,7 @@ describe('capturedOptimizationReaderOf', () => {
       fixture.db
         .insert(solverSlot)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',
@@ -243,7 +246,7 @@ describe('capturedOptimizationReaderOf', () => {
       fixture.db
         .insert(solverQueue)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'time',
@@ -306,7 +309,7 @@ describe('capturedOptimizationReaderOf', () => {
       });
       fixture.db
         .delete(optimizedScheduleCache)
-        .where(eq(optimizedScheduleCache.projectId, 'p-1'))
+        .where(eq(optimizedScheduleCache.workPackageId, 'p-1'))
         .run();
       store(fixture.db, generation, {
         objective: 'pri',

@@ -11,8 +11,11 @@ import type { Drizzle } from './db';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { person, personTeam, tag } from './schema';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 import { UserRepository } from './user';
 
 /**
@@ -25,9 +28,8 @@ import { UserRepository } from './user';
  * not TypeScript's.
  */
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let db: Drizzle;
 let directory: DirectoryRepository;
 /** The account every stamp below is attributed to unless a case says otherwise. */
@@ -36,9 +38,10 @@ let kim: string;
 let sam: string;
 
 beforeEach(async () => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-audit-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   db = openDrizzle(path);
   directory = new DirectoryRepository(db, OPEN);
 
@@ -56,6 +59,11 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  // Proof: sqlite-cohort2-v244-audit injected a throw after real close
+  // returned. Omission deleted this directory; restoration retained it.
+  // No leaked native handle was injected.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 

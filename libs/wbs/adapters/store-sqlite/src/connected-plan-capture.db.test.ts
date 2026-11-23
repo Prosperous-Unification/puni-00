@@ -15,8 +15,6 @@ import { DirectoryRepository } from './directory';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { allocateGeneration } from './optimization-generation';
 import { PriorityBandRepository } from './priority-band';
-import { ProjectRepository } from './project';
-import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { ResourceCapacityRepository } from './resource';
 import { readConnectedPlanInputIn } from './saved-plan-capture';
@@ -28,6 +26,8 @@ import { openSpaceDatabase } from './testing/space-database';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 let folder: string;
 let path: string;
@@ -44,15 +44,12 @@ beforeEach(async () => {
   path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-  write(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
-  );
   for (const id of ['a1', 'a2', 'a3', 'a4'])
     write(
-      `INSERT INTO work_item (id,project_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
+      `INSERT INTO work_item (id,work_package_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
     );
   write(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
 });
 afterEach(() => {
@@ -77,9 +74,11 @@ test('captures both incident directions once with local projection and own label
     const captured = await snapshot.captureConnected('a1');
     const reverse = await snapshot.captureConnected('a2');
     expect(captured).toEqual(reverse);
-    expect(captured.projects.map(({ projectId }) => projectId)).toEqual(['a1', 'a2']);
-    expect(captured.projects.map(({ reads }) => reads.project.name)).toEqual(['a1', 'a2']);
-    expect(captured.projects.every(({ reads }) => reads.typedDependencies.length === 0)).toBe(true);
+    expect(captured.workPackages.map(({ workPackageId }) => workPackageId)).toEqual(['a1', 'a2']);
+    expect(captured.workPackages.map(({ reads }) => reads.workPackage.name)).toEqual(['a1', 'a2']);
+    expect(captured.workPackages.every(({ reads }) => reads.typedDependencies.length === 0)).toBe(
+      true,
+    );
     expect(captured.relationships.map(({ id }) => id)).toEqual(['edge']);
     return { kind: 'not_found' };
   });
@@ -93,24 +92,38 @@ test('shared closure alternates person bridges and incoming dependencies without
       `INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('${person}','org-a','${person}')`,
     );
   }
-  for (const [project, person] of [
+  for (const [workPackage, person] of [
     ['a2', 'p'],
     ['a3', 'p'],
     ['a4', 'q'],
   ]) {
+    const project = 'project-' + workPackage;
+    const step = workPackage + '-' + person;
     write(
-      `INSERT INTO step (id,project_id,name,position) VALUES ('${project}-${person}','${project}','${person}',10)`,
+      `INSERT INTO project (id,organization_id,name,created_at,created_by) VALUES ('${project}','org-a','${project}',1,'ada')`,
+    );
+    write(`UPDATE work_package SET project_id = '${project}' WHERE id = '${workPackage}'`);
+    write(
+      `INSERT INTO step_definition (id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES ('${step}','org-a','${step}','${step}','workdays',0,10,'project','${project}','authored')`,
     );
     write(
-      `INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${project}','${project}-${person}','${person}')`,
+      `INSERT INTO step_binding (id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES ('binding-${step}','org-a','project','${project}','${step}',10,'authored')`,
+    );
+    write(
+      `INSERT INTO work_package_step (work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('${workPackage}','${step}','workdays',0,0)`,
+    );
+    write(
+      `INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${workPackage}','${workPackage}-${person}','${person}')`,
     );
   }
   write(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('bridge-edge','org-a','a3','a4','a3','a4','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('bridge-edge','org-a','a3','a4','a3','a4','whole','whole','FS')",
   );
   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
     expect(
-      (await snapshot.captureConnected('a1')).projects.map(({ projectId }) => projectId),
+      (await snapshot.captureConnected('a1')).workPackages.map(
+        ({ workPackageId }) => workPackageId,
+      ),
     ).toEqual(['a1', 'a2', 'a3', 'a4']);
     return { kind: 'not_found' };
   });
@@ -118,28 +131,30 @@ test('shared closure alternates person bridges and incoming dependencies without
 
 test('concurrent predecessor edit yields one coherent state until next observation', async () => {
   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
-    write("UPDATE project SET name = 'edited' WHERE id = 'a2'");
+    write("UPDATE work_package SET name = 'edited' WHERE id = 'a2'");
     const captured = await snapshot.captureConnected('a1');
-    expect(captured.projects.find(({ projectId }) => projectId === 'a2')?.reads.project.name).toBe(
-      'a2',
-    );
+    expect(
+      captured.workPackages.find(({ workPackageId }) => workPackageId === 'a2')?.reads.workPackage
+        .name,
+    ).toBe('a2');
     return { kind: 'not_found' };
   });
   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
     expect(
-      (await snapshot.captureConnected('a1')).projects.find(({ projectId }) => projectId === 'a2')
-        ?.reads.project.name,
+      (await snapshot.captureConnected('a1')).workPackages.find(
+        ({ workPackageId }) => workPackageId === 'a2',
+      )?.reads.workPackage.name,
     ).toBe('edited');
     return { kind: 'not_found' };
   });
 });
 
 test('refuses missing required ownership', async () => {
-  write('DROP TRIGGER project_organization_frozen_delete');
+  write('DROP TRIGGER work_package_organization_frozen_delete');
   const corrupt = openDatabase(path);
   try {
     corrupt.run('PRAGMA foreign_keys = OFF');
-    corrupt.run("DELETE FROM project_organization WHERE resource_id = 'a2'");
+    corrupt.run("DELETE FROM work_package_organization WHERE resource_id = 'a2'");
   } finally {
     corrupt.close();
   }
@@ -187,12 +202,12 @@ test('connected isolated cache publication stays invisible through sequential se
   async function select(publish: boolean) {
     await observation.withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
       const captured = await snapshot.captureConnected('a1');
-      const target = captured.projects.find(({ projectId }) => projectId === 'a1');
+      const target = captured.workPackages.find(({ workPackageId }) => workPackageId === 'a1');
       if (target === undefined) throw new Error('missing target');
       const input = scheduleInputOfCaptured(target.reads);
       const ask = {
         mode: 'capture',
-        projectId: 'a1',
+        workPackageId: 'a1',
         input,
         objective: 'pri',
         engine: 'optimized',
@@ -207,7 +222,7 @@ test('connected isolated cache publication stays invisible through sequential se
           connection.db
             .insert(optimizedScheduleCache)
             .values({
-              projectId: 'a1',
+              workPackageId: 'a1',
               inputHash,
               generation: allocated,
               contractVersion: 'capture-test',
@@ -243,7 +258,7 @@ function seedDirectoryCapacity(): void {
     "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('ram','org-a','RAM')",
   );
   write(
-    "INSERT INTO project_resource_capacity (project_id,resource_id,units) VALUES ('a2','ram',32)",
+    "INSERT INTO work_package_resource_capacity (work_package_id,resource_id,units) VALUES ('a2','ram',32)",
   );
   write("INSERT INTO resource_directory_capacity (resource_id,units) VALUES ('ram',24)");
 }
@@ -254,7 +269,7 @@ test('borrowed capture sees staged writes and preserves owner transaction', asyn
   const transaction = drizzleReadTransaction(connection.db);
   transaction.begin();
   try {
-    connection.db.run(sql`UPDATE project SET name = 'staged' WHERE id = 'a2'`);
+    connection.db.run(sql`UPDATE work_package SET name = 'staged' WHERE id = 'a2'`);
     connection.db.run(
       sql`UPDATE resource_directory_capacity SET units = 16 WHERE resource_id = 'ram'`,
     );
@@ -264,9 +279,9 @@ test('borrowed capture sees staged writes and preserves owner transaction', asyn
       'a1',
       createReadSnapshotLifetime(),
     );
-    const reads = captured.projects.find(({ projectId }) => projectId === 'a2')?.reads;
+    const reads = captured.workPackages.find(({ workPackageId }) => workPackageId === 'a2')?.reads;
     if (reads === undefined) throw new Error('Borrowed member capture is absent');
-    expect(reads.project.name).toBe('staged');
+    expect(reads.workPackage.name).toBe('staged');
     expect(reads.resourceCapacities).toEqual([{ resourceId: 'ram', units: 32 }]);
     expect(reads.directoryCapacities).toEqual([{ resourceId: 'ram', units: 16 }]);
     expect(scheduleInputOfCaptured(reads).resourceCapacities).toEqual(new Map([['ram', 16]]));
@@ -280,7 +295,7 @@ test('borrowed capture sees staged writes and preserves owner transaction', asyn
     expect(current?.directoryCapacities).toEqual([{ resourceId: 'ram', units: 24 }]);
     expect(reads.directoryCapacities).toEqual([{ resourceId: 'ram', units: 16 }]);
     expect(
-      connection.db.get<{ name: string }>(sql`SELECT name FROM project WHERE id = 'a2'`),
+      connection.db.get<{ name: string }>(sql`SELECT name FROM work_package WHERE id = 'a2'`),
     ).toEqual({
       name: 'a2',
     });
@@ -290,18 +305,19 @@ test('borrowed capture sees staged writes and preserves owner transaction', asyn
 });
 
 test.each(['absent', 'malformed', 'unreadable'] as const)(
-  'refuses %s required project evidence',
+  'refuses %s required work package evidence',
   async (fault) => {
     const corrupt = openDatabase(path);
     try {
       if (fault === 'absent')
-        corrupt.run("DELETE FROM project_abbreviation WHERE project_id = 'a2'");
+        corrupt.run("DELETE FROM work_package_abbreviation WHERE work_package_id = 'a2'");
       else if (fault === 'malformed') {
         corrupt.run('PRAGMA ignore_check_constraints = ON');
         corrupt.run(
-          "UPDATE project_abbreviation SET abbreviation = 'bad.code' WHERE project_id = 'a2'",
+          "UPDATE work_package_abbreviation SET abbreviation = 'bad.code' WHERE work_package_id = 'a2'",
         );
-      } else corrupt.run('ALTER TABLE project_abbreviation RENAME TO unavailable_abbreviation');
+      } else
+        corrupt.run('ALTER TABLE work_package_abbreviation RENAME TO unavailable_abbreviation');
     } finally {
       corrupt.close();
     }
@@ -352,13 +368,13 @@ test('requires existing admitted organization authority even for cached componen
   });
 });
 
-test('memoizes complete project capture across component targets', async () => {
-  const reads = spyOn(WorkItemRepository.prototype, 'listByProject');
+test('memoizes complete work package capture across component targets', async () => {
+  const reads = spyOn(WorkItemRepository.prototype, 'listByWorkPackage');
   try {
     await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
       await snapshot.captureConnected('a1');
       await snapshot.captureConnected('a2');
-      expect(reads.mock.calls.map(([projectId]) => projectId).sort()).toEqual(['a1', 'a2']);
+      expect(reads.mock.calls.map(([workPackageId]) => workPackageId).sort()).toEqual(['a1', 'a2']);
       return { kind: 'not_found' };
     });
   } finally {
@@ -418,11 +434,11 @@ async function failureOf(reading: Promise<unknown>): Promise<Error> {
 test('refuses missing component rank rather than synthesizing priority', async () => {
   // The fault injection reapplies the original with the intercepted repository instance.
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  const original = ProjectRankRepository.prototype.orderIn;
-  const ranks = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(
-    async function (this: ProjectRankRepository, organizationId) {
+  const original = WorkPackageRankRepository.prototype.orderIn;
+  const ranks = spyOn(WorkPackageRankRepository.prototype, 'orderIn').mockImplementation(
+    async function (this: WorkPackageRankRepository, organizationId) {
       return (await original.call(this, organizationId)).filter(
-        ({ projectId }) => projectId !== 'a2',
+        ({ workPackageId }) => workPackageId !== 'a2',
       );
     },
   );
@@ -442,17 +458,18 @@ test('refuses missing component rank rather than synthesizing priority', async (
   }
 });
 
-test('refuses a project lost by the full-input reader after topology admission', async () => {
+test('refuses a work package lost by the full-input reader after topology admission', async () => {
   // The fault injection reapplies the original with the intercepted repository instance.
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  const original = ProjectRepository.prototype.findInOrganization;
+  const original = WorkPackageRepository.prototype.findInOrganization;
   let observed = 0;
-  const projects = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-    async function (this: ProjectRepository, projectId, organizationId) {
-      if (projectId === 'a2' && ++observed === 2) return null;
-      return original.call(this, projectId, organizationId);
-    },
-  );
+  const workPackages = spyOn(
+    WorkPackageRepository.prototype,
+    'findInOrganization',
+  ).mockImplementation(async function (this: WorkPackageRepository, workPackageId, organizationId) {
+    if (workPackageId === 'a2' && ++observed === 2) return null;
+    return original.call(this, workPackageId, organizationId);
+  });
   try {
     expect(
       (
@@ -465,7 +482,7 @@ test('refuses a project lost by the full-input reader after topology admission',
       ).message,
     ).toContain('disappeared inside snapshot');
   } finally {
-    projects.mockRestore();
+    workPackages.mockRestore();
   }
 });
 
@@ -474,7 +491,7 @@ test.each(['identity', 'local-projection'] as const)(
   async (fault) => {
     if (fault === 'local-projection')
       write(
-        "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('local','a1','a1','a1','whole','whole','FS')",
+        "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('local','a1','a1','a1','whole','whole','FS')",
       );
     // The fault injection reapplies the original with the intercepted repository instance.
     // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -483,8 +500,8 @@ test.each(['identity', 'local-projection'] as const)(
     const relationships = spyOn(
       TypedDependencyRepository.prototype,
       'listIncident',
-    ).mockImplementation(async function (this: TypedDependencyRepository, projectIds) {
-      const held = await original.call(this, projectIds);
+    ).mockImplementation(async function (this: TypedDependencyRepository, workPackageIds) {
+      const held = await original.call(this, workPackageIds);
       calls++;
       if (fault === 'identity' && calls === 2)
         return held.map((relationship) => ({ ...relationship, type: 'SS' as const }));
@@ -535,15 +552,15 @@ test('borrowed live reader refuses acquisition and reads after its one-way scope
   try {
     const reader = createLivePlanStore(options);
     open = false;
-    expect((await failureOf(reader.readProject('a1'))).message).toContain('scope is closed');
+    expect((await failureOf(reader.readWorkPackage('a1'))).message).toContain('scope is closed');
     expect(() => createLivePlanStore(options)).toThrow('scope is closed');
   } finally {
     connection.close();
   }
 });
 
-test('concurrent component requests read every full project input once', async () => {
-  const reads = spyOn(WorkItemRepository.prototype, 'listByProject');
+test('concurrent component requests read every full work package input once', async () => {
+  const reads = spyOn(WorkItemRepository.prototype, 'listByWorkPackage');
   try {
     await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
       const [first, second] = await Promise.all([
@@ -551,7 +568,7 @@ test('concurrent component requests read every full project input once', async (
         snapshot.captureConnected('a2'),
       ]);
       expect(first).toEqual(second);
-      expect(reads.mock.calls.map(([projectId]) => projectId).sort()).toEqual(['a1', 'a2']);
+      expect(reads.mock.calls.map(([workPackageId]) => workPackageId).sort()).toEqual(['a1', 'a2']);
       return { kind: 'not_found' };
     });
   } finally {
@@ -572,14 +589,18 @@ test.each(['definitions', 'estimates', 'budgets'] as const)(
       fault === 'definitions'
         ? spyOn(StepMeasureRepository.prototype, 'definitionsFor').mockImplementation(expire)
         : fault === 'estimates'
-          ? spyOn(MeasureEstimateRepository.prototype, 'listByProject').mockImplementation(expire)
-          : spyOn(WorkItemBudgetRepository.prototype, 'listByProject').mockImplementation(expire);
+          ? spyOn(MeasureEstimateRepository.prototype, 'listByWorkPackage').mockImplementation(
+              expire,
+            )
+          : spyOn(WorkItemBudgetRepository.prototype, 'listByWorkPackage').mockImplementation(
+              expire,
+            );
     const following =
       fault === 'definitions'
-        ? spyOn(MeasureEstimateRepository.prototype, 'listByProject')
+        ? spyOn(MeasureEstimateRepository.prototype, 'listByWorkPackage')
         : fault === 'estimates'
-          ? spyOn(WorkItemBudgetRepository.prototype, 'listByProject')
-          : spyOn(DependencyRepository.prototype, 'listByProject');
+          ? spyOn(WorkItemBudgetRepository.prototype, 'listByWorkPackage')
+          : spyOn(DependencyRepository.prototype, 'listByWorkPackage');
     try {
       const failure = await failureOf(
         readConnectedPlanInputIn(

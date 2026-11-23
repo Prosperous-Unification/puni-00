@@ -31,8 +31,8 @@ function canonicalEndpoint(endpoint: ScopedDependencyEndpoint) {
   // Proof: removal admitted `refuses null or numeric original selector identities`.
   requireFact(isText(endpoint.workItemId), 'selector identity');
   return endpoint.scope === 'whole'
-    ? [endpoint.projectId, endpoint.scope, endpoint.workItemId]
-    : [endpoint.projectId, endpoint.scope, endpoint.workItemId, endpoint.stepId];
+    ? [endpoint.workPackageId, endpoint.scope, endpoint.workItemId]
+    : [endpoint.workPackageId, endpoint.scope, endpoint.workItemId, endpoint.stepId];
 }
 
 /**
@@ -41,7 +41,7 @@ function canonicalEndpoint(endpoint: ScopedDependencyEndpoint) {
  * its actual step order. Descriptive labels and frozen numbers carry no meaning.
  *
  * Consumes an authoritative typed capture. Checks exact reduced ownership,
- * project/rank/anchor and placement evidence, finite numeric constraints, supplied
+ * work-package/rank/anchor and placement evidence, finite numeric constraints, supplied
  * graph nodes/endpoints and the listed relationship vocabulary/ownership invariants.
  * Upstream capture validates identifiers and types; this is not a full parser.
  * Omitted authored edges cannot be inferred, and original selectors may address
@@ -59,34 +59,37 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
   // Proof (diagnostic): removing this check made `refuses local input` throw
   // a property-access error instead of naming the absent connected order.
   requireFact(input.order.kind === 'connected', 'connected order');
-  const { projectIdByWorkItem, rankByProject } = input.order;
-  const projects = new Map<string, ConnectedOptimizationStage['projects'][number]>();
-  for (const project of stage.projects) {
-    // Proof: removal admitted `refuses duplicate project`.
-    requireFact(!projects.has(project.projectId), 'duplicate project');
-    requireFinite(project.rank, 'rank');
-    if (project.anchorOrdinal !== null) requireFinite(project.anchorOrdinal, 'anchor');
+  const { workPackageIdByWorkItem, rankByWorkPackage } = input.order;
+  const workPackages = new Map<string, ConnectedOptimizationStage['workPackages'][number]>();
+  for (const workPackage of stage.workPackages) {
+    // Proof: removal admitted `refuses duplicate workPackage`.
+    requireFact(!workPackages.has(workPackage.workPackageId), 'duplicate work package');
+    requireFinite(workPackage.rank, 'rank');
+    if (workPackage.anchorOrdinal !== null) requireFinite(workPackage.anchorOrdinal, 'anchor');
     // Proof: removal admitted `refuses inconsistent rank`.
-    requireFact(rankByProject.get(project.projectId) === project.rank, 'rank evidence');
-    projects.set(project.projectId, project);
+    requireFact(
+      rankByWorkPackage.get(workPackage.workPackageId) === workPackage.rank,
+      'rank evidence',
+    );
+    workPackages.set(workPackage.workPackageId, workPackage);
   }
   // Proof: removal admitted `refuses extra rank`.
-  requireFact(rankByProject.size === projects.size, 'rank evidence');
+  requireFact(rankByWorkPackage.size === workPackages.size, 'rank evidence');
   // Proof: removal admitted `refuses unknown stage owner`.
-  requireFact(projects.has(stage.projectId), 'stage owner');
+  requireFact(workPackages.has(stage.workPackageId), 'stage owner');
   const rows = new Map(input.rows.map((row) => [row.id, row]));
   // Proof: removal admitted `refuses duplicate row`.
   requireFact(rows.size === input.rows.length, 'duplicate row');
   for (const row of input.rows) {
     requireFinite(row.position, 'row position');
     if (row.priority !== null) requireFinite(row.priority, 'row priority');
-    const owner = projectIdByWorkItem.get(row.id);
+    const owner = workPackageIdByWorkItem.get(row.id);
     // Proof: removal admitted unknown retained-parent ownership in
     // `refuses missing and unknown ownership on retained parents independently of active slices`.
-    requireFact(owner !== undefined && projects.has(owner), 'ownership');
+    requireFact(owner !== undefined && workPackages.has(owner), 'ownership');
   }
   // Proof: removal admitted `refuses extra reduced ownership facts`.
-  requireFact(projectIdByWorkItem.size === rows.size, 'ownership keys');
+  requireFact(workPackageIdByWorkItem.size === rows.size, 'ownership keys');
   const keys = new Set(input.slices.map((slice) => sliceKey(slice.workItemId, slice.stepId)));
   // Proof: removal changed `refuses duplicate slice` to a graph diagnostic;
   // removing it together with graph validation admitted the duplicate (redundant guards).
@@ -101,10 +104,13 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
     // `refuses missing required person, selector identity and pool collection facts`.
     requireFact(Array.isArray(slice.poolIds), 'slice pools');
     if (slice.days !== null) requireFinite(slice.days, 'slice effort');
-    const owner = projectIdByWorkItem.get(slice.workItemId);
-    const project = owner === undefined ? undefined : projects.get(owner);
+    const owner = workPackageIdByWorkItem.get(slice.workItemId);
+    const workPackage = owner === undefined ? undefined : workPackages.get(owner);
     // Proof: removal admitted `refuses missing anchor`.
-    requireFact(project !== undefined && project.anchorOrdinal !== null, 'active project anchor');
+    requireFact(
+      workPackage !== undefined && workPackage.anchorOrdinal !== null,
+      'active work package anchor',
+    );
   }
   // Proof: removal admitted missing starts and surplus finishes in
   // `refuses missing start` and `refuses extra finish`.
@@ -142,8 +148,8 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
     // a linked relationship also meets the graph-evidence check (redundant).
     requireFact(isRelationshipType(relationship.type), 'relationship type');
     for (const endpoint of [relationship.predecessor, relationship.successor]) {
-      // Proof: removal admitted `refuses unknown selector project`.
-      requireFact(projects.has(endpoint.projectId), 'selector project');
+      // Proof: removal admitted `refuses unknown selector workPackage`.
+      requireFact(workPackages.has(endpoint.workPackageId), 'selector work package');
       // Proof: independently removing scope/step guards admitted their faults in
       // `refuses unsupported selectors, relationship types and graph provenance`.
       requireFact(isDependencyEndpointScope(endpoint.scope), 'selector scope');
@@ -154,9 +160,12 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
       );
       // Ownership is known only for surviving reduced rows. Held/original
       // selectors remain the authoritative resolver's evidence.
-      const owner = projectIdByWorkItem.get(endpoint.workItemId);
+      const owner = workPackageIdByWorkItem.get(endpoint.workItemId);
       // Proof: removal admitted `refuses selector ownership independently of graph relationship evidence`.
-      requireFact(owner === undefined || owner === endpoint.projectId, 'relationship ownership');
+      requireFact(
+        owner === undefined || owner === endpoint.workPackageId,
+        'relationship ownership',
+      );
     }
   }
   for (const edge of input.graph.edges) {
@@ -175,23 +184,24 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
     requireFact(relationship?.type === edge.type, 'relationship evidence');
     // Proof: removal admitted `refuses graph ownership independently of unreduced selector identities`.
     requireFact(
-      projectIdByWorkItem.get(edge.predecessor.leafId) === relationship.predecessor.projectId &&
-        projectIdByWorkItem.get(edge.successor.leafId) === relationship.successor.projectId,
+      workPackageIdByWorkItem.get(edge.predecessor.leafId) ===
+        relationship.predecessor.workPackageId &&
+        workPackageIdByWorkItem.get(edge.successor.leafId) === relationship.successor.workPackageId,
       'relationship ownership',
     );
   }
   const grouped = groupSlicesByLeaf(indexTree(input.rows).leafIds, input.slices);
   const canonical = {
     kind: stage.kind,
-    projectId: stage.projectId,
+    workPackageId: stage.workPackageId,
     mode: stage.mode,
     originOrdinal: stage.originOrdinal,
-    projects: [...stage.projects]
-      .sort((a, b) => a.rank - b.rank || byBytes(a.projectId, b.projectId))
-      .map((project) => ({
-        projectId: project.projectId,
-        rank: project.rank,
-        anchorOrdinal: project.anchorOrdinal,
+    workPackages: [...stage.workPackages]
+      .sort((a, b) => a.rank - b.rank || byBytes(a.workPackageId, b.workPackageId))
+      .map((workPackage) => ({
+        workPackageId: workPackage.workPackageId,
+        rank: workPackage.rank,
+        anchorOrdinal: workPackage.anchorOrdinal,
       })),
     rows: [...input.rows]
       .sort((a, b) => byBytes(a.id, b.id))
@@ -201,8 +211,8 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
         position: row.position,
         priority: row.priority,
       })),
-    ownership: sortedPairs(projectIdByWorkItem),
-    ranks: sortedPairs(rankByProject),
+    ownership: sortedPairs(workPackageIdByWorkItem),
+    ranks: sortedPairs(rankByWorkPackage),
     slices: sortedPairs(grouped).map(([workItemId, slices]) => ({
       workItemId,
       steps: slices.map((slice) => ({
@@ -255,7 +265,7 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
       bookings: bookings.map((booking) => ({
         start: booking.start,
         end: booking.end,
-        projectId: booking.projectId,
+        workPackageId: booking.workPackageId,
         workItemId: booking.workItemId,
       })),
     })),

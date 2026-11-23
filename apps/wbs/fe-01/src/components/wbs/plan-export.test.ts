@@ -130,7 +130,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
 });
 
 const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
-  projectName: 'Rewire the shed',
+  workPackageName: 'Rewire the shed',
   generatedAt: '2026-08-07T09:15:00.000Z',
   method: 'pert',
   startDate: null,
@@ -204,17 +204,17 @@ function markdownRow(text: string, number: string): string[] {
 }
 
 describe('the header block', () => {
-  it('leads the Markdown with the project, the method by name and the timestamp', () => {
+  it('leads the Markdown with the work package, the method by name and the timestamp', () => {
     const text = planToMarkdown(plan());
     const [first] = text.split('\n');
-    expect(first).toBe('**Project:** Rewire the shed');
+    expect(first).toBe('**Work package:** Rewire the shed');
     expect(text).toContain('**Final figures:** PERT');
     expect(text).toContain('**Generated:** 2026-08-07T09:15:00.000Z');
     // Above the table, not below it: the block ends at the first table row.
     expect(text.indexOf('**Generated:**')).toBeLessThan(text.indexOf('| Number |'));
   });
 
-  it('names every other method as the project named it', () => {
+  it('names every other method as the work package named it', () => {
     expect(planToMarkdown(plan({ method: 'realistic' }))).toContain('**Final figures:** realistic');
     expect(planToMarkdown(plan({ method: 'pessimistic' }))).toContain(
       '**Final figures:** pessimistic',
@@ -229,7 +229,7 @@ describe('the header block', () => {
 
   it('leads the CSV with key,value rows, then a blank row, then the columns', () => {
     const records = parseCsv(planToCsv(plan()));
-    expect(records[0]).toEqual(['Project', 'Rewire the shed']);
+    expect(records[0]).toEqual(['Work package', 'Rewire the shed']);
     expect(records[1]).toEqual(['Final figures', 'PERT']);
     const blank = records.findIndex((record) => record.length === 1 && record[0] === '');
     expect(blank).toBeGreaterThan(1);
@@ -574,25 +574,25 @@ describe('the columns', () => {
   });
 
   it('says a work item deadline is unreachable rather than printing the impossible date alone', () => {
-    // TASK-291 AC #3, the read-time `before-project-start` case: somebody typed
-    // a legal date and the project start then moved past it. The date is
+    // TASK-291 AC #3, the read-time `before-work-package-start` case: somebody typed
+    // a legal date and the work package start then moved past it. The date is
     // printed unchanged — it is what the reader typed and what be-01 still
     // stores — and the state goes in a column of its own, which is `Not before
     // because`'s shape exactly: a date column that also carried a sentence
     // would stop being a date column.
     //
-    // `deadlineBeforeProjectStart` and therefore `deadlineOffsetOf`, the same
+    // `deadlineBeforeWorkPackageStart` and therefore `deadlineOffsetOf`, the same
     // function be-01's write boundary calls, so this sheet cannot hold a
     // second opinion about the predicate. **No lateness is recomputed here**:
     // `Late by N workdays` is be-01's number and 9.2's rule is that no view
     // derives it.
     //
     // The wording is "first working day" and not "start", for the reason the
-    // table's own copy records: a project starting Saturday 2026-08-08 with a
+    // table's own copy records: a work package starting Saturday 2026-08-08 with a
     // deadline of that same Saturday is impossible while the two dates a reader
     // can see are equal.
     const rows = [
-      // Impossible: 2026-08-31 is a Monday and the project starts the Tuesday
+      // Impossible: 2026-08-31 is a Monday and the work package starts the Tuesday
       // after it.
       row({ id: 'a', number: '010', deadline: '2026-08-31' }),
       // Ordinary, on the same plan, so the column is proved to be about the
@@ -605,7 +605,7 @@ describe('the columns', () => {
     const state = columnAt(csv, 'Work item deadline unreachable');
     const date = columnAt(csv, 'Work item deadline');
 
-    expect(csvDataRow(csv)[state]).toBe("before the project's first working day");
+    expect(csvDataRow(csv)[state]).toBe("before the work package's first working day");
     // Printed unchanged beside it, never blanked: blanking would be this
     // document deleting the reader's input on somebody else's edit.
     expect(csvDataRow(csv)[date]).toBe('2026-08-31');
@@ -620,7 +620,7 @@ describe('the columns', () => {
     // there — and `deadlineOffsetOf` *throws* on a value that is not a calendar
     // date, which an export is not the moment to take a download down over.
     //
-    // Proof: `deadlineBeforeProjectStart`'s `isIsoDate` guard removed and this
+    // Proof: `deadlineBeforeWorkPackageStart`'s `isIsoDate` guard removed and this
     // case failed, 1 of 64 — `Error: not a calendar date: "the end of August"`
     // thrown from `toUtc` (`workday.ts:24`) through `previousWorkday` →
     // `deadlineOffsetOf` → `deadline-impossible.ts:39` → `plan-export.ts`'s
@@ -826,7 +826,7 @@ describe('the capacity columns', () => {
       latestFinish: effort / width,
       float: 0,
       critical: false,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
       resourcePredecessorId: null,
       capacityPredecessorIds: [],
       lateBy: null,
@@ -1099,8 +1099,8 @@ describe('hostile text', () => {
     expect(csvDataRow(csv, 3)[notes]).toBe("'-3 days");
   });
 
-  it('guards the header block too — a project name is a field like any other', () => {
-    const csv = planToCsv(plan({ projectName: '=cmd|"/c calc"' }));
+  it('guards the header block too — a work package name is a field like any other', () => {
+    const csv = planToCsv(plan({ workPackageName: '=cmd|"/c calc"' }));
     expect(parseCsv(csv)[0]?.[1]).toBe('\'=cmd|"/c calc"');
   });
 
@@ -1143,15 +1143,15 @@ describe('hostile text', () => {
 });
 
 describe('planFileName', () => {
-  it('slugifies the project and dates the file by the timestamp it was given', () => {
+  it('slugifies the work package and dates the file by the timestamp it was given', () => {
     expect(planFileName(plan())).toBe('rewire-the-shed-2026-08-07.csv');
-    expect(planFileName(plan({ projectName: 'Rewire  the Shed!! / v2' }))).toBe(
+    expect(planFileName(plan({ workPackageName: 'Rewire  the Shed!! / v2' }))).toBe(
       'rewire-the-shed-v2-2026-08-07.csv',
     );
   });
 
   it('falls back to a name a file system can hold', () => {
-    expect(planFileName(plan({ projectName: '???' }))).toBe('plan-2026-08-07.csv');
+    expect(planFileName(plan({ workPackageName: '???' }))).toBe('plan-2026-08-07.csv');
   });
 
   it('defaults to csv when no extension is asked for, so every existing caller is unchanged', () => {
@@ -1212,7 +1212,7 @@ describe('a document of what was on screen', () => {
    * document is be-01's answer for the whole plan — the schedule is computed
    * over every row whatever the screen shows — and a reader who assumed the
    * dates had been re-planned around these rows would be reading a shorter,
-   * entirely fictional project.
+   * entirely fictional work package.
    */
   it('says the figures were not recomputed for the rows it kept', () => {
     expect(planToMarkdown(narrowed())).toContain(
@@ -1293,15 +1293,15 @@ describe('structured schedule refusal exports', () => {
     {
       error: {
         kind: 'dependency_calendar_missing' as const,
-        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+        workPackages: [{ workPackageId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
       },
-      words: 'dependency project has no start date: PUNI · Remote plan',
+      words: 'dependency work package has no start date: PUNI · Remote plan',
     },
     {
       error: {
         kind: 'engine_unavailable' as const,
         engine: 'optimized' as const,
-        projects: ['remote'],
+        workPackages: ['remote'],
         reason: 'adapter_missing' as const,
       },
       words: 'required optimized scheduling engine is unavailable',
@@ -1310,7 +1310,7 @@ describe('structured schedule refusal exports', () => {
       error: {
         kind: 'engine_unavailable' as const,
         engine: 'optimized' as const,
-        projects: ['remote'],
+        workPackages: ['remote'],
         reason: 'connected_optimization_not_supported' as const,
       },
       words: 'Connected optimization is unavailable',

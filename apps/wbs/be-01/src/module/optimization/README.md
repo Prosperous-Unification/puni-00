@@ -6,7 +6,7 @@ The optimized-schedule feature as a sealed DI Bag module under `apps/wbs/be-01`:
 the graph, `check.ts` is the only place that builds a bag, and `contract.ts` states what a host must
 supply and the neutral port types Optimization shares with its launchers — the reserved spawn
 request, the solver child and the spawner — the cache-key port it hashes an input through, and the
-three outcome events it publishes, projected from the neutral `ProjectEvent`. It also owns
+three outcome events it publishes, projected from the neutral `WorkPackageEvent`. It also owns
 `OptimizationRepository` and `SolverSlotRepository`, the neutral persistence contracts supplied by
 the backend composition root.
 

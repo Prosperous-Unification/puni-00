@@ -10,21 +10,26 @@ import { SqliteDelegationUse } from './delegation-use';
 import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let custody = { hasUnknownOwner: false };
 let folder: string;
 let path: string;
 
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-delegation-use-'));
   path = join(folder, 'test.db');
-  runMigrations(path, FOLDER);
+  custody = { hasUnknownOwner: false };
 });
 afterEach(() => {
+  if (custody.hasUnknownOwner)
+    throw new Error('uncertain delegation fixture owner; retained ' + folder);
   rmSync(folder, { recursive: true, force: true });
 });
 
 it('commits an admitted use after a concurrent command rolls back', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const connection = openConnection(path);
   const gate = new WriteCoordinator();
   let releaseCommand: (() => void) | undefined;
@@ -62,6 +67,7 @@ it('commits an admitted use after a concurrent command rolls back', async () => 
 });
 
 it('admits exactly one use across two connections', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
   const state = new Int32Array(barrier);
   const first = new Worker(new URL('./delegation-use-race.worker.ts', import.meta.url));
@@ -100,6 +106,7 @@ it('admits exactly one use across two connections', async () => {
 });
 
 it('prunes expired uses without removing live uses', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const connection = openConnection(path);
   try {
     const uses = new SqliteDelegationUse(connection.db, new WriteCoordinator());
@@ -117,6 +124,7 @@ it('prunes expired uses without removing live uses', async () => {
 });
 
 it('fails when the use table is missing', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const connection = openConnection(path);
   try {
     connection.db.run(sql`DROP TABLE delegation_use`);
@@ -138,6 +146,7 @@ it('fails when the use table is missing', async () => {
 });
 
 it('fails when the use table is read-only', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const connection = openReadOnlyConnection(path);
   try {
     // Proof (2026-09-28): bypassing storage resolved admission against this
@@ -160,6 +169,7 @@ it('fails when the use table is read-only', async () => {
 });
 
 it('prunes no more than 1,000 expired rows per consumption', async () => {
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   const connection = openConnection(path);
   try {
     for (let index = 0; index < 1_001; index += 1) {
@@ -195,6 +205,8 @@ it('prunes no more than 1,000 expired rows per consumption', async () => {
 });
 
 it('refuses rollback after activation or while a live use remains', async () => {
+  const migrations = copyRecoveryPrefix(folder, '20260928030000_add_delegation_use');
+  runMigrations(path, migrations);
   const connection = openConnection(path);
   try {
     const uses = new SqliteDelegationUse(connection.db, new WriteCoordinator());
@@ -204,18 +216,24 @@ it('refuses rollback after activation or while a live use remains', async () => 
       Math.floor(Date.now() / 1000) + 120,
       Math.floor(Date.now() / 1000),
     );
-    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_project_solution')).toThrow();
+    expect(() => rollbackTo(path, migrations, '20260928010000_add_project_solution')).toThrow(
+      /rolling back 20260928030000_add_delegation_use failed: CHECK constraint failed/,
+    );
     connection.db.run(sql`DELETE FROM delegation_use`);
     connection.db.run(
       sql`UPDATE organization_activation SET state = 'activated', activated_at = 5`,
     );
-    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_project_solution')).toThrow();
+    expect(() => rollbackTo(path, migrations, '20260928010000_add_project_solution')).toThrow(
+      /rolling back 20260928030000_add_delegation_use failed: CHECK constraint failed/,
+    );
   } finally {
     connection.close();
   }
 });
 
 it('allows pre-activation rollback once every use has expired', () => {
+  const migrations = copyRecoveryPrefix(folder, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
   const connection = openConnection(path);
   try {
     connection.db.run(sql`INSERT INTO delegation_use (issuer, jti, expires_at)
@@ -223,7 +241,9 @@ it('allows pre-activation rollback once every use has expired', () => {
   } finally {
     connection.close();
   }
-  expect(rollbackTo(path, FOLDER, '20260928020000_add_email_verification')).toEqual([
+  expect(rollbackTo(path, migrations, '20260928020000_add_email_verification')).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',

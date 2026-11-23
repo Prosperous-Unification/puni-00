@@ -3,14 +3,14 @@ import { type } from 'arktype';
 const finite = type('number').atLeast(-Number.MAX_VALUE).atMost(Number.MAX_VALUE);
 const nullableFinite = finite.or('null');
 
-const identity = type({ projectId: 'string', workItemId: 'string', scope: "'whole'" }).or({
-  projectId: 'string',
+const identity = type({ workPackageId: 'string', workItemId: 'string', scope: "'whole'" }).or({
+  workPackageId: 'string',
   workItemId: 'string',
   scope: "'node' | 'descendant-step'",
   stepId: 'string',
 });
 const question = type({
-  projectId: 'string',
+  workPackageId: 'string',
   inputHash: 'string',
   questionHash: 'string',
   objective: "'pri' | 'time'",
@@ -59,23 +59,25 @@ const optimization = type({
 }).or('null');
 const values = type({ makespan: finite, priority: finite, movement: finite });
 const decision = type({
-  scope: { kind: "'connected-stage'", projectId: 'string' },
+  scope: { kind: "'connected-stage'", workPackageId: 'string' },
   chosen: "'optimized' | 'baseline'",
   values,
   optimizedValues: values,
   baselineValues: values,
 }).or('null');
 const stage = type({
-  projectId: 'string',
+  workPackageId: 'string',
   engine: "'fast' | 'optimized'",
   objective: "'pri' | 'time'",
-  boundary: { format: "'wbs-connected-stage'", version: '1', canonical: 'string' },
+  // Proof: F14 widened boundary2: an injected boundary1 export14 exited 0 instead of 1
+  // (plan-reference-current.test.ts).
+  boundary: { format: "'wbs-connected-stage'", version: '2', canonical: 'string' },
   optimization,
   decisions: { pri: decision, time: decision },
   chosen: decision,
 });
 const position = type({
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   stepId: 'string | null',
   start: finite,
@@ -83,12 +85,12 @@ const position = type({
 });
 const placement = type({
   kind: "'dependency_calendar_missing'",
-  projects: type({ projectId: 'string', abbreviation: 'string', name: 'string' }).array(),
+  workPackages: type({ workPackageId: 'string', abbreviation: 'string', name: 'string' }).array(),
 })
   .or({
     kind: "'engine_unavailable'",
     engine: "'optimized'",
-    projects: 'string[]',
+    workPackages: 'string[]',
     reason: "'adapter_missing' | 'connected_optimization_not_supported'",
   })
   .or({ kind: "'unavailable'", reason: "'cycle' | 'calendar_range'" })
@@ -98,16 +100,16 @@ const placement = type({
     baseline: position.array(),
     selected: position.array(),
     stages: stage.array(),
-    idleProjects: 'string[]',
+    idleWorkPackages: 'string[]',
   });
 
 /** Detached historical evidence; import discards it and never treats it as current authority. */
 export const documentConnected = type({
   kind: "'connected'",
-  projectId: 'string',
+  workPackageId: 'string',
   mode: "'isolated' | 'shared'",
-  projects: type({
-    projectId: 'string',
+  workPackages: type({
+    workPackageId: 'string',
     name: 'string',
     abbreviation: 'string',
     rank: finite,
@@ -118,7 +120,7 @@ export const documentConnected = type({
   }).array(),
   relationships: type({
     id: 'string',
-    projectId: 'string',
+    workPackageId: 'string',
     predecessor: identity,
     successor: identity,
     type: "'FS' | 'SS' | 'FF'",

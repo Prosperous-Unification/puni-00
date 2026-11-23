@@ -29,7 +29,7 @@ export interface CueRow {
   readonly details: readonly string[];
   /** `Fast`, `PRI`, `Time` — what fits on a control. */
   readonly label: string;
-  /** The project finish this schedule reaches, or `null` while it has none. */
+  /** The work package finish this schedule reaches, or `null` while it has none. */
   readonly finishDays: number | null;
   /**
    * How this schedule compares with Fast, or `null` for Fast itself and for a
@@ -70,7 +70,7 @@ export interface UnmeetableDeadline {
 export interface CueReading {
   /** The captured question boundary, qualified when this read may be stale. */
   readonly scopeWords: string | null;
-  /** The schedule the project is on — what the rows are placed by. */
+  /** The schedule the work package is on — what the rows are placed by. */
   readonly active: CueSchedule;
   /** What the active schedule is called on the pill: `Fast`, `PRI` or `Time`. */
   readonly activeLabel: string;
@@ -127,7 +127,7 @@ export interface CueReading {
   readonly stale: boolean;
 }
 
-/** The finish of the schedule the project is on, which is Fast unless a variant displaced it. */
+/** The finish of the schedule the work package is on, which is Fast unless a variant displaced it. */
 function activeFinish(optimization: PlanOptimizationView): number {
   if (optimization.displayed === 'fast') return optimization.finishDays.fast;
   const finish = optimization.finishDays[optimization.displayed];
@@ -276,7 +276,7 @@ function contrastWords(optimization: PlanOptimizationView, stale: boolean): stri
     return null;
   }
   const gap = withinDrift(pri - time, 0)
-    ? 'the same project deadline'
+    ? 'the same work package deadline'
     : pri < time
       ? `Pri ${days(pri - time)} earlier`
       : `Time ${days(time - pri)} earlier`;
@@ -297,7 +297,7 @@ function contrastWords(optimization: PlanOptimizationView, stale: boolean): stri
 }
 
 /**
- * A variant's project finish, where the caller has already established that it
+ * A variant's work package finish, where the caller has already established that it
  * has one.
  *
  * @throws Error when it does not. R5: every caller here has read the figure
@@ -388,8 +388,8 @@ function scopeWords(optimization: PlanOptimizationView, stale: boolean): string 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     case 'connected-stage':
       return stale
-        ? `Project ${scope.projectId}: This certificate and captured boundary may be stale. The displayed dates are from the last plan read`
-        : `Project ${scope.projectId}: comparisons apply to the same captured stage with captured fixed positions only`;
+        ? `Work package ${scope.workPackageId}: This certificate and captured boundary may be stale. The displayed dates are from the last plan read`
+        : `Work package ${scope.workPackageId}: comparisons apply to the same captured stage with captured fixed positions only`;
     default: {
       // Proof: returning null admitted an unknown scope in connected captured cue reading (2026-10-22).
       const _exhaustive: never = scope.kind;
@@ -406,11 +406,11 @@ function connectedDetails(
   const scope = optimization.scope;
   if (scope === undefined) return [];
   const details = [
-    `Target project ${scope.projectId}; ${objective === null ? 'Fast retained stage baseline' : OBJECTIVE_SENTENCE[objective]}; captured fixed positions`,
+    `Target work package ${scope.workPackageId}; ${objective === null ? 'Fast retained stage baseline' : OBJECTIVE_SENTENCE[objective]}; captured fixed positions`,
     `Quantum ${String(scope.quantum)}; wire version ${String(scope.wireVersion)}; contract ${optimization.contractVersion}`,
     ...scope.fixed.map(
       (fixed) =>
-        `${fixed.projectName} (${fixed.projectAbbreviation}, ${fixed.projectId}) / ${fixed.workItemName} (${fixed.workItemId}) / ${fixed.stepName ?? 'whole work item'} (${fixed.stepId ?? 'whole work item'}): start ${String(fixed.start)}, finish ${String(fixed.finish)} workdays from the captured component origin`,
+        `${fixed.workPackageName} (${fixed.workPackageAbbreviation}, ${fixed.workPackageId}) / ${fixed.workItemName} (${fixed.workItemId}) / ${fixed.stepName ?? 'whole work item'} (${fixed.stepId ?? 'whole work item'}): start ${String(fixed.start)}, finish ${String(fixed.finish)} workdays from the captured component origin`,
     ),
   ];
   if (objective !== null) {

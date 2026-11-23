@@ -20,13 +20,13 @@ export function assertDependencyRuntime(
   if (activation.state === 'DISABLED' && edges.length !== 0)
     throw new Error('disabled dependency authority retains external relationships');
   // Proof: removing the ENABLED/semantic-support predicate let enabled-empty
-  // boot persist local-dev in cross-project-dependency.boot.db.test.ts (2026-10-22).
+  // boot persist local-dev in cross-work-package-dependency.boot.db.test.ts (2026-10-22).
   // Proof: removing this predicate also admitted the isolated empty-binary fixture before its pending migration (2026-10-23).
   if (
     activation.state === 'ENABLED' &&
     !capability.semantics.includes('cross-project-dependencies-v1')
   )
-    throw new Error('backend lacks cross-project dependency semantics');
+    throw new Error('backend lacks cross-work-package dependency semantics');
 }
 
 /** Admits existing semantic authority before migrations; only certified bootstrap can defer it. */

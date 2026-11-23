@@ -1,0 +1,618 @@
+{
+  "schema": "puni-current-step-applicability-verification-v1",
+  "recordedAt": "2026-11-20T05:16:06.240Z",
+  "problem": "Package union is applicability metadata, not an identity or leaf-admission boundary. Scoped commands misclassified an owned unbound definition as unknown404; clears/unassign could accept200 when another type alone kept the definition in the union. Encoded node validation also used that union before current leaf admission.",
+  "change": "Use the existing actual Source target read for the seven current point-command preflights. Rename the internal estimateTarget method to stepTarget; encoded node validation delegates to that same target, preserving rolled_up refusal. Ordinary pair parent clears retain their existing no-op behavior. Existing leaf-target lifetime and native writer admission are retained; no Source, authority flag or fallback catalogue is substituted.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-step-applicability.controller.db.test.ts",
+      "sha256": "352c559795492483727f99c2e0bd363a8b1bcba0b7d6bfc61bacff67ae2d859e",
+      "bytes": 10677,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/package-step-values-fixture.ts",
+      "sha256": "a913cf3e7b8014166cf82eaca170196795595eceef2472c241eb7abbfbdf5848",
+      "bytes": 6169,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/command-references.ts",
+      "sha256": "54c50dd9dcef83ef31bb463fd1c21f5558c67b23f13a8fc6576c5c26d2f19be7",
+      "bytes": 11507,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "sha256": "9bdd19665c7c97337ccf0df3df3fcd86d80f076681bb99880812dce6288be632",
+      "bytes": 57426,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "c45b64bff906de4e9571bfc55b7b307a31e7f10c6cca6c66eb781e697d4e2c2b",
+      "bytes": 576832,
+      "mode": 436
+    }
+  ],
+  "assumptions": [
+    "Current SC17/SC19 requires owned-unresolved422 step_not_resolved and direct-type-conflict409 type_conflict. Absent/foreign identities remain opaque404 unknown_step.",
+    "The shared test fixture now uses valid fixed UUID identities for both definitions, preserving their short existing codes separately. Encoded sn1 input requires valid UUID components and the formatter takes a StepNodeRef object.",
+    "Types are actual stored organization-owned fixture directory records; typed bindings are created through real HTTP with a persisted org-admin grant. The authored two-type conflict is explicitly a receiver fixture, not predecessor producer evidence.",
+    "All existing explicit package values remain exact on safe unbind, including the sibling distinct allowance. Test configuration and snapshots are real SQLite/HTTP/Source; no fake router or admission owner is used."
+  ],
+  "verification": {
+    "before": {
+      "phase": "package-step-current-unbound-facts-red-v2",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-red-v2.receipt.json",
+        "sha256": "165624363e21af159e4567f7a3271b3b07ba3ae5b30df6b7657d69d8146c48cd",
+        "bytes": 1390,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-red-v2.log",
+        "sha256": "2882f063786e1b239dc932f7d233983d47179f653bb4af9c62eec1bc212b81e3",
+        "bytes": 11731,
+        "mode": 384
+      }
+    },
+    "nodeRed": {
+      "phase": "package-step-current-node-facts-red-v3",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v3.receipt.json",
+        "sha256": "02f55840bb43d6f4cc946d4de48e0693ea7260a9f749f5c78af9feeb50e8fc64",
+        "bytes": 1384,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v3.log",
+        "sha256": "eb6fc5eb79c4e5d31ff54327d663c90c5ccb0d46e785a898f011a2ace34da326",
+        "bytes": 11563,
+        "mode": 384
+      }
+    },
+    "api": {
+      "phase": "package-step-current-applicability-api-control-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-api-control-v1.receipt.json",
+        "sha256": "3fdecf474b615e0d480add09a4fb5d74d77f2a36dcfd255d0659c6ab1cf93988",
+        "bytes": 1736,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-api-control-v1.log",
+        "sha256": "30bd63e4e8fffcda408bcbf51e570566d71950cff582895cca5053700fa109d5",
+        "bytes": 19861,
+        "mode": 384
+      },
+      "pass": 114,
+      "fail": 0,
+      "assertions": 3191,
+      "files": 5
+    },
+    "afterProofs": {
+      "phase": "package-step-current-applicability-final-cases-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-cases-v1.receipt.json",
+        "sha256": "69ef2b9fb745c74f527f303d0f32f1a2fb803059f07b888bb5b359a3a76e72ca",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-cases-v1.log",
+        "sha256": "f911ad7ba82d9b86c9be25fd510f53af655881bb6db6d6ce6b25b29f6fa29240",
+        "bytes": 5373,
+        "mode": 384
+      },
+      "pass": 47,
+      "fail": 0,
+      "qualification": "47cases are also included in114; counts overlap.42address/kind/configuration cases each exercise owned, absent and foreign identities with unchanged frames; two resolved pair/node controls, one parent control, two atomic batch controls."
+    },
+    "checks": [
+      {
+        "phase": "package-step-current-applicability-types-v3",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-types-v3.receipt.json",
+          "sha256": "4e4cae062bd0bf1a11105fbd55f900251462a5a3dc6b432a5e1bd4a2246191f8",
+          "bytes": 1380,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-types-v3.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-current-applicability-final-lint-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-lint-v2.receipt.json",
+          "sha256": "ba1773cbc1072a684ace64937ac5019cb89b00aeba48aa59d950f69047ccba46",
+          "bytes": 1731,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-lint-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-current-applicability-final-format-code-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-format-code-v1.receipt.json",
+          "sha256": "66c0c3e8653499c3c73117a6f29a94066adc55eec17cb11035c9b82cf97dc986",
+          "bytes": 1742,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-final-format-code-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-current-applicability-source-audit-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-source-audit-v1.receipt.json",
+          "sha256": "759de355a289c3db901fe82e53e9c2f0584086678c2761ade1a3bbf1273fffac",
+          "bytes": 1322,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-source-audit-v1.log",
+          "sha256": "3f177aeae274b3ff9f9fcd7a0859ec6bec1224a1912608c3d22646f173de47d6",
+          "bytes": 274,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-current-applicability-proofs-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-proofs-v2.receipt.json",
+          "sha256": "0ba74c51bf7be7b11ab8a6bc457eebc95a0ed98c7c46d520e3e94afc9516f472",
+          "bytes": 1315,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-proofs-v2.log",
+          "sha256": "5eea642d609770c54e3b7de4be6e4e514e82ff205873e97792e182b8cd8fa762",
+          "bytes": 628,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-current-applicability-comments-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-comments-v1.receipt.json",
+          "sha256": "b5c20c0a52d45ac9e429ac57fd4c1cfd7e607378d4909405a2247b9dae6ed1a2",
+          "bytes": 1320,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-comments-v1.log",
+          "sha256": "283864219dd79f35db3af2d8ac6a66f8733c7fdc91cc4a8fd9f18a126886f0eb",
+          "bytes": 54,
+          "mode": 384
+        }
+      }
+    ],
+    "core": {
+      "phase": "current-core-source-only-v13",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v13.receipt.json",
+        "sha256": "58adb4f5b68b5432ec2bbbf90ca02a935338e2f98be34548be3e9818064b55a4",
+        "bytes": 14593,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v13.log",
+        "sha256": "b8a6a80432948c215016d43b143d3604fe1cec68c4b10983fd45615e6eeb1776",
+        "bytes": 261138,
+        "mode": 384
+      },
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v13.json",
+        "sha256": "7285478c7449d10db05288ab011844a58a884bec64bb89c236f47bb548eceb54",
+        "bytes": 43283,
+        "mode": 384
+      },
+      "pass": 2056,
+      "fail": 27,
+      "assertions": 9448,
+      "tests": 2083,
+      "sourceFiles": 168,
+      "addedFailureNames": [],
+      "removedFailureNames": [],
+      "qualification": "Exact168source headers/test hashes match. All27V72failure names persist. Assertion totals vary with unseeded property shrinking. Later type-import sorting erases to identical Bun runtime; final47cases ran after all proof comments."
+    }
+  },
+  "proofs": {
+    "manifest": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-effects-v1.json",
+      "sha256": "40ec2e0c5f534a00133d9c158afc10f0bad7c53780739f5da231d22bff9ba4dd",
+      "bytes": 6492,
+      "mode": 384
+    },
+    "independentFaults": 10,
+    "selectedFailures": 10,
+    "observations": [
+      {
+        "id": "kind-clearestimate",
+        "title": "current pair clearEstimate distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearestimate-v1.receipt.json",
+          "sha256": "f2669deee28720cf21a2b94c37acd7862a97ed389e64ea9b9b427409b6e7290e",
+          "bytes": 1547,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearestimate-v1.log",
+          "sha256": "879f9ec1505718be082a26a04c2e8fd67bd0e2953b932d04bd1f33b57d5e7eba",
+          "bytes": 1307,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "kind-setactual",
+        "title": "current pair setActual distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setactual-v1.receipt.json",
+          "sha256": "dd4b37d5e5fb1794aa452012431ce0a83ff9f8c65dd865c202f2799968c15cfd",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setactual-v1.log",
+          "sha256": "41bf102fe658332501aa79531beaaa97792561760230e60a970e2a64aef8bff1",
+          "bytes": 1299,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "kind-clearactual",
+        "title": "current pair clearActual distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearactual-v1.receipt.json",
+          "sha256": "dab2c1fd18fa7f5cf11facc500e98793c30bba69e3c0b4d815c76351f3d994b2",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearactual-v1.log",
+          "sha256": "4cc9fb4ab7aee933796db25dbfdfec8ab320b4408abd01e642fa5b5c42821be3",
+          "bytes": 1303,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "kind-setprogress",
+        "title": "current pair setProgress distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setprogress-v1.receipt.json",
+          "sha256": "81f90d57c0f34d5c6c79073a230e5e4111c7a801884df2935af663b7493703f2",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setprogress-v1.log",
+          "sha256": "e43c37541d0ee9b17b2feefb9e96a5162e4378a8c80ef6735f76ef8517719847",
+          "bytes": 1303,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "kind-clearprogress",
+        "title": "current pair clearProgress distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearprogress-v1.receipt.json",
+          "sha256": "3573919d0f484e4ff76a9dff5be77ff1c43c332219f91f73517653b66204e8c6",
+          "bytes": 1547,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-clearprogress-v1.log",
+          "sha256": "0363eed0039764c89357277e165910bc6a6926851bd02bd077fe87eb97088580",
+          "bytes": 1307,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "kind-setassignee",
+        "title": "current pair setAssignee distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Removing this one newly covered command kind returns unknown_step404 instead of owned-unresolved422. No unsafe write claim is made from this classification-only fault.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setassignee-v1.receipt.json",
+          "sha256": "7522e37f48d82cd0ed49caff470e9e3f4de4d738c7d75c766e2358c6f71e30c8",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-kind-setassignee-v1.log",
+          "sha256": "949942fba42d22afff329e1e1768cfcb050f8a9da31a7b0037333f2291433b39",
+          "bytes": 1303,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "resolution-refusal",
+        "title": "current pair inapplicable clear rolls back the preceding rename and all history",
+        "boundary": "Weakening the current resolution refusal to identity-only accepts the clear200 instead of422 and commits the preceding rename; actual stored frame and history diff are observed in the failed assertion.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-resolution-refusal-v1.receipt.json",
+          "sha256": "61fd52d66e190f13b3901ba7577b795798a7a8777b47f808836a478c1ca4b0e3",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-resolution-refusal-v1.log",
+          "sha256": "d93340bd17b65e653883eb65ce9e1616b622c1de7a2fc137afadc5c18bd25c7b",
+          "bytes": 8844,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "conflict-refusal",
+        "title": "current pair clearActual distinguishes an owned conflict step from absent and foreign steps",
+        "boundary": "Ignoring the authored persisted direct-type conflict admits a clear200 instead of409. This is a real current receiver over SQLite, not evidence of a genuine predecessor producer.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-conflict-refusal-v1.receipt.json",
+          "sha256": "71ae59982153a10d17fef9fc14093b39b195530126dd88934509b39c1ead8a06",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-conflict-refusal-v1.log",
+          "sha256": "bd993e64e45d663aef4b57f4c9db49e69f46e658e73864c8332a71a570014fcc",
+          "bytes": 1389,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "node-resolution",
+        "title": "current node clearActual distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Restoring the old package-union node lookup misclassifies an owned unresolved node as unknown404 instead of422. It does not prove unsafe mutation.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-node-resolution-v1.receipt.json",
+          "sha256": "980c37564a1ea26850ce1ee8f75adceffc5ce60b2edf71ed1482e70d8933a73c",
+          "bytes": 1539,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-node-resolution-v1.log",
+          "sha256": "26295d9f4fef7a61e4aba0f15f0aec2cbbb81f6346c71ba9c2db3d4490e8c61c",
+          "bytes": 1303,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "node-parent",
+        "title": "current parent clears preserve pair no-ops and refuse addressed leaf-node writes",
+        "boundary": "Treating a parent as a resolved encoded node admits its clear200 instead of409 rolled_up while the direct pair no-op control still succeeds.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-node-parent-v1.receipt.json",
+          "sha256": "ed17d95aeee07e5ba560b96bf058d186d7fd7d2449b88621ac0fd5459fa9cf51",
+          "bytes": 1521,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-step-applicability-fault-node-parent-v1.log",
+          "sha256": "98a4348dfea645ca5d02cd60420b480383669c6606d6fb6448d1b973ac5aff55",
+          "bytes": 1386,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      }
+    ],
+    "emissions": [
+      {
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/command-references.ts",
+          "sha256": "54c50dd9dcef83ef31bb463fd1c21f5558c67b23f13a8fc6576c5c26d2f19be7",
+          "bytes": 11507,
+          "mode": 436
+        },
+        "canonicalRuntimeMatched": true,
+        "emittedSha256": "9d895ae354c36c80dd7efaa8ebf9deb764626de6be4ba7435110e5173f404797"
+      },
+      {
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "sha256": "c45b64bff906de4e9571bfc55b7b307a31e7f10c6cca6c66eb781e697d4e2c2b",
+          "bytes": 576832,
+          "mode": 436
+        },
+        "canonicalRuntimeMatched": true,
+        "emittedSha256": "8758ea5bf378461921b86ddb70223f8108e9b38417d0934292497eac2572e23a"
+      },
+      {
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+          "sha256": "9bdd19665c7c97337ccf0df3df3fcd86d80f076681bb99880812dce6288be632",
+          "bytes": 57426,
+          "mode": 436
+        },
+        "canonicalRuntimeMatched": true,
+        "emittedSha256": "15b63faa2dc146ac2506f3b3ab2792ec42253400617a4edc5146600bfe026258"
+      }
+    ],
+    "qualification": "Native actors stopped/reaped and descriptors closed before each restore. Six kind faults prove refusal classification, not unsafe mutation. The resolution guard fault actually commits the earlier rename/history. The authored conflict fault proves false clear acceptance; node union revert proves classification; node parent fault proves forbidden encoded parent acceptance. All originals restored and all three post-control production runtime emissions match after comments."
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v2.json",
+    "sha256": "54d0173abd910899065b1b8a7598788e655c39fd9f570e8283eba481f49d5eed",
+    "bytes": 1852427,
+    "mode": 384
+  },
+  "retainedLegacyController": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "sha256": "d4ee9d24d9d9a747ac3ad39ee383902dab294404fd6c2da33611bbfde70948f0",
+    "bytes": 78152,
+    "mode": 436
+  },
+  "priorAttempts": {
+    "attempts": [
+      {
+        "phase": "package-step-current-unbound-facts-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-red-v1.receipt.json",
+          "sha256": "372c361cb83776af040e9a54d8e7fbc4aadb68cbe572f4064e6262e95ed231fc",
+          "bytes": 1389,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-red-v1.log",
+          "sha256": "c8307157d93445bfe96a1e84f1c46e1f56b2d8d2f345398165402dd85a236da0",
+          "bytes": 6729,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-current-unbound-facts-green-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-green-v1.receipt.json",
+          "sha256": "2e06aab2cfa49f8982b9c1c1853a72bf8e513b12fae71565da2a38681747b853",
+          "bytes": 1393,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-green-v1.log",
+          "sha256": "3657b0a620b37ee4da774b1abc5eed9da0776161ae7fdd2335462b313f6da98e",
+          "bytes": 1679,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      {
+        "phase": "package-step-current-unbound-facts-expanded-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-expanded-v1.receipt.json",
+          "sha256": "089e74d3b18e31b65b992eb12766fc415620b9ad57766de68cb3849d78635866",
+          "bytes": 1399,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-unbound-facts-expanded-v1.log",
+          "sha256": "9dfd2a4a5f96f1448fc6f552d0768864c544dbe1850404d9df247dac58f8410d",
+          "bytes": 2519,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      {
+        "phase": "package-step-current-node-facts-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v1.receipt.json",
+          "sha256": "239abfd76fd3aa8f309b3d2261db4a3d49fbc2b6d7e30084821b67dff04737e7",
+          "bytes": 1384,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v1.log",
+          "sha256": "6db8990c348b6bab8ddd6d6decce197b1724f9d1d8d20a26da1a020ba5af6f26",
+          "bytes": 29072,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-current-node-facts-red-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v2.receipt.json",
+          "sha256": "f4ae8528fd1cc838566fa3030829c41365802d8de16cd0fd2a6746b2fb110d49",
+          "bytes": 1384,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-node-facts-red-v2.log",
+          "sha256": "bfd1dc64767e644fc1d7be937704b7dcbd6830c4c30a501476d186688a651a0a",
+          "bytes": 57604,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-current-applicability-lint-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-lint-v1.receipt.json",
+          "sha256": "86324cf82a4e1b47349dfae72c2ea38785e8cb8059c07d21790c938ec6fe25f9",
+          "bytes": 1721,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-lint-v1.log",
+          "sha256": "ef1cec28efee3c81094c7cf0f234c28288194229bb66dc6503e56aa1eb614ebe",
+          "bytes": 298,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-current-applicability-proofs-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-proofs-v1.receipt.json",
+          "sha256": "ea3a20d87f6cc0e862fcad92f88fa94371fcc66fc8a23a5a79d0bd0118fe8430",
+          "bytes": 1315,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-applicability-proofs-v1.log",
+          "sha256": "720d2aef42e892fd52a170d6aafa6f52cdc8e7d076229783aa58aae10511d6a3",
+          "bytes": 757,
+          "mode": 384
+        },
+        "exitCode": 1
+      }
+    ],
+    "qualification": "Initial pair red1pass6fail then expanded4pass10fail exposed the real defect; intermediate14 and22green cohorts overlap final selection. First encoded-node run used the formatter with the wrong argument shape and non-UUID fixture IDs; the second exposed UUIDs incorrectly reused as over32-character codes and failed44fixture acquisitions. Neither diagnostic is behavioral negative evidence. Fixed codes/UUIDs yield actual38pass6fail node red before node fix. An import-sort lint failure is repaired by its observed preview with unchanged emitted runtime. First proof preparation rejected a nonunique setAssignee text anchor before mutating source; corrected bounded anchor succeeds. No skip, retry, frozen-byte rewrite or public release operation."
+  },
+  "pending": [
+    "Current pair preflight covers these seven command kinds only: set/clear estimate, actual, progress and setAssignee. Encoded node admission uses the same current leaf target. All other point facts, direct service/port writers, claims, typed endpoints, current replay and every applicability-changing path still require their complete SC17/SC18 closure and thirteen-family proofs.",
+    "The mixed54-case legacy controller remains unchanged. Current applicability and history tests preserve additive guarantees; safe unbind/retirement replay, genuine pre-unit producer history and first/last-child retained arrays still need explicit mapping. All original fifteen historical guarantees and frozen bytes remain required.",
+    "The actual structural replay writer remains inactive. Authored persisted type conflict is current receiver evidence, not a genuine historical-producer claim or runtime activation receipt.",
+    "The broad core suite remains failed with27unchanged failure names. Its source-only epoch precedes proof comments and an erased type-import sort; canonical runtime emissions and the final47after-control qualify those later changes. It is not an immutable host gate.",
+    "Frontend352runtime/93E2E source pins remain unchanged. Previous browser cohorts and all93E2E compiler evidence are historical; no new browser runtime or visual/full frontend claim is made in this backend slice.",
+    "Astra remains unavailable until recorded November22,2026 10:09AM timezone unspecified. Queue current leaf-target reuse/parent semantics, scoped preflight, node dispatch, fixture UUIDs and ten negative classifications; no retry/substitute review.",
+    "All original entity/settings/catalogue/Source/PUNI Optique1.3.6/Bun complete client inventory/installed/toolchain/immutable exact-SHA host gate/integration/release requirements remain active."
+  ]
+}

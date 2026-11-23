@@ -11,7 +11,7 @@ import { ownerId } from '../record-codecs';
 import { RecoveryDispatchError } from '../recovery-dispatch-error';
 import { readRecoveryExchange } from '../recovery-evidence';
 import type { RecoveryFence } from '../recovery-records';
-import { readRuntimeRequest } from '../runtime-codecs';
+import { mapCurrentScope, readRuntimeRequest } from '../runtime-codecs';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import { constructFixture } from './construct-fixture';
 import type { OutcomeFixture } from './fixtures';
@@ -44,7 +44,7 @@ export async function beginAuthority(
   const original = unwrapReply(
     await stores.runs.stageRuntimeRequest(
       { ownership, scope, expectedRevision: 0 },
-      canonicalRuntimeRequest(scope, {
+      canonicalRuntimeRequest(mapCurrentScope(scope), {
         schemaVersion: 1,
         kind: 'authority',
         commandId: 'original',
@@ -916,6 +916,14 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
+        expect(await readReceiverState(receiver)).toMatchObject({
+          schemaVersion: 2,
+          scope: {
+            organizationId: receiver.scope.organizationId,
+            workPackageId: receiver.scope.projectId,
+            personId: receiver.scope.personId,
+          },
+        });
         let bytes: Uint8Array | undefined;
         const closed = await dispatchRecovery(
           stores.runs,
@@ -938,6 +946,18 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           await stores.artifacts.readArtifact(closed.closure.fence.observation.reply.body.artifact),
         ).toEqual(bytes);
         expect(closed.closure.fence.observation.reply.body.value.actorId).toBe(receiver.actorId);
+        expect(closed.closure.fence.observation.reply.body.value.schemaVersion).toBe(2);
+        expect(JSON.parse(closed.closure.fence.fence.canonicalRequest)).toMatchObject({
+          schemaVersion: 2,
+          scope: {
+            organizationId: receiver.scope.organizationId,
+            workPackageId: receiver.scope.projectId,
+            personId: receiver.scope.personId,
+          },
+        });
+        expect(
+          readRuntimeRequest(closed.closure.fence.fence.canonicalRequest).operation.schemaVersion,
+        ).toBe(1);
       } finally {
         await closeRecoveryResources([receiver, stores]);
       }
@@ -1471,7 +1491,7 @@ export async function prepareReceiverClaim(
   const authority = unwrapReply(
     await stores.runs.stageRuntimeRequest(
       { ownership, scope, expectedRevision: 0 },
-      canonicalRuntimeRequest(scope, {
+      canonicalRuntimeRequest(mapCurrentScope(scope), {
         schemaVersion: 1,
         kind: 'authority',
         commandId: 'grant',
@@ -1595,7 +1615,7 @@ export async function prepareReceiverClaim(
   const stage = unwrapReply(
     await stageClaimRequest(stores.runs, stores.artifacts, await guard(), {
       commandId: executionCommandId('stage-claim'),
-      canonicalRequest: canonicalRuntimeRequest(scope, request),
+      canonicalRequest: canonicalRuntimeRequest(mapCurrentScope(scope), request),
       stateEvidence: evidence,
     }),
   );

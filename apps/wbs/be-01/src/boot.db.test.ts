@@ -10,6 +10,8 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { applyHistoricalCatalogueFixture } from '@wbs/store-sqlite/testing/historical-catalogue';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { DiBagDisposalError } from 'di-bag';
@@ -19,13 +21,19 @@ import { buildApp } from './app';
 import { bootBe01 as bootBackend, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { openDatabase, openDrizzle } from './repository/db';
-import type { WriteCoordinator } from './repository/gate';
+import { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
-import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
+import { refusingPlanExports } from './testing/plan-export-fixture';
+import { seedLegacyProject } from './testing/project-fixture';
+import { refusingProjects } from './testing/project-fixture';
+import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
+
+const PROJECT_ID = 'http-fixture-parent';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -79,30 +87,50 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
     seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     seed.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     seed.run(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+    );
+    seed.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+      ['cold-fanout-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
     );
     seed.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
     );
     seed.run(
-      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
+      "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
     );
-    for (const projectId of ['a1', 'a2']) {
+    for (const workPackageId of ['a1', 'a2']) {
       seed.run(
-        `UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${projectId}'`,
+        `UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${workPackageId}'`,
       );
       seed.run(
-        `INSERT INTO work_item (id, project_id, position, name) VALUES ('${projectId}', '${projectId}', 10, '${projectId}')`,
+        `INSERT INTO work_item (id, work_package_id, position, name) VALUES ('${workPackageId}', '${workPackageId}', 10, '${workPackageId}')`,
+      );
+      const projectId = workPackageId + '-cold-project';
+      const stepId = workPackageId + '-step';
+      seed.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+        [projectId, projectId],
+      );
+      seed.run('UPDATE work_package SET project_id=? WHERE id=?', [projectId, workPackageId]);
+      seed.run(
+        "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,10,'project',?,'authored')",
+        [stepId, stepId, stepId, projectId],
       );
       seed.run(
-        `INSERT INTO step (id, project_id, name, position) VALUES ('${projectId}-step', '${projectId}', '${projectId}-step', 10)`,
+        "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,10,'authored')",
+        [stepId + '-binding', projectId, stepId],
       );
       seed.run(
-        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${projectId}', '${projectId}-step', 1, 1, 1)`,
+        "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+        [workPackageId, stepId],
       );
       seed.run(
-        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${projectId}', '${projectId}-step', 'ana')`,
+        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', '${workPackageId}-step', 1, 1, 1)`,
+      );
+      seed.run(
+        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${workPackageId}', '${workPackageId}-step', 'ana')`,
       );
     }
   } finally {
@@ -133,7 +161,9 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       makeApp: (options) => {
         const app = buildApp({
           ...options,
-          projectAddressSearch: refusingProjectAddressSearch,
+          projects: refusingProjects,
+          planExports: refusingPlanExports,
+          workPackageAddressSearch: refusingWorkPackageAddressSearch,
         });
         app.stop = () => Promise.resolve(app);
         mounted = app;
@@ -146,7 +176,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
   );
   if (mounted === undefined) throw new Error('boot did not compose an app');
   const answer = await mounted.handle(
-    new Request('http://localhost/api/projects/a1/commands', {
+    new Request('http://localhost/api/work-packages/a1/commands', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -169,17 +199,17 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all('project:a2')
+        .all('work-package:a2')
         .map(({ message }) => JSON.parse(message) as unknown),
-    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+    ).toEqual([{ type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' }]);
   } finally {
     commandReadback.close();
   }
   const rank = await mounted.handle(
-    new Request('http://localhost/api/organization/projects/a2/rank', {
+    new Request('http://localhost/api/organization/work-packages/a2/rank', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ afterProjectId: null }),
+      body: JSON.stringify({ afterWorkPackageId: null }),
     }),
   );
   expect(rank.status).toBe(200);
@@ -190,23 +220,23 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all('project:a2')
+        .all('work-package:a2')
         .map(({ message }) => JSON.parse(message) as unknown),
     ).toEqual([
-      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
-      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+      { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
+      { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
     ]);
     const upstreamEvents = readback
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all('project:a1')
+      .all('work-package:a1')
       .map(({ message }) => JSON.parse(message) as unknown);
     expect(upstreamEvents).toHaveLength(2);
     expect(upstreamEvents.at(-1)).toEqual({
       type: 'elsewhere_changed',
-      projectId: 'a1',
-      causeProjectId: 'a2',
+      workPackageId: 'a1',
+      causeWorkPackageId: 'a2',
     });
   } finally {
     readback.close();
@@ -223,10 +253,12 @@ async function boot(
   commitDir: string = tempDir('wbs-boot-nogit-'),
   oidc?: OidcRouteOptions,
   localIdentity?: AuthenticatedUser,
+  prepare?: (path: string) => void,
 ): Promise<RunningBe> {
   const dir = tempDir('wbs-boot-');
   const dbPath = join(dir, 'test.db');
-  runMigrations(dbPath, FOLDER);
+  migrateOrganizationCatalogueFixture(dbPath);
+  prepare?.(dbPath);
   running = await bootBe01({
     appOrigin: oidc?.appOrigin ?? 'http://localhost',
     dbPath,
@@ -383,7 +415,7 @@ describe('bootBe01', () => {
       validKeyFailure = failure;
     }
     expect(reasons(validKeyFailure)).toContain('source reached after valid key validation');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let mounted: ReturnType<typeof buildApp> | undefined;
     running = await bootBe01(configured, {
       openSource: openSqliteSource,
@@ -424,7 +456,7 @@ describe('bootBe01', () => {
     expect(
       (
         await mounted.handle(
-          new Request('http://localhost/api/projects', {
+          new Request('http://localhost/api/work-packages', {
             headers: { authorization: `Bearer ${signed}` },
           }),
         )
@@ -443,7 +475,8 @@ describe('bootBe01', () => {
   it('reconciles an abandoned optimizer drain before reporting healthy', async () => {
     const dir = tempDir('wbs-optimizer-reconcile-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     const raw = openDatabase(dbPath);
     try {
       raw.run(
@@ -451,9 +484,9 @@ describe('bootBe01', () => {
          VALUES ('u-1', 'owner', 'hash', 1)`,
       );
       raw.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at,
                               optimization_enabled, schedule_engine, schedule_objective)
-         VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+         VALUES ('p-1', 'Plan', 'http-fixture-parent', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
       );
     } finally {
       raw.close();
@@ -465,7 +498,7 @@ describe('bootBe01', () => {
     try {
       state.run(
         `UPDATE optimization_generation SET admission_state = 'draining'
-         WHERE project_id = 'p-1' AND contract_version = '${contractVersion}'`,
+         WHERE work_package_id = 'p-1' AND contract_version = '${contractVersion}'`,
       );
     } finally {
       state.close();
@@ -508,6 +541,7 @@ describe('bootBe01', () => {
     // from bootBe01 to buildServices and the settings write is refused even
     // though this boot was given a runnable optimizer.
     const dir = tempDir('wbs-optimizer-boot-');
+    migrateOrganizationCatalogueFixture(join(dir, 'test.db'));
     running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
@@ -536,17 +570,21 @@ describe('bootBe01', () => {
       await Bun.sleep(10);
     }
     expect(health?.status).toBe(200);
-    const created = expectCreated(await running.services.projects.create('Optimizer', 'local-dev'));
+    seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
+    const created = expectCreated(
+      await running.services.workPackages.create('Optimizer', PROJECT_ID, 'local-dev'),
+    );
 
     expect(
-      await running.services.projects.update(created.project.id, 'local-dev', {
+      await running.services.workPackages.update(created.workPackage.id, 'local-dev', {
         optimizationEnabled: true,
       }),
     ).toHaveProperty('ok', true);
   });
 
-  it('persists the fixed local identity after migrating an empty development database', async () => {
+  it('persists the fixed local identity when booting an empty current development database', async () => {
     const dir = tempDir('wbs-local-boot-');
+    migrateOrganizationCatalogueFixture(join(dir, 'test.db'));
     running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
@@ -569,16 +607,19 @@ describe('bootBe01', () => {
     }
     expect(health?.status).toBe(200);
 
+    seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
     const created = expectCreated(
-      await running.services.projects.create('Local plan', 'local-dev'),
+      await running.services.workPackages.create('Local plan', PROJECT_ID, 'local-dev'),
     );
 
-    expect(created.project.ownerId).toBe('local-dev');
+    expect(created.workPackage.projectId).toBe(PROJECT_ID);
+    expect(Object.hasOwn(created.workPackage, 'ownerId')).toBe(false);
   });
 
-  it('refuses the project and directory lists after activation until a session binds an organization', async () => {
+  it('refuses the work package and directory lists after activation until a session binds an organization', async () => {
     const dir = tempDir('wbs-organization-boot-');
     const dbPath = join(dir, 'test.db');
+    migrateOrganizationCatalogueFixture(dbPath);
     let productionAccess: Parameters<typeof buildApp>[0]['organizations'] | undefined;
     running = await bootBe01(
       {
@@ -605,10 +646,10 @@ describe('bootBe01', () => {
         },
       },
     );
-    const projects = `http://127.0.0.1:${String(running.port)}/api/projects`;
+    const workPackages = `http://127.0.0.1:${String(running.port)}/api/work-packages`;
     let listed: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      listed = await fetch(projects);
+      listed = await fetch(workPackages);
       if (listed.status === 200) break;
       await Bun.sleep(10);
     }
@@ -641,7 +682,7 @@ describe('bootBe01', () => {
       }),
     ).toEqual({ ok: false, refusal: 'no_active_organization' });
 
-    for (const path of ['/api/projects', '/api/tags', '/api/people']) {
+    for (const path of ['/api/work-packages', '/api/tags', '/api/people']) {
       const refused = await fetch(`http://127.0.0.1:${String(running.port)}${path}`);
 
       expect({ path, status: refused.status, body: (await refused.json()) as unknown }).toEqual({
@@ -655,7 +696,7 @@ describe('bootBe01', () => {
   it('serves SCIM provisioning from the shared database once activated', async () => {
     const dir = tempDir('wbs-scim-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const secret = `wbs_scim_${'C'.repeat(43)}`;
     const digest = Array.from(
       new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))),
@@ -711,7 +752,7 @@ describe('bootBe01', () => {
   it('serves the organization limits with the configured defaults once activated', async () => {
     const dir = tempDir('wbs-limits-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -720,6 +761,9 @@ describe('bootBe01', () => {
       seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
       seed.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-limits-read','org-a','organization','org-a','user','ada','org-viewer','route',1)",
       );
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -750,7 +794,7 @@ describe('bootBe01', () => {
     );
     if (composed?.organizationLimits === undefined)
       throw new Error('boot composed no limits store');
-    expect(await composed.organizationLimits.read('org-a', 'ada')).toEqual({
+    expect(await composed.organizationLimits.read('org-a', { id: 'ada' })).toEqual({
       source: 'default',
       limits: configured,
       usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
@@ -762,7 +806,7 @@ describe('bootBe01', () => {
   it('enforces the agent person cap with the configured defaults once activated', async () => {
     const dir = tempDir('wbs-agent-cap-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -811,12 +855,13 @@ describe('bootBe01', () => {
     if (writes === undefined) throw new Error('boot composed no batch writes');
     const promoted = await writes.uow.run(async (scope) => {
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
       };
       const dependencies = createDependencyContext(
         scope.stores,
-        { projectId: null, actorId: 'ada', access, admission: NO_ADMISSION },
+        { workPackageId: null, actorId: 'ada', access, admission: NO_ADMISSION },
         () => undefined,
         { kind: 'raw' },
       );
@@ -843,7 +888,7 @@ describe('bootBe01', () => {
   it('serves agent pools from the shared database once activated', async () => {
     const dir = tempDir('wbs-agent-pool-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -852,6 +897,9 @@ describe('bootBe01', () => {
       seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
       seed.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-pool-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
       );
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -873,14 +921,17 @@ describe('bootBe01', () => {
       },
     });
     if (pools === undefined) throw new Error('boot did not wire agent pools');
-    expect(await pools.list('org-a', 'ada', Date.now())).toEqual([]);
-    expect(await pools.list('org-a', 'nobody', Date.now())).toBe('forbidden');
+    expect(await pools.list('org-a', { id: 'ada' }, Date.now())).toEqual([]);
+    expect(await pools.list('org-a', { id: 'nobody' }, Date.now())).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
   });
 
   it('serves machine credential administration from the shared database once activated', async () => {
     const dir = tempDir('wbs-machine-credential-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -911,17 +962,17 @@ describe('bootBe01', () => {
     });
     if (administration === undefined) throw new Error('boot did not wire machine credentials');
     expect(
-      await administration.list('org-a', 'ada', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'ada' }, { includeRevoked: false }, Date.now()),
     ).toEqual([]);
     expect(
-      await administration.list('org-a', 'nobody', { includeRevoked: false }, Date.now()),
+      await administration.list('org-a', { id: 'nobody' }, { includeRevoked: false }, Date.now()),
     ).toBe('forbidden');
   });
 
   it('serves trusted issuer administration from the shared database once activated', async () => {
     const dir = tempDir('wbs-trusted-issuer-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -933,6 +984,9 @@ describe('bootBe01', () => {
       );
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+      seed.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('trusted-admin','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
       );
     } finally {
       seed.close();
@@ -951,15 +1005,15 @@ describe('bootBe01', () => {
       },
     });
     if (trusted === undefined) throw new Error('boot did not wire trusted issuers');
-    expect(await trusted.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await trusted.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await trusted.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await trusted.administration.list('org-a', { id: 'nobody' })).toBe('forbidden');
     expect(await trusted.configuredIssuer()).toBeNull();
   });
 
   it('serves compute provider administration from the shared database once activated', async () => {
     const dir = tempDir('wbs-compute-provider-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
@@ -968,6 +1022,9 @@ describe('bootBe01', () => {
       seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
       seed.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('boot-provider-directory','org-a','organization','org-a','user','ada','org-admin','route',1)",
       );
       seed.run(
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -989,15 +1046,18 @@ describe('bootBe01', () => {
       },
     });
     if (providers === undefined) throw new Error('boot did not wire compute providers');
-    expect(await providers.administration.list('org-a', 'ada')).toEqual([]);
-    expect(await providers.administration.list('org-a', 'nobody')).toBe('forbidden');
+    expect(await providers.administration.list('org-a', { id: 'ada' })).toEqual([]);
+    expect(await providers.administration.list('org-a', { id: 'nobody' })).toEqual({
+      kind: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
     expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
   });
 
   it("refuses a stranger issuer's JWT machine_bearer_not_accepted once booted", async () => {
     const dir = tempDir('wbs-trusted-issuer-token-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let auth: Parameters<typeof buildApp>[0]['auth'] | undefined;
     running = await bootBe01(bootOptions(dbPath, 0), {
       openSource: openSqliteSource,
@@ -1021,24 +1081,31 @@ describe('bootBe01', () => {
     expect(await auth.authenticateOrRefuse(token)).toBe('machine_bearer_not_accepted');
   });
 
-  it('codes the steps an older writer left uncoded once it has migrated', async () => {
+  it('boots the reviewed catalogue code for a step an older writer left uncoded', async () => {
     const dir = tempDir('wbs-backfill-boot-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    const predecessor = copyRecoveryPrefix(dir, '20261115120000_add_step_migration_report');
+    runMigrations(dbPath, predecessor);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
       );
       seed.run(
-        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-          " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
+        'INSERT INTO work_package (id, name, project_id, created_by, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Shed', 'http-fixture-parent', 'u', 0, 'pert', NULL, 0, 1)",
       );
-      seed.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+      seed.run(
+        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s', 'p', 'Dev', 10)",
+      );
     } finally {
       seed.close();
     }
 
+    applyHistoricalCatalogueFixture(dbPath, dir, {
+      'http-fixture-legacy': { codes: {}, uncoded: { s: { code: 'dev' } } },
+    });
     running = await bootBe01({
       appOrigin: 'http://localhost',
       dbPath,
@@ -1056,8 +1123,12 @@ describe('bootBe01', () => {
     const read = openDatabase(dbPath);
     try {
       expect(
-        read.query<{ code: string | null }, []>("SELECT code FROM step WHERE id = 's'").get(),
-      ).toEqual({ code: 'dev' });
+        read
+          .query<{ code: string; legacy_code: string | null; legacy_code_captured: number }, []>(
+            "SELECT code,legacy_code,legacy_code_captured FROM step_definition WHERE id = 's'",
+          )
+          .get(),
+      ).toEqual({ code: 'dev', legacy_code: null, legacy_code_captured: 1 });
     } finally {
       read.close();
     }
@@ -1109,7 +1180,7 @@ describe('bootBe01', () => {
   it('stops optimizer and retention before closing its opened source', async () => {
     const dir = tempDir('wbs-stop-order-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let stateAtClose: { optimizerRunning: boolean; retentionRunning: boolean } | undefined;
     const be = await bootBe01(
       {
@@ -1157,7 +1228,7 @@ describe('bootBe01', () => {
   it('releases the source when the port it was given is already taken', async () => {
     const dir = tempDir('wbs-boot-taken-port-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const held = heldPort();
     let closes = 0;
     let caught: unknown;
@@ -1192,7 +1263,7 @@ describe('bootBe01', () => {
   it('closes the source when the service graph cannot be composed', async () => {
     const dir = tempDir('wbs-boot-uncomposable-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let closes = 0;
     let caught: unknown;
     try {
@@ -1257,7 +1328,7 @@ describe('bootBe01', () => {
   it('releases every other resource when one release is refused', async () => {
     const dir = tempDir('wbs-boot-refused-optimizer-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let closes = 0;
     const be = await bootBe01(
       {
@@ -1317,7 +1388,7 @@ describe('bootBe01', () => {
   it('refuses to report a clean stop when a release is refused', async () => {
     const dir = tempDir('wbs-boot-refused-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let closes = 0;
     let real: (() => Promise<void>) | undefined;
     const be = await bootBe01(bootOptions(dbPath, 0), {
@@ -1407,7 +1478,7 @@ describe('bootBe01', () => {
   it('stops accepting before it closes the source it opened', async () => {
     const dir = tempDir('wbs-boot-release-order-');
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     const port = await freePort();
     let refusedAtClose: boolean | undefined;
     const be = await bootBe01(bootOptions(dbPath, port), {
@@ -1515,136 +1586,85 @@ describe('bootBe01', () => {
   });
 
   it('holds a command batch out while the write coordinator is taken', async () => {
-    // The one-coordinator wiring, observed rather than restated. `boot.ts`
-    // creates one `WriteCoordinator` and passes it to `buildServices` (every
-    // store takes its turn at it) and to `buildApp` (`PlanCommandRunner` takes
-    // one turn for the whole batch). That those are the SAME object is the
-    // whole durability guarantee — a second one excludes nothing, and the
-    // batch's rollback goes back to erasing a durable event the push has
-    // already left with. Every existing test builds its own pair, so all of
-    // them stay green through a split; Sol's Important on PR 204.
-    //
-    // Proof it is not a restatement: `boot.ts`'s `gate: writeCoordinator`
-    // mutated to `gate: new WriteCoordinator()` with `writes.gate` left alone,
-    // which is a healthy pair of coordinators and the exact split this guards.
-    // The race below then resolves the wrong way round.
-    //
-    // Read off the real objects at both ends: the coordinator comes from the
-    // graph `buildServices` constructed, and the waiting is done by the runner
-    // `buildApp` constructed, reached over its own HTTP route. Nothing here
-    // rebuilds the wiring it is checking.
-    //
-    // **It is an ordering race and not an elapsed-time sample, and the
-    // difference is the whole test.** A fixed sleep followed by "has it answered
-    // yet?" says nothing about *why* it had not: under the split mutation the
-    // request can lose the sample to a descheduled process, GC, loopback accept
-    // or Elysia's two auth passes and the case goes green while the invariant is
-    // broken — a false green on the sole regression protecting it. Sol's second
-    // Important on PR 204. So the barrier is the runner's own arrival at THIS
-    // lock object, observed by wrapping the instance's `run` for the length of
-    // the request. One lock: the wrapper fires and the response is still
-    // pending. Split lock: the runner takes the other object, the wrapper never
-    // fires, and the 200 wins the race.
+    // Observe the actual coordinator underneath the separate public and UoW gates.
+    // With split coordinators the mounted command can answer before the held turn releases.
     const be = await boot(undefined, undefined, {
       id: 'local-dev',
       username: 'local-dev',
       scopes: ['read', 'write'],
     });
-    // The process's one write coordinator, read off the built graph — the end
-    // of the wiring this case is about. Every store `buildServices` builds
-    // takes its turn at this object, and the runner takes one turn for a whole
-    // batch, so a turn held here is exactly "a batch cannot start".
-    const coordinator = be.services.gate;
-
-    let release!: () => void;
-    let announceTaken!: () => void;
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    // `WriteCoordinator.run` schedules its callback on a microtask rather than running
-    // it inline, so a caller that has merely called `run` holds nothing yet.
-    // Awaiting this is what puts the batch behind the turn instead of beside it
-    // — the same trap that made this change's first durability regression
-    // worthless.
-    const taken = new Promise<void>((resolve) => {
-      announceTaken = resolve;
-    });
-    const lock = coordinator;
-    const turn = lock.enter(async () => {
-      announceTaken();
-      await held;
-    });
-    await taken;
-
-    // The seam, installed only after the turn is held so the wrapper cannot see
-    // this test's own call: an own property shadowing the prototype method for
-    // the length of the request, removed in `finally`.
-    let announceReached!: () => void;
-    const reached = new Promise<void>((resolve) => {
-      announceReached = resolve;
-    });
-    const seam = lock as { enter?: WriteCoordinator['enter'] };
-    const real = lock.enter.bind(lock);
-    seam.enter = <T>(work: () => Promise<T>): Promise<T> => {
-      announceReached();
-      return real(work);
+    const held = Promise.withResolvers<undefined>();
+    const taken = Promise.withResolvers<undefined>();
+    const reached = Promise.withResolvers<'queued'>();
+    const prototype = WriteCoordinator.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'enter');
+    if (typeof descriptor?.value !== 'function') throw new Error('writer coordinator is missing');
+    const enter = descriptor.value as WriteCoordinator['enter'];
+    const heldBy = new WeakSet<WriteCoordinator>();
+    let observeRequest = false;
+    prototype.enter = function <T>(this: WriteCoordinator, work: () => Promise<T>): Promise<T> {
+      if (!observeRequest) heldBy.add(this);
+      else if (heldBy.has(this)) reached.resolve('queued');
+      return enter.bind(this)(work);
     };
-
-    // An empty batch: `execute` takes the lock before it looks at the commands
-    // at all, so nothing else needs to exist for this route to queue on it.
-    const batch = fetch(`http://127.0.0.1:${String(be.port)}/api/directory/commands`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ commands: [] }),
+    const turn = be.services.gate.enter(async () => {
+      taken.resolve(undefined);
+      await held.promise;
     });
-    let first: 'the runner queued on this lock' | 'the batch answered first';
+    let batch: Promise<Response>;
     try {
-      first = await Promise.race([
-        reached.then(() => 'the runner queued on this lock' as const),
-        batch.then(() => 'the batch answered first' as const),
-      ]);
+      await taken.promise;
+      observeRequest = true;
+      batch = fetch(`http://127.0.0.1:${String(be.port)}/api/directory/commands`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+        body: JSON.stringify({ commands: [] }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      expect(await Promise.race([reached.promise, batch.then(() => 'answered')])).toBe('queued');
     } finally {
-      delete seam.enter;
-      release();
+      prototype.enter = enter;
+      held.resolve(undefined);
+      await turn;
     }
-
-    expect(first).toBe('the runner queued on this lock');
-
-    await turn;
-    const res = await batch;
-    expect(res.status).toBe(200);
+    expect((await batch).status).toBe(200);
   });
 
   it('answers a resume from the log it opened', async () => {
     // End to end through the real HTTP route, the real SQLite file and the
     // services `main.ts` will build: the wiring, not the parts.
     // Local mode: the forwarded principal is the fixed local identity.
-    const be = await boot(undefined, undefined, {
-      id: 'local-dev',
-      username: 'local-dev',
-      scopes: ['read', 'write'],
-    });
-    const created = await fetch(`http://127.0.0.1:${String(be.port)}/api/projects`, {
+    const be = await boot(
+      undefined,
+      undefined,
+      { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
+      (dbPath) => {
+        seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
+      },
+    );
+    const created = await fetch(`http://127.0.0.1:${String(be.port)}/api/work-packages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
-      body: JSON.stringify({ name: 'Resumed' }),
+      body: JSON.stringify({ name: 'Resumed', projectId: PROJECT_ID }),
     });
-    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    expect(created.status).toBe(200);
+    const workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage
+      .id;
 
     const res = await fetch(`http://127.0.0.1:${String(be.port)}/internal/resume`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': 's'.repeat(32) },
       body: JSON.stringify({
-        resume_points: { [`project:${projectId}`]: 4, 'project:unknown': 4 },
+        resume_points: { [`work-package:${workPackageId}`]: 4, 'work-package:unknown': 4 },
         trace_id: 't-1',
       }),
     });
 
     expect(res.status).toBe(200);
     expect((await res.json()) as unknown).toEqual({
-      [`project:${projectId}`]: { status: 'denied', reason: 'out_of_range' },
-      // The wired access check: a project nobody can read is never replayed.
-      'project:unknown': { status: 'denied', reason: 'forbidden' },
+      [`work-package:${workPackageId}`]: { status: 'denied', reason: 'out_of_range' },
+      // The wired access check: a work package nobody can read is never replayed.
+      'work-package:unknown': { status: 'denied', reason: 'forbidden' },
     });
   });
 });
@@ -1698,9 +1718,9 @@ describe('a native session under a verifier outage', () => {
     return { port: be.port, token: registered.value.token };
   }
 
-  for (const route of ['/api/auth/me', '/api/projects', '/api/people']) {
+  for (const route of ['/api/auth/me', '/api/work-packages', '/api/people']) {
     // Proof: with first-party principals still asking the upstream verifier
-    // in `organizationCredentialEvidence`, `/api/projects` and `/api/people`
+    // in `organizationCredentialEvidence`, `/api/work-packages` and `/api/people`
     // answered 500 for both carriers; watched 2026-10-24.
     it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
       const { port, token } = await bootWithOutage(true);
@@ -1744,7 +1764,7 @@ describe('a native session under a verifier outage', () => {
 
 it('refuses boot after migrations when blockage admission authority is missing', async () => {
   const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');
-  runMigrations(dbPath, FOLDER);
+  migrateOrganizationCatalogueFixture(dbPath);
   const sqlite = openDatabase(dbPath);
   sqlite.run('DELETE FROM step_blockage_activation');
   sqlite.close();

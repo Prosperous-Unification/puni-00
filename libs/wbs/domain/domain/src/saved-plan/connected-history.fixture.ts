@@ -35,7 +35,7 @@ export function connectedHistoryFixture() {
           workItemId,
           stepId,
           personId: null,
-          boundBy: 'projectStart',
+          boundBy: 'workPackageStart',
           resourcePredecessorId: null,
           capacityPredecessorIds: [],
           capacityTeamId: null,
@@ -49,17 +49,17 @@ export function connectedHistoryFixture() {
     waitingForCapacity: 0,
   });
   const endpoint = (
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     step: (typeof steps)[number],
     scope: 'node' | 'descendant-step' = 'node',
   ) => ({
-    projectId,
+    workPackageId,
     workItemId,
     scope,
     stepId: step.id,
     name: workItemId === 'root' ? 'Held root' : workItemId,
-    projectAbbreviation: projectId,
+    workPackageAbbreviation: workPackageId,
     workItemNumber: workItemId === 'root' ? '001' : '002',
     step,
     stepNodeId: scope === 'node' ? `sn1.${workItemId}.${step.id}` : null,
@@ -71,21 +71,21 @@ export function connectedHistoryFixture() {
   const relationships = [
     {
       id: 'fs',
-      projectId: 'B',
+      workPackageId: 'B',
       type: 'FS',
       predecessor: endpoint('A', 'a', steps[0]),
       successor: endpoint('B', 'b', build),
     },
     {
       id: 'ss',
-      projectId: 'A',
+      workPackageId: 'A',
       type: 'SS',
       predecessor: endpoint('B', 'b', build),
       successor: endpoint('A', 'a', steps[1]),
     },
     {
       id: 'ff',
-      projectId: 'B',
+      workPackageId: 'B',
       type: 'FF',
       predecessor: endpoint('A', 'root', steps[0], 'descendant-step'),
       successor: endpoint('B', 'b', build),
@@ -112,9 +112,9 @@ export function connectedHistoryFixture() {
       relationshipId: 'ss',
     },
   ];
-  const projects = [
+  const workPackages = [
     {
-      projectId: 'A',
+      workPackageId: 'A',
       name: 'Alpha',
       abbreviation: 'A',
       startDate: '2026-10-01',
@@ -137,7 +137,7 @@ export function connectedHistoryFixture() {
       ],
     },
     {
-      projectId: 'B',
+      workPackageId: 'B',
       name: 'Beta',
       abbreviation: 'B',
       startDate: '2026-10-02',
@@ -161,9 +161,9 @@ export function connectedHistoryFixture() {
   ];
   const history = {
     kind: 'connected',
-    targetProjectId: 'A',
+    targetWorkPackageId: 'A',
     mode: 'isolated',
-    projects,
+    workPackages,
     relationships,
     graph: { nodes, edges },
     ownership: [
@@ -174,7 +174,7 @@ export function connectedHistoryFixture() {
     readiness: slices.map(([key, workItemId, stepId]) => ({
       kind: 'step',
       key,
-      projectId: workItemId === 'a' ? 'A' : 'B',
+      workPackageId: workItemId === 'a' ? 'A' : 'B',
       workItemId,
       stepId,
       status: workItemId === 'a' ? 'unknown' : 'blocked_by_proxy',
@@ -185,15 +185,15 @@ export function connectedHistoryFixture() {
     })),
     placementState: { kind: 'scheduled' },
   };
-  const stageBytes = (projectId: string, offset: number) =>
+  const stageBytes = (workPackageId: string, offset: number) =>
     JSON.stringify({
       kind: 'connected-stage',
-      projectId,
+      workPackageId,
       mode: 'isolated',
       originOrdinal: 20727,
-      projects: projects.map((project, index) => ({
-        projectId: project.projectId,
-        rank: project.rank,
+      workPackages: workPackages.map((workPackage, index) => ({
+        workPackageId: workPackage.workPackageId,
+        rank: workPackage.rank,
         anchorOrdinal: 20727 + index,
       })),
       rows: [
@@ -236,13 +236,13 @@ export function connectedHistoryFixture() {
         id: relationship.id,
         type: relationship.type,
         predecessor: [
-          relationship.predecessor.projectId,
+          relationship.predecessor.workPackageId,
           relationship.predecessor.scope,
           relationship.predecessor.workItemId,
           relationship.predecessor.stepId,
         ],
         successor: [
-          relationship.successor.projectId,
+          relationship.successor.workPackageId,
           relationship.successor.scope,
           relationship.successor.workItemId,
           relationship.successor.stepId,
@@ -264,7 +264,7 @@ export function connectedHistoryFixture() {
     });
   const aBytes = stageBytes('A', 0);
   const question = {
-    projectId: 'A',
+    workPackageId: 'A',
     inputHash: 'input',
     questionHash: 'question',
     objective: 'time',
@@ -276,7 +276,7 @@ export function connectedHistoryFixture() {
   };
   const score = { makespan: 4, priority: 7, movement: 0 };
   const decision = {
-    scope: { kind: 'connected-stage', projectId: 'A' },
+    scope: { kind: 'connected-stage', workPackageId: 'A' },
     chosen: 'optimized',
     schedule: placement(1),
     baseline: placement(0),
@@ -286,17 +286,17 @@ export function connectedHistoryFixture() {
   };
   const evidence = {
     kind: 'connected',
-    targetProjectId: 'A',
+    targetWorkPackageId: 'A',
     mode: 'isolated',
     originOrdinal: 20727,
     baseline: placement(0),
     composite: placement(1),
     stages: [
       {
-        projectId: 'A',
+        workPackageId: 'A',
         engine: 'optimized',
         objective: 'time',
-        format: 'connected-stage-v1',
+        format: 'connected-stage-v2',
         stageBytes: aBytes,
         observation: {
           inputHash: 'input',
@@ -323,30 +323,32 @@ export function connectedHistoryFixture() {
         selected: 'time',
       },
       {
-        projectId: 'B',
+        workPackageId: 'B',
         engine: 'fast',
         objective: 'pri',
-        format: 'connected-stage-v1',
+        format: 'connected-stage-v2',
         stageBytes: stageBytes('B', 1),
         observation: null,
         variants: null,
         selected: null,
       },
     ],
-    idleProjects: [],
+    idleWorkPackages: [],
   };
   return { history, evidence };
 }
 
 /** Builds target rows whose identities and parents agree with the captured component. */
 export function connectedPlanFixtureRows(history: SavedConnectedDependencyHistory): PlanInputRows {
-  const target = history.projects.find((project) => project.projectId === history.targetProjectId);
+  const target = history.workPackages.find(
+    (workPackage) => workPackage.workPackageId === history.targetWorkPackageId,
+  );
   if (target === undefined) throw new Error('fixture target must exist');
   return {
     ...planFixtureRows,
-    project: {
-      ...planFixtureRows.project,
-      id: target.projectId,
+    workPackage: {
+      ...planFixtureRows.workPackage,
+      id: target.workPackageId,
       name: target.name,
       startDate: target.startDate,
       timezone: target.timezone,

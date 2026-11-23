@@ -209,8 +209,13 @@ export async function restoreSharedPeopleOnHost(
     try {
       // Proof: substituting legacy dispatch lost the durable receipt; rereading the replaced backup failed retained-read recovery.
       return request.operationId === undefined
-        ? restoreSharedPeople(connection.db, saved, Date.now())
-        : restoreApprovedSharedPeople(
+        ? // Proof: backup-retained-host-current2. Introducing a second pathname read after fencing throws the exact JSON parse error when the current2 file was replaced; no live-host claim.
+          // Observed test: retains current2 host backup identity through fencing path replacement=true.
+          restoreSharedPeople(connection.db, saved, Date.now())
+        : // Proof: omitting await before host close and unlock (lifetime-host-await) failed `dispatches approved isolated rank recovery to the installed receipt owner and returns cold retry evidence`; restored GREEN.
+          await restoreApprovedSharedPeople(
+            // Proof: backup-retained-host-approved1. Introducing a second pathname read after fencing throws the exact JSON parse error before approved recovery can consume its retained original1 value.
+            // Observed test: retains one backup read while dispatching to the installed audited owner.
             connection.db,
             saved,
             { operationId: request.operationId, approvalIds: request.approvalIds },

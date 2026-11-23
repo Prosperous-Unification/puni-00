@@ -12,10 +12,10 @@ Three facts explain most decisions:
 - **The infra is the deliverable**, beyond what one host needs. Two reviews called it
   over-engineered; considered and rejected. Don't re-argue it.
 - **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
-  presence, projects, a nested table you type into and drag rows around, arrow keys between
+  presence, work packages, a nested table you type into and drag rows around, arrow keys between
   cells, derived numbers with a freeze, three-point estimates by step that roll up, a branch you
   duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
-  socket that reconnects and replays. Tables: `user`, `project`, `step`, `work_item`,
+  socket that reconnects and replays. Tables: `user`, `work_package`, `step`, `work_item`,
   `estimate`, `command_journal`, `event_log`, `event_sequencer`.
 - Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 

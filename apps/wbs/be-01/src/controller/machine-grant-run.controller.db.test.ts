@@ -4,8 +4,13 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { importMachineGrantKeys, type MachineGrantKeys } from '../runtime/machine-grant';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /** mcp-01's dedicated secret in these tests. */
 const SECRET = 'm'.repeat(32);
@@ -17,7 +22,7 @@ const MINUTE = 60_000;
 let keys: MachineGrantKeys;
 let now = T;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let steps: string[];
 let claireKey: string;
 let claireCredentialId: string;
@@ -56,17 +61,12 @@ async function openMachineFixture(connected = false) {
   });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  steps = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .all(projectId)
-    .map(({ id }) => id);
-  if (steps.length < 2) throw new Error(`the project holds ${String(steps.length)} steps`);
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  steps = (await readFixturePackage(h, 'dany', workPackageId)).steps.map(({ id }) => id);
+  if (steps.length < 2) throw new Error(`the work package holds ${String(steps.length)} steps`);
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'claire-worker', 'org-a', h.userId('dany'));
   const claireCredential = await issueApiKey(h.sqlite, {
@@ -74,15 +74,23 @@ async function openMachineFixture(connected = false) {
     personId: 'claire',
     issuedBy: h.userId('dany'),
   });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claireCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
   claireKey = claireCredential.key;
   claireCredentialId = claireCredential.id;
-  workerKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'claire-worker',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const worker = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'claire-worker',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(h.sqlite, 'org-a', worker.id, 'project-contributor', 'organization', 'org-a');
+  workerKey = worker.key;
 }
 
 beforeEach(() => openMachineFixture());
@@ -114,7 +122,7 @@ function withGrant(grant: string, method: string, path: string, body?: unknown):
 }
 
 function commands(bearer: (path: string, body: unknown) => Promise<Answer>, list: unknown[]) {
-  return bearer(`/api/projects/${projectId}/commands`, { commands: list });
+  return bearer(`/api/work-packages/${workPackageId}/commands`, { commands: list });
 }
 
 function asGrant(grant: string) {
@@ -123,14 +131,14 @@ function asGrant(grant: string) {
 
 /** Root leaves, or children of `parentId`, by id in creation order. */
 async function workItems(names: string[], parentId: string | null = null): Promise<string[]> {
-  const created = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const created = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: names.map((name) => ({ kind: 'createWorkItem', parentId, name })),
   });
   if (created.status !== 200) throw new Error(`rows refused: ${JSON.stringify(created)}`);
   const workItemIds = (created.body as { results: { id: string }[] }).results.map(({ id }) => id);
   // Lease/run cases continue already-running later-step work; Dev remains normally runnable.
   expectApplied(
-    await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
       commands: workItemIds.flatMap((workItemId) =>
         steps
           .slice(1)
@@ -490,11 +498,11 @@ describe('run scoping through wbs_run (task 1.6)', () => {
         { kind: 'claimWorkItem', workItemId: forB },
       ]),
     );
-    expectApplied(await withGrant(processA, 'POST', `/api/projects/${projectId}/undo`));
+    expectApplied(await withGrant(processA, 'POST', `/api/work-packages/${workPackageId}/undo`));
     expect(claimedItems()).toEqual([forA]);
     // The human's latest entry is the later-step progress setup, which the
     // agents' claims have since changed: no agent entry is on that stack.
-    expect(await h.call('dany', 'POST', `/api/projects/${projectId}/undo`)).toMatchObject({
+    expect(await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/undo`)).toMatchObject({
       status: 409,
       body: { error: 'stale_undo', detail: '“For A” has changed since then.' },
     });
@@ -508,13 +516,18 @@ async function connectedBatch() {
   await openMachineFixture(true);
   seedDependencyAuthority(h.databasePath());
   await h.register('owner');
-  h.member('org-a', 'owner', 'member');
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Restricted predecessor' });
-  expectApplied(created);
-  const predecessorProjectId = (created.body as { project: { id: string } }).project.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${predecessorProjectId}/commands`, {
-    commands: [{ kind: 'createWorkItem', name: 'Readable predecessor' }],
-  });
+  h.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'owner', ['organization.create_project']);
+  h.bind('owner', 'org-a');
+  const predecessorWorkPackageId = await createFixturePackage(h, 'owner', 'Restricted predecessor');
+  const rows = await h.call(
+    'owner',
+    'POST',
+    `/api/work-packages/${predecessorWorkPackageId}/commands`,
+    {
+      commands: [{ kind: 'createWorkItem', name: 'Readable predecessor' }],
+    },
+  );
   expectApplied(rows);
   const predecessorWorkItemId = (rows.body as { results: { id: string }[] }).results.at(0)?.id;
   if (predecessorWorkItemId === undefined) throw new Error('predecessor row missing');
@@ -531,21 +544,26 @@ async function connectedBatch() {
     [await grantFor(claireKey), beforeOptIn],
   ] as const)
     expectApplied(await commands(asGrant(grant), [{ kind: 'claimWorkItem', workItemId }]));
-  h.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
-    h.userId('owner'),
-    predecessorProjectId,
-  ]);
+  h.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [predecessorWorkPackageId]);
   h.sqlite.run(
     "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
     [h.userId('dany')],
   );
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claireCredentialId,
+    'package-contributor',
+    'work_package',
+    predecessorWorkPackageId,
+  );
   now = T + 5 * MINUTE;
   const predecessor = {
-    projectId: predecessorProjectId,
+    workPackageId: predecessorWorkPackageId,
     workItemId: predecessorWorkItemId,
     scope: 'whole',
   };
-  const successorEndpoint = { projectId, workItemId: successor, scope: 'whole' };
+  const successorEndpoint = { workPackageId, workItemId: successor, scope: 'whole' };
   return { processA, predecessor, successor, successorEndpoint };
 }
 
@@ -630,6 +648,10 @@ function expectConnectedTouch(expected: ReturnType<typeof captureConnectedTouch>
 describe('run admission through mounted connected dependency batches', () => {
   it('adds a successor-owned link and renews due A and pre-opt-in leases, leaving B unchanged', async () => {
     const { processA, predecessor, successorEndpoint } = await connectedBatch();
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id='package-viewer' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [claireCredentialId, predecessor.workPackageId],
+    );
     const touch = captureConnectedTouch();
     const predecessorBefore = h.sqlite
       .query<Record<string, unknown> & { revision: number; updated_at: number }, [string]>(
@@ -647,14 +669,27 @@ describe('run admission through mounted connected dependency batches', () => {
     };
     const sent = [...pushes];
     expect(
-      await withGrant(processA, 'POST', `/api/projects/${predecessor.projectId}/commands`, {
-        commands: [
-          { kind: 'patchWorkItem', workItemId: predecessor.workItemId, patch: { name: 'Denied' } },
-        ],
-      }),
+      await withGrant(
+        processA,
+        'POST',
+        `/api/work-packages/${predecessor.workPackageId}/commands`,
+        {
+          commands: [
+            {
+              kind: 'patchWorkItem',
+              workItemId: predecessor.workItemId,
+              patch: { name: 'Denied' },
+            },
+          ],
+        },
+      ),
     ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expectConnectedTouch(touch);
     expect(pushes).toEqual(sent);
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id='package-contributor' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [claireCredentialId, predecessor.workPackageId],
+    );
     expectApplied(
       await commands(asGrant(processA), [
         {
@@ -682,14 +717,14 @@ describe('run admission through mounted connected dependency batches', () => {
     expect(pushes.length).toBeGreaterThan(sent.length);
   });
 
-  for (const fault of ['absent-project', 'foreign-row'] as const)
+  for (const fault of ['absent-work-package', 'foreign-row'] as const)
     it(`conceals ${fault} after an earlier mutation and rolls back leases and publications`, async () => {
       const { processA, predecessor, successor, successorEndpoint } = await connectedBatch();
       const touch = captureConnectedTouch();
       const sent = [...pushes];
       const concealed =
-        fault === 'absent-project'
-          ? { ...predecessor, projectId: 'absent-project' }
+        fault === 'absent-work-package'
+          ? { ...predecessor, workPackageId: 'absent-work-package' }
           : { ...predecessor, workItemId: successor };
       expect(
         await commands(asGrant(processA), [
@@ -701,7 +736,13 @@ describe('run admission through mounted connected dependency batches', () => {
             type: 'FS',
           },
         ]),
-      ).toEqual({ status: 404, body: { error: 'not_found', at: 1, kind: 'addTypedDependency' } });
+      ).toEqual({
+        status: 404,
+        body: {
+          error: 'not_found',
+          ...(fault === 'absent-work-package' ? {} : { at: 1, kind: 'addTypedDependency' }),
+        },
+      });
       expectConnectedTouch(touch);
       expect(pushes).toEqual(sent);
     });

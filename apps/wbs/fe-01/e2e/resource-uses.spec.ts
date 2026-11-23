@@ -1,29 +1,28 @@
-import { expect, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, test } from './ordinary-test';
 
 const NOW = Date.UTC(2026, 9, 25, 10);
 
-/** The browser keeps real auth, project creation, and settings; only these resource-use reads are mocked. */
+/** The browser keeps real auth, work package creation, and settings; only these resource-use reads are mocked. */
 test('Resources distinguishes reports, queued cleanup, and verified Dash release', async ({
   page,
 }, testInfo) => {
   const reads: string[] = [];
-  await page.route('**/api/projects/*/resource-uses', async (route) => {
+  await page.route('**/api/work-packages/*/resource-uses', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
       return;
     }
     const path = new URL(route.request().url()).pathname;
-    const match = /^\/api\/projects\/([^/]+)\/resource-uses$/.exec(path);
+    const match = /^\/api\/work-packages\/([^/]+)\/resource-uses$/.exec(path);
     if (match === null) throw new Error(`unexpected use list ${path}`);
-    const projectId = match[1];
+    const workPackageId = match[1];
     const use = (id: string, resourceName: string, source: 'reported' | 'runtime') => ({
       id,
       source,
       organizationId: null,
-      projectId,
-      projectName: 'New project',
+      workPackageId,
+      workPackageName: 'New work package',
       resourceId: `resource-${id}`,
       resourceName,
       unitLabel: 'GB',
@@ -86,7 +85,7 @@ test('Resources distinguishes reports, queued cleanup, and verified Dash release
       },
     });
   });
-  await page.route('**/api/projects/*/resource-uses/*/history', async (route) => {
+  await page.route('**/api/work-packages/*/resource-uses/*/history', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
       return;
@@ -120,9 +119,9 @@ test('Resources distinguishes reports, queued cleanup, and verified Dash release
 
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
-  await page.getByRole('button', { name: 'Project settings' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Project settings' });
+  await createWorkPackage(page);
+  await page.getByRole('button', { name: 'Work package settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Work package settings' });
   await dialog.getByRole('tab', { name: 'Resources' }).click();
   const panel = dialog.getByRole('region', { name: 'Resource uses' });
   const reportedPending = panel.getByRole('listitem', { name: 'Reported scratch for Compile' });

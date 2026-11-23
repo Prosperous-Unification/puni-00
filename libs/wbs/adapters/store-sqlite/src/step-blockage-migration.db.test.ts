@@ -7,20 +7,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const WRITER_ACTIVATION = '20261014140000_add_step_blockage_activation';
 const MIGRATION = '20261013140000_add_step_node_blockages';
 const BASELINE = '20261012130000_add_step_estimate_unit';
 let directory: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-migration-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
-  // Exercise the earlier migration's own rollback guard independently of receipt retention.
-  rollbackTo(path, FOLDER, '20261014140000_add_step_blockage_activation');
+  // Use the original activation schema, before the separate rollback receipt was introduced.
+  migrations = copyRecoveryPrefix(directory, WRITER_ACTIVATION);
+  runMigrations(path, migrations);
   activateTestStepBlockages(path);
   const sqlite = openDatabase(path);
   try {
@@ -80,7 +82,7 @@ describe(MIGRATION, () => {
     });
   });
 
-  it('refuses duplicate pairs, missing references, cross-project steps and parent owners', () => {
+  it('refuses duplicate pairs, missing references, cross-work-package steps and parent owners', () => {
     withDatabase((sqlite) => {
       insert(sqlite);
       expect(() => insert(sqlite)).toThrow(/UNIQUE/);
@@ -123,7 +125,7 @@ describe(MIGRATION, () => {
 
   it('refuses rollback over a fact, keeping the schema and migration ledger', () => {
     withDatabase((sqlite) => insert(sqlite));
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       /stopped-writer recovery integration required/,
     );
     withDatabase((sqlite) => {
@@ -137,8 +139,8 @@ describe(MIGRATION, () => {
   });
 
   it('rolls an empty table back and reapplies without changing existing plan rows', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261014140000_add_step_blockage_activation',
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      WRITER_ACTIVATION,
       '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
       MIGRATION,
@@ -148,7 +150,7 @@ describe(MIGRATION, () => {
         sqlite.query("SELECT name FROM sqlite_master WHERE name = 'step_blockage'").all(),
       ).toEqual([]);
     });
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     activateTestStepBlockages(path);
     withDatabase((sqlite) => {
       insert(sqlite);

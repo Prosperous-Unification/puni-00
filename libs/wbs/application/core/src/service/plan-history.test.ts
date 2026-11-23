@@ -1,40 +1,54 @@
 import type { Days } from '@wbs/domain';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { WorkItemService } from '../module/work-item/work-item.resource';
-import type { Project, ProjectStore } from '../ports/project-store';
-import { inMemoryServices } from '../testing/harness';
+import type { WorkPackage } from '../ports/work-package-store';
+import { createBoundFixturePackage } from '../testing/bound-package-fixture';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const DEV = 'step-dev';
 
-let projects: ProjectStore;
 let journal: ReturnType<typeof inMemoryCommandJournal>;
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
   journal = inMemoryCommandJournal();
-  const harness = inMemoryServices({ journal });
-  ({ projects } = harness.stores);
-  service = harness.service;
-  const project: Project = projectRow({
-    id: crypto.randomUUID(),
-    ownerId: OWNER,
+  const { source } = await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID);
+  const harness = createTestServices(source, {
+    journal,
   });
-  await projects.create(
-    project,
+  service = harness.service;
+  const workPackage: WorkPackage = workPackageRow({
+    id: crypto.randomUUID(),
+    projectId: PROJECT_ID,
+  });
+  await createBoundFixturePackage(
+    source,
+    'caller-legacy',
+    workPackage,
     [
       {
-        id: DEV,
-        projectId: project.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+        definition: {
+          id: DEV,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'observable-dev-binding',
+          scopeKind: 'project',
+          scopeId: PROJECT_ID,
+          workItemTypeId: null,
+          position: 10,
+        },
       },
     ],
     {
@@ -42,7 +56,7 @@ beforeEach(async () => {
       by: OWNER,
     },
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 const days = (optimistic: number, realistic: number, pessimistic: number): Days => ({
@@ -52,7 +66,11 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
 });
 
 async function add(name: string): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId: null, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, {
+    parentId: null,
+    afterId: null,
+    name,
+  });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -108,7 +126,7 @@ describe('the plan’s history, as commands are recorded', () => {
     const recorded = journal.events.at(-1);
     expect(recorded?.workItemId).toBe(id);
     expect(recorded?.stepId).toBe(DEV);
-    expect(recorded?.projectId).toBe(projectId);
+    expect(recorded?.workPackageId).toBe(workPackageId);
     expect(recorded?.userId).toBe(OWNER);
     expect(recorded?.label).toBe('estimate “Strip the roof”');
   });
@@ -158,11 +176,11 @@ describe('the plan’s history, as commands are recorded', () => {
   it('names the successor for a dependency, and no row at all for a freeze', async () => {
     // A dependency touches two work items and is aimed at the one the request
     // named. A freeze is aimed at the plan: naming one of its rows would make a
-    // project-wide act read as that row's own history.
+    // work-package-wide act read as that row's own history.
     const first = await add('Strip the roof');
     const second = await add('Fit the felt');
     await service.addDependency(second, OWNER, first);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     const dependency = journal.events.find((each) => each.kind === 'add_dependency');
     expect(dependency?.workItemId).toBe(second);

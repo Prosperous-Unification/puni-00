@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -15,11 +15,10 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const G = 'account-g';
 const BOUND = new Map([
@@ -31,18 +30,47 @@ const RAM = 'resource-ram';
 let directory: string;
 let source: SqliteSource;
 
-beforeEach(() => {
+let opened: SqliteSource | undefined;
+let custody = { hasUnknownOwner: false };
+
+beforeEach(async () => {
+  opened = undefined;
+  custody = { hasUnknownOwner: false };
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: { at: 1, by: F },
+      definitions: [
+        {
+          id: 'dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 1,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    custody,
+  );
+  custody.hasUnknownOwner = true;
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
   });
+  opened = source;
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(async () => {
-  await source.close();
+  await opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('race fixture owner uncertain; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -54,27 +82,25 @@ interface Hold {
 }
 
 /**
- * Two leaves each demanding 4 GB of a project that states 6 GB, so either
+ * Two leaves each demanding 4 GB of a work package that states 6 GB, so either
  * claim fits alone and both together do not (`wbs-resources` R3).
  */
 async function seeded(hold: Hold) {
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  for (const id of [F, G]) {
-    await source.stores.users.create(
-      { id, username: id, passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: id },
-    );
-  }
-  const created = expectCreated(await graph.projects.create('Race', F));
-  const projectId = created.project.id;
+  await source.stores.users.create(
+    { id: G, username: G, passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: G },
+  );
+  const created = expectCreated(await graph.workPackages.create('Race', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
   }
@@ -84,17 +110,18 @@ async function seeded(hold: Hold) {
   );
   if (!added.ok) throw new Error('the resource was refused');
   const withIdentity = (claims: ClaimStore, actor: () => string): ClaimStore => ({
-    listByProject: async (id) => {
+    listByWorkPackage: async (id) => {
       if (hold.actor === actor()) {
         hold.actor = null;
         hold.reached();
         await hold.release;
       }
-      return claims.listByProject(id);
+      return claims.listByWorkPackage(id);
     },
-    listStampedByProject: (id) => claims.listStampedByProject(id),
+    listStampedByWorkPackage: (id) => claims.listStampedByWorkPackage(id),
     findById: (id, claimId) => claims.findById(id, claimId),
-    observeProject: (id, access) => claims.observeProject(id, access),
+    observeWorkPackage: (id, access) => claims.observeWorkPackage(id, access),
+    mayReadWorkPackageWithin: (...args) => claims.mayReadWorkPackageWithin(...args),
     occupancyOf: (id) => claims.occupancyOf(id),
     organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
     listStampedByIds: (projectId, ids) => claims.listStampedByIds(projectId, ids),
@@ -105,7 +132,7 @@ async function seeded(hold: Hold) {
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
     renewLeases: (personId, runId, now) => claims.renewLeases(personId, runId, now),
     expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
-    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
+    workPackagesWithExpiredLeases: (at, limit) => claims.workPackagesWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),
     pinnedPersonOf: () => Promise.resolve(null),
   });
@@ -127,9 +154,9 @@ async function seeded(hold: Hold) {
   });
   const as = (actor: string, commands: PlanCommand[]) => () => {
     acting = actor;
-    return runner.run(projectId, actor, commands);
+    return runner.run(workPackageId, actor, commands);
   };
-  const plan = await runner.run(projectId, F, [
+  const plan = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'one', name: 'One', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'two', name: 'Two', parentId: null, afterId: null },
     { kind: 'setResourceCapacity', resourceId: RAM, units: 6 },

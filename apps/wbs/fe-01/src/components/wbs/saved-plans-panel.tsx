@@ -52,9 +52,9 @@ export function saveWords(state: SavedPlanSaveState): string | null {
       case 'body_bytes':
         return `This checkpoint needs ${String(asked)} bytes; the saved-body limit is ${String(allowed)} bytes.`;
       case 'plan_count':
-        return `This would create ${String(asked)} saved plans; this project allows ${String(allowed)}.`;
-      case 'project_bytes':
-        return `This project would hold ${String(asked)} saved bytes; the project limit is ${String(allowed)}.`;
+        return `This would create ${String(asked)} saved plans; this work package allows ${String(allowed)}.`;
+      case 'work_package_bytes':
+        return `This work package would hold ${String(asked)} saved bytes; the work package limit is ${String(allowed)}.`;
       default:
         return unreachable(limit);
     }
@@ -115,9 +115,9 @@ export function renameWords(
  * screen rendered any of them, so every one of those green suites was a suite
  * over a feature no user could get to.
  *
- * **Everything it asks goes through the project runtime's {@link SavedPlans}**,
+ * **Everything it asks goes through the work package runtime's {@link SavedPlans}**,
  * which owns the shelf's watch: the panel selects the shelf and holds no client,
- * no port and no stream, and a new project is a new runtime whose shelf starts
+ * no port and no stream, and a new work package is a new runtime whose shelf starts
  * from `loading`.
  *
  * **A successful save refreshes the shelf as the actor's fast path.** The
@@ -128,10 +128,10 @@ export function renameWords(
  * with the broadcast safe.
  */
 export function SavedPlansPanel({
-  projectId,
+  workPackageId,
   savedPlans,
 }: {
-  projectId: string;
+  workPackageId: string;
   savedPlans: SavedPlans;
 }) {
   const shelfState = useSyncExternalStore(savedPlans.shelf.subscribe, savedPlans.shelf.snapshot);
@@ -139,7 +139,7 @@ export function SavedPlansPanel({
     savedPlans.livePlanRevision.subscribe,
     savedPlans.livePlanRevision.snapshot,
   );
-  const { state: saveState, save } = useSavedPlanSave(saveOf(savedPlans), projectId);
+  const { state: saveState, save } = useSavedPlanSave(saveOf(savedPlans), workPackageId);
   /**
    * The last rows the shelf actually delivered, kept across a shelf that stops
    * being `ready`.
@@ -182,7 +182,7 @@ export function SavedPlansPanel({
     if (saveState.kind !== 'saved') return;
     refresh();
     // `saveState` and not `saveState.kind`: the hook writes a fresh object per
-    // save, so a second save of the same project re-runs this. Keyed on the kind
+    // save, so a second save of the same work package re-runs this. Keyed on the kind
     // alone, saving twice would refresh once and leave the second checkpoint off
     // the shelf — the exact bug this effect exists to prevent, in its rarer form.
   }, [saveState, refresh]);
@@ -566,7 +566,7 @@ export function SavedPlansPanel({
 export function removeWords(error: string): string {
   if (error === 'not_found') return 'That saved plan has already been deleted.';
   if (error === 'forbidden') {
-    return 'Only the account that saved this plan, or the project’s owner, can delete it.';
+    return 'Only the account that saved this plan, or the work package’s owner, can delete it.';
   }
   if (error === 'snapshot_busy') return 'This plan is being written to. Try again in a moment.';
   return `The delete was refused (${error}).`;

@@ -1,0 +1,351 @@
+{
+  "schema": "puni-nx-inputs-verification-v125",
+  "recordedAt": "2026-11-21T21:29:31.553Z",
+  "goalStatus": "paused",
+  "beforeTree": "9dee6a7bafa28021695b6206df096e481c3a94db",
+  "scope": "Seven-file Nx fixture/provider input, e2e-local environment and equivalent frontend configuration-text repair. No new production safety predicate.",
+  "regression": {
+    "command": {
+      "argv": [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/workspace-targets.test.ts",
+        "tools/tool-devsync/src/be-probe.test.ts",
+        "tools/tool-devsync/src/be-probe-adapter.test.ts",
+        "tools/tool-devsync/src/be-probe-caller.test.ts",
+        "--timeout=30000"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-final-regression-v125.receipt.json",
+      "sha256": "d03d391af12e897030c563757321c5f616e19f465306c233c00eec2a940df2dc",
+      "bytes": 1490,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-final-regression-v125.log",
+      "sha256": "57cd2fb6b081189d1210f176131f9ad0ae9e5269886d86946756d8fdaff353be",
+      "bytes": 8890,
+      "mode": 384
+    },
+    "pass": 79,
+    "fail": 0,
+    "expects": 331,
+    "files": 4
+  },
+  "lint": {
+    "command": {
+      "argv": [
+        "bun",
+        "node_modules/eslint/bin/eslint.js",
+        "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-configuration-lint-v125.receipt.json",
+      "sha256": "bcda4f5d91662a4fde8c4d6531f12cf0312946a9a493189597add5a97594bb4c",
+      "bytes": 1347,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-configuration-lint-v125.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 384
+    }
+  },
+  "types": {
+    "command": {
+      "argv": ["bun", "node_modules/typescript/lib/tsc.js", "-p", "/tmp/puni-nx-types-v125.json"],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-types-v125.receipt.json",
+      "sha256": "6904b7f6016ece9642b66c3b123485ec83ccfb697ba3423a2eea1927cd93154c",
+      "bytes": 1300,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-types-v125.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 384
+    },
+    "configuration": {
+      "extends": "/tmp/puni-combined-proposal-v1/tree/tools/tool-remote-scripts/tsconfig.spec.json",
+      "compilerOptions": {
+        "noEmit": true,
+        "composite": false,
+        "incremental": false,
+        "typeRoots": [
+          "/tmp/puni-combined-proposal-v1/tree/node_modules/@types",
+          "/tmp/puni-combined-proposal-v1/tree/node_modules"
+        ]
+      },
+      "files": [
+        "/tmp/puni-combined-proposal-v1/tree/tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts"
+      ],
+      "include": [],
+      "exclude": [],
+      "references": []
+    }
+  },
+  "formatting": {
+    "command": {
+      "argv": [
+        "bun",
+        "node_modules/prettier/bin/prettier.cjs",
+        "--write",
+        "apps/twilight-structure/twilight-navigator/cli/project.json",
+        "apps/wbs/be-01/project.json",
+        "apps/wbs/fe-01/project.json",
+        "libs/wbs/application/core/project.json",
+        "libs/wbs/domain/contracts/project.json",
+        "libs/wbs/domain/domain/project.json",
+        "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-format-v125.receipt.json",
+      "sha256": "c7574a4c49f32cc27ed1dff4934813bd3494d932b9c0ff0eb215a607d7ec02a6",
+      "bytes": 1631,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-format-v125.log",
+      "sha256": "6302502da68355976c32175fe77a2303906173b9c287bc755747b856f543b5b6",
+      "bytes": 336,
+      "mode": 384
+    }
+  },
+  "separateFailure": {
+    "command": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+        "--test-name-pattern",
+        "modeled frontend configuration|frontend (materializer|producer) configuration boundary",
+        "--timeout=60000"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 1,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-frozen-config-v125.receipt.json",
+      "sha256": "99a413f01831e78b0f0a94b7236f4de1fad50a45c8082f284e933a0b02281b76",
+      "bytes": 1522,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-frozen-config-v125.log",
+      "sha256": "c703bdb3cfd4af8722ec4b40087115ecf368a8c347bc1da9731d794bce195130",
+      "bytes": 18136,
+      "mode": 384
+    },
+    "pass": 0,
+    "fail": 22,
+    "filtered": 54,
+    "baseline": {
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "./tools/test/scratch/preload.ts",
+          "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+          "--test-name-pattern",
+          "^modeled frontend configuration members retain all five complete package epochs$",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 90000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/nx-frozen-baseline-v125.receipt.json",
+        "sha256": "69063246db865919de80fa82b240d47e923c8cd2c4945719cdd0b76743e1dd6c",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/nx-frozen-baseline-v125.log",
+        "sha256": "cab39fa0078b9ec31495a3d82bb10d2b88bbf3ccfe8fdd5db54047a656b08cad",
+        "bytes": 1191,
+        "mode": 384
+      }
+    },
+    "restoration": {
+      "nativeExit": 1,
+      "exactRestored": true,
+      "liveMutation": false,
+      "beforeTree": "9dee6a7bafa28021695b6206df096e481c3a94db",
+      "files": 7,
+      "qualification": "All seven current edits are absent during this baseline. A matching fixture-input refusal proves this failure predates the Nx changes; it does not certify the blocked historical profile."
+    },
+    "qualification": "All seven edits absent reproduces frontend fixture inputs unsupported. Preparation reads current root inputs before accepting a historical tuple. None of the 22 intended negative tails is certified; preserve both frontend configurations, five package/lock epochs, captures and guards."
+  },
+  "audit": {
+    "metadata": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-navigator/cli/project.json",
+        "beforeSha256": "e1350acfd401bfee7686595798baeb1a60a3733a625004e5f2b768d7e85bb4f4",
+        "afterSha256": "948aea37e9235fd1d4348ec0da767b28aded126a24dbc638232f005dd4f1778d",
+        "unrelatedSemanticsPreserved": true
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/project.json",
+        "beforeSha256": "f3e37b5e7a2c0c79dbf308d50a99f378f6bef77a5ed838f7d49d6106ada3969f",
+        "afterSha256": "731e1434ce767e08a57de822975737bab32cee804cc909dea2743d44b14e054c",
+        "unrelatedSemanticsPreserved": true
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/project.json",
+        "beforeSha256": "6588944a746f7af5609582fad613acd1191d00bdce45d20d999223a73f91633e",
+        "afterSha256": "17d8fed9da48175050b3bb86f9c392733b13b33d848c50fd9968443bef2fad78",
+        "unrelatedSemanticsPreserved": true
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/project.json",
+        "beforeSha256": "41e3d7d9b4b664e812381a52aaccd5137073e4205582bc4a56416de639c0cade",
+        "afterSha256": "b589ebab58ad381e5e336f8e57924df8019798ec226efac2fad545816f1dec2a",
+        "unrelatedSemanticsPreserved": true
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/project.json",
+        "beforeSha256": "bc4ec0c640ee7768b58fed72b496ebd50791fca43f8f9ad52a5cbb4d6b32050e",
+        "afterSha256": "84dce8c75024395d023a5bd16f3b3941dce815e89b879e8e5f20c84d9b1b3912",
+        "unrelatedSemanticsPreserved": true
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/project.json",
+        "beforeSha256": "0da9783de530b8b2ae0bf9821933c8fad47eb7928b7432ed0f2490f89f4c9318",
+        "afterSha256": "19718dd24d5ca7c593046232cce48b62b5d97ac333cdc0619c5d98f4bfdb5806",
+        "unrelatedSemanticsPreserved": true
+      }
+    ],
+    "configurationText": {
+      "path": "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+      "originalSha256": "bd0affdc3b79998d259611611ab515b9fad7635fe365192bf463090fe5fc7d88",
+      "currentSha256": "46838cf7d9303715fefbd0aec891b87303a24532f860a5961d316ce51fb10d52",
+      "exactOriginalRecoveredAfterEvaluatingOnlyTwoConstantExpressions": true,
+      "references": [
+        {
+          "workspacePath": "libs/wbs/domain/domain/src/work-package-address.ts",
+          "relativeTo": "apps/wbs/fe-01",
+          "value": "../../../libs/wbs/domain/domain/src/work-package-address.ts"
+        },
+        {
+          "workspacePath": "libs/wbs/domain/domain/src/project-address.ts",
+          "relativeTo": "apps/wbs/fe-01",
+          "value": "../../../libs/wbs/domain/domain/src/project-address.ts"
+        }
+      ]
+    },
+    "frozen": [
+      {
+        "path": "tools/tool-remote-scripts/src/fixtures/source-frontend-profile.ts",
+        "sha256": "6a40c23763f91921de32e59af87ebbe55c9db49ba8beb846d38bae85be43f279",
+        "unchanged": true
+      },
+      {
+        "path": "tools/tool-remote-scripts/src/lib/source-frontend-profile.ts",
+        "sha256": "4b3bb65388d79abed5936ec5dd645a889a5891a3875bbdefe0315bca4f7c4132",
+        "unchanged": true
+      }
+    ],
+    "preexistingFixtureRefusal": {
+      "nativeExit": 1,
+      "exactRestored": true,
+      "liveMutation": false,
+      "beforeTree": "9dee6a7bafa28021695b6206df096e481c3a94db",
+      "files": 7,
+      "qualification": "All seven current edits are absent during this baseline. A matching fixture-input refusal proves this failure predates the Nx changes; it does not certify the blocked historical profile."
+    },
+    "qualification": "Current project metadata and equivalent configuration-text representation only. No cache checker, assertion, historical capture, pinned input or accepted profile is weakened. The22 selected frozen frontend tests remain unverified past their preexisting input-setup refusal; the isolated old seven-file baseline reproduces it."
+  },
+  "auditCapture": {
+    "path": "/tmp/puni-combined-proposal-v1/control/nx-inputs-audit-v125.json",
+    "sha256": "645d41a283b1c8cfba9d8856797895586a14c2babb392d22122476c1bf20ef78",
+    "bytes": 3954,
+    "mode": 384
+  },
+  "changedSources": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-navigator/cli/project.json",
+      "sha256": "948aea37e9235fd1d4348ec0da767b28aded126a24dbc638232f005dd4f1778d",
+      "bytes": 1130,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/project.json",
+      "sha256": "731e1434ce767e08a57de822975737bab32cee804cc909dea2743d44b14e054c",
+      "bytes": 9570,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/project.json",
+      "sha256": "17d8fed9da48175050b3bb86f9c392733b13b33d848c50fd9968443bef2fad78",
+      "bytes": 4074,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/project.json",
+      "sha256": "b589ebab58ad381e5e336f8e57924df8019798ec226efac2fad545816f1dec2a",
+      "bytes": 2399,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/project.json",
+      "sha256": "84dce8c75024395d023a5bd16f3b3941dce815e89b879e8e5f20c84d9b1b3912",
+      "bytes": 2524,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/project.json",
+      "sha256": "19718dd24d5ca7c593046232cce48b62b5d97ac333cdc0619c5d98f4bfdb5806",
+      "bytes": 10221,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+      "sha256": "46838cf7d9303715fefbd0aec891b87303a24532f860a5961d316ce51fb10d52",
+      "bytes": 107354,
+      "mode": 436
+    }
+  ],
+  "replan": "docs/superpowers/plans/2026-11-21-puni-completion-replan.md",
+  "unverified": [
+    "Complete entity/catalogue/API/UI/history acceptance",
+    "Complete script inventory and Bun/client migration including protected env-S classification",
+    "Real four-Nx and WBS acceptance",
+    "Frozen frontend setup and hostile error accessor failure",
+    "Formal Astra review",
+    "Full required checks and exact-SHA host gate",
+    "Public delivery and observed running revision"
+  ],
+  "operations": {
+    "publicCommit": false,
+    "push": false,
+    "prUpdate": false,
+    "merge": false,
+    "deployment": false,
+    "activation": false,
+    "fullHostGate": false,
+    "goalComplete": false
+  }
+}

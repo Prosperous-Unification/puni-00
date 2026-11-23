@@ -2,22 +2,25 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import type { AccessDecisions } from '../../ports/access-decisions';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 
 const F = 'account-f';
 const RAM = 'resource-host-ram';
 const DISK = 'resource-disk';
-/** An admin of the organization owning `host ram` and projects A, B and C. */
+/** An admin of the organization owning `host ram` and work packages A, B and C. */
 const ADMIN: ResourceAccess = {
+  principal: { id: F },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: F, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: F },
 };
 const STAMP = { at: 1, by: F };
 
@@ -40,23 +43,38 @@ async function seeded(withLimits = true) {
   const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
-  const graph = servicesOver(source.stores, options);
+  const accessDecisions: AccessDecisions = {
+    packageTargetOf: () =>
+      Promise.reject(new Error('directory-only fixture reads no package target')),
+    effectiveRoleAt: (principal, target) => {
+      if (principal.id !== F || target.kind !== 'organization' || target.organizationId !== 'org-a')
+        throw new Error('unexpected capacity fixture subject/scope');
+      return Promise.resolve({ permissions: new Set(['organization.manage_directory']), via: [] });
+    },
+    readablePackageIds: () => Promise.reject(new Error('unexpected capacity grant listing')),
+  };
+  const graph = servicesOver({ ...source.stores, accessDecisions }, options);
   await source.stores.users.create({ id: F, username: F, passwordHash: 'x', createdAt: 1 }, STAMP);
-  const projects = [
-    expectCreated(await graph.projects.create('A', F)).project.id,
-    expectCreated(await graph.projects.create('B', F)).project.id,
-    expectCreated(await graph.projects.create('C', F)).project.id,
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'org-a',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  const workPackages = [
+    expectCreated(await graph.workPackages.create('A', 'fixture-project', F)).workPackage.id,
+    expectCreated(await graph.workPackages.create('B', 'fixture-project', F)).workPackage.id,
+    expectCreated(await graph.workPackages.create('C', 'fixture-project', F)).workPackage.id,
   ] as const;
   await source.stores.workItems.insert(
     workItemRow({
       id: 'leaf-b',
-      projectId: projects[1],
+      workPackageId: workPackages[1],
       parentId: null,
       position: 1,
       name: 'Leaf',
@@ -72,13 +90,17 @@ async function seeded(withLimits = true) {
     if (!added.ok) throw new Error(`resource ${resource.id} was refused`);
   }
   fixture.ownResourceInOrganization(RAM, 'org-a');
-  for (const projectId of projects) fixture.ownProjectInOrganization(projectId, 'org-a');
+  for (const workPackageId of workPackages)
+    fixture.ownWorkPackageInOrganization(workPackageId, 'org-a');
   const state = (resourceId: string, units: number | null, access: ResourceAccess = ADMIN) =>
     source.uow.run(async (scope) => {
-      const services = servicesOver(scope.stores, {
-        ...options,
-        dependencyContext: createLocalDependencyContext(scope.stores),
-      });
+      const services = servicesOver(
+        { ...scope.stores, accessDecisions },
+        {
+          ...options,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
+      );
       const outcome = await services.directory.setDirectoryCapacityWithin(
         resourceId,
         F,
@@ -88,7 +110,7 @@ async function seeded(withLimits = true) {
       );
       return { commit: outcome.ok, value: outcome };
     });
-  return { source, broadcast, projects, state };
+  return { source, broadcast, workPackages, state };
 }
 
 describe('setDirectoryCapacity on the memory twin', () => {
@@ -150,19 +172,19 @@ describe('setDirectoryCapacity on the memory twin', () => {
 
   // Proof: with the announce skipped in `setDirectoryCapacityWithin`, this
   // case found no `directory_changed` for A or B; watched 2026-10-25.
-  it('announces directory_changed to every project that states or demands the resource', async () => {
-    const { source, broadcast, projects, state } = await seeded();
+  it('announces directory_changed to every work package that states or demands the resource', async () => {
+    const { source, broadcast, workPackages, state } = await seeded();
     try {
-      const stated = await source.stores.resourceCapacity.set(projects[0], RAM, 32, STAMP);
+      const stated = await source.stores.resourceCapacity.set(workPackages[0], RAM, 32, STAMP);
       if (!stated.ok) throw new Error('the capacity was refused');
       expect(await source.stores.demands.set('leaf-b', RAM, 4, STAMP)).toBe('written');
       broadcast.published.length = 0;
       expect(await state(RAM, 16)).toEqual({ ok: true, value: null });
       const told = broadcast.published
         .filter(({ event }) => event.type === 'directory_changed')
-        .map(({ projectId }) => projectId)
+        .map(({ workPackageId }) => workPackageId)
         .sort();
-      expect(told).toEqual([projects[0], projects[1]].sort());
+      expect(told).toEqual([workPackages[0], workPackages[1]].sort());
     } finally {
       await source.close();
     }

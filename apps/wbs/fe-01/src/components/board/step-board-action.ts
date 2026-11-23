@@ -43,7 +43,7 @@ function rejectGesture(host: BoardActionHost, gesture: CapturedCard): string | n
   // Proof: disabling this shared predicate at both call sites sent setProgress for a withdrawn
   // runtime; `sends no command for a withdrawn runtime` observed its command ledger first.
   // The same fault sent an old action's second request after real p2→p1→p2 owner replacement.
-  if (!host.isCurrent()) return 'This project is no longer selected.';
+  if (!host.isCurrent()) return 'This work package is no longer selected.';
   const delivered = host.plan.snapshot();
   // Proof: dropping the absent-tree arm made a typed captured card against a current runtime
   // with no first tree reject with a TypeError instead of the modeled not-sent feedback.

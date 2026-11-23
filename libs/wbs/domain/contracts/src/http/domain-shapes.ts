@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -45,7 +46,16 @@ export const listOrganizationDomains = defineEndpointShape({
   refusals: [
     ...common,
     { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-listOrganizationDomains) failed `keeps the catalog permission vocabulary at getApiOrganizationDomains`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
   ],
   document: { summary: 'List domain claims in the active organization.' },
 });
@@ -90,7 +100,16 @@ export const createDomainChallenge = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-createDomainChallenge) failed `keeps the catalog permission vocabulary at postApiOrganizationDomainsChallenges`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 409, schema: responseSchema(type({ error: "'unclaimable'" })) },
     { status: 409, schema: responseSchema(type({ error: "'already_claimed'" })) },
   ],
@@ -126,7 +145,16 @@ export const verifyDomainClaim = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-verifyDomainClaim) failed `keeps the catalog permission vocabulary at postApiOrganizationDomainsByIdVerify`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     {
       status: 409,
@@ -174,7 +202,16 @@ export const rotateDomainProof = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-rotateDomainProof) failed `keeps the catalog permission vocabulary at postApiOrganizationDomainsByIdRotate`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     { status: 409, schema: responseSchema(type({ error: "'stale'" })) },
   ],
@@ -204,7 +241,16 @@ export const releaseDomainClaim = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-releaseDomainClaim) failed `keeps the catalog permission vocabulary at deleteApiOrganizationDomainsById`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     // `sso_connection_exists`: an enterprise connection still names the claim.
     { status: 409, schema: responseSchema(type({ error: "'stale' | 'sso_connection_exists'" })) },

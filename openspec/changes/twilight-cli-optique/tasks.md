@@ -98,7 +98,7 @@ spelling`.
 - [x] 3.2 `--version` from the manifest, help, completion; `bundle.test.ts` and the pack test
       record the new bundle size; README and the npm README.
 - [x] 3.3 `verify.md`: commands, output, the fault table for the three CLIs.
-- [ ] 3.4 Type the seven delegated Burokrat commands (`check`, `explain`, `scenario`,
+- [x] 3.4 Type the seven delegated Burokrat commands (`check`, `explain`, `scenario`,
       `template`, `validate workflow-binding`, `prepare-activation`,
       `prepare-relocation-activation`) in `cli-parser.ts`; their handlers take the typed object;
       the module usage constants and loops are deleted; `check --now` keeps its optional,
@@ -114,3 +114,5 @@ copies reconcile when #805 reaches main (B-A1). The Burokrat assumptions B-A1 to
 verify.md's Burokrat section. Seven commands stay delegated to the modules that parse them
 (`check`, `explain`, `scenario`, `template`, `validate workflow-binding`, and the installed
 `prepare-activation` and `prepare-relocation-activation`); task 3.4 types them.
+
+Task 3.4 was completed through the PUNI provider grammar work on 2026-11-09. Its current verification and production-path fault proofs are recorded in [PUNI CLI verification](../puni-cli/verify.md#typed-policy-grammars-2026-11-09); the later installed PUNI execution/packaging acceptance remains tracked by that change. The earlier 3.x delegation notes above describe the prior checkpoint.

@@ -1,0 +1,1549 @@
+{
+  "schema": "puni-space-project-rollup-verification-v1",
+  "recordedAt": "2026-11-21T08:20:15.469Z",
+  "scope": "Task4.6 coherent Source project rollup foundation; HTTP/UI and full original goal incomplete",
+  "previous": {
+    "path": "/tmp/puni-goal-continuation-20261121-v104.json",
+    "sha256": "297038dd88a241053ab70a55ebe12d5d3388c64840837d45d0d0012aad6e2204",
+    "bytes": 14543,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-before-v1.json",
+    "sha256": "2e72a6e31dc3f159ee494e1cf541858668efe2aafd81ca1efb047e99c7a95f0b",
+    "bytes": 1317390,
+    "mode": 384
+  },
+  "supplement": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-rename-tests-before-v1.json",
+    "sha256": "248b3e68c93b86ca426db1f9a4165e557d3ff31d104493f1c08c7797eacb3a50",
+    "bytes": 10549,
+    "mode": 384
+  },
+  "plan": {
+    "path": "/tmp/puni-space-project-rollup-plan-v1.json",
+    "sha256": "8b471683bceffd814b2ee573bb3fcfe74cab1c724e44654e4b219b6212aba480",
+    "bytes": 1493,
+    "mode": 384
+  },
+  "verification": {
+    "core": {
+      "pass": 2124,
+      "fail": 0,
+      "skip": 0,
+      "assertions": 13068,
+      "tests": 2124,
+      "files": 171
+    },
+    "source": { "pass": 46, "fail": 0, "skip": 0, "assertions": 743, "tests": 46, "files": 3 },
+    "domain": {
+      "pass": 1911,
+      "fail": 1,
+      "skip": 3,
+      "assertions": 69798,
+      "tests": 1915,
+      "files": 127
+    },
+    "independentFaults": 17,
+    "sourceAuditFiles": 6104,
+    "compilerRoots": 351,
+    "openSpec": { "items": 343, "tasksComplete": 15, "tasksTotal": 48 },
+    "allOriginalInputsMatched": true,
+    "mcpUnchanged": true
+  },
+  "checks": [
+    {
+      "name": "project-rollup-domain-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/domain/domain/src/project-roll-up.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-domain-red-v1.receipt.json",
+        "sha256": "081e0f0482d66407b1607095a0fd6e877d763bcccbecd2a9bec7f515bff4db05",
+        "bytes": 1301,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-domain-red-v1.log",
+        "sha256": "12aaea38be4840afcf18460327616b3be451c0323aebc49cdf64b984283776b9",
+        "bytes": 5212,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-source-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-red-v1.receipt.json",
+        "sha256": "f21402122b8aeb584fd23242cf9a4119e25421ecca00b12e6e5d0d6490b22908",
+        "bytes": 1352,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-red-v1.log",
+        "sha256": "9ea81fb03bfbffc764582ee942f192e19f47e72a78d022760a4f44bcca2c0c5c",
+        "bytes": 5423,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-admission-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "outside the named space",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-admission-v1.receipt.json",
+        "sha256": "6c29845f2dcabc518ae62fdacd6049210898c7f8b5c1828fae7d0bbdc1b3896d",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-admission-v1.log",
+        "sha256": "dcd0f4613f0896c913ad86560c658236baf347a862d1b51dada8099e602e02bd",
+        "bytes": 2645,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-authority-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "membership loss",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-authority-v1.receipt.json",
+        "sha256": "21c2dca73f61c0f2cee542f79bc78aec89d8e2af143b582923e535894e46e274",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-authority-v1.log",
+        "sha256": "f5a9e8cbc09ed61e3591aa4b0ef521e3d399a8f9745a7266c989a3cae52fb489",
+        "bytes": 1393,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-binding-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "folds both child packages",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-binding-v2.receipt.json",
+        "sha256": "3b166cb4a7d722ccdb9cb9ae6b96f189e5818d389ff1ec62a518dc3cc8682efd",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-binding-v2.log",
+        "sha256": "536621236196946ea9358c52b2867fc219776c0da074390cdd4089425caec39b",
+        "bytes": 1608,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-caller-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "retains complete caller",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-caller-v1.receipt.json",
+        "sha256": "ec00ea07221b2bfb010b25a28d560eb1b019fe389d2a2050d6aa935876f9f67f",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-caller-v1.log",
+        "sha256": "179c5b55743c51d3617f761f3656d91802a3a29940575c8bb9209dffa80428d1",
+        "bytes": 1188,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-dependency-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "hidden required incoming",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-dependency-v1.receipt.json",
+        "sha256": "5f62a2249f2123bbdc9810611c9fa13fb0ae6a2a23b101026b1de944c13392a7",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-dependency-v1.log",
+        "sha256": "8fe3c5f2133e38a8ecae7950697c2ade4564ffc6bf0fb76a4113197691fcadaf",
+        "bytes": 1531,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-empty-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "includes an admitted empty project",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-empty-v1.receipt.json",
+        "sha256": "4b89b959554c21bc784267bc5da2839253bcad0739bfb3ff7f258a7ac6d846e7",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-empty-v1.log",
+        "sha256": "0ee8c9a11b2c844c6faebafe540f7d4fa8dea8eddea39711dc20604f791e9d82",
+        "bytes": 4465,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-engine-refusal-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "unavailable installed engine",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-engine-refusal-v1.receipt.json",
+        "sha256": "4db5333c84b8cefc74e3fb6e4abc8f524373b6025cf5ead2888b7862c7f5cc29",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-engine-refusal-v1.log",
+        "sha256": "6545e8111f2a4154bd37733b5c304bff808d2f4cfaddeb6831652606ba3c23d9",
+        "bytes": 1364,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-expiry-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "every borrowed capture lifetime expires",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-expiry-v1.receipt.json",
+        "sha256": "1acab094bd9169e66ad1062b13288eb32e7adf500179a10029fd6c4c9c7ded67",
+        "bytes": 1446,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-expiry-v1.log",
+        "sha256": "002b8f4e324127e34ba09d50e5c72b3125042bff3cfa55b2a4839d4b8548e91b",
+        "bytes": 1864,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-finish-before-release-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "local project scheduling runs after loan release",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-finish-before-release-v1.receipt.json",
+        "sha256": "78b8605bd2e3a131ffee6b0d5630505474bdcb3663d04aff9357ee8cb4f58960",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-finish-before-release-v1.log",
+        "sha256": "0146f421d0c8b30da392670fd0383968d73cb903839ceed4b015ee4980ed1ae2",
+        "bytes": 2120,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-forwarding-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "membership loss",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-forwarding-v2.receipt.json",
+        "sha256": "6bfb09df65bc1ba32719b00d6c934c156ff070d5df9ee625141366b7b999f02b",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-forwarding-v2.log",
+        "sha256": "5bc46e5401b7f1dbb77cc3bbde78621c3cd4ec76227debe5644dcfac32b89b5d",
+        "bytes": 1177,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-prepared-refusal-v3",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "hidden required incoming",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-prepared-refusal-v3.receipt.json",
+        "sha256": "ac18b92706b17d5c7d9153309b2eebe727cc2cb282bb50d3f9be6df59f892407",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-prepared-refusal-v3.log",
+        "sha256": "34cf576e069a7c11834396c86fdee7a1458612492129ed1073563840d7dc7c7c",
+        "bytes": 1195,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-requested-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "retains requested IDs",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-requested-v1.receipt.json",
+        "sha256": "6953588e1950854b39f573657081f4ca7197d098d4ef20d0d4f5af59aff569ef",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-requested-v1.log",
+        "sha256": "a7813f185f8a02330b5ed0235cac63971ca8dc9b3cada12f7fb5601da445e467",
+        "bytes": 1214,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-schedule-error-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "actual cyclic child",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-schedule-error-v1.receipt.json",
+        "sha256": "f79b752e5a127f6ea450de832279ebc7ab8fb262f60743cda12cf4c328739231",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-schedule-error-v1.log",
+        "sha256": "c7e7d82e06aec9456982eb9b5bc477f5e957356c766c6bcd866a6075fa1d783b",
+        "bytes": 3867,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-selection-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "retains requested IDs",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-selection-v1.receipt.json",
+        "sha256": "4a1452eda02617cd5bc29fd3ec13b009df754d67f030bad089da74aef2ff7232",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-selection-v1.log",
+        "sha256": "5cb3c6b699b9ea6e6de71fa6d844b613b46e2348f47329c709b33249b88fcb2c",
+        "bytes": 3942,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-snapshot-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "share one snapshot",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-snapshot-v1.receipt.json",
+        "sha256": "aba0beb99ffa7e5851f0062ceeb67336bc8ef4944d17bb43e03ee8781473e433",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-snapshot-v1.log",
+        "sha256": "3b2f73b1d6152b69c89b58b438eb33c74a01b1a65c582ae97c32257d162aa28f",
+        "bytes": 3826,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-space-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "foreign and absent spaces",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-space-v1.receipt.json",
+        "sha256": "37eb75edc12a61d50e4f03d6a3aa995ca31446e8a05d2a6f8b77f65a83612a09",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-space-v1.log",
+        "sha256": "c747279f5fa2f0feab0cc00969dfbb636f71b5120f31ebaae5262ae25ecc1307",
+        "bytes": 1391,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-fault-unavailable-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern",
+          "unavailable installed engine",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-unavailable-v1.receipt.json",
+        "sha256": "86a152d601e19ea04143ee585f4b9612ba364db4fa00107cb9c20d7e11adc0cb",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-fault-unavailable-v1.log",
+        "sha256": "72e914d8c7d8c5cb543a08a4a92934a9706115b7ff9ce633ec9f756177c14feb",
+        "bytes": 3064,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-audit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v48.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-audit-v1.receipt.json",
+        "sha256": "1fa9c2adb31ff00b17bbf9dfbea17ad49c7878b9c9756819d131bc82ec9e10cd",
+        "bytes": 1293,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-audit-v1.log",
+        "sha256": "3c613b5568008c83302b2e7863c6cd883316d4988eac0be73a602f049a4a8c4c",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-audit-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v49.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-audit-v2.receipt.json",
+        "sha256": "e7a2da8952567e15101360d62be0f445b8429ec08914336761d621bfb1cce006",
+        "bytes": 1293,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-audit-v2.log",
+        "sha256": "43f6b16baf45076c009c8ffe31e5e6314e42168c998567c123d4c3ba0bfcbd6d",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-core-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/application/core/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-core-v1.receipt.json",
+        "sha256": "eccb62eaf6a25be0008e7187179b85d7f4c35fd7843fac244cca2ed39c77776c",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-core-v1.log",
+        "sha256": "84cff0a1a1b59a16b2fe12231e8dfa267885a8890c8accabf2c087b638b727c3",
+        "bytes": 232880,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-domain-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/domain/domain/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-domain-v1.receipt.json",
+        "sha256": "4eeb03dbb2b33b37d8b876b002f512b22bf3fd1c349b977aac69cdefdcfb1ba9",
+        "bytes": 1329,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-domain-v1.log",
+        "sha256": "69f38e6478896de80b28373dce4d3cdc0799544f79d086dce47236915228c4b5",
+        "bytes": 202423,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-domain-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/domain/domain/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-domain-v2.receipt.json",
+        "sha256": "3b099c8f91cffea37dd9a3f1d41acf9a4d58fd20a4306d12262af68eddea68ba",
+        "bytes": 1329,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-domain-v2.log",
+        "sha256": "7e77dd007e4414c64ebfb4950698b41c49f08787398a252d3814ac78243031d0",
+        "bytes": 200469,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-lint-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-lint-v1.receipt.json",
+        "sha256": "beaa0e285f4b3bfd5666dfe49fb4ad0c8755f7fc824f35fff3477c3f39ca916f",
+        "bytes": 1849,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-lint-v1.log",
+        "sha256": "6e1d876b89549f3d4c78bd53e00e0353bffac0c7c206e914960e6eeca98b820c",
+        "bytes": 3769,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-lint-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/domain/domain/src/connected-step-node.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-lint-v2.receipt.json",
+        "sha256": "e8b50065cde8fe75234781e8efc8438cb46bf56f8dd17bc223a411777ef4279b",
+        "bytes": 1910,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-openspec-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bunx", "--no-install", "openspec", "validate", "--all", "--json"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-openspec-v1.receipt.json",
+        "sha256": "2ae465eb0fa336e0c19e325d84696d691cfc1fab1dc384248750f91e377204f2",
+        "bytes": 1337,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-openspec-v1.log",
+        "sha256": "a5516880d833618a2ce3caf195964b3cc370525b81bcd4fbc88cf1e65615c9dc",
+        "bytes": 349194,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-source-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-http-read.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-source-v1.receipt.json",
+        "sha256": "739b0d35061badee66162dffcbd55afa0bc35a4fe1d8d0712addc1a26e72eb49",
+        "bytes": 1525,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-source-v1.log",
+        "sha256": "2f10e8e1f0ed9173479289152d31dc412983df81e81efe03186d05b49880a7d9",
+        "bytes": 4923,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-source-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-http-read.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-source-v2.receipt.json",
+        "sha256": "4de23a087c264fdcfc22f46e1ee1bb08e8c375a618ed2da9bf1fbbab43a0f026",
+        "bytes": 1525,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-source-v2.log",
+        "sha256": "80a8ec6fd4191740e27b6a8f5b4842d1bf3d4cd7fc01ae139460ce3477540fad",
+        "bytes": 4922,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-types-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-rollup-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-types-v1.receipt.json",
+        "sha256": "de04d46c322eccb75194fa8660091ef078e246a6cc0eb79bc331cb349fd5d5c2",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-final-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-rollup-types-v2.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-types-v2.receipt.json",
+        "sha256": "0768cac929cb9f2bf62e99442f6b9a39aa5f1173c9dedcbf1a3c47cea0df7f91",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+          "openspec/changes/wbs-work-packages/verify.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v1.receipt.json",
+        "sha256": "921eecb55d978aa234a0cac1ca6931cfe4f46dad2c323e96d3187dfc4676e004",
+        "bytes": 2042,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v1.log",
+        "sha256": "54e895a9628e5186864538401fc14c87ba1840bc7730c4c5c300d7eee660cc8e",
+        "bytes": 754,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-format-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md",
+          "openspec/changes/wbs-work-packages/verify.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v2.receipt.json",
+        "sha256": "713da8abc5a43475f664c287f681a58009608b8f653648b2d9ac35d5381da0f4",
+        "bytes": 2042,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v2.log",
+        "sha256": "25e3e4a8cd7cf6cba7e731507f56ccbdf7628e18e456f6c5b7afe29d66f06dd3",
+        "bytes": 835,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-format-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/domain/domain/src/connected-step-node.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v3.receipt.json",
+        "sha256": "5be96bb9039d5727069495ca625ad66e591e6dd5ae005f801580cf645da0a30f",
+        "bytes": 1926,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-format-v3.log",
+        "sha256": "4c004a728e997ef98453efdbf83d2b559c7a2cd1b77d01afcef5955a45d8d88d",
+        "bytes": 701,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-green-v1.receipt.json",
+        "sha256": "c494714565c7d4835635b33113b59256d48f1c679386313247eaf98839173bb0",
+        "bytes": 1416,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-green-v1.log",
+        "sha256": "30190ce3fb3213afef56b5781128a7322521aa62ecfb156c01a34d9739e73ee3",
+        "bytes": 1344,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-identity-diagnostic-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "/tmp/puni-scheduler-rename-identity-diagnostic.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-identity-diagnostic-v1.receipt.json",
+        "sha256": "2ab4a1b5bcf20a9c7fc09c0c3f2c49fd4757a264846a06c844f5ed00bcadb578",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-identity-diagnostic-v1.log",
+        "sha256": "5ee0d891e3eaadcba546d2465bd016df2fccbf2a5b000261831127cf4b9d9173",
+        "bytes": 1685,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-lint-fix-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--fix",
+          "libs/wbs/domain/domain/src/work-package-roll-up.ts",
+          "libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "libs/wbs/domain/domain/src/connected-step-node.test.ts",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-lint-fix-v1.receipt.json",
+        "sha256": "da226e12b081a36c275e74d6c14343e0c1ea04bb84bb453819fccb7c3e4a6118",
+        "bytes": 1921,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-lint-fix-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-openspec-apply-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "openspec",
+          "instructions",
+          "apply",
+          "--change",
+          "wbs-work-packages",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-openspec-apply-v1.receipt.json",
+        "sha256": "a8b4c99dee9157878e2321f7e0a2895c216f13907b02fc2309f972df00ce7897",
+        "bytes": 1385,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-openspec-apply-v1.log",
+        "sha256": "f52f628732da81ce47a408840499d4d16f0878c323974810d9c2e1b71c6f1c6a",
+        "bytes": 23222,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-source-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v2.receipt.json",
+        "sha256": "3c321bb259c7277ff9cc857adf19a3cdb205f14020602d9c46f7151ee2ebcd1c",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v2.log",
+        "sha256": "b7f8e66f40bf7a62ced36f65e6b84a646991e4a0621ca7adb740de23ff145d99",
+        "bytes": 1970,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-source-v3",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v3.receipt.json",
+        "sha256": "2107575d16309b8ca60be141f4485e2d339f19aa9a30fcdb4e3108cce7d2b394",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v3.log",
+        "sha256": "b4bdb5c52e39a4b89ab5b3c6fa6e9adc68dc1782467457e97854dbec4080c1a8",
+        "bytes": 4783,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-source-v4",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/domain/src/project-roll-up.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v4.receipt.json",
+        "sha256": "b0ee1bdd955142ed4525d2d0eb551d7cf1179190a716be4f3309e9247a34cdea",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-source-v4.log",
+        "sha256": "4c8cf7bcfd505b7464c576acfabfa532c74006e0d9d69bbfeaf1a9f52eb093b6",
+        "bytes": 2385,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-types-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-rollup-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-types-v1.receipt.json",
+        "sha256": "c4ab0a6a54bbeae552dc708aeecd07ca1e1a8a89faecee50cc59bc6689e47ab5",
+        "bytes": 1339,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-rollup-v104-domain-baseline-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/domain/src/connected-step-node.test.ts",
+          "./libs/wbs/domain/domain/src/schedule-algorithm-id.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-v104-domain-baseline-v1.receipt.json",
+        "sha256": "d10453b36892a25902b8fb94d4e6c7b6e5c04eaf32ab176121e296ae6d472518",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-v104-domain-baseline-v1.log",
+        "sha256": "6ff1dbefc6b5c073068a31654a9458f59a8f92ec8fded60ee55d3a00571eb53c",
+        "bytes": 4700,
+        "mode": 384
+      }
+    }
+  ],
+  "proofPlans": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v1.plan.json",
+      "sha256": "85f69a7315bade487e5dffeee348a1046cad44edb940859b3c121eafe360293e",
+      "bytes": 5487,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v2.plan.json",
+      "sha256": "b1a203ec23b63cafa036dcef617abd52ecb937e2e1cda9a83267d79b6ff262d8",
+      "bytes": 3110,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v3.plan.json",
+      "sha256": "cfe9801f6f966d9684861b4a25132684b58653bca071ed56f047de61cffd3fe1",
+      "bytes": 2885,
+      "mode": 384
+    }
+  ],
+  "proofStates": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v1.state.json",
+      "sha256": "7ac9ce8f2eae0af6cf2505011bc985468af16025207016cba6f9cbe1b71e1d22",
+      "bytes": 20110,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v2.state.json",
+      "sha256": "f0e283c367c32184d72ce1a1e1b840afce0247718ab04a32442ec10fa78ade13",
+      "bytes": 3423,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-faults-v3.state.json",
+      "sha256": "6992b935ec7f25023355d2f7086394b10d8c062c0f21abe86d08108f79ed57a2",
+      "bytes": 1757,
+      "mode": 384
+    }
+  ],
+  "guardBridge": [
+    {
+      "version": 1,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v1-libs__wbs__adapters__store-sqlite__src__space-read.ts.txt",
+        "sha256": "7e28024375d08a99966dba3427a8112b9b90acdf6e67aab219ec6acfa79b1ef0",
+        "bytes": 10678,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read.ts",
+        "sha256": "e3738d170d26e4f60c480613d816e054d0c04671b4a5b7cdc3e7afb561225e07",
+        "bytes": 11889,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 1,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v1-libs__wbs__adapters__store-sqlite__src__space-roll-up.ts.txt",
+        "sha256": "39460665fa61bb290d173deea2bd0ccae7968460694f7c98bb4b3f6eed177b57",
+        "bytes": 5439,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+        "sha256": "30f2643cc0498461ea47506b5307d7f614e6e285c7588d52b94d433d47331717",
+        "bytes": 6191,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 1,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v1-libs__wbs__domain__domain__src__work-package-roll-up.ts.txt",
+        "sha256": "b3047d3cbac38f437f47c741fbc094a14f9b1e7a75a9b39b4af3563395a20a55",
+        "bytes": 6380,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/work-package-roll-up.ts",
+        "sha256": "5ed08338a4395f6b59d83984b7810dc8d110d8f4246d43a58a96e287774dfa46",
+        "bytes": 6834,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 2,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v2-libs__wbs__adapters__store-sqlite__src__source.ts.txt",
+        "sha256": "6e698e861e3fb6592b827520c6d241016f7bbe2fea19bf52ea397eec5f27aa91",
+        "bytes": 35865,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "sha256": "8528baff9073936bc4157c38bb98d99788ad33cd6c4944719725c6d08eec8f99",
+        "bytes": 36033,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 2,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v2-libs__wbs__adapters__store-sqlite__src__space-read.ts.txt",
+        "sha256": "7e28024375d08a99966dba3427a8112b9b90acdf6e67aab219ec6acfa79b1ef0",
+        "bytes": 10678,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read.ts",
+        "sha256": "e3738d170d26e4f60c480613d816e054d0c04671b4a5b7cdc3e7afb561225e07",
+        "bytes": 11889,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 2,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v2-libs__wbs__adapters__store-sqlite__src__space-roll-up.ts.txt",
+        "sha256": "39460665fa61bb290d173deea2bd0ccae7968460694f7c98bb4b3f6eed177b57",
+        "bytes": 5439,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+        "sha256": "30f2643cc0498461ea47506b5307d7f614e6e285c7588d52b94d433d47331717",
+        "bytes": 6191,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 2,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v2-libs__wbs__domain__domain__src__work-package-roll-up.ts.txt",
+        "sha256": "b3047d3cbac38f437f47c741fbc094a14f9b1e7a75a9b39b4af3563395a20a55",
+        "bytes": 6380,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/work-package-roll-up.ts",
+        "sha256": "5ed08338a4395f6b59d83984b7810dc8d110d8f4246d43a58a96e287774dfa46",
+        "bytes": 6834,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 3,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v3-libs__wbs__adapters__store-sqlite__src__source.ts.txt",
+        "sha256": "6e698e861e3fb6592b827520c6d241016f7bbe2fea19bf52ea397eec5f27aa91",
+        "bytes": 35865,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "sha256": "8528baff9073936bc4157c38bb98d99788ad33cd6c4944719725c6d08eec8f99",
+        "bytes": 36033,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 3,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v3-libs__wbs__adapters__store-sqlite__src__space-read.ts.txt",
+        "sha256": "7e28024375d08a99966dba3427a8112b9b90acdf6e67aab219ec6acfa79b1ef0",
+        "bytes": 10678,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read.ts",
+        "sha256": "e3738d170d26e4f60c480613d816e054d0c04671b4a5b7cdc3e7afb561225e07",
+        "bytes": 11889,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 3,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v3-libs__wbs__adapters__store-sqlite__src__space-roll-up.ts.txt",
+        "sha256": "39460665fa61bb290d173deea2bd0ccae7968460694f7c98bb4b3f6eed177b57",
+        "bytes": 5439,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+        "sha256": "30f2643cc0498461ea47506b5307d7f614e6e285c7588d52b94d433d47331717",
+        "bytes": 6191,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    },
+    {
+      "version": 3,
+      "archive": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-guard-v3-libs__wbs__domain__domain__src__work-package-roll-up.ts.txt",
+        "sha256": "b3047d3cbac38f437f47c741fbc094a14f9b1e7a75a9b39b4af3563395a20a55",
+        "bytes": 6380,
+        "mode": 384
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/work-package-roll-up.ts",
+        "sha256": "5ed08338a4395f6b59d83984b7810dc8d110d8f4246d43a58a96e287774dfa46",
+        "bytes": 6834,
+        "mode": 436
+      },
+      "executableStatementsIdentical": true,
+      "importsIdenticalIgnoringOrder": true,
+      "qualification": "Only Proof comments, import sorting and the lint-required type-to-interface declaration differ; type checks and current Source regression recorded separately."
+    }
+  ],
+  "runtimeAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v49.json",
+    "sha256": "e8dec3e59b88c62135211bb662e0ab0191b17e48ff8a00711588f393a41ea396",
+    "bytes": 1881665,
+    "mode": 384
+  },
+  "baseline": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-domain-baseline-v1.json",
+    "sha256": "d56e02c1e0468cefe855135ac05039d309173345c4cc03c36bb88f9ca1619311",
+    "bytes": 553,
+    "mode": 384
+  },
+  "identityDiagnostic": {
+    "source": {
+      "path": "/tmp/puni-scheduler-rename-identity-diagnostic.test.ts",
+      "sha256": "63aaa1e381a2fa9ce807f4898ad49939509470d28d1eabe6d2a878eef4a3245e",
+      "bytes": 952,
+      "mode": 436
+    },
+    "text": "import { expect, test } from 'bun:test';\nimport { schedule } from '/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/schedule';\nimport { scheduleBehaviourDigest } from '/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/schedule-algorithm-id.test';\n\ntest('diagnostic only: reversing the floor label rename recovers the frozen v4 identity without changing placement', () => {\n  const historical = scheduleBehaviourDigest((...args) => {\n    const current = schedule(...args);\n    // Test-only historical spelling projection; the current engine is never modified.\n    return {\n      ...current,\n      slices: new Map([...current.slices].map(([key, slice]) => [key, slice.boundBy === 'workPackageStart' ? { ...slice, boundBy: 'projectStart' } : slice])),\n    } as unknown as ReturnType<typeof schedule>;\n  });\n  expect(historical).toBe('f0145c81759486b5');\n  expect(scheduleBehaviourDigest(schedule)).toBe('c1be35cb07f30c57');\n});\n",
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-identity-diagnostic-v1.receipt.json",
+      "sha256": "2ab4a1b5bcf20a9c7fc09c0c3f2c49fd4757a264846a06c844f5ed00bcadb578",
+      "bytes": 1333,
+      "mode": 384
+    }
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": [
+    "Actual bound SqliteSource now offers SpaceRollUpRead alongside SpaceRead. Complete caller and requested project IDs are retained before acquisition; authority, space membership, readable child inputs, installed cache choices and canonical live metadata share one committed read loan.",
+    "Selected groups retain actual project shells and captured ordering. Unknown/foreign/out-of-space/invisible project IDs and required hidden dependency endpoints refuse the complete query. Package-only readers count and fold only readable children. No private project details are decoded for those shells.",
+    "Local scheduling and canonical tree presentation finish after loan release; shared and connected capture reuse the existing closed current-purpose reader. Empty projects are explicit empty, unavailable children withhold the parent total, failed child schedules withhold project dates, and known effort/status/leaf/wait counts fold. No invented parent engine/revision/sequence and no optimizer admission.",
+    "The canonical detached tree presenter and live metadata reader are now reusable exports; existing behavior is retained. Actual Source tests include isolated/shared readable connected FS placement, shared singleton capture, unavailable optimized engine, stored local cycle, hidden dependency, rival commit, selected-ID/caller mutation, expiry, Source close and malformed-fact recovery.",
+    "Seventeen independent production-path omissions/broken bindings failed and restored. Typed-refusal forwarding and unavailable forwarding faults prove availability/modeling only, not additional disclosure clauses. Expiry fault observed the success path. Proof archives bridge by identical executable statements and semantic import bindings; only comments, import sorting and a type-to-interface lint repair differ.",
+    "Broad domain initially1908pass/3skip/4fail. Restoring this turn owned domain production file to its captured V104 bytes reproduced18pass/4fail on the two failing suites, then exact current restoration was verified. Three connected ownership error assertions retained old hyphen/camel spellings; only those regex spellings changed and all case names remain. No production guard or historical golden relaxed.",
+    "Remaining domain failure is the frozen v4 scheduler identity: expected f0145c81759486b5, current c1be35cb07f30c57. A diagnostic projects current workPackageStart labels back to projectStart and recovers the exact frozen digest while leaving placement untouched. The current algorithm ID, pinned digest and historical fixtures remain unchanged. Versioned current identity/history handling requires implementation and Astra review; this is a full-gate blocker, not a passing domain suite.",
+    "No HTTP/contract/MCP/browser switch to project rollups yet: the existing endpoint still takes workPackageIds, and project headers still show readable child counts. Next wire a closed projectIds contract, production bound factory, caller-safe route and coherent parent+child UI chunks; retain bounded request validation, identity checks, retry states and current child Gantt. Warm-cache/performance, installed optimized cache and broader current Source closure remain required.",
+    "People/team management UI, raw Memory WorkItemStore.patch revision parity, all entity/settings/step catalogue and all13 fact/all15 history requirements remain open. Critical document17/18 spellStepNodes cross-product, frozen15/16/import/converters and the existing uncoded HTTP fixture remain pending. Do not restore legacy fallback or weaken frozen safety.",
+    "Astra unavailable until recorded2026-11-22 10:09AM timezone unspecified. No new agents, dependency install, protected PAX execution, public commit/push/PR/merge/deploy/activation or host gate. Older empty whole-Source SQL certificate custody unresolved; no blind restart. Full PUNI Optique1.3.6 aliases, exhaustive client script/Bun embedding/installed ownership and delivery still required. Original nine scope strings remain exact."
+  ]
+}

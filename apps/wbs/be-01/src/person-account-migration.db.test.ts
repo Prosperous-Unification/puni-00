@@ -1,14 +1,16 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
+const CLAIM = '20261019120000_add_claim';
 const PERSON_ACCOUNT = '20261019130000_add_person_account';
 const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
 const roots: string[] = [];
@@ -17,22 +19,14 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** The migration this pair rolls back to: the one immediately before `add_person_account`. */
-function baseline(): string {
-  const names = readdirSync(MIGRATIONS).sort();
-  const at = names.indexOf(PERSON_ACCOUNT);
-  const before = at < 1 ? undefined : names.at(at - 1);
-  if (before === undefined) throw new Error(`${PERSON_ACCOUNT} has no predecessor on disk`);
-  return before;
-}
-
-/** A store migrated through both additions, with one account, two persons and a credential. */
+/** A historical store through initial access, the last migration before the operator-window rename. */
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-person-account-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, INITIAL_ACCESS), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   const sqlite = openDatabase(dbPath);
   try {
     sqlite.run(
@@ -113,7 +107,7 @@ describe('person account and credential pin migrations', () => {
     run(dbPath, 'UPDATE external_identity SET person_id = NULL');
     run(dbPath, 'UPDATE person SET account_id = NULL');
 
-    const down = await rollBack(root, dbPath, baseline());
+    const down = await rollBack(root, dbPath, CLAIM);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     const reversed = readdirSync(join(root, 'drizzle'))
@@ -123,7 +117,7 @@ describe('person account and credential pin migrations', () => {
     expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');
-    expect(appliedNames(dbPath).at(-1)).toBe(baseline());
+    expect(appliedNames(dbPath).at(-1)).toBe(CLAIM);
 
     runMigrations(dbPath, join(root, 'drizzle'));
     expect(columnsOf(dbPath, 'person')).toContain('account_id');
@@ -137,7 +131,7 @@ describe('person account and credential pin migrations', () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, "UPDATE person SET account_id = 'dany'");
 
-    const down = await rollBack(root, dbPath, baseline());
+    const down = await rollBack(root, dbPath, CLAIM);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain(`rolling back ${PERSON_ACCOUNT} failed`);
     expect(down.stderr).toContain(

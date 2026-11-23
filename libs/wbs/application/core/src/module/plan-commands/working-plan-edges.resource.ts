@@ -1,9 +1,9 @@
 import type { DependencyStore } from '../../ports/dependency-store';
 
 interface RetainedDependencyReads {
-  all(projectId: string): ReturnType<DependencyStore['listByProject']>;
+  all(workPackageId: string): ReturnType<DependencyStore['listByWorkPackage']>;
   byWorkItems(
-    projectId: string,
+    workPackageId: string,
     ids: readonly string[],
   ): ReturnType<DependencyStore['listByWorkItems']>;
 }
@@ -18,14 +18,14 @@ interface RetainedDependencyReads {
  */
 export function createWorkingPlanEdges(
   source: () => DependencyStore,
-  projectId: string,
+  workPackageId: string,
   reads: RetainedDependencyReads,
   assertOpen: () => void,
   refreshRows: (ids: readonly string[]) => Promise<void>,
 ): DependencyStore {
   return {
-    listByProject: async (projectId) => reads.all(projectId),
-    listByWorkItems: async (projectId, ids) => reads.byWorkItems(projectId, ids),
+    listByWorkPackage: async (workPackageId) => reads.all(workPackageId),
+    listByWorkItems: async (workPackageId, ids) => reads.byWorkItems(workPackageId, ids),
     add: async (dependency, stamp) => {
       assertOpen();
       await source().add(dependency, stamp);
@@ -39,7 +39,7 @@ export function createWorkingPlanEdges(
     removeAllFor: async (workItemIds, stamp) => {
       assertOpen();
       const doomed = new Set(workItemIds);
-      const incident = await reads.byWorkItems(projectId, workItemIds);
+      const incident = await reads.byWorkItems(workPackageId, workItemIds);
       const survivors = incident
         .flatMap(({ predecessorId, successorId }) => [predecessorId, successorId])
         .filter((id) => !doomed.has(id));

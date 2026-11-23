@@ -1,0 +1,709 @@
+{
+  "schemaVersion": 1,
+  "scope": "validated import-safe typed Dash runtime facade; partial task1.2d",
+  "sourceBase": "75c2deaab3e588dcd97df037612892ea62e5efd0",
+  "proofCount": 12,
+  "proofs": [
+    {
+      "id": "dash-facade-release-coherence",
+      "edits": [
+        {
+          "find": "const refusal = findIncoherence(request);",
+          "replacement": "const refusal = request.command === 'ops' ? undefined : findIncoherence(request);"
+        }
+      ],
+      "pattern": "refuses typed production",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=refuses typed production"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses typed production dev-fast before opening even an absent release configuration",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-coherence.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-coherence.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "ef53e6d14c91fb4282fd4fd5d680f3b8fa11d2d1583eb22ba02e6bb05da5b11f",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "d3b3c337f77fb58c8dad431bb18f2b777de977be82c98e8d19af2ce680fa94ca",
+      "greenLogHash": "38e989d5e73ffcbb2a92e396c5fda44e54f4581d947f0631cc5f7fa3c67769cc"
+    },
+    {
+      "id": "dash-facade-account-coherence",
+      "edits": [
+        {
+          "find": "const refusal = findIncoherence(request);",
+          "replacement": "const refusal = request.command === 'account-outcomes' ? undefined : findIncoherence(request);"
+        }
+      ],
+      "pattern": "refuses typed account",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=refuses typed account"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses typed account coherence before opening its input or composing heavy effects",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-account-coherence.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-account-coherence.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "31fef0b214707ec95339cc87c5b3df125db0e0fdd45acd6280baa934ac714e1c",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "33ea43a96516e96d8b257504cc456a8b9edf83ce3c7f98dddfae4e5f18862eb8",
+      "greenLogHash": "9bdabe3de895d0cdb8d04b0506958c2575837dae9567aaa67ca0597206f024fe"
+    },
+    {
+      "id": "dash-facade-release-selection",
+      "edits": [
+        {
+          "find": "if (isReleaseCommand(request)) {",
+          "replacement": "if (false) {"
+        }
+      ],
+      "pattern": "returns the actual release",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=returns the actual release"
+      ],
+      "state": "killed-restored",
+      "testName": "returns the actual release adapter status while retaining its inherited native IO contract",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-selection.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-selection.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "ffdc863abfc57bf505533a4e3e6000545bd5a5050db3c95be6a6c72fb173d498",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "8a52e6871378b8a3b3831c827f0e348a1e6491064dcf093e4cec28d0171817f3",
+      "greenLogHash": "59c1678572b48a0f2fe6f9952aac76dadb7b06917402bf9590ad901eeaf6c774"
+    },
+    {
+      "id": "dash-facade-release-status",
+      "edits": [
+        {
+          "find": "return await runOpsCommand(request, context.write);",
+          "replacement": "await runOpsCommand(request, context.write); return 0;"
+        }
+      ],
+      "pattern": "returns the actual release",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=returns the actual release"
+      ],
+      "state": "killed-restored",
+      "testName": "returns the actual release adapter status while retaining its inherited native IO contract",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-status.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-release-status.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "24d6aabf5e1ae76f748478ac65d0623f18172ea4a1c7854617c5e1fb5be3995c",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "269b5b45b68f5be496458b8da4accdcd3185ef683a4e7ac95b7a7cb0f1412ece",
+      "greenLogHash": "646f232f2b7392d134d594d4b95234f38602247d13184304ac73deefbeee3464"
+    },
+    {
+      "id": "dash-facade-mcp-await",
+      "edits": [
+        {
+          "find": "await runMcpCommand(request, {",
+          "replacement": "void runMcpCommand(request, {"
+        }
+      ],
+      "pattern": "executes typed MCP",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=executes typed MCP"
+      ],
+      "state": "killed-restored",
+      "testName": "executes typed MCP with its supplied ports and only the fresh header map",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-mcp-await.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-mcp-await.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "d0d84b522c9946c4ed45e8802186df48cce103142a56f682d58e1eaf82ce9514",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "14fbc24f92520f07bb459f540dc57638438df8cd373fd38bceddca48f913b045",
+      "greenLogHash": "8d2c8e05c52a037dcd13c96509e62ca2d50ca7a2c7a804936dd6de56de0e7228"
+    },
+    {
+      "id": "dash-facade-mcp-port",
+      "edits": [
+        {
+          "find": "await runMcpCommand(request, {\n      send: context.send,",
+          "replacement": "await runMcpCommand(request, {\n      send: () => Promise.reject(new Error(\"wrong MCP send port\")),"
+        }
+      ],
+      "pattern": "executes typed MCP",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=executes typed MCP"
+      ],
+      "state": "killed-restored",
+      "testName": "executes typed MCP with its supplied ports and only the fresh header map",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-mcp-port.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-mcp-port.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "4b3c5a1843f15e64679fd6fabd99f82dbe33de29c2ef514a9577b491df25a4d4",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "35e1b788fb4102263a45b43a8a0c7307c369486f41bc1f1390037cc7c39407cf",
+      "greenLogHash": "d6479cb4cc432b0ef47c2b07fef04304ba8db05519bf476e773b754e3e266528"
+    },
+    {
+      "id": "dash-facade-pool-await",
+      "edits": [
+        {
+          "find": "await runPoolCommand(request, {",
+          "replacement": "void runPoolCommand(request, {"
+        }
+      ],
+      "pattern": "generates pool helpers",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=generates pool helpers"
+      ],
+      "state": "killed-restored",
+      "testName": "generates pool helpers through the selected protected PUNI prefix and canonical dash namespace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-await.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-await.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "fd214e1975c3074141f5ccd9dc675f5fb6c7bdd6113e8336577014f5a0463ccb",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "18a526c72582016b4da79ac459c13cfa04caca5f5248c0a8ea0ac8f3e9277bc9",
+      "greenLogHash": "7f4026b6c2e6c1171602e102755b34f7b8d55546a0cf89e901737dec16ec64e2"
+    },
+    {
+      "id": "dash-facade-pool-protected-prefix",
+      "edits": [
+        {
+          "find": "helper: [...context.helperPrefix, 'dash'],",
+          "replacement": "helper: [process.execPath, context.helperPrefix.at(-1), 'dash'],"
+        }
+      ],
+      "pattern": "generates pool helpers",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=generates pool helpers"
+      ],
+      "state": "killed-restored",
+      "testName": "generates pool helpers through the selected protected PUNI prefix and canonical dash namespace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-protected-prefix.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-protected-prefix.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "4ae99cd7b6f5c4a8bb0ab76918ca998df7a83b7ad2ddb87882de526d61505d4f",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "740858b354abd3f5495b80ed85dacb15d79dcda11eeea1e824c5003f41682d28",
+      "greenLogHash": "d23387743fc1d45e90aa96e64448c1b2a380ab81a73b6c2ed9b65d1decc91bf4"
+    },
+    {
+      "id": "dash-facade-pool-canonical-namespace",
+      "edits": [
+        {
+          "find": "helper: [...context.helperPrefix, 'dash'],",
+          "replacement": "helper: [...context.helperPrefix],"
+        }
+      ],
+      "pattern": "generates pool helpers",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=generates pool helpers"
+      ],
+      "state": "killed-restored",
+      "testName": "generates pool helpers through the selected protected PUNI prefix and canonical dash namespace",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-canonical-namespace.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-pool-canonical-namespace.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "a9604aa271611287b7c653906b7480c32c037bff9c126e7c10a4ba5c022a5836",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "cfca7f61e1ac3d1a6d9d618e286e049f2d1b6a2687a156558dd555782a9c5566",
+      "greenLogHash": "717709655b68e354ce339b4644d2cf52481062c17a553fe653121eadc842de86"
+    },
+    {
+      "id": "dash-facade-heavy-status",
+      "edits": [
+        {
+          "find": "return await runDash(request, {",
+          "replacement": "await runDash(request, {"
+        },
+        {
+          "find": "    stdout: { write: context.write },\n  });\n}",
+          "replacement": "    stdout: { write: context.write },\n  }); return 0;\n}"
+        }
+      ],
+      "pattern": "forwards actual heavy ops",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=forwards actual heavy ops"
+      ],
+      "state": "killed-restored",
+      "testName": "forwards actual heavy ops status without reparsing the typed command",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-heavy-status.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-heavy-status.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "bc990c709692ce9253915ad30dae86ae6eac152ef7993dc94e0b3ae8c333eeb7",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "1873cb8ee4e973bc683a4517daeee7a9c8e34224a77113841ba10419ad5a057a",
+      "greenLogHash": "3ed2ad9a19a08893acadfa21107a5f496bb1918349ba711c58941d959c7d3600"
+    },
+    {
+      "id": "dash-facade-light-import",
+      "edits": [
+        {
+          "find": "  const refusal = findIncoherence(request);",
+          "replacement": "  await import('./cli');\n  const refusal = findIncoherence(request);"
+        }
+      ],
+      "pattern": "keeps the actual typed MCP path import-safe",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=keeps the actual typed MCP path import-safe"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps the actual typed MCP path import-safe against the heavy command graph",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-light-import.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-light-import.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "d968010eaaf37973b9c03daae7789123eb632f2a4784a87f606f813693cded8f",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "7d69aa438f67ad2fcf0a818f7f8895ee77af106914a240db49b13e34270fda9b",
+      "greenLogHash": "b67d231500a43ad132d070183593d99b537a72426e45a82bc238f0f48b8f4f1b"
+    },
+    {
+      "id": "dash-facade-typed-no-argv",
+      "edits": [
+        {
+          "find": "findIncoherence, isReleaseCommand, UsageRefusal",
+          "replacement": "findIncoherence, isReleaseCommand, parseDashCommand, UsageRefusal"
+        },
+        {
+          "find": "  const refusal = findIncoherence(request);",
+          "replacement": "  request = parseDashCommand(process.argv.slice(2));\n  const refusal = findIncoherence(request);"
+        }
+      ],
+      "pattern": "keeps the actual typed MCP path import-safe",
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "test": "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=keeps the actual typed MCP path import-safe"
+      ],
+      "state": "killed-restored",
+      "testName": "keeps the actual typed MCP path import-safe against the heavy command graph",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-dash-facade-proofs/dash-facade-typed-no-argv.red.log",
+      "greenLog": "/tmp/puni-dash-facade-proofs/dash-facade-typed-no-argv.green.log",
+      "beforeHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "mutantHash": "7120ecf28f17327f541aa95119b27cbf6c703c8884c15c47fcc9bcbe488d6dda",
+      "afterHash": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47",
+      "redLogHash": "7e2b2f708a576a2a44821401c03a68f3c93212384bde8156511bef5bec08a067",
+      "greenLogHash": "fb1264c5c33e2039d1070a567956a3b8d9d7a392096e24a52bf52d073cc075ff"
+    }
+  ],
+  "archive": "/tmp/puni-dash-facade-proofs",
+  "testEpochSourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "sha256": "44738ab49db4f24f8bb4ccc6c3daea4010c6b13871e5bd28b2b050c2bb87db47"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "sha256": "a190da8f1145d8d74308d8bf88a47443fa0a77cff7c34dd29736b4262e73df60"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+      "sha256": "d7d23e6fe48e519765d00c59eb64b72a5d659b77c258ae0ffe4660456ed9aef8"
+    }
+  ],
+  "checks": [
+    {
+      "id": "focused",
+      "argv": [
+        "bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts",
+        "--timeout=20000"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-dash-facade-green3.log",
+      "logSha256": "24c5296e90252828bd8c8295293db74766b89f1ff725f83bd2aaab03696a6e4f"
+    },
+    {
+      "id": "regression",
+      "argv": [
+        "bun",
+        "test",
+        "./apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/mcp/token-command.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/mcp/pool-import.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/ops/release.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/cli.test.ts",
+        "./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts",
+        "./apps/puni/cli/src",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-dash-facade-regression1.log",
+      "logSha256": "a86e30516cde89217a09deba511752e06a9dbffec931629732bb13940a0daa2a"
+    },
+    {
+      "id": "forced-native-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-dash-facade-types3.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-dash-facade-lint3.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "observed": {
+    "focused": {
+      "pass": 9,
+      "fail": 0,
+      "assertions": 45,
+      "files": 2,
+      "seconds": 5.61
+    },
+    "regression": {
+      "pass": 534,
+      "fail": 0,
+      "assertions": 1725,
+      "files": 10,
+      "seconds": 23.19
+    }
+  },
+  "failedOrUncreditedAttempts": [
+    {
+      "log": "/tmp/puni-dash-facade-red1.log",
+      "observation": "initial missing executeRequest export;0pass1fail1error"
+    },
+    {
+      "log": "/tmp/puni-dash-facade-green1.log",
+      "observation": "4pass3fail; test fixtures lacked required account operands, expected a key suffix instead of the established full Basic password, and used an incorrect typed credential shape; all corrected without changing production contracts"
+    },
+    {
+      "log": "/tmp/puni-dash-facade-lint1.log",
+      "observation": "10 test typing/style/import-export diagnostics; corrected"
+    },
+    {
+      "log": "/tmp/puni-dash-facade-lint-fix2.log",
+      "observation": "3 remaining test lint diagnostics; corrected"
+    },
+    {
+      "observation": "intermediate test-only writer left an Error helper without its final return; source inspected and corrected before launching any test/type/lint checks; no passing credit"
+    }
+  ],
+  "notes": [
+    "The selected protected helper prefix is composed by the caller; facade appends canonical dash and the existing pool implementation appends mcp/token.",
+    "Pool omitted-await oracle captures completion while its actual token response is held, then releases it and waits for the actual helper file before cleanup, even under the mutant.",
+    "MCP heavy-import canary was made reachable by a production eager-import fault and failed; native process argv is deliberately misleading in the subprocess.",
+    "Release adapters inherit native IO/environment and heavy commands retain native provider adapters; only lightweight token/pool ports are injected. No blanket dependency injection or release startup-isolation claim.",
+    "Proof notes are comment-only after frozen logic epoch; final checks and source hashes recorded separately."
+  ],
+  "remaining": [
+    "root lazy selected-runtime executor/entrypoint and invocation-aware error formatting",
+    "actual root aliases/provider operations",
+    "coherent installed package/producer migration and full Bun script/client inventory",
+    "canonical host gate and rollout"
+  ],
+  "sourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+      "sha256": "78b3d1fbcf0de39d01421a4841484c89c94cba63728cea49ebe4835b571e9a57"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+      "sha256": "21e52ee95c2782b6e4a27a47c2c2dac2084474f72bfac033bf86426e7a6fcf77"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+      "sha256": "d7d23e6fe48e519765d00c59eb64b72a5d659b77c258ae0ffe4660456ed9aef8"
+    }
+  ],
+  "review": {
+    "audit": "/tmp/puni-dash-facade-independent-audit.json",
+    "scope": "read-only source and existing log audit; no tests independently executed",
+    "count": 12,
+    "checks": [
+      {
+        "id": "dash-facade-release-coherence",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-account-coherence",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-release-selection",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-release-status",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-mcp-await",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-mcp-port",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-pool-await",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-pool-protected-prefix",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-pool-canonical-namespace",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-heavy-status",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-light-import",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      },
+      {
+        "id": "dash-facade-typed-no-argv",
+        "uniqueAnchors": true,
+        "beforeCurrent": true,
+        "mutantReconstruction": true,
+        "restore": true,
+        "redHash": true,
+        "redNamed": true,
+        "greenHash": true,
+        "greenNamed": true
+      }
+    ],
+    "testsIndependentlyRerun": false
+  },
+  "finalChecks": [
+    {
+      "id": "post-comment-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.test.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c18-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "openspec",
+      "argv": ["bunx", "openspec", "validate", "--all", "--json"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c18-final-openspec.json",
+      "logSha256": "a253c7da1d3ef8436e649cd2b9ae99aa750f45f6dea810037cb7e11cb5ccdd1a"
+    },
+    {
+      "id": "diff",
+      "argv": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "log": "/tmp/puni-c18-final-diff.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

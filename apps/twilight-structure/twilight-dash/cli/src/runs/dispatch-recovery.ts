@@ -1,4 +1,4 @@
-import { canonicalRuntimeRequest, type RuntimeState } from '@wbs/contracts';
+import { canonicalRuntimeRequest, type RetainedRuntimeState } from '@wbs/contracts';
 
 import type { RuntimeClient, RuntimeExchange } from '../bridge/runtime-client';
 import type { ArtifactStore } from './artifact-store';
@@ -30,6 +30,7 @@ import {
   decodeRuntimeGuard,
   decodeRuntimeIntent,
   digestRuntimeRequest,
+  mapCurrentScope,
   readRuntimeRequest,
 } from './runtime-codecs';
 import { readRuntimeHistory } from './runtime-history';
@@ -51,7 +52,10 @@ export type RecoveryDispatchObservation =
   | Extract<RecoveryClientReply, { kind: 'refusal' }>
   | Extract<RecoveryClientReply, { kind: 'failure' }>
   | { readonly kind: 'cancelled_before_dispatch' }
-  | { readonly kind: 'below_threshold'; readonly state: RecoveryExchangeValue<RuntimeState> };
+  | {
+      readonly kind: 'below_threshold';
+      readonly state: RecoveryExchangeValue<RetainedRuntimeState>;
+    };
 export type RecoveryDispatchReply =
   | { readonly kind: 'resolved'; readonly closure: RecoveryClosure }
   | { readonly kind: 'refused'; readonly reason: StoreRefusal }
@@ -433,7 +437,10 @@ export async function dispatchRecovery(
         // Proof: B02 omitting this cap returned actual store state_conflict on write recovery resume instead of bounded exhaustion; no fourth identity admission is claimed. Diagnostic-only; exact restoration passed.
         if (fence === null || fence.ordinal < 3) {
           const ordinal = fence === null ? 1 : fence.ordinal + 1;
-          const canonicalRequest = canonicalRuntimeRequest(scope, {
+          // Proof: dash-recovery-fresh-current-scope: passing local scope directly to the fresh recovery encoder.
+          // 'memory real recovery dispatch > captured fence body retains exact actual response bytes' failed; exact restoration passed.
+          // Current producer/schema consistency failure; envelope2/body1 stays required.
+          const canonicalRequest = canonicalRuntimeRequest(mapCurrentScope(scope), {
             schemaVersion: 1,
             kind: 'authority',
             commandId: `${recoveryId}:fence:${String(ordinal)}`,

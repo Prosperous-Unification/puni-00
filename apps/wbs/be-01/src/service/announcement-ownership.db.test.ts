@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Broadcaster, ProjectEvent } from '@wbs/core';
+import type { Broadcaster, WorkPackageEvent } from '@wbs/core';
 import { clockOf } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
@@ -14,23 +14,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { buildStores, servicesOver } from '../services';
 import { testClock } from '../testing/clock-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
 import { optimizerWiring } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** What leaves the process, in order. */
 function recordingBroadcasterWithLog(): Broadcaster & {
-  readonly sent: { projectId: string; event: ProjectEvent }[];
+  readonly sent: { workPackageId: string; event: WorkPackageEvent }[];
 } {
-  const sent: { projectId: string; event: ProjectEvent }[] = [];
+  const sent: { workPackageId: string; event: WorkPackageEvent }[] = [];
   return {
     sent,
-    publish(projectId, event) {
-      sent.push({ projectId, event });
+    publish(workPackageId, event) {
+      sent.push({ workPackageId, event });
       return Promise.resolve();
     },
     latestSeq: () => Promise.resolve(-1),
@@ -69,7 +68,7 @@ let beforeRoutePublish: ReturnType<typeof suspension>;
 let insideTheBatch: ReturnType<typeof suspension>;
 let runner: PlanCommandRunner;
 let routes: ReturnType<typeof servicesOver>;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 
 const REFUSED_BATCH: PlanCommand[] = [
@@ -85,7 +84,8 @@ const REFUSED_BATCH: PlanCommand[] = [
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-announce-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'service-legacy', 'service-parent');
   const db = openDrizzle(path);
   const coordinator = new WriteCoordinator();
   const stores = buildStores(db, coordinator);
@@ -103,14 +103,15 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     { at: 1, by: ownerId },
   );
-  const created = await new ProjectService({
+  const created = await new WorkPackageService({
     dependencyContext: createLocalDependencyContext(stores),
     clock: testClock,
-    projects: stores.projects,
+    workPackages: stores.workPackages,
     broadcast,
-  }).create('Rewire the shed', ownerId);
-  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
-  projectId = created.project.id;
+  }).create('Rewire the shed', 'service-parent', ownerId);
+  if (typeof created === 'string')
+    throw new Error(`fixture work package creation refused: ${created}`);
+  workPackageId = created.workPackage.id;
   broadcast.sent.length = 0;
 
   // The route's own graph, publishing through a broadcaster that waits where
@@ -170,12 +171,14 @@ describe('who owns an announcement', () => {
     // The window D24 names: a route finishes its store write, lets go of its
     // turn, and is **publishing** when the next batch opens. Serialising the
     // store methods does not serialise what happens after them.
-    const routeWrite = routes.steps.add(projectId, ownerId, 'Wiring', 0);
+    const routeWrite = routes.workPackages.update(workPackageId, ownerId, {
+      scheduleObjective: 'time',
+    });
     // The store write is done and its turn is released; the announcement has
     // not been offered to anybody yet.
     await beforeRoutePublish.reached;
 
-    const batch = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch = runner.run(workPackageId, ownerId, REFUSED_BATCH);
     // The batch is inside its own hold, which is what makes the next line the
     // window rather than a sequence.
     await insideTheBatch.reached;
@@ -199,13 +202,15 @@ describe('who owns an announcement', () => {
     // failed on `Expected length: 1 · Received length: 0` — the route's
     // committed event joined the refused batch and was dropped with it.
     // Watched 2026-09-08.
-    const added = broadcast.sent.filter((each) => each.event.type === 'step_added');
-    expect(added).toHaveLength(1);
+    const changed = broadcast.sent.filter(
+      (each) => each.event.type === 'work_package_settings_changed',
+    );
+    expect(changed).toHaveLength(1);
   });
 
   it('(f) holds a batch’s own events until it has committed', async () => {
     insideTheBatch.release();
-    const applied = await runner.run(projectId, ownerId, [
+    const applied = await runner.run(workPackageId, ownerId, [
       { kind: 'createWorkItem', ref: 'a', parentId: null, afterId: null, name: 'A' },
     ]);
     expect(applied.ok).toBe(true);
@@ -214,7 +219,7 @@ describe('who owns an announcement', () => {
 
   it('(g) sends nothing a refused batch announced', async () => {
     insideTheBatch.release();
-    const refused = await runner.run(projectId, ownerId, REFUSED_BATCH);
+    const refused = await runner.run(workPackageId, ownerId, REFUSED_BATCH);
     expect(refused.ok).toBe(false);
     expect(broadcast.sent).toEqual([]);
   });

@@ -20,28 +20,28 @@ function manualIntervals(): Intervals & { fire: () => void; scheduled: () => num
 
 function sweepOver(
   overrides: Partial<ClaimLeaseSweepOptions> = {},
-  projects: () => Promise<string[]> = () => Promise.resolve(['p1', 'p2']),
+  workPackages: () => Promise<string[]> = () => Promise.resolve(['p1', 'p2']),
 ) {
   const intervals = manualIntervals();
   const asked: { at: number; limit: number }[] = [];
   const released: string[] = [];
-  const errors: { error: unknown; projectId: string | null }[] = [];
+  const errors: { error: unknown; workPackageId: string | null }[] = [];
   const sweep = new ClaimLeaseSweep({
     runner: {
-      releaseExpiredLeases: (projectId) => {
-        released.push(projectId);
+      releaseExpiredLeases: (workPackageId) => {
+        released.push(workPackageId);
         return Promise.resolve(1);
       },
     },
-    projectsWithExpiredLeases: (at, limit) => {
+    workPackagesWithExpiredLeases: (at, limit) => {
       asked.push({ at, limit });
-      return projects();
+      return workPackages();
     },
     now: () => 1_000,
     intervals,
     intervalMs: 30_000,
-    projectsPerTick: 50,
-    onError: (error, projectId) => errors.push({ error, projectId }),
+    workPackagesPerTick: 50,
+    onError: (error, workPackageId) => errors.push({ error, workPackageId }),
     ...overrides,
   });
   return { sweep, intervals, asked, released, errors };
@@ -100,12 +100,12 @@ describe('ClaimLeaseSweep', () => {
     await sweep.stop();
   });
 
-  it('releases the next project on the same tick when one project’s release throws', async () => {
+  it('releases the next work package on the same tick when one work package’s release throws', async () => {
     const { sweep, released, errors } = sweepOver({
       runner: {
-        releaseExpiredLeases: (projectId) => {
-          if (projectId === 'p1') return Promise.reject(new Error('corrupt project'));
-          released.push(projectId);
+        releaseExpiredLeases: (workPackageId) => {
+          if (workPackageId === 'p1') return Promise.reject(new Error('corrupt work package'));
+          released.push(workPackageId);
           return Promise.resolve(1);
         },
       },
@@ -113,7 +113,7 @@ describe('ClaimLeaseSweep', () => {
     sweep.start();
     await sweep.settled();
     expect(released).toEqual(['p2']);
-    expect(errors.map(({ projectId }) => projectId)).toEqual(['p1']);
+    expect(errors.map(({ workPackageId }) => workPackageId)).toEqual(['p1']);
     await sweep.stop();
   });
 

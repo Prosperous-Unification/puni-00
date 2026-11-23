@@ -64,8 +64,8 @@ export interface ScheduleInput {
   /** `schedule()`'s eighth argument: the typed dependencies, resolved beside the legacy edges. */
   readonly typed: readonly TypedDependency[];
   /**
-   * Every person's bookings in the projects that outrank this one
-   * (`share-people-across-projects` slice 4, ADR 0034) — `schedule()`'s tenth
+   * Every person's bookings in the work packages that outrank this one
+   * (`share-people-across-work-packages` slice 4, ADR 0034) — `schedule()`'s tenth
    * argument, after the pinned starts no canonical input carries.
    *
    * **Optional, unlike the eight above, and absent means empty.** Absent and
@@ -76,7 +76,7 @@ export interface ScheduleInput {
    */
   readonly elsewhere?: Elsewhere;
   /**
-   * The effective project resource pools by resource id — `schedule()`'s
+   * The effective work package resource pools by resource id — `schedule()`'s
    * eleventh argument. The demands themselves ride the
    * slices ({@link Slice.demands}).
    *
@@ -138,10 +138,10 @@ function canonicalEndpoint(endpoint: DependencyEndpoint): Record<string, string>
  * precedence the engine runs — `slicesOf` chains them — so sorting it would
  * make two different schedules hash the same. Across groups the incoming order
  * is not read at all, and that independence is the point rather than an
- * accident of the caller: hashing the global order made one unchanged project
+ * accident of the caller: hashing the global order made one unchanged work package
  * hash two ways between reads and between blue and green.
  *
- * `WorkItemRepo.listByProject` does now guarantee ascending `work_item.id`
+ * `WorkItemRepo.listByWorkPackage` does now guarantee ascending `work_item.id`
  * (TASK-260, ADR 0016) — but do not rewrite this grouping to lean on that. The
  * repository's order is a contract about *what the scheduler is handed*, and
  * this key stays independent of it so that the two can never disagree.
@@ -152,8 +152,8 @@ function canonicalEndpoint(endpoint: DependencyEndpoint): Record<string, string>
  *
  * **(d) `notBefore` and (g) `deadlines`, both `[workItemId, offset]` sorted by
  * id.** Both are already whole days from day zero, resolved against
- * `project.startDate` by the caller — a calendar date in here would make the
- * hash depend on the project's start twice. `deadlines` is keyed by
+ * `workPackage.startDate` by the caller — a calendar date in here would make the
+ * hash depend on the work package's start twice. `deadlines` is keyed by
  * **as-authored** work item ids rather than by the leaf expansion, because the
  * fold down the tree is derived: a parent's deadline that binds no leaf today
  * binds one after a move, and hashing the expansion would hide the edit that
@@ -347,7 +347,7 @@ function canonicalElsewhereRows(held: Elsewhere | undefined) {
       bookings: bookings.map((booking) => ({
         start: booking.start,
         end: booking.end,
-        projectId: booking.projectId,
+        workPackageId: booking.workPackageId,
         workItemId: booking.workItemId,
       })),
     }));

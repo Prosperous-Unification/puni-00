@@ -17,17 +17,18 @@ import {
   type SourceDevExclusion,
 } from './source-dev-exclusion';
 import { selectSourceFrontendProfile, type SourceFrontendProfile } from './source-frontend-profile';
-import type { SourceRestorationConfiguration } from './source-restoration-configuration';
 import {
-  assertSourceDeadline,
-  assertSourceEnvironment,
-  captureSourceRestartTree,
-  captureSourceRestorationConfiguration,
-  captureSourceStartupTree,
-  decodeSourceDevPins,
-  decodeSourceStartupManifest,
-  type SourceDevPins,
-} from './source-startup-manifest';
+  type CurrentSourceFrontendProfile,
+  selectCurrentSourceFrontendProfile,
+} from './source-frontend-profile-current';
+import { CURRENT_SOURCE_IMAGE_PROBE } from './source-image-probe-current';
+import type { SourceRestorationConfiguration } from './source-restoration-configuration';
+import { assertSourceDeadline } from './source-startup-manifest';
+import {
+  type CurrentSourceStartupRequest,
+  selectSourceStartup,
+  type SourceStartupPins,
+} from './source-startup-profile';
 
 interface SourceCapability {
   readonly role: DependencyCapabilityRole;
@@ -39,7 +40,7 @@ export interface SourceDevInputObservation {
   readonly format: 'wbs-source-input-observation';
   readonly version: 1;
   readonly activation: 'blocked';
-  readonly profile: 'wbs-source-cold-v1';
+  readonly profile: 'wbs-source-cold-v1' | 'wbs-source-cold-v2';
   readonly sourceSha: string;
   readonly manifestSha256: string;
   readonly runtimeImageId: string;
@@ -49,7 +50,7 @@ export interface SourceDevInputObservation {
 }
 /** Original-manifest frontend selection and read-only source monitors remain bound to the original outer owner, never to a revived exclusion token. The frontend literal grants no startup or HTTP readiness. */
 export interface SourceDevRestartInputs {
-  readonly frontend: SourceFrontendProfile;
+  readonly frontend: SourceFrontendProfile | CurrentSourceFrontendProfile;
   readonly openapiSha256: string;
   readonly configuration: SourceRestorationConfiguration;
   inspectCold(): Promise<void>;
@@ -140,7 +141,7 @@ function createImageCommand(image: string): string[] {
     'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
   ];
 }
-function createRoleCommand(image: string, root: string, tier: string): string[] {
+function createRoleCommand(image: string, root: string, tier: string, current = false): string[] {
   const command = createImageCommand(image);
   const imageIndex = command.indexOf(image);
   command.splice(
@@ -155,6 +156,7 @@ function createRoleCommand(image: string, root: string, tier: string): string[] 
     ...command,
     '/usr/local/bin/bun',
     '--no-env-file',
+    ...(current ? ['--config=/dev/null'] : []),
     'run',
     'src/dependency-capabilities-cli.ts',
   ];
@@ -224,15 +226,16 @@ export async function observeSourceDevInputs(
   owner: DependencyOwner,
   layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
   source: SourceDevExclusion,
-  pins: SourceDevPins,
+  pins: SourceStartupPins,
   manifestContents: string,
   runDocker: RunDocker,
   deadline: number,
+  startup?: CurrentSourceStartupRequest,
 ): Promise<SourceDevInputObservation> {
   try {
     assertSourceDeadline(deadline);
-    pins = decodeSourceDevPins(pins);
-    const manifest = decodeSourceStartupManifest(manifestContents, pins);
+    const profile = selectSourceStartup(pins, manifestContents, startup);
+    pins = profile.pins;
     layouts = structuredClone(layouts);
     if (layouts.prod.env !== 'prod' || layouts.dev.env !== 'dev') refuse();
     // Proof: owner SHA arguments omitted admitted self-consistent foreign pins; manifest source identity test failed.
@@ -255,7 +258,7 @@ export async function observeSourceDevInputs(
     const initialIdentity = createHash('sha256')
       .update(JSON.stringify(identifySourceInventory(initial, initialRaw)))
       .digest('hex');
-    const member = decodeSourceDev(initialRaw, layouts.dev);
+    const member = decodeSourceDev(initialRaw, layouts.dev, profile.current);
     async function inspectCurrentInventory() {
       const current = await readInventory(docker, deadline);
       const currentRaw = await inspectExcludedSourceMember(
@@ -273,7 +276,7 @@ export async function observeSourceDevInputs(
           .digest('hex'),
         'source input stable complete inventory',
       );
-      return decodeSourceDev(currentRaw, layouts.dev);
+      return decodeSourceDev(currentRaw, layouts.dev, profile.current);
     }
     async function inspectRuntime(): Promise<void> {
       // Proof: owner SHA arguments omitted admitted self-consistent foreign pins; manifest source identity test failed.
@@ -304,7 +307,7 @@ export async function observeSourceDevInputs(
         observed.config['Entrypoint'],
         'source input inherited entrypoint',
       );
-      assertSourceEnvironment(observed.config['Env'], config['Env'], pins.environmentSha256);
+      profile.assertEnvironment(observed.config['Env'], config['Env']);
       validateDiff(await readSourceDocker(['diff', member.id], docker, deadline));
       const imageEnvironment = config['Env'];
       if (!Array.isArray(imageEnvironment)) refuse();
@@ -317,21 +320,30 @@ export async function observeSourceDevInputs(
         contexts.push([...createImageCommand(pins.runtimeImageId), home]);
       for (const context of contexts) {
         const output = await readSourceDocker(
-          [...context, '/bin/sh', '-c', IMAGE_CONFIG_PROBE],
+          profile.kind === 'current'
+            ? [
+                ...context,
+                '/usr/local/bin/bun',
+                '--no-env-file',
+                '--config=/dev/null',
+                '--eval',
+                CURRENT_SOURCE_IMAGE_PROBE,
+              ]
+            : [...context, '/bin/sh', '-c', IMAGE_CONFIG_PROBE],
           docker,
           deadline,
         );
-        if (output !== 'wbs-source-image-config-absent-v1\n') refuse();
+        const expected =
+          profile.kind === 'current'
+            ? 'wbs-source-image-config-absent-v2\n'
+            : 'wbs-source-image-config-absent-v1\n';
+        if (output !== expected) refuse();
       }
       // Proof: post-probe inventory omission admitted a successful final probe still present in complete inventory.
       await inspectCurrentInventory();
     }
     await inspectRuntime();
-    const recheckTree = await captureSourceStartupTree(
-      `${layouts.dev.root}/src`,
-      manifest,
-      deadline,
-    );
+    const recheckTree = await profile.captureTree(`${layouts.dev.root}/src`, deadline);
     const capabilities: SourceCapability[] = [];
     for (const { role, purpose, tier } of ROLES) {
       assertSourceDeadline(deadline);
@@ -339,7 +351,12 @@ export async function observeSourceDevInputs(
       // Proof: source-token binding omitted admitted a copied token; copied source token test failed.
       await inspectSourceDevExclusion(owner, source, deadline);
       const output = await readSourceDocker(
-        createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, tier),
+        createRoleCommand(
+          pins.runtimeImageId,
+          `${layouts.dev.root}/src`,
+          tier,
+          profile.kind === 'current',
+        ),
         docker,
         deadline,
       );
@@ -365,7 +382,7 @@ export async function observeSourceDevInputs(
       format: 'wbs-source-input-observation',
       version: 1,
       activation: 'blocked',
-      profile: 'wbs-source-cold-v1',
+      profile: profile.profile,
       sourceSha: pins.sourceSha,
       manifestSha256: pins.manifestSha256,
       runtimeImageId: pins.runtimeImageId,
@@ -377,7 +394,10 @@ export async function observeSourceDevInputs(
       if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(runtimeReference)) refuse();
       await recheck();
       // Proof: replacing original-manifest selection with the supported literal admitted changed inputs; the original capture negative failed, then passed after restoration.
-      const frontend = selectSourceFrontendProfile(manifest);
+      const frontend =
+        profile.kind === 'current'
+          ? selectCurrentSourceFrontendProfile(profile.manifest)
+          : selectSourceFrontendProfile(profile.manifest);
       const assignments = member.config['Env'];
       if (!Array.isArray(assignments)) refuse();
       const inherited: string[] = [];
@@ -385,13 +405,17 @@ export async function observeSourceDevInputs(
         if (typeof assignment !== 'string') refuse();
         inherited.push(assignment);
       }
-      const configuration = await captureSourceRestorationConfiguration(
+      const configuration = await profile.captureConfiguration(
         `${layouts.dev.root}/src`,
-        manifest,
         inherited,
         deadline,
       );
-      const command = createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, 'be-01');
+      const command = createRoleCommand(
+        pins.runtimeImageId,
+        `${layouts.dev.root}/src`,
+        'be-01',
+        profile.kind === 'current',
+      );
       command[command.indexOf('--workdir') + 1] = '/src';
       command[command.length - 1] = 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts';
       const generated = await readSourceDocker(command, docker, deadline);
@@ -402,12 +426,7 @@ export async function observeSourceDevInputs(
       readFields(document['info']);
       readFields(document['paths']);
       const openapiSha256 = createHash('sha256').update(generated).digest('hex');
-      const tree = await captureSourceRestartTree(
-        `${layouts.dev.root}/src`,
-        manifest,
-        deadline,
-        openapiSha256,
-      );
+      const tree = await profile.captureRestart(`${layouts.dev.root}/src`, deadline, openapiSha256);
       await recheck();
       async function inspectRestartRuntime(): Promise<void> {
         await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
@@ -417,7 +436,7 @@ export async function observeSourceDevInputs(
         const matching = inventory.filter((raw) => readFields(raw)['Id'] === member.id);
         const raw = matching.at(0);
         if (matching.length !== 1 || raw === undefined) refuse();
-        const current = decodeSourceDev(raw, layouts.dev);
+        const current = decodeSourceDev(raw, layouts.dev, profile.current);
         const resolved = (
           await readSourceDocker(
             ['image', 'inspect', '--format', '{{.Id}}', sourceDevContract(layouts.dev).image],
@@ -444,7 +463,7 @@ export async function observeSourceDevInputs(
           current.config['Entrypoint'],
           'source restart inherited entrypoint',
         );
-        assertSourceEnvironment(current.config['Env'], defaults['Env'], pins.environmentSha256);
+        profile.assertEnvironment(current.config['Env'], defaults['Env']);
         validateDiff(await readSourceDocker(['diff', member.id], docker, deadline));
         await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
         await assertDependencyOwner(owner, layouts.dev, pins.sourceSha);
@@ -457,12 +476,7 @@ export async function observeSourceDevInputs(
           else await tree.inspectRunning();
           assertSame(
             configuration,
-            await captureSourceRestorationConfiguration(
-              `${layouts.dev.root}/src`,
-              manifest,
-              inherited,
-              deadline,
-            ),
+            await profile.captureConfiguration(`${layouts.dev.root}/src`, inherited, deadline),
             'source retained role configuration',
           );
           await inspectRestartRuntime();

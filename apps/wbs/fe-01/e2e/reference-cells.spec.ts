@@ -1,6 +1,14 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import {
+  applyDirectoryCommands as applyDirectoryCommandsShape,
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { assertOrdinaryAccount, openCompactAccount } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 test.use({ viewport: { width: 1280, height: 900 } });
 
@@ -21,34 +29,48 @@ interface Seed {
    * panel over the row below, so driving a parent's cell and then a child's in
    * one pass measures a page with a popover standing on it.
    */
-  projectId: string;
+  workPackageId: string;
   childId: string;
 }
 
-async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+async function jsonPost<T>(
+  page: Page,
+  shape: EndpointShape,
+  path: string,
+  body: unknown,
+): Promise<T> {
   return page.evaluate(
-    async ({ at, value }) => {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { at, value } = fixtureInput;
+
       const response = await fetch(at, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.selected),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify(value),
       });
       if (!response.ok) throw new Error(`POST ${at} failed: ${String(response.status)}`);
       return response.json() as Promise<T>;
     },
-    { at: path, value: body },
+    {
+      requestHeaders: { selected: createOrdinaryHeaders(shape) },
+      fixtureInput: { at: path, value: body },
+    },
   );
 }
 
-/** One batch on a project, answering the id each command created (by index). */
+/** One batch on a work package, answering the id each command created (by index). */
 async function commands(
   page: Page,
-  projectId: string,
+  workPackageId: string,
   list: Record<string, unknown>[],
 ): Promise<(string | undefined)[]> {
   const answer = await jsonPost<{ results: { id?: string }[] }>(
     page,
-    `/api/projects/${projectId}/commands`,
+    applyWorkPackageCommandsShape,
+    `/api/work-packages/${workPackageId}/commands`,
     { commands: list },
   );
   return answer.results.map((each) => each.id);
@@ -56,9 +78,14 @@ async function commands(
 
 /** One directory batch, answering the entry each command created (by index). */
 async function directoryCommands<T>(page: Page, list: Record<string, unknown>[]): Promise<T[]> {
-  const answer = await jsonPost<{ results: { entity?: T }[] }>(page, '/api/directory/commands', {
-    commands: list,
-  });
+  const answer = await jsonPost<{ results: { entity?: T }[] }>(
+    page,
+    applyDirectoryCommandsShape,
+    '/api/directory/commands',
+    {
+      commands: list,
+    },
+  );
   return answer.results.map((each) => {
     if (each.entity === undefined) throw new Error('a directory create answered no entry');
     return each.entity;
@@ -67,16 +94,18 @@ async function directoryCommands<T>(page: Page, list: Record<string, unknown>[])
 
 async function seed(page: Page): Promise<Seed> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await assertOrdinaryAccount(page);
+  await createWorkPackage(page);
 
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
   // Four rows in one batch, each placed after the one before it by ref.
   await commands(
     page,
-    projectId,
+    workPackageId,
     ['010', '020', '030', '040'].map((number, at) => ({
       kind: 'createWorkItem',
       ref: number,
@@ -95,10 +124,20 @@ async function seed(page: Page): Promise<Seed> {
   const tags = await make('createTag', ['Ready', 'Risk', 'Review']);
   const services = await make('createService', ['Billing', 'Identity', 'Search']);
 
-  const tree = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/projects/${id}/work-items`);
-    return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
-  }, projectId);
+  const tree = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const id = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      return response.json() as Promise<{ workItems: { id: string; number: string }[] }>;
+    },
+    {
+      requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+      fixtureInput: workPackageId,
+    },
+  );
   const byNumber = new Map(tree.workItems.map((row) => [row.number, row.id]));
   const id010 = byNumber.get('010');
   const id020 = byNumber.get('020');
@@ -107,7 +146,7 @@ async function seed(page: Page): Promise<Seed> {
   if (id010 === undefined || id020 === undefined || id030 === undefined || id040 === undefined)
     throw new Error('the four reference rows were not created');
 
-  const [childId] = await commands(page, projectId, [
+  const [childId] = await commands(page, workPackageId, [
     { kind: 'createWorkItem', parentId: id010, afterId: null, name: 'Inherited reference child' },
     {
       kind: 'patchWorkItem',
@@ -123,7 +162,7 @@ async function seed(page: Page): Promise<Seed> {
   ]);
   if (childId === undefined) throw new Error('the inherited reference child was not created');
   await page.reload();
-  return { teams, tags, services, projectId, childId };
+  return { teams, tags, services, workPackageId, childId };
 }
 
 /**
@@ -386,7 +425,7 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   // The gesture is not what this test is about; the resting geometry is. Both
   // are covered — the picker on a crowded cell is the paragraph below, in the
   // state the cell is actually removed from.
-  await commands(page, seeded.projectId, [
+  await commands(page, seeded.workPackageId, [
     {
       kind: 'patchWorkItem',
       workItemId: seeded.childId,
@@ -667,7 +706,7 @@ test('exposes the active priority option at the scrolling table edge', async ({ 
   const seeded = await seed(page);
   await commands(
     page,
-    seeded.projectId,
+    seeded.workPackageId,
     Array.from({ length: 35 }, (_, index) => ({
       kind: 'createWorkItem',
       ref: `edge-${String(index)}`,
@@ -928,6 +967,7 @@ test.describe('390x844 reference sheets', () => {
     await page.reload();
 
     for (const palette of ['Light', 'Dark'] as const) {
+      await openCompactAccount(page);
       await chooseTheme(page, palette);
       for (const field of fields) {
         const dialog = await openSheet(field);
@@ -1065,7 +1105,7 @@ test('offers the rest of the directory when the add field is clicked again', asy
    *
    * **Open is a count and the membership is named — never a count of the
    * membership.** `toBe(2)` was how this was written, and the directory is
-   * **global**: every project draws from one list on purpose
+   * **global**: every work package draws from one list on purpose
    * (`service_team`'s own comment), so `mobile.spec.ts`' `mobile e2e tag` is in
    * it too and the third line under this box belongs to another spec. It failed
    * at case 252 of 270 on `Expected: 2 · Received: 3` with the fix working

@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -5,7 +6,7 @@ import { organizationContextRefusal, organizationRefusal } from './organization-
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
- * The organization's capacity mode (`share-people-across-projects`, spec `shared-people-mode`),
+ * The organization's capacity mode (`share-people-across-work-packages`, spec `shared-people-mode`),
  * whether this release can run shared people at all, and whether the caller may switch it (a
  * super-admin acting in person), so a client offers no switch the route would refuse.
  */
@@ -42,7 +43,7 @@ export const readCapacityMode = defineEndpointShape({
 /**
  * Switches the caller's organization between isolated and shared people;
  * super-admins only, and never through a delegation. A switch moves other
- * people's dates (ADR 0034), so it is audited and tells every project of the
+ * people's dates (ADR 0034), so it is audited and tells every work package of the
  * organization; setting the mode it already has changes nothing. A mode this
  * release cannot run (`SUPPORTED_CAPACITY_MODES`) answers 409
  * `capacity_mode_unsupported` and changes nothing.
@@ -65,7 +66,15 @@ export const switchCapacityMode = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 409, schema: responseSchema(type({ error: "'capacity_mode_unsupported'" })) },
   ],
   document: { summary: 'Switch whether the active organization shares its people.' },

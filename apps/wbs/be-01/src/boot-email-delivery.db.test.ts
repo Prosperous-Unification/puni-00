@@ -57,6 +57,14 @@ function capturedToken(body: string | undefined): string {
 async function organization(be: BootedBrowserProcess): Promise<string> {
   be.organization('org');
   be.member('org', 'owner', 'super_admin');
+  be.grantPermissions('org', 'owner', [
+    'organization.navigate',
+    'organization.read',
+    'organization.manage_members',
+    'organization.manage_organization_roles',
+    'project.read',
+    'package.read',
+  ]);
   const selected = await call(be, 'owner', '/api/organization/active', { organizationId: 'org' });
   const cookie = selected.headers.get('set-cookie')?.split(';').at(0);
   if (selected.status !== 200 || cookie === undefined)
@@ -168,7 +176,7 @@ test('boot configured verification SMTP still refuses invitations and compensate
     be,
     'owner',
     '/api/organization/invitations',
-    { email: 'recipient@example.test', role: 'viewer' },
+    { email: 'recipient@example.test', initialRoleId: 'org-viewer' },
     cookie,
   );
   expect(invited.status).toBe(503);
@@ -200,7 +208,7 @@ test('boot configured verification SMTP still refuses join invitation and reopen
     be,
     'owner',
     `/api/organization/join-requests/${summary.request.id}/approve`,
-    { role: 'viewer' },
+    { initialRoleId: 'org-viewer' },
     cookie,
   );
   expect(approved.status).toBe(503);

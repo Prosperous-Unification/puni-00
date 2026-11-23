@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { decodeCursor, encodeCursor, PAGE_LIMIT, pageQueryOf } from './list-query';
 
-const url = (search: string) => new URL(`http://localhost/api/projects?${search}`);
+const url = (search: string) => new URL(`http://localhost/api/work-packages?${search}`);
 const parsed = (search: string) =>
   pageQueryOf(Object.fromEntries(url(search).searchParams), url(search));
 const base64url = (text: string) =>
@@ -59,7 +59,7 @@ describe('pageQueryOf', () => {
 
 describe('cursor codec', () => {
   test('round-trips a payload through base64url', () => {
-    const payload = { v: 1 as const, k: [null, 'ü-project'] };
+    const payload = { v: 1 as const, k: [null, 'ü-workPackage'] };
     const cursor = encodeCursor(payload);
     expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(decodeCursor(cursor)).toEqual(payload);

@@ -67,7 +67,7 @@ export function createBrowserSignOut({ logout, publish, budgetMs }: SignOutDepen
       let local: Promise<SessionExit>;
       try {
         // Proof: deferring exit until after the HTTP reply left the live
-        // project callable while server logout was pending.
+        // work package callable while server logout was pending.
         local = exit();
       } catch (cause) {
         local = Promise.reject(

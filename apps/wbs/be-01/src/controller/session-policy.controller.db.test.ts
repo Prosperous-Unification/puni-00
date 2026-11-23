@@ -9,6 +9,7 @@ beforeEach(async () => {
   for (const username of ['sue', 'adam']) await h.register(username);
   h.organization('org-a');
   h.member('org-a', 'sue', 'super_admin');
+  h.grantPermissions('org-a', 'sue', ['organization.manage_security']);
   h.member('org-a', 'adam', 'admin');
   h.bind('sue', 'org-a');
   h.bind('adam', 'org-a');
@@ -75,11 +76,11 @@ describe('/api/organization/session-policy', () => {
     const body = { maxSessionSeconds: 28_800, reauthenticateAfterSeconds: null };
     expect(await h.call('adam', 'PUT', '/api/organization/session-policy', body)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(await h.call('adam', 'GET', '/api/organization/session-policy')).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(audits()).toEqual([]);
   });

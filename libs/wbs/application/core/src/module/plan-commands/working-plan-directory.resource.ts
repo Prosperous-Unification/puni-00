@@ -4,7 +4,7 @@ import type { DirectoryStore } from '../../ports/directory-store';
  * Builds the directory part of a batch-owned working plan.
  *
  * Reads stay delegated because the directory is global rather than owned by
- * one project. A successful global entry or membership write reloads every
+ * one work package. A successful global entry or membership write reloads every
  * collection this working plan has already retained; a modeled refusal reloads
  * nothing. Assignment is the exception: it belongs to one work item, so only
  * that identity refreshes and the global full-reader barrier is not crossed.
@@ -48,8 +48,8 @@ export function createWorkingPlanDirectory(
     ),
     foreignReferencesTo: (catalog, resourceId, organizationId) =>
       source().foreignReferencesTo(catalog, resourceId, organizationId),
-    projectsOutside: (projectIds, organizationId) =>
-      source().projectsOutside(projectIds, organizationId),
+    workPackagesOutside: (workPackageIds, organizationId) =>
+      source().workPackagesOutside(workPackageIds, organizationId),
     listTags: () => source().listTags(),
     addTag: afterWrite((...parameters) => source().addTag(...parameters), always),
     renameTag: afterWrite((...parameters) => source().renameTag(...parameters), ok),
@@ -112,7 +112,7 @@ export function createWorkingPlanDirectory(
     usageOfMeasure: (organizationId, measureId) =>
       source().usageOfMeasure(organizationId, measureId),
     removeMeasure: afterWrite((...parameters) => source().removeMeasure(...parameters), never),
-    assignmentsInProject: (projectId) => source().assignmentsInProject(projectId),
+    assignmentsInWorkPackage: (workPackageId) => source().assignmentsInWorkPackage(workPackageId),
     namesOf: (catalog, ids) => source().namesOf(catalog, ids),
     personNamesInOrganization: (organizationId, ids) =>
       source().personNamesInOrganization(organizationId, ids),

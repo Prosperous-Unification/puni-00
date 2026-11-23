@@ -18,8 +18,8 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
 });
@@ -29,9 +29,38 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const state = h.sqlite
+    .query<{ state: string }, []>('SELECT state FROM organization_activation')
+    .get()?.state;
+  const parentName = 'Capacity parent of ' + name;
+  let projectId: string;
+  if (state === 'activated') {
+    const created = await h.call(username, 'POST', '/api/projects', { name: parentName });
+    if (created.status !== 201)
+      throw new Error('capacity parent refused: ' + JSON.stringify(created));
+    projectId = (created.body as { project: { id: string } }).project.id;
+  } else {
+    if (state !== 'pre_activation') throw new Error('capacity fixture activation is absent');
+    h.sqlite.run(
+      "INSERT INTO organization (id,name,legacy,created_at) VALUES ('fixture-capacity-legacy','Legacy',1,1) ON CONFLICT(id) DO NOTHING",
+    );
+    projectId = crypto.randomUUID();
+    h.sqlite.run(
+      'INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+      [projectId, 'fixture-capacity-legacy', parentName, h.userId(username)],
+    );
+  }
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name, projectId });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+}
+
+function importBody(document: unknown) {
+  const projectId = h.sqlite
+    .query<{ project_id: string }, [string]>('SELECT project_id FROM work_package WHERE id = ?')
+    .get(p)?.project_id;
+  if (projectId === undefined) throw new Error('capacity import has no project');
+  return { projectId, document };
 }
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
@@ -55,8 +84,8 @@ function capUnits(organizationId: string, maxCapacityUnitsPerResource: number): 
   );
 }
 
-function batch(projectId: string, commands: unknown[], username = 'ada'): Promise<Answer> {
-  return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+function batch(workPackageId: string, commands: unknown[], username = 'ada'): Promise<Answer> {
+  return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 
 const state = (resourceId: string, units: number | null) => ({
@@ -65,20 +94,20 @@ const state = (resourceId: string, units: number | null) => ({
   units,
 });
 
-/** What `projectId` states of `resourceId`, or null when unstated. */
-function stated(projectId: string, resourceId: string): number | null {
+/** What `workPackageId` states of `resourceId`, or null when unstated. */
+function stated(workPackageId: string, resourceId: string): number | null {
   return (
     h.sqlite
       .query<{ units: number }, [string, string]>(
-        'SELECT units FROM project_resource_capacity WHERE project_id = ? AND resource_id = ?',
+        'SELECT units FROM work_package_resource_capacity WHERE work_package_id = ? AND resource_id = ?',
       )
-      .get(projectId, resourceId)?.units ?? null
+      .get(workPackageId, resourceId)?.units ?? null
   );
 }
 
-function projectCount(): number {
-  const row = h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM project').get();
-  if (row === null) throw new Error('project count answered no row');
+function workPackageCount(): number {
+  const row = h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM work_package').get();
+  if (row === null) throw new Error('work package count answered no row');
   return row.n;
 }
 
@@ -122,7 +151,7 @@ describe('the capacity cap, activated', () => {
   });
 
   for (const directoryUnits of [16, 0]) {
-    it(`checks each project alone with a directory statement of ${String(directoryUnits)}`, async () => {
+    it(`checks each work package alone with a directory statement of ${String(directoryUnits)}`, async () => {
       const third = await create('ada', 'Third');
       expect(
         (
@@ -145,20 +174,22 @@ describe('the capacity cap, activated', () => {
     expect((await batch(q, [state(ram, 32)])).status).toBe(200);
     capUnits('org-a', 64);
     const document = await documentStating(32);
-    const before = projectCount();
-    expect(await h.call('ada', 'POST', '/api/projects/import', document)).toEqual({
+    const before = workPackageCount();
+    expect(await h.call('ada', 'POST', '/api/work-packages/import', importBody(document))).toEqual({
       status: 409,
       body: { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 80, asked: 32 },
     });
-    expect(projectCount()).toBe(before);
+    expect(workPackageCount()).toBe(before);
     expect(
       (await batch(p, [{ kind: 'setDirectoryCapacity', resourceId: ram, units: 16 }])).status,
     ).toBe(200);
-    expect((await h.call('ada', 'POST', '/api/projects/import', document)).status).toBe(201);
-    expect(projectCount()).toBe(before + 1);
+    expect(
+      (await h.call('ada', 'POST', '/api/work-packages/import', importBody(document))).status,
+    ).toBe(201);
+    expect(workPackageCount()).toBe(before + 1);
   });
 
-  it('raises a project’s own statement within the cap, its own units not counted', async () => {
+  it('raises a work package’s own statement within the cap, its own units not counted', async () => {
     expect((await batch(p, [state(ram, 48)])).status).toBe(200);
 
     expect((await batch(p, [state(ram, 48)])).status).toBe(200);
@@ -194,7 +225,7 @@ describe('the capacity cap, activated', () => {
     expect((await batch(p, [state(ram, null)])).status).toBe(200);
     expect((await batch(q, [state(ram, 64)])).status).toBe(200);
 
-    expect(await h.call('ada', 'POST', `/api/projects/${p}/undo`)).toMatchObject({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${p}/undo`)).toMatchObject({
       status: 409,
       body: { error: 'nothing_to_undo' },
     });
@@ -219,7 +250,7 @@ describe('the capacity cap, activated', () => {
     expect([stated(p, ram), stated(p, worktrees)]).toEqual([null, null]);
   });
 
-  it('never counts another organization’s projects', async () => {
+  it('never counts another organization’s work packages', async () => {
     capUnits('org-b', 64);
     const bRam = await declare('grace', 'h2puni ram');
     const b = await create('grace', 'B');
@@ -230,7 +261,7 @@ describe('the capacity cap, activated', () => {
 
   /** A plan document stating `units` of one resource named `h2puni ram`. */
   async function documentStating(units: number) {
-    const exported = await h.call('ada', 'GET', `/api/projects/${p}/export?format=json`);
+    const exported = await h.call('ada', 'GET', `/api/work-packages/${p}/export?format=json`);
     if (exported.status !== 200) throw new Error(`export refused: ${JSON.stringify(exported)}`);
     const document = exported.body as Record<string, unknown>;
     return {
@@ -245,37 +276,46 @@ describe('the capacity cap, activated', () => {
 
   it('refuses an import stating past the cap, writing nothing', async () => {
     const document = await documentStating(70);
-    const projects = projectCount();
+    const workPackages = workPackageCount();
 
-    expect(await h.call('ada', 'POST', '/api/projects/import', document)).toEqual({
+    expect(await h.call('ada', 'POST', '/api/work-packages/import', importBody(document))).toEqual({
       status: 409,
       body: { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 0, asked: 70 },
     });
-    expect(projectCount()).toBe(projects);
+    expect(workPackageCount()).toBe(workPackages);
   });
 
-  it('refuses an import that would state past the cap beside another project, the export’s source among them', async () => {
+  it('refuses an import that would state past the cap beside another work package, the export’s source among them', async () => {
     expect((await batch(p, [state(ram, 64)])).status).toBe(200);
-    const exported = await h.call('ada', 'GET', `/api/projects/${p}/export?format=json`);
-    const projects = projectCount();
+    const exported = await h.call('ada', 'GET', `/api/work-packages/${p}/export?format=json`);
+    const workPackages = workPackageCount();
 
-    // The import creates its project; the one exported keeps its 64.
-    expect(await h.call('ada', 'POST', '/api/projects/import', exported.body)).toEqual({
+    // The import creates its work package; the one exported keeps its 64.
+    expect(
+      await h.call('ada', 'POST', '/api/work-packages/import', importBody(exported.body)),
+    ).toEqual({
       status: 409,
       body: { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 64, asked: 64 },
     });
-    expect(projectCount()).toBe(projects);
+    expect(workPackageCount()).toBe(workPackages);
     expect((await batch(p, [state(ram, null)])).status).toBe(200);
-    expect((await h.call('ada', 'POST', '/api/projects/import', exported.body)).status).toBe(201);
+    expect(
+      (await h.call('ada', 'POST', '/api/work-packages/import', importBody(exported.body))).status,
+    ).toBe(201);
   });
 
   it('imports a capacity that reaches the cap exactly', async () => {
     expect((await batch(q, [state(ram, 16)])).status).toBe(200);
 
-    const imported = await h.call('ada', 'POST', '/api/projects/import', await documentStating(48));
+    const imported = await h.call(
+      'ada',
+      'POST',
+      '/api/work-packages/import',
+      importBody(await documentStating(48)),
+    );
     expect(imported.status).toBe(201);
-    const { projectId } = imported.body as { projectId: string };
-    expect(stated(projectId, ram)).toBe(48);
+    const { workPackageId } = imported.body as { workPackageId: string };
+    expect(stated(workPackageId, ram)).toBe(48);
   });
 });
 

@@ -3,46 +3,70 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { type Connection, openConnection } from './db';
-import { runMigrations } from './migrate';
 import {
   decodeSavedStepBlockages,
   removeSavedStepBlockages,
   restoreStepBlockages,
   saveStepBlockages,
 } from './step-blockage-rollback';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent, seedPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string;
 let path: string;
 let connection: Connection;
+let opened: Connection | undefined;
+let custody = { hasUnknownOwner: false };
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-recovery-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  opened = undefined;
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'org', 'project');
+  seedPackageParent(path, 'org', 'other-project');
   activateTestStepBlockages(path);
+  custody.hasUnknownOwner = true;
   connection = openConnection(path);
+  opened = connection;
+  custody.hasUnknownOwner = false;
   connection.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
   );
   connection.db.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+    "INSERT INTO work_package (id,project_id,name,created_by,revision,created_at) VALUES ('p','project','Plan','u',0,1),('foreign','other-project','Foreign','u',0,1)",
   );
+  for (const [id, name, project, workPackage, position] of [
+    ['dev', 'Dev', 'project', 'p', 1],
+    ['qa', 'QA', 'project', 'p', 2],
+    ['foreign', 'Other', 'other-project', 'foreign', 1],
+  ] as const) {
+    connection.db.run(
+      sql`INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES (${id},'org',${id},${name},'workdays',0,${position},'project',${project},'authored')`,
+    );
+    connection.db.run(
+      sql`INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES (${id + '-binding'},'org','project',${project},${id},${position},'authored')`,
+    );
+    connection.db.run(
+      sql`INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES (${workPackage},${id},'workdays',0,0)`,
+    );
+  }
   connection.db.run(
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Other',1)",
-  );
-  connection.db.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
   );
   connection.db.run(
     "INSERT INTO step_blockage (work_item_id,step_id,blocked_at,created_at,updated_at,created_by) VALUES ('a','dev',100,10,20,'u')",
   );
 });
 afterEach(() => {
-  connection.close();
+  opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('uncertain blockage fixture owner; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -142,7 +166,7 @@ describe('step blockage recovery', () => {
     expect(saveStepBlockages(connection.db).rows).toEqual([]);
   });
 
-  it('refuses lost owners, lost steps, parent owners and cross-project restore atomically', () => {
+  it('refuses lost owners, lost steps, parent owners and cross-work-package restore atomically', () => {
     const saved = saveStepBlockages(connection.db);
     removeSavedStepBlockages(connection.db, saved);
     for (const row of [
@@ -156,7 +180,7 @@ describe('step blockage recovery', () => {
       expect(saveStepBlockages(connection.db).rows).toEqual([]);
     }
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
+      "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
     );
     expect(() => restoreStepBlockages(connection.db, saved)).toThrow();
     expect(saveStepBlockages(connection.db).rows).toEqual([]);

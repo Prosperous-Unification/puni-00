@@ -33,10 +33,10 @@ or `usage: twilight-burokrat <command> …` followed by the reason. The dated co
 `--now <UTC instant>`, because Burokrat reads no clock. `twib help <command>` (or
 `<command> --help`) prints one command, `twib --version` the package version, and
 `twib completion bash|zsh|fish` a completion script that registers both `twilight-burokrat` and
-`twib`. `check`, `explain`, `scenario`, `template`, `validate workflow-binding` and the two
-`prepare-*` commands parse their own arguments: their help and the footer below show the grammar
-their modules document, and `--help` is honoured only as their sole word; any other words,
-`--help` among them, reach the module.
+`twib`. Every command uses the typed grammar, including the nested scenario, template and
+workflow-binding operations. Nested help and completion show their actual options before any
+operation reads input. `check --now` remains optional: the selected dated rules require an
+explicit instant, while an instant supplied without any dated rule is refused.
 
 `twib --help` prints (a test compares this block with the generated help):
 
@@ -44,7 +44,7 @@ their modules document, and `--help` is honoured only as their sole word; any ot
 Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON
        twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON
        twilight-burokrat validate-record KIND JSON
-       twilight-burokrat validate workflow-binding [...]
+       twilight-burokrat validate workflow-binding (--steps STEPS | --manifest FILE) FILE
        twilight-burokrat validate KIND JSON
        twilight-burokrat read-candidate SELECTION REPOSITORY REVISION-OR-BASE
        twilight-burokrat classify-candidate SELECTION REPOSITORY REVISION-OR-BASE POLICY-JSON
@@ -67,10 +67,15 @@ Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-J
        twilight-burokrat lint-local MODE SELECTION REPOSITORY REVISION-OR-BASE BINDING EVIDENCE
        twilight-burokrat lint-ci SELECTION REPOSITORY REVISION-OR-BASE EVIDENCE
        twilight-burokrat validate-policy-activation REPOSITORY PREVIOUS-BINDING NEXT-BINDING
-       twilight-burokrat check [...]
-       twilight-burokrat explain [...]
-       twilight-burokrat scenario [...]
-       twilight-burokrat template [...]
+       twilight-burokrat check [--rule RULE] [--performance-evidence PATH] [--now INSTANT] SELECTION REPOSITORY
+       REVISION-OR-BASE RULE-POLICY
+       twilight-burokrat explain RULE [REPOSITORY RULE-POLICY]
+       twilight-burokrat scenario import REPOSITORY SPEC
+       twilight-burokrat scenario validate REPOSITORY SPEC
+       twilight-burokrat scenario allocate [--predecessor ID] REPOSITORY SPEC
+       twilight-burokrat template list
+       twilight-burokrat template show TEMPLATE
+       twilight-burokrat template verify TEMPLATE SELECTION REPOSITORY REVISION-OR-BASE SUBJECT
        twilight-burokrat inspect-evaluation-coverage REPOSITORY FULL-SHA RULE-POLICY COVERAGE-REVIEW
        twilight-burokrat inspect-performance REPOSITORY COMMITTED-SHA RULE-POLICY
        twilight-burokrat inspect-performance-sources REPOSITORY COMMITTED-SHA RULE-POLICY
@@ -102,8 +107,12 @@ Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-J
        twilight-burokrat inspect-browser-scenario-ledger --now INSTANT REPOSITORY FULL-COMMITTED-SHA RULE-POLICY
        CAPABILITY LEDGER-AUTHORITY
        twilight-burokrat lint SELECTION REPOSITORY REVISION-OR-BASE
-       twilight-burokrat prepare-activation [...]
-       twilight-burokrat prepare-relocation-activation [...]
+       twilight-burokrat prepare-activation --candidate-repository PATH --candidate-sha SHA --review-record PATH
+       --destination PATH --work PATH --resource-lane LANE --cwd-identity IDENTITY --check-runs PATH [--toolkit PATH]
+       --candidate-policy PATH --candidate-mapping PATH --audit-strata PATH
+       twilight-burokrat prepare-relocation-activation --candidate-repository PATH --candidate-sha SHA --review-record
+       PATH --destination PATH --work PATH --resource-lane LANE --cwd-identity IDENTITY --check-runs PATH
+       --base-activation PATH [--candidate-policy PATH] [--candidate-launcher PATH] [--validator-entry PATH]
        twilight-burokrat help [COMMAND...]
        twilight-burokrat completion [SHELL] [ARG...]
        twilight-burokrat --help
@@ -162,23 +171,6 @@ Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-J
   --help                      Show help information.
   --version                   Show version information.
 
-Commands that parse their own arguments:
-  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base>
-      <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]
-  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
-  twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path>
-      [--predecessor <id>]
-  twilight-burokrat template <list|show <template-id>|verify <template-id>
-      <committed|staged|working> <repository> <revision-or-base> <subject>>
-  twilight-burokrat validate workflow-binding <file> --steps <comma-list>
-  twilight-burokrat prepare-activation --candidate-repository <value> --candidate-sha <value>
-      --toolkit <value> --candidate-policy <value> --candidate-mapping <value> --review-record
-      <value> --audit-strata <value> --destination <value> --work <value> --resource-lane <value>
-      --cwd-identity <value> --check-runs <value>
-  twilight-burokrat prepare-relocation-activation --candidate-repository <value> --candidate-sha
-      <value> --base-activation <value> --review-record <value> --destination <value> --work <value>
-      [--candidate-policy <value>] [--candidate-launcher <value>] [--validator-entry <value>]
-      --resource-lane <value> --cwd-identity <value> --check-runs <value>
 ```
 
 ## Checks
@@ -244,6 +236,26 @@ availability, tool registration, approvals or spending authority. The strict ver
 and limits are in the [validator design](../../../../openspec/changes/burokrat-workflow-binding-validation/design.md);
 [durable acceptance and retention](../../../../openspec/changes/twilight-agentic-workflows/binding-design.md)
 are specified separately.
+
+The offline manifest form is `validate workflow-binding workflows.yaml --manifest step-manifest.json`. Export the manifest from WBS `GET /api/projects/:id/step-manifest`, then name its exact project ID and revision in a version2 binding:
+
+```yaml
+version: 2
+project: { id: engagement, revision: 7 }
+default:
+  - { code: build, class: verify }
+types:
+  - workItemTypeId: spike
+    steps:
+      - { code: build, class: verify }
+      - { code: research, class: verify }
+classes:
+  verify: { executor: tool, command: verify }
+```
+
+`default` covers the untyped resolved codes. Each actual organization-owned type uses its entire explicit mapping or the entire default mapping, checked against that type's own codes. An explicit mapping never fills missing steps from default. Type IDs are stable identities; an actual type ID `default` stays separate from the untyped mapping. Empty resolved sets accept empty arrays. Both project identity and revision must match, so a refreshed manifest after a type-set change requires an explicit binding revision update.
+
+Validation is offline and prints only an acceptance digest. The digest includes canonical manifest/configuration content and original prompt byte hashes. Reordering type entries or binding mapping presentation preserves the digest; changing manifest code order or prompt bytes changes it. Missing, unreadable, nonregular and malformed manifest files refuse with named diagnostics. Existing version1 bindings with `--steps` and schema1 retained acceptance stay compatible. Manifest acceptance uses a separate schema2 descriptor contract and grants no runtime execution authority.
 
 ## Diagnostic test reports
 

@@ -32,41 +32,61 @@ if (role === 'writer') {
   sqlite.run(
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1), ('org-z', 'grace', 'member', 1)",
   );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['fanout-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
+  );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['fanout-grace', 'org-z', 'org-z', 'grace', 'project-contributor'],
+  );
   sqlite.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
   sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
   );
-  for (const [position, project] of ['A', 'B'].entries()) {
+  for (const [position, workPackage] of ['A', 'B'].entries()) {
     sqlite.run(
-      "INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding, schedule_engine, optimization_enabled) VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact', 'fast', 0)",
-      [project, project],
+      "INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+      [`parent-${workPackage}`, workPackage],
     );
     sqlite.run(
-      "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
-      [project],
+      "INSERT INTO work_package (id, name, created_by, restricted, revision, created_at, start_date, estimate_rounding, schedule_engine, optimization_enabled, project_id) VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact', 'fast', 0, ?)",
+      [workPackage, workPackage, `parent-${workPackage}`],
     );
     sqlite.run(
-      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
-      [project, position * 10],
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+      [workPackage],
     );
-    sqlite.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
-      `${project}-step`,
-      project,
-      `${project}-step`,
-    ]);
-    sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-      project,
-      project,
-      project,
+    sqlite.run(
+      "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+      [workPackage, position * 10],
+    );
+    // Current authored catalogue identity, actual Project binding, and package-local capture.
+    sqlite.run(
+      "INSERT INTO step_definition (id, organization_id, code, name, estimate_unit, default_allowance_bps, position, defined_at_scope_kind, defined_at_scope_id, origin) VALUES (?, 'org-a', ?, ?, 'workdays', 0, 10, 'project', ?, 'authored')",
+      [`${workPackage}-step`, workPackage, `${workPackage}-step`, `parent-${workPackage}`],
+    );
+    sqlite.run(
+      "INSERT INTO step_binding (id, organization_id, scope_kind, scope_id, step_id, position, origin) VALUES (?, 'org-a', 'project', ?, ?, 10, 'authored')",
+      [`binding-${workPackage}`, `parent-${workPackage}`, `${workPackage}-step`],
+    );
+    sqlite.run(
+      "INSERT INTO work_package_step (work_package_id, step_id, estimate_unit, allowance_bps, allowance_revision) VALUES (?, ?, 'workdays', 0, 0)",
+      [workPackage, `${workPackage}-step`],
+    );
+    sqlite.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
+      workPackage,
+      workPackage,
+      workPackage,
     ]);
     sqlite.run(
       'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-      [project, `${project}-step`],
+      [workPackage, `${workPackage}-step`],
     );
     sqlite.run("INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, 'ana')", [
-      project,
-      `${project}-step`,
+      workPackage,
+      `${workPackage}-step`,
     ]);
   }
   const markerPath = join(directory, 'committed.json');
@@ -150,12 +170,12 @@ async function select(user: string, organizationId: string) {
 try {
   const cookie = await select('ada', 'org-a');
   if (role === 'writer') {
-    const initial = await call('/api/projects/B/work-items', cookie);
+    const initial = await call('/api/work-packages/B/work-items', cookie);
     if (initial.status !== 200) throw new Error('pre-edit tree was refused');
     const tree = workItemTree.assert(await initial.json());
     if (tree.seq !== -1) throw new Error('pre-edit fixture cursor must be -1');
     await Bun.write(join(directory, 'cursor.json'), JSON.stringify(tree.seq));
-    const response = await call('/api/projects/A/commands', cookie, {
+    const response = await call('/api/work-packages/A/commands', cookie, {
       commands: [
         {
           kind: 'setEstimate',
@@ -169,7 +189,7 @@ try {
       `writer returned before kill: ${String(response.status)} ${await response.text()}`,
     );
   }
-  const emptyBuffer = !running.services.replayBuffer.covers('project:B', 0);
+  const emptyBuffer = !running.services.replayBuffer.covers('work-package:B', 0);
   const snapshot = () =>
     JSON.stringify(
       Object.fromEntries(
@@ -183,7 +203,7 @@ try {
           'solver_slot',
           'organization_audit',
           'shared_people_audit',
-          'project',
+          'work_package',
           'estimate',
         ].map((table) => [table, sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()]),
       ),
@@ -193,7 +213,7 @@ try {
     const response = await call(
       '/internal/resume',
       credential,
-      { resume_points: { 'project:B': seq }, trace_id: 'capacity-crash' },
+      { resume_points: { 'work-package:B': seq }, trace_id: 'capacity-crash' },
       true,
     );
     if (response.status !== 200)
@@ -205,7 +225,7 @@ try {
   if (typeof cursor !== 'number') throw new Error('pre-edit cursor is not numeric');
   const resumeAnswer: unknown = await resume(cookie, cursor);
   const repeated: unknown = await resume(cookie, 0);
-  const response = await call('/api/projects/B/work-items', cookie);
+  const response = await call('/api/work-packages/B/work-items', cookie);
   if (response.status !== 200)
     throw new Error(`tree failed: ${String(response.status)} ${await response.text()}`);
   const tree = workItemTree.assert(await response.json());

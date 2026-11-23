@@ -7,6 +7,7 @@ describe('the inventory', () => {
     const rows = schemaInventory([
       'CREATE TABLE project (id text PRIMARY KEY);\n--> statement-breakpoint\nCREATE TABLE step (id text, project_id text);',
       'CREATE INDEX step_project ON step (project_id);\n--> statement-breakpoint\nCREATE TRIGGER step_guard BEFORE INSERT ON step BEGIN SELECT id FROM project; END;',
+      'CREATE VIEW project_abbreviation_candidate AS SELECT id FROM project;\n--> statement-breakpoint\nCREATE VIEW available_codes AS SELECT id FROM project;',
     ]);
     expect(Object.fromEntries(rows.map(({ surface, count }) => [surface, count]))).toEqual({
       'tables named project': 1,
@@ -17,6 +18,8 @@ describe('the inventory', () => {
       'indexes whose definition names project': 0,
       'triggers named project': 0,
       'triggers whose body names project': 1,
+      'views named project': 1,
+      'views whose body names project': 2,
     });
   });
 

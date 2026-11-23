@@ -25,10 +25,16 @@ await backend.register('ada');
 for (const organization of ['org-a', 'org-b']) {
   backend.organization(organization);
   backend.member(organization, 'ada', 'super_admin');
+  backend.grantPermissions(organization, 'ada', [
+    'organization.read',
+    'organization.create_project',
+    'organization.manage_directory',
+  ]);
 }
 await backend.register('token-admin');
 backend.organization('org-tokens');
 backend.member('org-tokens', 'token-admin', 'super_admin');
+backend.grantPermissions('org-tokens', 'token-admin', ['organization.manage_security']);
 backend.sqlite.run(
   `INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at)
    VALUES ('claim-tokens', 'org-tokens', 'tokens.test', 'verified', ?, 1, 1)`,

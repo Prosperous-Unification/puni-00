@@ -1,0 +1,145 @@
+{
+  "scope": "Current catalogue MCP derivation/transport and one root-constraint omission effect",
+  "observations": [
+    {
+      "phase": "baseline",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/baseline/native.receipt.json",
+        "sha256": "6a56054dbdd1b8a265ac009ef93a5359844527845a1c376e6f06b06fec041608",
+        "bytes": 1544,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/baseline/native.validation.json",
+        "sha256": "3e1085318d128509daabc70c90e43f063731db9cae43aef40c8095410cfacadb",
+        "bytes": 688,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/baseline/native.log",
+        "sha256": "017c007406bcfebec232411acc1334efe27b7701390c5ff6516429360ea99d40",
+        "bytes": 288,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "fault",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/fault/native.receipt.json",
+        "sha256": "d23a76482a1e8f3eb5287ef9570ea7bcdef39236ab585bdee5bacc1b0e709ee6",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/fault/native.validation.json",
+        "sha256": "b996c5f7b4b37227e0d30502a4770c84398a01b7e5c39efc88e6679b08324652",
+        "bytes": 682,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/fault/native.log",
+        "sha256": "e9ad7880d54f8ab6991b0c6a087bc3563908f1c48d3bc8e882564833d922bf2b",
+        "bytes": 987,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "after",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/after/native.receipt.json",
+        "sha256": "1c2e7522c2c4d3f0c731b6747872acf07a7b5775ba7dde345e6acab5e73a4730",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/after/native.validation.json",
+        "sha256": "648263127984ccd77c9deaffa8a9c4804e68256a245cccaf9d9386984be273c6",
+        "bytes": 682,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/after/native.log",
+        "sha256": "832c3ac73b3cb6166d4edad24ef204d62c1985e06f32d38117c823527c07d257",
+        "bytes": 288,
+        "mode": 384
+      }
+    }
+  ],
+  "plan": {
+    "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/plan.json",
+    "sha256": "eaa040c9ea7f03c0562667a7cfa9a617c9901c67c314f0bed02fe9528281216e",
+    "bytes": 3661,
+    "mode": 384
+  },
+  "engine": {
+    "path": "/tmp/puni-mcp-constraints-proof-engine-root-v1.ts",
+    "sha256": "d07a27b992bc14fb1e6b1bbc49ad6f77e67291dd27c3b1dda6ff7980f72c5144",
+    "bytes": 9220,
+    "mode": 384
+  },
+  "installed": {
+    "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/installed.json",
+    "sha256": "ca6273f35b512cc549065e267a79e407b5d2afe95ee294abda57684024b3052f",
+    "bytes": 471,
+    "mode": 384
+  },
+  "restored": {
+    "path": "/tmp/puni-mcp-body-proof-mcp_body_constraints-v1/restored.json",
+    "sha256": "9669d4b7f21eb9d3af0013d0a2b5d9ef0553abe82099a5882f627d35ca1d297e",
+    "bytes": 465,
+    "mode": 384
+  },
+  "canonical": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/wbs/mcp-01/src/openapi-tools.ts",
+    "sha256": "31a716ad114f750f3f7fc849e9e8434aee21b25a983a34a837f01ea7c42159dd",
+    "bytes": 16471,
+    "mode": 436
+  },
+  "current130": {
+    "path": "/tmp/puni-mcp-project-caller-live-v1/mcpCurrent/native.validation.json",
+    "sha256": "38a75054a0d6fd7929b5dada301b7ed59a2affd6488e961c130dae7808da6666",
+    "bytes": 1967,
+    "mode": 384
+  },
+  "clientTypes": {
+    "path": "/tmp/puni-mcp-project-caller-live-v1/clientTypes/native.validation.json",
+    "sha256": "516f76f55713aa3d1fef441c42a0c03f1e000ff0956ad40c9113a780d63c072e",
+    "bytes": 1966,
+    "mode": 384
+  },
+  "allSpecs": {
+    "path": "/tmp/puni-mcp-project-caller-live-v1/allSpecs/native.validation.json",
+    "sha256": "26df8a64bcc2b854392aec15367d0d49208e2b60c13fe2ddafc33cdb93045a39",
+    "bytes": 1962,
+    "mode": 384
+  },
+  "currentToolInventory": {
+    "path": "/tmp/puni-mcp-current-inventory-20261119-v1.json",
+    "sha256": "0ee90912000861f2707f55966b66b3366085cb37123e0cb3a96890ddae01a296",
+    "bytes": 22323,
+    "mode": 384
+  },
+  "generatedDocument": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+    "sha256": "a44c9578f68fd7a4610da307a9c4cc841bb08fdbb57979df103332bb1c04478c",
+    "bytes": 4504745,
+    "mode": 436
+  },
+  "fullSuiteReceipt": {
+    "path": "/tmp/puni-mcp-body-typing-live-v1/mcpAll/native.receipt.json",
+    "sha256": "1ada1e4cf8ec6488f3ff1a49df49fd10b6d9054a84124177237a41f6b6aa00a8",
+    "bytes": 1388,
+    "mode": 384
+  },
+  "fullSuiteAudit": {
+    "path": "/tmp/puni-mcp-body-typing-live-v1/mcpAll/native.custody-audit.json",
+    "sha256": "3c644422bd751f2a13a39826d70d44647ccdee9559dc3393b80c0559b0fa1c98",
+    "bytes": 663,
+    "mode": 384
+  },
+  "fault": "Removing only ...bodyConstraints from the advertised input schema preserves the complete actual registry and raw SDK truth-table premises, but changes both/neither alternatives from invalid to valid. Exact restore passes the same selected owner.",
+  "qualification": "One current SDK constraint-publication proof; not all body-parser predicates or backend authorization/atomicity. Current selected suite130 passes with one explicitly filtered real-loopback redirect test. Full MCP suite hit sandbox listen EPERM and its outer deadline; native owner stopped/reaped, descriptors closed, original unsuccessful receipt unchanged. Root-authored production/helper/spec/current-oracle follow-up still requires Astra review after account usage clears."
+}

@@ -1,0 +1,1317 @@
+{
+  "schema": "combined-project-catalogue-verification-v110",
+  "recordedAt": "2026-11-21T11:54:11.610Z",
+  "goalStatus": "active",
+  "intent": {
+    "problem": "Combined creation fixtures and the standalone Memory project twin still treated legacy Step drafts as current catalogue authority. A genuine119 store also exposed a retired SQL writer.",
+    "outcome": "Birth materializes the actual reached catalogue union and returns/publishes those explicit values with both headers, two creation grants and three audits atomically.",
+    "nonGoals": "No historical identity rewrite, profile/header fabrication, migration bypass, new Memory Source project/directory capability or parent closure."
+  },
+  "verification": {
+    "memoryProjectCatalogueAndWholeSource": {
+      "pass": 293,
+      "fail": 0,
+      "assertions": 15548,
+      "tests": 293,
+      "files": 4,
+      "seconds": 6.14,
+      "certificate": {
+        "source": "memory",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 221,
+        "exclusions": [],
+        "absentFamilies": [
+          {
+            "family": "accessDecisions",
+            "reason": "This Memory Source exposes no accessDecisions port; grant-backed package/export authority is separate."
+          },
+          {
+            "family": "livePlans",
+            "reason": "This Memory Source exposes no livePlans port; its separate export capture remains available."
+          },
+          {
+            "family": "workPackageRanks",
+            "reason": "This Memory Source exposes no workPackageRanks port or organization ordering writer."
+          }
+        ]
+      }
+    },
+    "sqliteProjectCatalogueAndAtomicity": {
+      "pass": 197,
+      "fail": 0,
+      "assertions": 3909,
+      "tests": 197,
+      "files": 5,
+      "seconds": 147.49
+    },
+    "sqliteWholeSource": {
+      "pass": 129,
+      "fail": 0,
+      "assertions": 13990,
+      "tests": 129,
+      "files": 1,
+      "seconds": 388.22,
+      "certificate": {
+        "source": "sqlite",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 224,
+        "exclusions": [],
+        "absentFamilies": []
+      }
+    },
+    "compilerRoots": 365,
+    "lintOwners": 14,
+    "sourceFiles": 6138,
+    "curatedPins": 685,
+    "functionalFaults": 8,
+    "fixtureCustodyFaults": 8,
+    "nativeFaultObservations": 24
+  },
+  "checks": [
+    {
+      "name": "combined-project-current-openspec-status-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "openspec",
+          "status",
+          "--change",
+          "wbs-work-packages",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-status-v2.receipt.json",
+        "sha256": "e0a35d6f1048d5e07d51a44e8771d7c5373b0f28ecf92edf87f7cfb4c8f2ee67",
+        "bytes": 1373,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-status-v2.log",
+        "sha256": "e485fb02e2ca0dbb27fb870a13922fb95096ba95f4463db7a2c9e328b1ddb20b",
+        "bytes": 3395,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-current-openspec-apply-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "openspec",
+          "instructions",
+          "apply",
+          "--change",
+          "wbs-work-packages",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-apply-v2.receipt.json",
+        "sha256": "bf0dd65c78f73d13e895da4c942ec2df3598608a1a63d959625173af5a6c7354",
+        "bytes": 1393,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-apply-v2.log",
+        "sha256": "f52f628732da81ce47a408840499d4d16f0878c323974810d9c2e1b71c6f1c6a",
+        "bytes": 23222,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-final-memory-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-memory-v1.receipt.json",
+        "sha256": "ea287579e61427fa6774934a14a55a318bb4cb9217910f17140e668d3384a76d",
+        "bytes": 1592,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-memory-v1.log",
+        "sha256": "83d5c76957d968810c7aa484fd9eb023e779372830df68dbf2718737cc9ce786",
+        "bytes": 40428,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-final-sqlite-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/current-project-birth.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-atomicity.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-sqlite-v1.receipt.json",
+        "sha256": "a33000bc94b41c7f46ed0e50dc448dea7e1a0e0357eb349d6b3b929c5c41cb56",
+        "bytes": 1689,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-sqlite-v1.log",
+        "sha256": "1e58dd3ae6640af10ce4c64860a4de5f7d918d8f674948c3a039932e5fa6ced8",
+        "bytes": 19556,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-final-sqlite-source-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-sqlite-source-v1.receipt.json",
+        "sha256": "8b0ee03693b7f43df62ea47c65b84b0514d4b6af85e869dbbc496948a5d53439",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-sqlite-source-v1.log",
+        "sha256": "eab3ea74f6c3a5bd7c6c1f72b08d29de1986d4e34ee566c42aac0d31f1800ae0",
+        "bytes": 25796,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-final-types-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-combined-project-types-v110.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-types-v1.receipt.json",
+        "sha256": "41f67ef81031dcc62a81c81433071b85c73d0d4464bae137551ecbad3a18025f",
+        "bytes": 1348,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-final-lint-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue-scope.ts",
+          "libs/wbs/adapters/store-memory/src/step-retirement.ts",
+          "libs/wbs/adapters/store-memory/src/step-package-reads.ts",
+          "libs/wbs/adapters/store-memory/src/step-materialization.ts",
+          "libs/wbs/adapters/store-memory/src/testing/project-catalogue-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+          "libs/wbs/application/conformance/src/project-store-conformance.ts",
+          "libs/wbs/application/core/src/ports/project-store.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-lint-v1.receipt.json",
+        "sha256": "80afab165e1fe8e14d18bcc39b86adf0ca388024b3fd3671f73676edbb650e61",
+        "bytes": 2216,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-current-format-v4",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue-scope.ts",
+          "libs/wbs/adapters/store-memory/src/step-retirement.ts",
+          "libs/wbs/adapters/store-memory/src/step-package-reads.ts",
+          "libs/wbs/adapters/store-memory/src/step-materialization.ts",
+          "libs/wbs/adapters/store-memory/src/testing/project-catalogue-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+          "libs/wbs/application/conformance/src/project-store-conformance.ts",
+          "libs/wbs/application/core/src/ports/project-store.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-format-v4.receipt.json",
+        "sha256": "f7d49a5d23b8af4f332a1b17356c589e9a0bc91bdd3cec3d6f94fe80a1a0c301",
+        "bytes": 2375,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-format-v4.log",
+        "sha256": "d4a97cd08e43e7a8609d288cb107ac2ffe39dc3a88cf62f8fea4ea998b27da28",
+        "bytes": 1199,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-current-format-v5",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue-scope.ts",
+          "libs/wbs/adapters/store-memory/src/step-retirement.ts",
+          "libs/wbs/adapters/store-memory/src/step-package-reads.ts",
+          "libs/wbs/adapters/store-memory/src/step-materialization.ts",
+          "libs/wbs/adapters/store-memory/src/testing/project-catalogue-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+          "libs/wbs/application/conformance/src/project-store-conformance.ts",
+          "libs/wbs/application/core/src/ports/project-store.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-format-v5.receipt.json",
+        "sha256": "1389a370393ef359db54d34b2c2c35ac1263de29a7180186d0c208bf033559ef",
+        "bytes": 2249,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-format-v5.log",
+        "sha256": "1a3aa1c64c583302633665a9f7df8de82c4873910271f5b7aea600e29f0c8f37",
+        "bytes": 1055,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-proof-bridge-v110",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-combined-project-proof-bridge-v110.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-proof-bridge-v110.receipt.json",
+        "sha256": "cd8ac64e92ea9235d537c63f3d67154e33835485fa9963a03cd49278399af7ca",
+        "bytes": 1292,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-proof-bridge-v110.log",
+        "sha256": "18f2e3052967ac46b1110de321db54aadee8e7e454da6eb1a9c8a6d3d0cd3086",
+        "bytes": 56,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-source-audit-v110",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-combined-project-audit-v110.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-source-audit-v110.receipt.json",
+        "sha256": "39ccefad315fd5b8592e1041e212de487d8a848802b3264874bea92d76a92780",
+        "bytes": 1285,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-source-audit-v110.log",
+        "sha256": "d3477ba6bed0f4dc469ae64e48ff2b1db8597a05cc7f64439b5a666ce6ce14f5",
+        "bytes": 71,
+        "mode": 384
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "name": "combined-project-current-empty-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "--test-name-pattern",
+          "explicitly empty current catalogue",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-empty-red-v1.receipt.json",
+        "sha256": "25694eba4e5059c4a18790e676f9e078cbe2b57e63665a2c6d2fc3994a680c40",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-empty-red-v1.log",
+        "sha256": "d36df2f0d7b2caaa8d9ab3d5e54043b70a2c0140d7a64c1475d4d4ca0e5ebdf3",
+        "bytes": 1979,
+        "mode": 384
+      },
+      "reason": "Original Memory birth echoed legacy Dev under an empty current catalogue; actual behavioral RED."
+    },
+    {
+      "name": "combined-project-current-sqlite-focused-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-sqlite-focused-v1.receipt.json",
+        "sha256": "0a52a5badd05873224589a84574bba57d29cff3ed59fc4605f5addf5872a49ad",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-sqlite-focused-v1.log",
+        "sha256": "16ee59d5febde92a0888191e2f16d5695928efecfe0a7d7fddb5850d429a62e9",
+        "bytes": 3301,
+        "mode": 384
+      },
+      "reason": "Real119 exposes current nonempty draft INSERT into retired step; no such table:step."
+    },
+    {
+      "name": "combined-project-current-sqlite-cohort-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/current-project-birth.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-sqlite-cohort-v1.receipt.json",
+        "sha256": "e144fc6e04ead7a38c13fc0021779bb89c8b0fe33f52f5edb7c692c0e3c3389b",
+        "bytes": 1525,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-sqlite-cohort-v1.log",
+        "sha256": "cedef8544f205ee034690ca506baf7be5477413bf6b0b69cbfbb0b743a761326",
+        "bytes": 12589,
+        "mode": 384
+      },
+      "reason": "104pass/1fail: transaction-count observation included two genuine catalogue preparation owners. Request-local tracing restores the existing one-BEGIN/one-COMMIT/no-savepoint assertion."
+    },
+    {
+      "name": "combined-project-current-lint-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+          "libs/wbs/adapters/store-memory/src/step-catalogue-scope.ts",
+          "libs/wbs/adapters/store-memory/src/step-retirement.ts",
+          "libs/wbs/adapters/store-memory/src/step-package-reads.ts",
+          "libs/wbs/adapters/store-memory/src/step-materialization.ts",
+          "libs/wbs/adapters/store-memory/src/testing/project-catalogue-fixture.ts",
+          "libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+          "libs/wbs/application/conformance/src/project-store-conformance.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-lint-v1.receipt.json",
+        "sha256": "c075f972ea090ad0bc7c620424c3cc1f96e0ada999578b9de12e0b4ee46c8562",
+        "bytes": 2161,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-lint-v1.log",
+        "sha256": "fbfa6b8d159b4d85958bc490c35afea1e77774a71281a7af8581c02b39850cda",
+        "bytes": 2191,
+        "mode": 384
+      },
+      "reason": "Thirteen import ordering/unused-import failures corrected by the installed linter before final native runs."
+    }
+  ],
+  "unavailable": [
+    {
+      "name": "combined-project-current-openspec-status-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-status-v1.receipt.json",
+        "sha256": "78c005cbfcb1bb16ab4ff477b310f5745932e74ed854416f847313b12aed85d7",
+        "bytes": 1388,
+        "mode": 384
+      },
+      "reason": "Error: Executable not found in $PATH: \"openspec\"",
+      "replacement": "The locked local OpenSpec executable succeeds via bunx --no-install; these unlaunched attempts are not checks."
+    },
+    {
+      "name": "combined-project-current-openspec-apply-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-current-openspec-apply-v1.receipt.json",
+        "sha256": "efa2d7f5919600c68cc05c0cfde19fefa75bedf7efec0057d70e37ff602f9403",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "reason": "Error: Executable not found in $PATH: \"openspec\"",
+      "replacement": "The locked local OpenSpec executable succeeds via bunx --no-install; these unlaunched attempts are not checks."
+    }
+  ],
+  "faultChecks": [
+    {
+      "name": "combined-project-fault-materialization-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-materialization-v1.receipt.json",
+        "sha256": "2752422a8cc041675e52ae867044cc07bb189403060278654ffc58f3d76293dd",
+        "bytes": 1474,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-materialization-v1.log",
+        "sha256": "9239d46b52a3a221aaddf909a0ac7b8bc56b0b7c7aa22c318cb08025419e0647",
+        "bytes": 1485,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-publication-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-publication-v1.receipt.json",
+        "sha256": "4f418deeef5356f998820a70832b893bb88bf81aa150869b43e98921349908ae",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-publication-v1.log",
+        "sha256": "7692f599f7f26fdcb390f0e34bde29eaf6cf3cb77b2c83423de1d9c1b15023ad",
+        "bytes": 1631,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-reply-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-reply-v1.receipt.json",
+        "sha256": "8844d83c80b4f6dd32b31438dbb496db9421aa878851e0373f9d78aec0e97060",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-reply-v1.log",
+        "sha256": "bd80718d8b4a29697c6c8a0747530287871d39f62aa73032478694cfbc400663",
+        "bytes": 2143,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-legacy-rows-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "--test-name-pattern",
+          "keeps an explicitly empty current catalogue",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-legacy-rows-v1.receipt.json",
+        "sha256": "cb76e7021a21d2fe63a287d954b1e622e72b8820ffea1b94fa217692c95c043e",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-legacy-rows-v1.log",
+        "sha256": "af7f16104726bb173ec1ebf2e26ba480b7a6c8bebeeb6b0d160cd0bd7a1f9ee9",
+        "bytes": 978,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-queued-catalogue-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "--test-name-pattern",
+          "captures a real catalogue binding added before",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-queued-catalogue-v1.receipt.json",
+        "sha256": "2912730c2a8715e246e6b25265ee61d5d3f41fc27cbc5cb7acf5ddc7f160175f",
+        "bytes": 1456,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-queued-catalogue-v1.log",
+        "sha256": "8cd87294205725fee62a36e97a8e3648c0eeeb45c359c2e6b906d1e4077131a2",
+        "bytes": 1783,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-retirement-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "--test-name-pattern",
+          "rolls the complete combined owner back for retired-definition",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-retirement-v1.receipt.json",
+        "sha256": "0181ab4884f3c2d83cfd5cc859c7cf9400c024d73b30895f9929c4f01571ec53",
+        "bytes": 1458,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-retirement-v1.log",
+        "sha256": "c168a832b4cd08f6fb55761b21bb471ed45b97365a933199cc7ae7d60fefa07b",
+        "bytes": 762,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-prior-values-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "--test-name-pattern",
+          "preserves existing explicit values when a later combined birth",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-prior-values-v1.receipt.json",
+        "sha256": "7260030bf3ec9954e67e4c78a7f07cfda93389b700ffdbedeb9c86419f9d7874",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-prior-values-v1.log",
+        "sha256": "bbb58cab61209e1100ffcd8e8f75b5480add6ada30723ff75a5c7248253b6746",
+        "bytes": 996,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-sqlite-legacy-writer-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-sqlite-legacy-writer-v1.receipt.json",
+        "sha256": "8042c3db5de2642a3ecb76fabe3d9ddeb136ed428e567debfc7673c039b55e80",
+        "bytes": 1479,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-sqlite-legacy-writer-v1.log",
+        "sha256": "f1f5e5306bcdc36059f45baaaeae99d26e07f0914e3192bf9212e157252c9b2f",
+        "bytes": 3301,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-project-store-migration-custody-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-migration-custody-control-v1.receipt.json",
+        "sha256": "d70578d2c4a420b77c411c52ddfdfe21a253713e3ee401a9a16337b0615cd3a7",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-migration-custody-control-v1.log",
+        "sha256": "db5a40bf512727873b02d2be2e57ddd0eeba26beb48859330a0f4f06fa1334df",
+        "bytes": 808,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-project-store-migration-custody-omitted-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-migration-custody-omitted-v1.receipt.json",
+        "sha256": "efca5c60f6934964e32b204d08fc7e3ee71cd6ac1c4026e0ad0c1fb824ad6d0e",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-migration-custody-omitted-v1.log",
+        "sha256": "fcedb445cc5ee8cb481f41d25300696e042114579031f010674284bc1e89847b",
+        "bytes": 358,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-project-store-close-custody-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-close-custody-control-v1.receipt.json",
+        "sha256": "9be3a995734c15dacb0961a7ad6eea3fc7bee3814b86f8a67dc067320123a791",
+        "bytes": 1508,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-close-custody-control-v1.log",
+        "sha256": "6109f7956c6e875e6e245171b5f57826cd9ff78ad186503cd31f2ceb59b9235c",
+        "bytes": 808,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-project-store-close-custody-omitted-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-close-custody-omitted-v1.receipt.json",
+        "sha256": "778857d4b52fdac7384a9c5a1f44191eef07b829f655c22102f2410a3c5fb41d",
+        "bytes": 1508,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-project-store-close-custody-omitted-v1.log",
+        "sha256": "8a240789ce4ff0a4aeae76d74f1bdf3f35933be98e3e7d706c77dbdd4226ea36",
+        "bytes": 358,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-combined-create-migration-custody-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-migration-custody-control-v1.receipt.json",
+        "sha256": "e0dfc60f7cdba34a687079b8a30a3550c4c8972f1b5b67f484b1222e5f36a10d",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-migration-custody-control-v1.log",
+        "sha256": "62ad1239f4f9d9cc352122925f51becc149a78f05d8029a1220acdc0eff9ca2c",
+        "bytes": 798,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-combined-create-migration-custody-omitted-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-migration-custody-omitted-v1.receipt.json",
+        "sha256": "f57726b3a1c14aebf01b5cfe898161f66f1cc0d97dfb81e1a2fc1b6115176b78",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-migration-custody-omitted-v1.log",
+        "sha256": "8f26ba4793622ec0a8c3a9691b7284a03679c1290a270200a558604793efae47",
+        "bytes": 334,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-combined-create-close-custody-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-close-custody-control-v1.receipt.json",
+        "sha256": "74d9eed310f5cfafa4a5c323a88760a8ae2b2522e0315f8fbbb3cbf11509e211",
+        "bytes": 1508,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-close-custody-control-v1.log",
+        "sha256": "85335c980c54105625024cbb7506a9946ce0ea3fe63dc4a87a966de9e91ba048",
+        "bytes": 798,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-fault-combined-create-close-custody-omitted-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-close-custody-omitted-v1.receipt.json",
+        "sha256": "2719f6437251050c22824080c769a442fdd21eb16883dafa6208f24a2a289374",
+        "bytes": 1508,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-fault-combined-create-close-custody-omitted-v1.log",
+        "sha256": "f58a1c11490f769683fcc2dc9ce8c8da0628ebc0e1dfd87f3f563ddc287f4ff2",
+        "bytes": 334,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-custody-fence-project-store-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants|derives an empty project summary",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-project-store-control-v1.receipt.json",
+        "sha256": "1105fb92629c9b190679a27b16651f15ff5fd93a275fd0ee4c7bd4651e6c9ba3",
+        "bytes": 1530,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-project-store-control-v1.log",
+        "sha256": "988793bf54a259a5f8044392fda1b2f9a9e888c9121a10aede65a1115a389d01",
+        "bytes": 1956,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-custody-fence-project-store-omitted-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants|derives an empty project summary",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-project-store-omitted-v1.receipt.json",
+        "sha256": "182b98f5222c45f4e230bbb9291184cb339cb86ccc7f5be03b60763dca16aacf",
+        "bytes": 1530,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-project-store-omitted-v1.log",
+        "sha256": "7dd760b9603084c4a0aa3861f982f124ecf4c4bd18aa1b3c10e0a4f0ad3684dc",
+        "bytes": 1438,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-custody-fence-combined-create-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants|rereads current readable child count",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-combined-create-control-v1.receipt.json",
+        "sha256": "84c4de529fc0c0679779acada59e765e23637b5559f7d3ff3058b46ebd343755",
+        "bytes": 1534,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-combined-create-control-v1.log",
+        "sha256": "087676354a712de8b2f729a47c77fd0d7563d4ec968068841c1a7193b801188f",
+        "bytes": 1929,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-custody-fence-combined-create-omitted-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants|rereads current readable child count",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-combined-create-omitted-v1.receipt.json",
+        "sha256": "2447e0858446caede918bc5c76812c54bcec0488926883bab711d2ce18ad5329",
+        "bytes": 1534,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fence-combined-create-omitted-v1.log",
+        "sha256": "a013dfe741f8b29fb1751d5932f3c2ebadbf46cfd36c47613cf25c81fef2f9e1",
+        "bytes": 1427,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-acquisition-project-store-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-project-store-control-v1.receipt.json",
+        "sha256": "b927224f028644ee4f1ba1b35be907415ff8f9c845a02499c94e34e8d1fe0b88",
+        "bytes": 1493,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-project-store-control-v1.log",
+        "sha256": "07c1c8827093c03221e8f2acd0d5d692e2973f51692d4f3e25409ec0e5f891d2",
+        "bytes": 1283,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-acquisition-project-store-omitted-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package with both scoped user grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-project-store-omitted-v1.receipt.json",
+        "sha256": "05793f44d93c46c42cac79f19f7174accc38014a0e9fa814cfa95a76836c484f",
+        "bytes": 1492,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-project-store-omitted-v1.log",
+        "sha256": "30f87c65f40fa858e92832e6c82a9255c984e25812b24923628b5be42c146c47",
+        "bytes": 674,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-acquisition-combined-create-control-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-combined-create-control-v1.receipt.json",
+        "sha256": "881b0512f91026529f23350c882351aa741909df573b447d1a8abd22a42ccf5d",
+        "bytes": 1493,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-combined-create-control-v1.log",
+        "sha256": "860f6ca4165f177889029d03f26d020050d26a140517a6cbc209147b81ed1989",
+        "bytes": 1357,
+        "mode": 384
+      }
+    },
+    {
+      "name": "combined-project-acquisition-combined-create-omitted-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/combined-create.db.test.ts",
+          "--test-name-pattern",
+          "creates actual parent child steps both creation grants",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-combined-create-omitted-v1.receipt.json",
+        "sha256": "5ab5a4ebc704eb5538d68feba653abb865e8bfc284553da1eceb60c9cdd8ba3a",
+        "bytes": 1492,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-combined-create-omitted-v1.log",
+        "sha256": "81ef1c0512852d83b327d7f26ce20042107f41747414cc05a8be3da38a923615",
+        "bytes": 761,
+        "mode": 384
+      }
+    }
+  ],
+  "proofBridge": {
+    "path": "/tmp/puni-combined-proposal-v1/control/combined-project-proof-bridge-v110.json",
+    "sha256": "9a1fb1a71f7f707650e90483ec34a21b77bab374905132c4e6fd21d9ae732d12",
+    "bytes": 50820,
+    "mode": 384
+  },
+  "proofArchives": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/combined-project-faults-v110/proofs.json",
+      "sha256": "573e7bebab34379c730f5c7900127102385ba43873b0767baa36385b6447f941",
+      "bytes": 57486,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/combined-project-custody-fences-v110/proofs.json",
+      "sha256": "29a5ee06710d13d03d433d5e3536d848acd9aeba2a9ead0f26974a84da4abc03",
+      "bytes": 10448,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/combined-project-acquisition-v110/proofs.json",
+      "sha256": "cbac994d311a617715681241806a838171f9a29880fc4e66fdeb11012484186e",
+      "bytes": 10197,
+      "mode": 436
+    }
+  ],
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/combined-project-source-audit-v110.json",
+    "sha256": "55accf7cbb698c56656d7751202f23856d43b64aa22a30aefb5cda75a52ac1ec",
+    "bytes": 1706821,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/combined-project-catalogue-before-v110.json",
+    "sha256": "302b11dc8808fdaf5fe290c8ef01519fe7944d8162caeb7166115fa088b6a3c8",
+    "bytes": 829667,
+    "mode": 384
+  },
+  "qualification": [
+    "Research remains a real nonempty shared conformance case. Its actual current definition identity, code, position, unit and allowance differ from the retained draft; reply and independent committed read use literal expectations. Additional empty/typed-only/queued/default-change cases do not replace Research.",
+    "Memory extracts existing materialization with unchanged runtime checks and a required read/materialization scope. Catalogue mutations retain their full protected-fact context. The standalone project twin stages real catalogue/type maps and publishes values only with the successful graph; its move/delete catalogue consequences and full SC17 remain unclosed.",
+    "SQL fixtures use the actual116/report/verified-backup/private117/additive118/119 path and retain the complete ledger assertion. The current SQL writer no longer inserts draft steps into the retired table. Offline late rollback faults target actual work_package_step and native address insertion; all original authority/grant/audit cases remain.",
+    "Eight functional faults reach their intended first-own assertions. Materialization and retired SQL insertion controls prove availability; unreached later assertions receive no proof credit. Twenty-four native observations also include paired fixture migration/acquisition/close/reuse controls; their outer retained-file and acquisition-count oracles distinguish guard omissions even when both Bun arms exit1. Controlled uncertainty is injected over actual private migrations/connections, not claimed as an observed real native leak.",
+    "All mutated sources restore byte-for-byte and by mode only after stopped/reaped owners and closed descriptors. Token bridges match final comments/formatting to every exercised preimage. Three driver revisions corrected diagnostic spelling or formatting anchors; original terminal receipts were reused, never blindly relaunched.",
+    "Source inventory6138 adds two explicitly declared Memory helpers; all prior6136 paths remain. Curation extends674 to685 by the eleven newly owned paths. This is not a new retired-consumer scan or exhaustive script inventory.",
+    "The prior project114-profile failure and104/1 trace-count failure remain historical diagnostics; current project/catalogue suites pass. Memory221 certification retains three genuinely absent optional families; SQLite224 has none. These certificates do not prove every Source owner, all13 fact families/all15 historical guarantees, full API/UI/products or installed PUNI.",
+    "Task3.2 and all broader parents remain open pending complete cross-scope verification and formal Astra source/proof review. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified; no retry, substitute or new agent occurred.",
+    "Warm400ms rollup performance, frozen scheduler v4 identity, documents17/18 and historical projections, complete entity/settings/catalogue/API/UI guard matrix, PUNI aliases/exhaustive Bun client inventory/installed native ownership, builds/secrets/migrations/exact-SHA clean h2/h4 gates and authorized delivery remain. No protected PAX/archive, historical bytes/hash, default activation, public commit/push/PR/merge/deploy or host gate changed in this slice."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

@@ -7,31 +7,30 @@ import {
   clockOf,
   createWorkingPlan,
   type Decision,
+  type NewStepDefinition,
   type PlanTransactionalStores,
-  type Project,
   type Scope,
   servicesOver,
-  type Step,
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, it } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PROJECT = 'fixture-project';
 const OWNER = 'working-plan-order-owner';
-const PROJECT = 'working-plan-order-project';
+const WORK_PACKAGE = 'working-plan-order-work-package';
 const ROW = 'working-plan-order-row';
 const STEPS = ['step-A', 'step-a'] as const;
 const STAMP: WriteStamp = { at: 1, by: OWNER };
@@ -62,42 +61,76 @@ function captureAdmittedStores(uow: UnitOfWork): {
   };
 }
 
-async function sqliteEstimateRunner(name: string) {
-  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
+const DEFAULT_STEP: NewStepDefinition = {
+  id: 'step',
+  name: 'Step',
+  code: 'step',
+  position: 10,
+  defaultEstimateUnit: 'workdays',
+  defaultAllowancePercent: 0,
+};
+
+async function openWorkingPlanSource(
+  directory: string,
+  definitions: readonly NewStepDefinition[] = [DEFAULT_STEP],
+  name?: string,
+) {
   const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
+  const custody = { hasUnknownOwner: false };
+  try {
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: PROJECT,
+        stamp: STAMP,
+        definitions,
+      },
+      custody,
+    );
+  } catch (cause) {
+    if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
+    throw cause;
+  }
   activateTestStepBlockages(path);
   const source = openSqliteSource({
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
   });
-  await source.stores.users.create(
-    { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+  try {
+    const draft = workPackageRow({
+      id: WORK_PACKAGE,
+      projectId: PROJECT,
+      ...(name === undefined ? {} : { name }),
+    });
+    expect(await source.stores.workPackages.create(draft, [], STAMP)).toMatchObject({
+      id: WORK_PACKAGE,
+      projectId: PROJECT,
+    });
+    return source;
+  } catch (cause) {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+    throw cause;
+  }
+}
+
+async function sqliteEstimateRunner(name: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
+  const source = await openWorkingPlanSource(directory, [DEFAULT_STEP], name);
+  await source.stores.workItems.insert(
+    workItemRow({ id: ROW, workPackageId: WORK_PACKAGE }),
+    [],
     STAMP,
   );
-  await source.stores.projects.create(
-    projectRow({ id: PROJECT, ownerId: OWNER, name }),
-    [
-      {
-        id: 'step',
-        projectId: PROJECT,
-        name: 'Step',
-        position: 10,
-        code: 'step',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    STAMP,
-  );
-  await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
   await source.stores.estimates.set(
     { workItemId: ROW, stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
     STAMP,
   );
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const publicGraph = servicesOver(source.stores, {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
@@ -110,7 +143,7 @@ async function sqliteEstimateRunner(name: string) {
     publicServices: publicGraph,
     batchServices: (scope, broadcast) =>
       servicesOver(scope.stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -133,7 +166,7 @@ it('refuses then runs another SQLite batch without leaked values', async () => {
 
   try {
     expect(
-      await fixture.runner.run(PROJECT, OWNER, [
+      await fixture.runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setEstimate',
           workItemId: ROW,
@@ -148,12 +181,12 @@ it('refuses then runs another SQLite batch without leaked values', async () => {
         },
       ]),
     ).toMatchObject({ ok: false, at: 1, reason: 'not_found' });
-    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
-      { optimistic: 1, realistic: 2, pessimistic: 3 },
-    ]);
+    expect(
+      await fixture.source.stores.estimates.listByWorkItems(WORK_PACKAGE, [ROW]),
+    ).toMatchObject([{ optimistic: 1, realistic: 2, pessimistic: 3 }]);
 
     expect(
-      await fixture.runner.run(PROJECT, OWNER, [
+      await fixture.runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setEstimate',
           workItemId: ROW,
@@ -162,10 +195,10 @@ it('refuses then runs another SQLite batch without leaked values', async () => {
         },
       ]),
     ).toMatchObject({ ok: true });
-    expect(await fixture.runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
-    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
-      { optimistic: 1, realistic: 2, pessimistic: 3 },
-    ]);
+    expect(await fixture.runner.undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
+    expect(
+      await fixture.source.stores.estimates.listByWorkItems(WORK_PACKAGE, [ROW]),
+    ).toMatchObject([{ optimistic: 1, realistic: 2, pessimistic: 3 }]);
   } finally {
     await fixture.close();
   }
@@ -176,7 +209,7 @@ it('uses an ordinary SQLite write between batches as the next before-image', asy
 
   try {
     expect(
-      await fixture.runner.run(PROJECT, OWNER, [
+      await fixture.runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setEstimate',
           workItemId: ROW,
@@ -195,7 +228,7 @@ it('uses an ordinary SQLite write between batches as the next before-image', asy
       ).ok,
     ).toBe(true);
     expect(
-      await fixture.runner.run(PROJECT, OWNER, [
+      await fixture.runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setEstimate',
           workItemId: ROW,
@@ -205,12 +238,12 @@ it('uses an ordinary SQLite write between batches as the next before-image', asy
       ]),
     ).toMatchObject({ ok: true });
 
-    expect(await fixture.runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    expect(await fixture.runner.undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
     // Proof: reusing the first SQLite batch's working graph restored stale
     // 4/5/6 values here instead of this intervening 7/8/9 write.
-    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
-      { optimistic: 7, realistic: 8, pessimistic: 9 },
-    ]);
+    expect(
+      await fixture.source.stores.estimates.listByWorkItems(WORK_PACKAGE, [ROW]),
+    ).toMatchObject([{ optimistic: 7, realistic: 8, pessimistic: 9 }]);
   } finally {
     await fixture.close();
   }
@@ -218,31 +251,22 @@ it('uses an ordinary SQLite write between batches as the next before-image', asy
 
 it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
-
-  try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
-    const steps: Step[] = STEPS.map((id) => ({
+  const source = await openWorkingPlanSource(
+    directory,
+    STEPS.map((id) => ({
+      ...DEFAULT_STEP,
       id,
-      projectId: PROJECT,
       name: id,
       code: id === 'step-A' ? 'step-a' : 'step-a-2',
-      position: 10,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    }));
-    await source.stores.projects.create(project, steps, STAMP);
-    await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
+    })),
+  );
+
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: ROW, workPackageId: WORK_PACKAGE }),
+      [],
+      STAMP,
+    );
 
     for (const [index, stepId] of STEPS.entries()) {
       await source.stores.estimates.set(
@@ -269,30 +293,30 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
       );
     }
 
-    const workingPlan = createWorkingPlan({ stores: source.stores }, PROJECT);
+    const workingPlan = createWorkingPlan({ stores: source.stores }, WORK_PACKAGE);
     await Promise.all([
-      workingPlan.stores.workItems.listByProject(PROJECT),
-      workingPlan.stores.estimates.listByProject(PROJECT),
-      workingPlan.stores.actuals.listByProject(PROJECT),
-      workingPlan.stores.progress.listByProject(PROJECT),
-      workingPlan.stores.measures.listByProject(PROJECT),
+      workingPlan.stores.workItems.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.progress.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.measures.listByWorkPackage(WORK_PACKAGE),
     ]);
     expect(
       await workingPlan.stores.workItems.patch(ROW, { name: 'Patched' }, { at: 2, by: OWNER }),
     ).toMatchObject({ ok: true });
 
     const [estimates, actuals, progress, measures] = await Promise.all([
-      source.stores.estimates.listByProject(PROJECT),
-      source.stores.actuals.listByProject(PROJECT),
-      source.stores.progress.listByProject(PROJECT),
-      source.stores.measures.listByProject(PROJECT),
+      source.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+      source.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+      source.stores.progress.listByWorkPackage(WORK_PACKAGE),
+      source.stores.measures.listByWorkPackage(WORK_PACKAGE),
     ]);
     // Proof: the targeted SQLite readers' old localeCompare post-sort reversed
     // the retained step-A/step-a rows after this production WorkingPlan refresh.
-    expect(await workingPlan.stores.estimates.listByProject(PROJECT)).toEqual(estimates);
-    expect(await workingPlan.stores.actuals.listByProject(PROJECT)).toEqual(actuals);
-    expect(await workingPlan.stores.progress.listByProject(PROJECT)).toEqual(progress);
-    expect(await workingPlan.stores.measures.listByProject(PROJECT)).toEqual(measures);
+    expect(await workingPlan.stores.estimates.listByWorkPackage(WORK_PACKAGE)).toEqual(estimates);
+    expect(await workingPlan.stores.actuals.listByWorkPackage(WORK_PACKAGE)).toEqual(actuals);
+    expect(await workingPlan.stores.progress.listByWorkPackage(WORK_PACKAGE)).toEqual(progress);
+    expect(await workingPlan.stores.measures.listByWorkPackage(WORK_PACKAGE)).toEqual(measures);
     workingPlan.close();
   } finally {
     await source.close();
@@ -302,58 +326,37 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
 
 it('keeps SQLite dependency order authoritative after a WorkingPlan add', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-edge-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
-      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+      await source.stores.workItems.insert(
+        workItemRow({ id, workPackageId: WORK_PACKAGE }),
+        [],
+        STAMP,
+      );
     }
     for (const edge of [
-      { id: 'edge-a-b', projectId: PROJECT, predecessorId: 'a', successorId: 'b' },
-      { id: 'edge-c-d', projectId: PROJECT, predecessorId: 'c', successorId: 'd' },
+      { id: 'edge-a-b', workPackageId: WORK_PACKAGE, predecessorId: 'a', successorId: 'b' },
+      { id: 'edge-c-d', workPackageId: WORK_PACKAGE, predecessorId: 'c', successorId: 'd' },
     ]) {
       await source.stores.dependencies.add(edge, STAMP);
     }
 
-    const workingPlan = createWorkingPlan({ stores: source.stores }, PROJECT);
-    await workingPlan.stores.dependencies.listByProject(PROJECT);
+    const workingPlan = createWorkingPlan({ stores: source.stores }, WORK_PACKAGE);
+    await workingPlan.stores.dependencies.listByWorkPackage(WORK_PACKAGE);
     await workingPlan.stores.dependencies.add(
-      { id: 'edge-a-e', projectId: PROJECT, predecessorId: 'a', successorId: 'e' },
+      { id: 'edge-a-e', workPackageId: WORK_PACKAGE, predecessorId: 'a', successorId: 'e' },
       { at: 2, by: OWNER },
     );
 
-    expect(await workingPlan.stores.dependencies.listByProject(PROJECT)).toEqual(
-      await source.stores.dependencies.listByProject(PROJECT),
+    expect(await workingPlan.stores.dependencies.listByWorkPackage(WORK_PACKAGE)).toEqual(
+      await source.stores.dependencies.listByWorkPackage(WORK_PACKAGE),
     );
     // Proof: inserting a new incident replacement beside edge-a-b moved the
     // unrelated edge-c-d behind it instead of retaining SQLite's source order.
     expect(
-      (await workingPlan.stores.dependencies.listByProject(PROJECT)).map(({ id }) => id),
+      (await workingPlan.stores.dependencies.listByWorkPackage(WORK_PACKAGE)).map(({ id }) => id),
     ).toEqual(['edge-a-b', 'edge-c-d', 'edge-a-e']);
     workingPlan.close();
   } finally {
@@ -364,36 +367,11 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
 
 it('advances SQLite assignment and directory cascades before the next runner command', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     await source.stores.workItems.insert(
-      workItemRow({ id: ROW, projectId: PROJECT, name: 'Before directory writes' }),
+      workItemRow({ id: ROW, workPackageId: WORK_PACKAGE, name: 'Before directory writes' }),
       [],
       STAMP,
     );
@@ -407,7 +385,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -434,11 +412,12 @@ it('advances SQLite assignment and directory cascades before the next runner com
             const written = await scope.stores.directory.assign(...parameters);
             if (written.ok) {
               assignmentObservations.push({
-                retained: (await scope.stores.workItems.listByIds(PROJECT, [parameters[0]])).at(0)
-                  ?.revision,
-                stored: (await admitted.current().workItems.listByIds(PROJECT, [parameters[0]])).at(
-                  0,
-                )?.revision,
+                retained: (
+                  await scope.stores.workItems.listByIds(WORK_PACKAGE, [parameters[0]])
+                ).at(0)?.revision,
+                stored: (
+                  await admitted.current().workItems.listByIds(WORK_PACKAGE, [parameters[0]])
+                ).at(0)?.revision,
               });
             }
             return written;
@@ -446,12 +425,16 @@ it('advances SQLite assignment and directory cascades before the next runner com
           removeTeam: async (
             ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
           ) => {
-            borrowedBeforeRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+            borrowedBeforeRemoval = (
+              await scope.stores.workItems.listByIds(WORK_PACKAGE, [ROW])
+            ).at(0);
             const removed = await scope.stores.directory.removeTeam(...parameters);
             if (removed.ok) {
-              retainedAfterRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+              retainedAfterRemoval = (
+                await scope.stores.workItems.listByIds(WORK_PACKAGE, [ROW])
+              ).at(0);
               storedAfterRemoval = (
-                await admitted.current().workItems.listByIds(PROJECT, [ROW])
+                await admitted.current().workItems.listByIds(WORK_PACKAGE, [ROW])
               ).at(0);
             }
             return removed;
@@ -461,7 +444,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
       },
     });
 
-    const createdAndAssigned = await runner.run(PROJECT, OWNER, [
+    const createdAndAssigned = await runner.run(WORK_PACKAGE, OWNER, [
       { kind: 'createPerson', ref: 'created-person', name: 'Created in batch', teamIds: [] },
       {
         kind: 'setAssignee',
@@ -482,7 +465,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     );
     if (!replacement.ok) throw new Error('SQLite replacement person creation refused');
     expect(
-      await runner.run(PROJECT, OWNER, [
+      await runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setAssignee',
           workItemId: ROW,
@@ -500,7 +483,11 @@ it('advances SQLite assignment and directory cascades before the next runner com
       { retained: 3, stored: 3 },
     ]);
     const assignmentEntry = (
-      await source.stores.journal.entriesFor({ projectId: PROJECT, userId: OWNER, personId: null })
+      await source.stores.journal.entriesFor({
+        workPackageId: WORK_PACKAGE,
+        userId: OWNER,
+        personId: null,
+      })
     ).at(-1);
     if (assignmentEntry === undefined) throw new Error('SQLite assignment batch wrote no journal');
     expect(assignmentEntry.preconditions).toEqual({
@@ -508,18 +495,18 @@ it('advances SQLite assignment and directory cascades before the next runner com
       from: { [ROW]: 2 },
       estimateUnits: {},
     });
-    expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    expect(await runner.undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
     expect(await source.stores.directory.assignmentsFor(ROW)).toEqual([
       { workItemId: ROW, stepId: 'step', personId: createdPersonId },
     ]);
-    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toMatchObject([
+    expect(await source.stores.workItems.listByIds(WORK_PACKAGE, [ROW])).toMatchObject([
       { id: ROW, name: 'Before directory writes', teamIds: [team.id] },
     ]);
 
-    const beforeCascade = (await source.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+    const beforeCascade = (await source.stores.workItems.listByIds(WORK_PACKAGE, [ROW])).at(0);
     if (beforeCascade === undefined) throw new Error('SQLite cascade fixture row missing');
     expect(
-      await runner.run(PROJECT, OWNER, [
+      await runner.run(WORK_PACKAGE, OWNER, [
         { kind: 'deleteTeam', teamId: team.id, cascade: true },
         { kind: 'patchWorkItem', workItemId: ROW, patch: { name: 'After cascade' } },
       ]),
@@ -537,7 +524,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
       revision: beforeCascade.revision,
       teamIds: [team.id],
     });
-    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toMatchObject([
+    expect(await source.stores.workItems.listByIds(WORK_PACKAGE, [ROW])).toMatchObject([
       { id: ROW, name: 'After cascade', revision: beforeCascade.revision + 2, teamIds: [] },
     ]);
   } finally {
@@ -548,36 +535,11 @@ it('advances SQLite assignment and directory cascades before the next runner com
 
 it('rolls back a successful directory write when its retained reload fails', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-rollback-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     await source.stores.workItems.insert(
-      workItemRow({ id: ROW, projectId: PROJECT, name: 'Before rollback' }),
+      workItemRow({ id: ROW, workPackageId: WORK_PACKAGE, name: 'Before rollback' }),
       [],
       STAMP,
     );
@@ -588,7 +550,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
       STAMP,
     );
     if (!labelled.ok) throw new Error('SQLite rollback row labelling refused');
-    const before = (await source.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+    const before = (await source.stores.workItems.listByIds(WORK_PACKAGE, [ROW])).at(0);
     if (before === undefined) throw new Error('SQLite rollback fixture row missing');
 
     const failingUow: UnitOfWork = {
@@ -597,11 +559,11 @@ it('rolls back a successful directory write when its retained reload fails', asy
           let fullReads = 0;
           const workItems = new Proxy(scope.stores.workItems, {
             get(target, key, receiver) {
-              if (key === 'listByProject') {
-                return (projectId: string) => {
+              if (key === 'listByWorkPackage') {
+                return (workPackageId: string) => {
                   fullReads += 1;
                   if (fullReads === 2) throw new Error('injected directory reload failure');
-                  return target.listByProject(projectId);
+                  return target.listByWorkPackage(workPackageId);
                 };
               }
               const member: unknown = Reflect.get(target, key, receiver);
@@ -622,7 +584,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -640,7 +602,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
     // Proof: catching this reload failure would commit both the preceding
     // rename and the directory cascade while leaving retained state stale.
     expect(
-      runner.run(PROJECT, OWNER, [
+      runner.run(WORK_PACKAGE, OWNER, [
         { kind: 'patchWorkItem', workItemId: ROW, patch: { name: 'Must roll back' } },
         { kind: 'deleteTeam', teamId: 'rollback-team', cascade: true },
       ]),
@@ -650,7 +612,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
       name: 'Rollback team',
       serviceIds: [],
     });
-    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toEqual([before]);
+    expect(await source.stores.workItems.listByIds(WORK_PACKAGE, [ROW])).toEqual([before]);
   } finally {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
@@ -659,36 +621,15 @@ it('rolls back a successful directory write when its retained reload fails', asy
 
 it('places every new subtree row and value group in SQLite authoritative order', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-subtree-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['m-existing', 'z-existing']) {
-      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+      await source.stores.workItems.insert(
+        workItemRow({ id, workPackageId: WORK_PACKAGE }),
+        [],
+        STAMP,
+      );
     }
     await source.stores.estimates.set(
       {
@@ -701,23 +642,29 @@ it('places every new subtree row and value group in SQLite authoritative order',
       STAMP,
     );
 
-    const workingPlan = createWorkingPlan({ stores: source.stores }, PROJECT);
+    const workingPlan = createWorkingPlan({ stores: source.stores }, WORK_PACKAGE);
     await Promise.all([
-      workingPlan.stores.workItems.listByProject(PROJECT),
-      workingPlan.stores.estimates.listByProject(PROJECT),
-      workingPlan.stores.actuals.listByProject(PROJECT),
-      workingPlan.stores.progress.listByProject(PROJECT),
-      workingPlan.stores.measures.listByProject(PROJECT),
-      workingPlan.stores.dependencies.listByProject(PROJECT),
+      workingPlan.stores.workItems.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.progress.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.measures.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.dependencies.listByWorkPackage(WORK_PACKAGE),
     ]);
     await workingPlan.stores.subtrees.insertSubtree(
       {
         // Parent-first insertion deliberately opposes SQLite's BINARY id order.
         rows: [
-          workItemRow({ id: 'b-new-root', projectId: PROJECT, name: 'New root' }),
+          workItemRow({ id: 'b-new-root', workPackageId: WORK_PACKAGE, name: 'New root' }),
+          workItemRow({
+            id: 'c-new-sibling',
+            workPackageId: WORK_PACKAGE,
+            parentId: 'b-new-root',
+            name: 'New sibling',
+          }),
           workItemRow({
             id: 'a-new-child',
-            projectId: PROJECT,
+            workPackageId: WORK_PACKAGE,
             parentId: 'b-new-root',
             name: 'New child',
           }),
@@ -726,7 +673,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
         reparented: [],
         estimates: [
           {
-            workItemId: 'b-new-root',
+            workItemId: 'c-new-sibling',
             stepId: 'step',
             optimistic: 2,
             realistic: 3,
@@ -741,16 +688,16 @@ it('places every new subtree row and value group in SQLite authoritative order',
           },
         ],
         actuals: [
-          { workItemId: 'b-new-root', stepId: 'step', days: 2, recordedAt: 2 },
+          { workItemId: 'c-new-sibling', stepId: 'step', days: 2, recordedAt: 2 },
           { workItemId: 'a-new-child', stepId: 'step', days: 3, recordedAt: 2 },
         ],
         progress: [
-          { workItemId: 'b-new-root', stepId: 'step', state: 'in_progress', statedAt: 2 },
+          { workItemId: 'c-new-sibling', stepId: 'step', state: 'in_progress', statedAt: 2 },
           { workItemId: 'a-new-child', stepId: 'step', state: 'done', statedAt: 2 },
         ],
         measures: [
           {
-            workItemId: 'b-new-root',
+            workItemId: 'c-new-sibling',
             stepId: 'step',
             metric: 'token_estimate',
             value: 2,
@@ -769,7 +716,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
         dependencies: [
           {
             id: 'new-edge',
-            projectId: PROJECT,
+            workPackageId: WORK_PACKAGE,
             predecessorId: 'b-new-root',
             successorId: 'a-new-child',
           },
@@ -783,20 +730,20 @@ it('places every new subtree row and value group in SQLite authoritative order',
     );
 
     const retained = await Promise.all([
-      workingPlan.stores.workItems.listByProject(PROJECT),
-      workingPlan.stores.estimates.listByProject(PROJECT),
-      workingPlan.stores.actuals.listByProject(PROJECT),
-      workingPlan.stores.progress.listByProject(PROJECT),
-      workingPlan.stores.measures.listByProject(PROJECT),
-      workingPlan.stores.dependencies.listByProject(PROJECT),
+      workingPlan.stores.workItems.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.progress.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.measures.listByWorkPackage(WORK_PACKAGE),
+      workingPlan.stores.dependencies.listByWorkPackage(WORK_PACKAGE),
     ]);
     const authoritative = await Promise.all([
-      source.stores.workItems.listByProject(PROJECT),
-      source.stores.estimates.listByProject(PROJECT),
-      source.stores.actuals.listByProject(PROJECT),
-      source.stores.progress.listByProject(PROJECT),
-      source.stores.measures.listByProject(PROJECT),
-      source.stores.dependencies.listByProject(PROJECT),
+      source.stores.workItems.listByWorkPackage(WORK_PACKAGE),
+      source.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+      source.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+      source.stores.progress.listByWorkPackage(WORK_PACKAGE),
+      source.stores.measures.listByWorkPackage(WORK_PACKAGE),
+      source.stores.dependencies.listByWorkPackage(WORK_PACKAGE),
     ]);
     // Proof: bypassing adapter placements and applying insertedIds in copy
     // insertion order returned b-new-root before a-new-child instead of BINARY order.
@@ -804,6 +751,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
     expect(retained[0].map(({ id }) => id)).toEqual([
       'a-new-child',
       'b-new-root',
+      'c-new-sibling',
       'm-existing',
       'z-existing',
     ]);
@@ -813,10 +761,10 @@ it('places every new subtree row and value group in SQLite authoritative order',
       retained[3].map(({ workItemId }) => workItemId),
       retained[4].map(({ workItemId }) => workItemId),
     ]).toEqual([
-      ['a-new-child', 'b-new-root', 'z-existing'],
-      ['a-new-child', 'b-new-root'],
-      ['a-new-child', 'b-new-root'],
-      ['a-new-child', 'b-new-root'],
+      ['a-new-child', 'c-new-sibling', 'z-existing'],
+      ['a-new-child', 'c-new-sibling'],
+      ['a-new-child', 'c-new-sibling'],
+      ['a-new-child', 'c-new-sibling'],
     ]);
     workingPlan.close();
   } finally {
@@ -827,34 +775,15 @@ it('places every new subtree row and value group in SQLite authoritative order',
 
 it('keeps SQLite work-item order authoritative immediately after a runner insert', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
-    const steps: Step[] = [
-      {
-        id: 'step',
-        projectId: PROJECT,
-        name: 'Step',
-        position: 10,
-        code: 'step',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ];
-    await source.stores.projects.create(project, steps, STAMP);
     for (const id of ['z-existing', 'm-unaffected']) {
-      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+      await source.stores.workItems.insert(
+        workItemRow({ id, workPackageId: WORK_PACKAGE }),
+        [],
+        STAMP,
+      );
       for (const write of [
         source.stores.estimates.set(
           { workItemId: id, stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
@@ -889,7 +818,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -904,10 +833,10 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       publicServices: publicGraph,
       batchServices(scope, broadcast) {
         const loadedValues = Promise.all([
-          scope.stores.estimates.listByProject(PROJECT),
-          scope.stores.actuals.listByProject(PROJECT),
-          scope.stores.progress.listByProject(PROJECT),
-          scope.stores.measures.listByProject(PROJECT),
+          scope.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.progress.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.measures.listByWorkPackage(WORK_PACKAGE),
         ]);
         const workItems = {
           ...scope.stores.workItems,
@@ -915,8 +844,10 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
             ...parameters: Parameters<PlanTransactionalStores['workItems']['insert']>
           ) => {
             await scope.stores.workItems.insert(...parameters);
-            const retained = await scope.stores.workItems.listByProject(PROJECT);
-            const authoritative = await admitted.current().workItems.listByProject(PROJECT);
+            const retained = await scope.stores.workItems.listByWorkPackage(WORK_PACKAGE);
+            const authoritative = await admitted
+              .current()
+              .workItems.listByWorkPackage(WORK_PACKAGE);
             // Proof: before adapter-authoritative reordering, RetainedRows appended
             // a-inserted and this received z-existing,a-inserted from the working plan.
             expect(retained).toEqual(authoritative);
@@ -935,16 +866,16 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
             await loadedValues;
             await scope.stores.measures.moveAll(...parameters);
             const retained = await Promise.all([
-              scope.stores.estimates.listByProject(PROJECT),
-              scope.stores.actuals.listByProject(PROJECT),
-              scope.stores.progress.listByProject(PROJECT),
-              scope.stores.measures.listByProject(PROJECT),
+              scope.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+              scope.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+              scope.stores.progress.listByWorkPackage(WORK_PACKAGE),
+              scope.stores.measures.listByWorkPackage(WORK_PACKAGE),
             ]);
             const authoritative = await Promise.all([
-              admitted.current().estimates.listByProject(PROJECT),
-              admitted.current().actuals.listByProject(PROJECT),
-              admitted.current().progress.listByProject(PROJECT),
-              admitted.current().measures.listByProject(PROJECT),
+              admitted.current().estimates.listByWorkPackage(WORK_PACKAGE),
+              admitted.current().actuals.listByWorkPackage(WORK_PACKAGE),
+              admitted.current().progress.listByWorkPackage(WORK_PACKAGE),
+              admitted.current().measures.listByWorkPackage(WORK_PACKAGE),
             ]);
             // Proof: appending new value groups instead of applying their placement returned the
             // unaffected group before the moveAll destination in all four retained collections.
@@ -969,7 +900,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     });
 
     expect(
-      await runner.run(PROJECT, OWNER, [
+      await runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'createWorkItem',
           parentId: 'z-existing',
@@ -986,37 +917,17 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
 
 it('refreshes a dependency survivor before the next runner command and preserves undo', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-dependency-survivor-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['doomed', 'survivor']) {
       await source.stores.workItems.insert(
-        workItemRow({ id, projectId: PROJECT, name: id, position: id === 'doomed' ? 10 : 20 }),
+        workItemRow({
+          id,
+          workPackageId: WORK_PACKAGE,
+          name: id,
+          position: id === 'doomed' ? 10 : 20,
+        }),
         [],
         STAMP,
       );
@@ -1024,7 +935,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     await source.stores.dependencies.add(
       {
         id: 'external-edge',
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         predecessorId: 'doomed',
         successorId: 'survivor',
       },
@@ -1034,7 +945,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -1059,11 +970,11 @@ it('refreshes a dependency survivor before the next runner command and preserves
             ...parameters: Parameters<PlanTransactionalStores['dependencies']['removeAllFor']>
           ) => {
             await scope.stores.dependencies.removeAllFor(...parameters);
-            retainedBeforeNext = (await scope.stores.workItems.listByIds(PROJECT, ['survivor'])).at(
-              0,
-            )?.revision;
+            retainedBeforeNext = (
+              await scope.stores.workItems.listByIds(WORK_PACKAGE, ['survivor'])
+            ).at(0)?.revision;
             authoritativeBeforeNext = (
-              await admitted.current().workItems.listByIds(PROJECT, ['survivor'])
+              await admitted.current().workItems.listByIds(WORK_PACKAGE, ['survivor'])
             ).at(0)?.revision;
           },
         };
@@ -1072,7 +983,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     });
 
     expect(
-      await runner.run(PROJECT, OWNER, [
+      await runner.run(WORK_PACKAGE, OWNER, [
         { kind: 'deleteWorkItem', workItemId: 'doomed', strategy: 'cascade' },
         { kind: 'patchWorkItem', workItemId: 'survivor', patch: { name: 'Patched survivor' } },
       ]),
@@ -1083,7 +994,11 @@ it('refreshes a dependency survivor before the next runner command and preserves
     expect(retainedBeforeNext).toBe(2);
     expect(retainedBeforeNext).toBe(authoritativeBeforeNext);
     const entry = (
-      await source.stores.journal.entriesFor({ projectId: PROJECT, userId: OWNER, personId: null })
+      await source.stores.journal.entriesFor({
+        workPackageId: WORK_PACKAGE,
+        userId: OWNER,
+        personId: null,
+      })
     ).at(0);
     if (entry === undefined) throw new Error('dependency survivor batch wrote no journal entry');
     expect(entry.preconditions).toEqual({
@@ -1092,15 +1007,17 @@ it('refreshes a dependency survivor before the next runner command and preserves
       estimateUnits: {},
     });
 
-    expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
-    expect(await source.stores.dependencies.listByProject(PROJECT)).toMatchObject([
+    expect(await runner.undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
+    expect(await source.stores.dependencies.listByWorkPackage(WORK_PACKAGE)).toMatchObject([
       {
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         predecessorId: 'doomed',
         successorId: 'survivor',
       },
     ]);
-    expect(await source.stores.workItems.listByIds(PROJECT, ['doomed', 'survivor'])).toMatchObject([
+    expect(
+      await source.stores.workItems.listByIds(WORK_PACKAGE, ['doomed', 'survivor']),
+    ).toMatchObject([
       { id: 'doomed', name: 'doomed' },
       { id: 'survivor', name: 'survivor' },
     ]);
@@ -1112,36 +1029,15 @@ it('refreshes a dependency survivor before the next runner command and preserves
 
 it('keeps every SQLite value group in source order after runner sets populate an earlier group', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-value-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
-      [
-        {
-          id: 'step',
-          projectId: PROJECT,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['z-existing', 'a-earlier']) {
-      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+      await source.stores.workItems.insert(
+        workItemRow({ id, workPackageId: WORK_PACKAGE }),
+        [],
+        STAMP,
+      );
     }
     await source.stores.estimates.set(
       { workItemId: 'z-existing', stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
@@ -1165,7 +1061,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -1181,10 +1077,10 @@ it('keeps every SQLite value group in source order after runner sets populate an
       publicServices: publicGraph,
       batchServices(scope, broadcast) {
         const loaded = Promise.all([
-          scope.stores.estimates.listByProject(PROJECT),
-          scope.stores.actuals.listByProject(PROJECT),
-          scope.stores.progress.listByProject(PROJECT),
-          scope.stores.measures.listByProject(PROJECT),
+          scope.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.progress.listByWorkPackage(WORK_PACKAGE),
+          scope.stores.measures.listByWorkPackage(WORK_PACKAGE),
         ]);
         const measures = {
           ...scope.stores.measures,
@@ -1193,16 +1089,16 @@ it('keeps every SQLite value group in source order after runner sets populate an
             const written = await scope.stores.measures.set(...parameters);
             if (parameters[0].metric === 'hours_actual') {
               const retained = await Promise.all([
-                scope.stores.estimates.listByProject(PROJECT),
-                scope.stores.actuals.listByProject(PROJECT),
-                scope.stores.progress.listByProject(PROJECT),
-                scope.stores.measures.listByProject(PROJECT),
+                scope.stores.estimates.listByWorkPackage(WORK_PACKAGE),
+                scope.stores.actuals.listByWorkPackage(WORK_PACKAGE),
+                scope.stores.progress.listByWorkPackage(WORK_PACKAGE),
+                scope.stores.measures.listByWorkPackage(WORK_PACKAGE),
               ]);
               const authoritative = await Promise.all([
-                admitted.current().estimates.listByProject(PROJECT),
-                admitted.current().actuals.listByProject(PROJECT),
-                admitted.current().progress.listByProject(PROJECT),
-                admitted.current().measures.listByProject(PROJECT),
+                admitted.current().estimates.listByWorkPackage(WORK_PACKAGE),
+                admitted.current().actuals.listByWorkPackage(WORK_PACKAGE),
+                admitted.current().progress.listByWorkPackage(WORK_PACKAGE),
+                admitted.current().measures.listByWorkPackage(WORK_PACKAGE),
               ]);
               expect(retained).toEqual(authoritative);
               expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
@@ -1221,7 +1117,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
     });
 
     expect(
-      await runner.run(PROJECT, OWNER, [
+      await runner.run(WORK_PACKAGE, OWNER, [
         {
           kind: 'setEstimate',
           workItemId: 'a-earlier',

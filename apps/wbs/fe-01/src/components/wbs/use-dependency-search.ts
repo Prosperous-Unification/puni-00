@@ -1,11 +1,11 @@
-import { parseWorkItemAddress } from '@wbs/domain/project-address';
+import { parseWorkItemAddress } from '@wbs/domain/work-package-address';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
-  AddressProject,
+  AddressWorkPackage,
   DependencyLookup,
   EndpointSearchReply,
-  ProjectDiscoveryReply,
+  WorkPackageDiscoveryReply,
 } from '@/modules/dependency-lookup/contract';
 
 import type { PickerEntry } from './dep-picker';
@@ -35,23 +35,23 @@ interface Observation {
   message: string;
 }
 
-/** Retains per-occurrence project authority through known consumption and debounced active-token lookup; every render fences incompatible evidence. */
+/** Retains per-occurrence work package authority through known consumption and debounced active-token lookup; every render fences incompatible evidence. */
 export function useDependencySearch({
   lookup,
-  projectId,
+  workPackageId,
   ownerId,
   active,
   typed,
   setTyped,
   localEntries,
-  boundProject,
+  boundWorkPackage,
   expectedRevision,
 }: {
-  /** Explicit Customize project binding, independent of editable token spelling. */
-  boundProject?: AddressProject;
+  /** Explicit Customize work package binding, independent of editable token spelling. */
+  boundWorkPackage?: AddressWorkPackage;
   expectedRevision?: string;
   lookup: DependencyLookup;
-  projectId: string;
+  workPackageId: string;
   ownerId: string;
   active: boolean;
   typed: string;
@@ -73,7 +73,7 @@ export function useDependencySearch({
     bindings: DependencyTokenObservation[];
   } | null>(null);
   const consumed = consumption.current;
-  // Proof: discarding this controlled transition made successful consumption of the second identical token invalidate the first stable project (mounted round2 test).
+  // Proof: discarding this controlled transition made successful consumption of the second identical token invalidate the first stable work package (mounted round2 test).
   if (
     consumed !== null &&
     consumed.lookup === lookup &&
@@ -107,13 +107,15 @@ export function useDependencySearch({
     (binding) => binding.start === prefix.length && binding.token === token,
   );
   const selected =
-    boundProject ??
-    (activeBinding?.requiresReselection === true ? undefined : activeBinding?.observation.project);
+    boundWorkPackage ??
+    (activeBinding?.requiresReselection === true
+      ? undefined
+      : activeBinding?.observation.workPackage);
   const scoped = useMemo(
     () =>
       selected === undefined
         ? null
-        : { project: selected, prefix: `${selected.abbreviation.toUpperCase()}.` },
+        : { workPackage: selected, prefix: `${selected.abbreviation.toUpperCase()}.` },
     [selected],
   );
   const parsed = parseWorkItemAddress(token);
@@ -126,11 +128,11 @@ export function useDependencySearch({
   // Proof: bypassing the alphabetic gate sent discovery calls for numeric/local-step inputs in dependency-search.test.tsx (2026-10-22).
   const eligible = active && (scoped !== null || /^[A-Za-z]/.test(token));
   const identity = JSON.stringify([
-    projectId,
+    workPackageId,
     ownerId,
     active,
     typed,
-    scoped?.project.projectId ?? null,
+    scoped?.workPackage.workPackageId ?? null,
     query.toLowerCase(),
     expectedRevision ?? null,
   ]);
@@ -147,7 +149,7 @@ export function useDependencySearch({
     cursor: null,
   });
   const [fatal, setFatal] = useState<{ identity: string; failure: unknown } | null>(null);
-  const selectedProjectId = scoped?.project.projectId ?? null;
+  const selectedWorkPackageId = scoped?.workPackage.workPackageId ?? null;
   useEffect(() => {
     if (!eligible) return;
     const controller = new AbortController();
@@ -166,11 +168,11 @@ export function useDependencySearch({
         message: '',
       }));
       const pending =
-        selectedProjectId === null
-          ? lookup.discoverProjects(query, cursor, controller.signal)
-          : lookup.searchEndpoints(selectedProjectId, query, cursor, controller.signal);
+        selectedWorkPackageId === null
+          ? lookup.discoverWorkPackages(query, cursor, controller.signal)
+          : lookup.searchEndpoints(selectedWorkPackageId, query, cursor, controller.signal);
       void pending.then(
-        (reply: ProjectDiscoveryReply | EndpointSearchReply) => {
+        (reply: WorkPackageDiscoveryReply | EndpointSearchReply) => {
           // Proof: removing this response fence erased the newer NEW option after an ignored-abort OLD answer (dependency-search.test.tsx, 2026-10-22).
           if (
             current.current.identity !== identity ||
@@ -202,19 +204,21 @@ export function useDependencySearch({
               };
             let incoming: DependencyOption[];
             let revision: string | null = null;
-            if ('projects' in reply.body)
-              incoming = reply.body.projects.map((project) => ({
-                kind: 'project',
-                key: JSON.stringify(['project', project.projectId]),
-                project,
+            if ('workPackages' in reply.body)
+              incoming = reply.body.workPackages.map((workPackage) => ({
+                kind: 'work_package',
+                key: JSON.stringify(['work_package', workPackage.workPackageId]),
+                workPackage,
               }));
             else {
-              // Proof: bypassing project identity accepted Reused address evidence instead of rendering Refresh choices (dependency-search.test.tsx, 2026-10-22).
+              // Proof: bypassing work package identity accepted Reused address evidence instead of rendering Refresh choices (dependency-search.test.tsx, 2026-10-22).
               if (
-                reply.body.project.projectId !== selectedProjectId ||
-                reply.body.candidates.some((candidate) => candidate.projectId !== selectedProjectId)
+                reply.body.workPackage.workPackageId !== selectedWorkPackageId ||
+                reply.body.candidates.some(
+                  (candidate) => candidate.workPackageId !== selectedWorkPackageId,
+                )
               )
-                return { ...base, state: 'stale', message: 'Project identity changed.' };
+                return { ...base, state: 'stale', message: 'Work package identity changed.' };
               revision = reply.body.addressRevision;
               // Proof: bypassing the initial revision check enabled stale Customize scopes before explicit refresh (remote-dependency-editor.test.tsx, 2026-10-22).
               if (expectedRevision !== undefined && revision !== expectedRevision)
@@ -222,9 +226,9 @@ export function useDependencySearch({
               // Proof: removing page revision comparison rendered r2 options under the r1 continuation instead of Refresh choices (dependency-search.test.tsx, 2026-10-22).
               if (cursor !== null && previous?.revision !== revision)
                 return { ...base, state: 'stale', message: 'Addresses changed; refresh choices.' };
-              const { project, addressRevision } = reply.body;
+              const { workPackage, addressRevision } = reply.body;
               incoming = reply.body.candidates.map((candidate) =>
-                buildRemoteDependencyOption(project, addressRevision, candidate),
+                buildRemoteDependencyOption(workPackage, addressRevision, candidate),
               );
             }
             const earlier =
@@ -260,7 +264,7 @@ export function useDependencySearch({
       // Proof: omitting abort left the mounted unmount test signal.aborted=false (dependency-search.test.tsx, 2026-10-22).
       controller.abort();
     };
-  }, [eligible, identity, lookup, query, selectedProjectId, request, expectedRevision]);
+  }, [eligible, identity, lookup, query, selectedWorkPackageId, request, expectedRevision]);
   if (fatal?.identity === identity) throw fatal.failure;
   // Proof: removing this render fence left PUNI options clickable immediately after typing OTHER (dependency-search.test.tsx, 2026-10-22).
   const visible =
@@ -270,7 +274,7 @@ export function useDependencySearch({
       scoped !== null
         ? []
         : localEntries.map((entry) => {
-            const endpoint = { projectId, workItemId: entry.id, scope: 'whole' as const };
+            const endpoint = { workPackageId, workItemId: entry.id, scope: 'whole' as const };
             return {
               kind: 'endpoint',
               key: encodeDependencyEndpoint(endpoint),
@@ -281,16 +285,16 @@ export function useDependencySearch({
               status: entry.status,
             };
           }),
-    [localEntries, projectId, scoped],
+    [localEntries, workPackageId, scoped],
   );
   if (activeBinding !== undefined && visible?.revision != null)
     activeBinding.observation = {
-      project: activeBinding.observation.project,
+      workPackage: activeBinding.observation.workPackage,
       revision: visible.revision,
     };
   return {
     observations: retained.current.bindings,
-    /** Success may clear only this captured occurrence, including its explicit project selection. */
+    /** Success may clear only this captured occurrence, including its explicit work package selection. */
     captureDraft(draft = typed): DependencyDraftCapture {
       // Proof: removing the binding comparison erased newer identical-text selections in Customize and desktop/phone one-click round1 tests.
       const captured = encodeDependencyBindings(
@@ -342,8 +346,8 @@ export function useDependencySearch({
     retry: () => {
       setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
     },
-    chooseProject(project: AddressProject) {
-      const next = replaceDependencyToken(typed, `${project.abbreviation}.`);
+    chooseWorkPackage(workPackage: AddressWorkPackage) {
+      const next = replaceDependencyToken(typed, `${workPackage.abbreviation}.`);
       retained.current = {
         typed: next,
         lookup,
@@ -352,8 +356,8 @@ export function useDependencySearch({
           {
             start: prefix.length,
             end: next.length,
-            token: `${project.abbreviation}.`,
-            observation: { project, revision: null },
+            token: `${workPackage.abbreviation}.`,
+            observation: { workPackage, revision: null },
             selectionId: ++selections.current,
           },
         ],
@@ -361,7 +365,7 @@ export function useDependencySearch({
       setRequest((previous) => ({ sequence: previous.sequence + 1, identity, cursor: null }));
       setTyped(next);
     },
-    selectedProject: scoped?.project ?? null,
+    selectedWorkPackage: scoped?.workPackage ?? null,
     revision: visible?.revision ?? null,
     complete: visible?.state === 'ready' && visible.cursor === null,
   };

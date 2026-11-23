@@ -1,17 +1,19 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { SqliteBrowserAuthLifecycle } from '@wbs/store-sqlite';
-import { afterEach, expect, test } from 'bun:test';
+import * as sqliteConnections from '@wbs/store-sqlite/db';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from '@wbs/store-sqlite/testing/catalogue-database';
+import { afterEach, expect, spyOn, test } from 'bun:test';
 import { decodeJwt, SignJWT } from 'jose';
 
 import { openConnection, openDatabase } from '../repository/db';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-
-const migrations = new URL('../../drizzle', import.meta.url).pathname;
 const workerFile = new URL('../testing/browser-lifecycle-mounted.worker.ts', import.meta.url)
   .pathname;
 const origin = 'https://dev.wbs.test';
@@ -195,7 +197,15 @@ class MountedWorker {
 }
 
 let dir: string | undefined;
+let migrationCustody: CatalogueFixtureCustody = { hasUnknownOwner: false };
 const workers: MountedWorker[] = [];
+
+function migrate(path: string): void {
+  migrateEmptyCatalogueFixture(
+    { path, directory: dirname(path), reportedAt: 100 },
+    migrationCustody,
+  );
+}
 async function cleanupWorkers(
   active: readonly MountedWorker[],
   directory: string | undefined,
@@ -228,10 +238,27 @@ async function cleanupWorkers(
     );
 }
 
+/** Join every mounted worker before deciding whether migration ownership permits deletion. */
+async function closeMountedFixture(
+  active: readonly MountedWorker[],
+  directory: string | undefined,
+  custody: CatalogueFixtureCustody,
+): Promise<void> {
+  await cleanupWorkers(active, directory, undefined, () => {
+    // Proof: browser-ownership-fault-retention-guard-v120 omitted this predicate after an
+    // actual close/failed acknowledgment; the named unknown-owner removal oracle failed.
+    // Omitting the lower latch separately failed the custody assertion. Both exact restores passed.
+    if (custody.hasUnknownOwner)
+      throw new Error('migration fixture custody is unknown; retained ' + String(directory));
+  });
+}
+
 afterEach(async () => {
   const directory = dir;
+  const custody = migrationCustody;
   dir = undefined;
-  await cleanupWorkers(workers.splice(0), directory);
+  migrationCustody = { hasUnknownOwner: false };
+  await closeMountedFixture(workers.splice(0), directory, custody);
 });
 
 async function openWorker(
@@ -305,7 +332,7 @@ async function withLifecycle<T>(
 test('mounted worker protocol buffers split and coalesced frames and fails promptly on child exit', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-protocol-'));
   const path = join(dir, 'shared.db');
-  runMigrations(path, migrations);
+  migrate(path);
   const early = new MountedWorker(path, 'early-exit');
   workers.push(early);
   await early.start().then(
@@ -351,7 +378,7 @@ test('mounted worker protocol buffers split and coalesced frames and fails promp
 test('cleanup joins every worker before removing SQLite when one output drain fails', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-cleanup-'));
   const path = join(dir, 'shared.db');
-  runMigrations(path, migrations);
+  migrate(path);
   const faulty = await openWorker(path, 'output-error');
   const stubborn = await openWorker(path, 'ignore-term');
   let releaseSibling: (() => void) | undefined;
@@ -398,6 +425,46 @@ test('cleanup joins every worker before removing SQLite when one output drain fa
   expect(await stubborn.child.exited).toBe(137);
 }, 30_000);
 
+test('mounted fixture retains SQLite when the actual catalogue connection close is unacknowledged', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-mounted-migration-custody-'));
+  const path = join(directory, 'shared.db');
+  const custody: CatalogueFixtureCustody = { hasUnknownOwner: false };
+  const failure = new Error('injected catalogue close acknowledgment failure');
+  const open = sqliteConnections.openExistingConnection;
+  let physicallyClosed = 0;
+  const replaced = spyOn(sqliteConnections, 'openExistingConnection').mockImplementation((path) => {
+    const connection = open(path);
+    return {
+      ...connection,
+      close() {
+        connection.close();
+        physicallyClosed++;
+        throw failure;
+      },
+    };
+  });
+  try {
+    expect(() => {
+      migrateEmptyCatalogueFixture({ path, directory, reportedAt: 100 }, custody);
+    }).toThrow(failure);
+  } finally {
+    replaced.mockRestore();
+  }
+  expect(physicallyClosed).toBe(1);
+  expect(custody.hasUnknownOwner).toBe(true);
+  await closeMountedFixture([], directory, custody).then(
+    () => {
+      throw new Error('unknown migration owner did not refuse fixture removal');
+    },
+    (cause: unknown) => {
+      expect(cause).toBeInstanceOf(Error);
+      expect(String(cause)).toContain('migration fixture custody is unknown');
+    },
+  );
+  expect(existsSync(path)).toBe(true);
+  process.stdout.write('Mounted migration custody refusal retained: ' + directory + '\n');
+}, 30000);
+
 function request(path: string, token: string, marker?: string, correlation?: string) {
   const cookie = `__Host-wbs_access=${token}${marker === undefined ? '' : `; ${marker}`}${correlation === undefined ? '' : `; __Host-wbs_session=${correlation}`}`;
   const post =
@@ -423,7 +490,7 @@ function request(path: string, token: string, marker?: string, correlation?: str
 test('logout in another mounted process denies an old intact selected OIDC pair while independent sessions remain live', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-lifecycle-'));
   const path = join(dir, 'shared.db');
-  runMigrations(path, migrations);
+  migrate(path);
   const sqlite = openDatabase(path);
   const access = await signed('ada');
   const independent = await signed('ada');
@@ -448,7 +515,7 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
     expect(selected.status).toBe(200);
     const marker = selected.setCookie?.split(';')[0];
     if (marker === undefined) throw new Error('selection did not issue a marker');
-    expect((await second.send(request('/api/projects', access, marker))).status).toBe(200);
+    expect((await second.send(request('/api/work-packages', access, marker))).status).toBe(200);
     const independentSelected = await second.send(request('/api/organization/active', independent));
     const independentMarker = independentSelected.setCookie?.split(';')[0];
     if (independentMarker === undefined) throw new Error('independent session did not select');
@@ -460,23 +527,23 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
     ).toBe(204);
     // Proof: bypassing the shared revocation lookup in mounted organization
     // access makes this old full pair answer 200 in a different process.
-    const refused = await first.send(request('/api/projects', access, marker));
+    const refused = await first.send(request('/api/work-packages', access, marker));
     expect(refused).toMatchObject({ status: 403, body: '{"error":"no_active_organization"}' });
-    const warmedRefusal = await second.send(request('/api/projects', access, marker));
+    const warmedRefusal = await second.send(request('/api/work-packages', access, marker));
     expect(warmedRefusal).toMatchObject({
       status: 403,
       body: '{"error":"no_active_organization"}',
     });
     const fresh = await openWorker(path);
-    expect((await fresh.send(request('/api/projects', access, marker))).status).toBe(403);
+    expect((await fresh.send(request('/api/work-packages', access, marker))).status).toBe(403);
     expect((await first.send(request('/api/organization/memberships', access))).status).toBe(401);
     const reselection = await fresh.send(request('/api/organization/active', access));
     expect(reselection.status).toBe(401);
     expect(reselection.setCookie).toBeNull();
     expect(
-      (await first.send(request('/api/projects', independent, independentMarker))).status,
+      (await first.send(request('/api/work-packages', independent, independentMarker))).status,
     ).toBe(200);
-    expect((await fresh.send(request('/api/projects', other, otherMarker))).status).toBe(200);
+    expect((await fresh.send(request('/api/work-packages', other, otherMarker))).status).toBe(200);
   } finally {
     sqlite.close();
   }
@@ -488,7 +555,7 @@ for (const expires of ['5m', '-1s']) {
   test(`a fresh process refuses refresh without local secret but accepts exact ${expires === '5m' ? 'current' : 'expired historical'} logout idempotently`, async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-restart-'));
     const path = join(dir, 'shared.db');
-    runMigrations(path, migrations);
+    migrate(path);
     const sqlite = openDatabase(path);
     try {
       seedAccounts(sqlite);
@@ -585,9 +652,9 @@ for (const expires of ['5m', '-1s']) {
           .query('SELECT * FROM browser_credential_revocations ORDER BY credential_digest')
           .all(),
       ).toEqual(revocationsBeforeRetry);
-      expect((await fresh.send(request('/api/projects', other, independentMarker))).status).toBe(
-        200,
-      );
+      expect(
+        (await fresh.send(request('/api/work-packages', other, independentMarker))).status,
+      ).toBe(200);
     } finally {
       sqlite.close();
     }
@@ -601,7 +668,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
   test(`a fresh mounted process fails closed when shared browser revocation authority is ${fault}`, async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-authority-'));
     const path = join(dir, 'shared.db');
-    runMigrations(path, migrations);
+    migrate(path);
     const sqlite = openDatabase(path);
     try {
       seedAccounts(sqlite);
@@ -618,7 +685,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
       expect(selected.status).toBe(200);
       const marker = selected.setCookie?.split(';')[0];
       if (marker === undefined) throw new Error('selection did not issue a marker');
-      expect((await worker.send(request('/api/projects', access, marker))).status).toBe(200);
+      expect((await worker.send(request('/api/work-packages', access, marker))).status).toBe(200);
       if (fault === 'missing') sqlite.run('DROP TABLE browser_credential_revocations');
       else await worker.send({ kind: 'shadow-revocations' });
       const fresh = fault === 'missing' ? await openWorker(path) : worker;
@@ -626,7 +693,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
       // selected-resource requests acknowledge a pair with unknown revocation
       // state; both missing and unreadable existing-table faults are distinct.
       expect((await fresh.send(request('/api/organization/memberships', access))).status).toBe(500);
-      expect((await fresh.send(request('/api/projects', access, marker))).status).toBe(500);
+      expect((await fresh.send(request('/api/work-packages', access, marker))).status).toBe(500);
       const logout = await fresh.send(
         request('/api/auth/logout', access, undefined, 'authority-correlation'),
       );
@@ -640,7 +707,9 @@ for (const fault of ['missing', 'unreadable'] as const) {
       expect(exists === null || exists === undefined).toBe(fault === 'missing');
       if (fault === 'unreadable') {
         const unaffected = await openWorker(path);
-        expect((await unaffected.send(request('/api/projects', access, marker))).status).toBe(200);
+        expect((await unaffected.send(request('/api/work-packages', access, marker))).status).toBe(
+          200,
+        );
       }
     } finally {
       sqlite.close();
@@ -658,7 +727,7 @@ for (const nextSecret of ['same', 'rotated'] as const) {
     test(`${winner} wins a two-process OIDC refresh race with ${nextSecret} provider secret`, async () => {
       dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-race-'));
       const path = join(dir, 'shared.db');
-      runMigrations(path, migrations);
+      migrate(path);
       const sqlite = openDatabase(path);
       try {
         seedAccounts(sqlite);
@@ -697,9 +766,9 @@ for (const nextSecret of ['same', 'rotated'] as const) {
           expect(selectedNext.status).toBe(200);
           nextMarker = selectedNext.setCookie?.split(';')[0];
           if (nextMarker === undefined) throw new Error('committed successor did not select');
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            200,
-          );
+          expect(
+            (await closer.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(200);
         }
         const logout = await closer.send(
           request('/api/auth/logout', oldAccess, undefined, 'race-correlation'),
@@ -727,19 +796,19 @@ for (const nextSecret of ['same', 'rotated'] as const) {
           // Another process cannot clear A's memory, so shared authority
           // must deny the pair across A, B and a fresh reader.
           expect(
-            (await refresher.send(request('/api/projects', nextAccess, nextMarker))).status,
+            (await refresher.send(request('/api/work-packages', nextAccess, nextMarker))).status,
           ).toBe(403);
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
-          );
+          expect(
+            (await closer.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(403);
           const fresh = await openWorker(path);
-          expect((await fresh.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
-          );
+          expect(
+            (await fresh.send(request('/api/work-packages', nextAccess, nextMarker))).status,
+          ).toBe(403);
         }
-        expect((await refresher.send(request('/api/projects', oldAccess, oldMarker))).status).toBe(
-          403,
-        );
+        expect(
+          (await refresher.send(request('/api/work-packages', oldAccess, oldMarker))).status,
+        ).toBe(403);
         const after = await refresher.send(
           request('/api/auth/refresh', nextAccess, undefined, 'race-correlation'),
         );
@@ -755,7 +824,7 @@ for (const nextSecret of ['same', 'rotated'] as const) {
 test('reset leaves durable sessions and revocations unchanged', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-reset-'));
   const path = join(dir, 'shared.db');
-  runMigrations(path, migrations);
+  migrate(path);
   const sqlite = openDatabase(path);
   try {
     seedAccounts(sqlite);

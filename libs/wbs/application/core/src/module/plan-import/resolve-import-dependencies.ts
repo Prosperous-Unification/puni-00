@@ -19,7 +19,7 @@ export interface LocatedImportDependency {
  */
 export function resolveImportDependencies(
   prepared: PreparedImport,
-  projectId: string,
+  workPackageId: string,
   rows: ReadonlyMap<string, string>,
   steps: ReadonlyMap<string, string>,
   newId: () => string,
@@ -32,13 +32,13 @@ export function resolveImportDependencies(
     return id;
   };
   const remapEndpoint = (endpoint: TypedDependency['predecessor']): ScopedDependencyEndpoint => {
-    // Proof: independently retaining file row/project/step IDs failed the real SQLite remapped-endpoint import test (2026-10-22).
+    // Proof: independently retaining file row/work-package/step IDs failed the real SQLite remapped-endpoint import test (2026-10-22).
     const workItemId = requireId(rows, endpoint.workItemId, 'work item');
     return endpoint.scope === 'whole'
-      ? { scope: 'whole', projectId, workItemId }
+      ? { scope: 'whole', workPackageId, workItemId }
       : {
           scope: endpoint.scope,
-          projectId,
+          workPackageId,
           workItemId,
           stepId: requireId(steps, endpoint.stepId, 'step'),
         };
@@ -69,7 +69,7 @@ export function resolveImportDependencies(
       .sort((left, right) => documentIndex(left.path) - documentIndex(right.path))
       .map(({ path, ...relationship }) => ({
         path,
-        relationship: { ...relationship, id: newId(), projectId },
+        relationship: { ...relationship, id: newId(), workPackageId },
       }))
   );
 }

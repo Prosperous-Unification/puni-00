@@ -1,7 +1,7 @@
 import {
   actingPersonOf,
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   type AuthenticatedUser,
   commandParserRefusal,
   getStepReference,
@@ -15,14 +15,14 @@ import {
   readBudgetHeadroom,
   readClaimHistory,
   readPersonWork,
-  readProjectClaims,
-  readProjectResources,
   readResourceOccupancy,
   readStartableWork,
-  redoProject,
+  readWorkPackageClaims,
+  readWorkPackageResources,
+  redoWorkPackage,
   responseSchema,
   type SchemaShape,
-  undoProject,
+  undoWorkPackage,
   validateSchema,
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
@@ -103,7 +103,7 @@ function asRecord(body: unknown): Record<string, unknown> {
 }
 
 /**
- * The caller's own undo stack on this project: the account, and the agent
+ * The caller's own undo stack on this work package: the account, and the agent
  * person its machine or consent credential acts as. A consent principal acts as
  * its human's account, so the account alone would let the agent's undo pop the
  * human's browser edits.
@@ -113,9 +113,9 @@ function asRecord(body: unknown): Record<string, unknown> {
  * `undo and redo walk a consent agent's own stack` (work-item.routes.test.ts)
  * failed (1 pass, 1 fail); watched 2026-10-26.
  */
-function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack {
+function undoStackOf(workPackageId: string, principal: AuthenticatedUser): UndoStack {
   return {
-    projectId,
+    workPackageId,
     userId: principal.id,
     personId: actingPersonOf(principal.authentication),
   };
@@ -133,7 +133,7 @@ function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack
  * change is that a refusal says why out loud.
  */
 // Proof: returning the whole value exposed private entryId in the direct undo/redo case.
-function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoProject> {
+function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoWorkPackage> {
   if ('refusal' in outcome) return organizationRefusal(outcome);
   if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
   if (outcome.ok)
@@ -143,11 +143,30 @@ function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoProject> {
       body: { done: outcome.value.done, detail: outcome.value.detail },
     };
   switch (outcome.reason) {
+    // Proof (direct handler): zeroing count failed the step-usage conflict reply; a shallow facts copy failed its post-return mutation assertion. This does not certify mounted authority.
+    case 'step_nodes_in_use':
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          error: outcome.reason,
+          count: outcome.count,
+          pairs: outcome.pairs.map((pair) => ({ ...pair, facts: [...pair.facts] })),
+        },
+      };
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: outcome.reason } };
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: outcome.reason,
+          ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+        },
+      };
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome.reason } };
     case 'external_dependencies_inactive':
+    case 'replay_provenance_unavailable':
     case 'nothing_to_undo':
     case 'stale_undo':
       return { ok: false, status: 409, body: { error: outcome.reason, detail: outcome.detail } };
@@ -212,7 +231,7 @@ async function requireShape<T>(schema: SchemaShape<T>, value: unknown): Promise<
 // Proof: omitting recognized kind returned500 instead of400 in the mounted classification case.
 async function parserRefusal(
   error: unknown,
-): Promise<Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> | null> {
+): Promise<Extract<HttpReply<typeof applyWorkPackageCommands>, { ok: false }> | null> {
   if (error instanceof BadRequest) {
     const body =
       error.at === undefined
@@ -234,7 +253,7 @@ async function parserRefusal(
  */
 async function classifyCommand(
   failure: RequestFailure,
-): Promise<Extract<HttpReply<typeof applyProjectCommands>, { ok: false }>> {
+): Promise<Extract<HttpReply<typeof applyWorkPackageCommands>, { ok: false }>> {
   if (failure.code === 'invalid_body') {
     try {
       parseBatch(failure.rejected);
@@ -262,25 +281,32 @@ async function parsedBatch(body: unknown) {
   }
 }
 
-/** A batch refused whole under scoped access: the same 404 as an absent project, or 403. */
+/** A batch refused whole under scoped access: the same 404 as an absent work package, or 403. */
 function answerWholeBatch(
   outcome: WholeBatchRefusal | RefusedOrganizationAccess,
-): Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> {
+): Extract<HttpReply<typeof applyWorkPackageCommands>, { ok: false }> {
   if (outcome.refusal !== 'not_found' && outcome.refusal !== 'forbidden')
     return organizationRefusal(outcome);
   return outcome.refusal === 'not_found'
     ? { ok: false, status: 404, body: { error: 'not_found' } }
-    : { ok: false, status: 403, body: { error: 'forbidden' } };
+    : {
+        ok: false,
+        status: 403,
+        body: {
+          error: 'forbidden',
+          ...('permission' in outcome ? { permission: outcome.permission } : {}),
+        },
+      };
 }
 
 /** A finite status switch retains command detail; an unmodeled producer reason cannot acquire a default. */
 function answerBatch(
   outcome: BatchRefusal,
-): Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> {
+): Extract<HttpReply<typeof applyWorkPackageCommands>, { ok: false }> {
   const context = { at: outcome.at, kind: outcome.kind };
   switch (outcome.reason) {
     // Proof: dropping deadline detail returned500 instead of422 in the mounted runtime-refusal case.
-    case 'deadline_before_project_start':
+    case 'deadline_before_work_package_start':
       return {
         ok: false,
         status: 422,
@@ -304,6 +330,17 @@ function answerBatch(
     // Proof: grouping this nodes-detail case with dependencyIds cases produced
     // TS2322 in mounted scoped tsc; separation preserves exact mounted 409 nodes
     // without losing reason/detail correlation (watched 2026-10-17).
+    case 'step_nodes_in_use':
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          ...context,
+          error: outcome.reason,
+          count: outcome.detail.count,
+          pairs: outcome.detail.pairs.map((pair) => ({ ...pair, facts: [...pair.facts] })),
+        },
+      };
     case 'referenced_by_step_parallel':
       return {
         ok: false,
@@ -319,9 +356,21 @@ function answerBatch(
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
     case 'forbidden':
-      return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          ...context,
+          error: outcome.reason,
+          ...('permission' in outcome ? { permission: outcome.permission } : {}),
+        },
+      };
     case 'not_found':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'type_conflict':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'step_not_resolved':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'unknown_step':
     case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -369,6 +418,7 @@ function answerBatch(
     // The resource's kind refuses the units whatever the plan holds.
     case 'exclusive_demand_is_one':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
+    case 'last_super_admin':
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'arrangement_positions_unavailable':
@@ -404,7 +454,7 @@ function answerBatch(
     case 'self_node':
     case 'not_a_parent':
     case 'external_dependencies_inactive':
-    case 'project_deleting':
+    case 'work_package_deleting':
     case 'duplicate_dependency':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
@@ -429,7 +479,7 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'too_many_commands':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
-    case 'project_required':
+    case 'work_package_required':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'unknown_ref':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
@@ -500,7 +550,7 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
-    // The project's free units or the leaf's declared demand stand in the way
+    // The work package's free units or the leaf's declared demand stand in the way
     // (`wbs-resources` R3, R4); a subtree claim acquires nothing to ask for.
     case 'resources_on_subtree':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
@@ -524,7 +574,7 @@ function answerBatch(
       };
     // The organization's cap stands in the way, like a claim's holder does;
     // the same command succeeds once an agent goes, a bound claim is released
-    // or another project states less (`wbs-organization-limits` L9).
+    // or another work package states less (`wbs-organization-limits` L9).
     case 'agent_person_limit':
       return {
         ok: false,
@@ -680,8 +730,8 @@ export function workItemRoutes(
       },
     ),
     bind(
-      applyProjectCommands,
-      async ({ params, body, principal }): Promise<HttpReply<typeof applyProjectCommands>> => {
+      applyWorkPackageCommands,
+      async ({ params, body, principal }): Promise<HttpReply<typeof applyWorkPackageCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
         // Proof: running the batch without resolving access made `refuses an
@@ -691,7 +741,7 @@ export function workItemRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await runCommandBatch(commands, {
-          projectId: params.id,
+          workPackageId: params.id,
           actor: principal,
           commands: parsed.commands,
           access: resolved.access,
@@ -721,7 +771,7 @@ export function workItemRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await runCommandBatch(commands, {
-          projectId: null,
+          workPackageId: null,
           actor: principal,
           commands: parsed.commands,
           access: resolved.access,
@@ -739,16 +789,22 @@ export function workItemRoutes(
       },
       { classifyRequestFailure: classifyCommand },
     ),
-    bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.undoWithin(params.id, principal, resolved.access));
-    }),
-    bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.redoWithin(params.id, principal, resolved.access));
-    }),
+    bind(
+      undoWorkPackage,
+      async ({ params, principal }): Promise<HttpReply<typeof undoWorkPackage>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        return answerUndo(await commands.undoWithin(params.id, principal, resolved.access));
+      },
+    ),
+    bind(
+      redoWorkPackage,
+      async ({ params, principal }): Promise<HttpReply<typeof redoWorkPackage>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        return answerUndo(await commands.redoWithin(params.id, principal, resolved.access));
+      },
+    ),
     bind(
       getStepReference,
       async ({ params, query, principal }): Promise<HttpReply<typeof getStepReference>> => {
@@ -799,9 +855,9 @@ export function workItemRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         // The whole tree through the caller's access before anything is
-        // filtered, cut or given a cursor: a foreign project is 404 alike.
+        // filtered, cut or given a cursor: a foreign work package is 404 alike.
         // Proof, observed 2026-09-29: reading both with legacy access made
-        // `answers a foreign project as not found` in
+        // `answers a foreign workPackage as not found` in
         // `work-item-rows.controller.db.test.ts` answer the foreign rows.
         const tree = await workItems.treeWithin(params.id, resolved.access);
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -822,7 +878,7 @@ export function workItemRoutes(
           body: {
             rows: page.rows,
             nextCursor: page.nextCursor,
-            projectRevision: tree.projectRevision,
+            workPackageRevision: tree.workPackageRevision,
           },
         };
       },
@@ -898,11 +954,11 @@ export function workItemRoutes(
       },
     ),
     bind(
-      readProjectClaims,
-      async ({ params, principal }): Promise<HttpReply<typeof readProjectClaims>> => {
+      readWorkPackageClaims,
+      async ({ params, principal }): Promise<HttpReply<typeof readWorkPackageClaims>> => {
         // Proof: reading without resolving access made `refuses a stranger
         // exactly as the tree read does`
-        // (project-claims-organization.controller.db.test.ts) answer 200;
+        // (work-package-claims-organization.controller.db.test.ts) answer 200;
         // watched 2026-10-23.
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
@@ -943,8 +999,8 @@ export function workItemRoutes(
       },
     ),
     bind(
-      readProjectResources,
-      async ({ params, principal }): Promise<HttpReply<typeof readProjectResources>> => {
+      readWorkPackageResources,
+      async ({ params, principal }): Promise<HttpReply<typeof readWorkPackageResources>> => {
         // Proof: reading without resolving access made `refuses an unbound session
         // and a stranger alike` (resource-organization.controller.db.test.ts)
         // answer 200; watched 2026-10-20.
@@ -976,8 +1032,7 @@ export function workItemRoutes(
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const occupancy = await workItems.readResourceOccupancyWithin(
           params.resourceId,
-          principal.id,
-          resolved.access.scope,
+          resolved.access,
         );
         if (!occupancy.ok && 'refusal' in occupancy) return organizationRefusal(occupancy);
         if (!occupancy.ok)
@@ -1001,13 +1056,19 @@ export function workItemRoutes(
         const preview = await workItems.previewDirectoryCapacityWithin(
           params.resourceId,
           units,
-          principal.id,
-          resolved.access.scope,
+          resolved.access,
         );
         if (!preview.ok && 'refusal' in preview) return organizationRefusal(preview);
         if (!preview.ok)
           return preview.reason === 'forbidden'
-            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            ? {
+                ok: false,
+                status: 403,
+                body: {
+                  error: 'forbidden',
+                  ...(preview.permission === undefined ? {} : { permission: preview.permission }),
+                },
+              }
             : { ok: false, status: 404, body: { error: 'not_found' } };
         return { ok: true, status: 200, body: preview.value };
       },
@@ -1024,10 +1085,10 @@ export function workItemRoutes(
       const workItem = tree.workItems.find((candidate) => candidate.id === params.workItemId);
       const instants = await workItems.updateInstantsWithin(params.id, resolved.access);
       const updatedAt = instants?.get(params.workItemId);
-      // Absent, foreign-project and deleted-since-the-tree work items answer alike.
+      // Absent, foreign-work-package and deleted-since-the-tree work items answer alike.
       // Proof, observed 2026-09-29: reading with legacy access made `answers an
       // absent and a foreign work item alike` in
-      // `work-item-rows.controller.db.test.ts` answer the foreign project's work item.
+      // `work-item-rows.controller.db.test.ts` answer the foreign work package's work item.
       if (workItem === undefined || updatedAt === undefined)
         return { ok: false, status: 404, body: { error: 'not_found' } };
       return {
@@ -1042,7 +1103,7 @@ export function workItemRoutes(
             // own slices` receive another work item's slice.
             slices: slicesByWorkItem(tree.slices).get(workItem.id) ?? [],
           },
-          projectRevision: tree.projectRevision,
+          workPackageRevision: tree.workPackageRevision,
         },
       };
     }),

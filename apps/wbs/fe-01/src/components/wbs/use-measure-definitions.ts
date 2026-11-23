@@ -32,13 +32,13 @@ export type MeasureDefinitionsState =
 const BEFORE_ACTIVATION: MeasureDefinitionsState = { kind: 'organization_required' };
 
 /**
- * Reads the measure definitions once per opened project (`wbs-measure-budgets`
+ * Reads the measure definitions once per opened work package (`wbs-measure-budgets`
  * D7, D17).
  *
  * Once, and not on every plan read: definitions are directory data that
  * changes by directory command, and the plan read neither carries nor
  * invalidates them. A definition created while the plan is open shows the next
- * time it is opened (design D55). An answer arriving after the project changed
+ * time it is opened (design D55). An answer arriving after the work package changed
  * is dropped, never shown against the wrong plan.
  *
  * A deployment the session read reported before organization activation
@@ -52,11 +52,11 @@ const BEFORE_ACTIVATION: MeasureDefinitionsState = { kind: 'organization_require
  */
 export function useMeasureDefinitions(
   commands: Pick<PlanCommands, 'listMeasures'>,
-  projectId: string,
+  workPackageId: string,
 ): MeasureDefinitionsState {
   const reachable = useFeatureReachable('onboarding');
-  const [state, setState] = useState<{ projectId: string; reading: MeasureDefinitionsState }>({
-    projectId,
+  const [state, setState] = useState<{ workPackageId: string; reading: MeasureDefinitionsState }>({
+    workPackageId,
     reading: { kind: 'loading' },
   });
   useEffect(() => {
@@ -74,7 +74,7 @@ export function useMeasureDefinitions(
           // longer reads through` (measure-panel.test.tsx) read the old `ready`.
           if (!current) return;
           setState({
-            projectId,
+            workPackageId,
             reading:
               directory.kind === 'ready'
                 ? { kind: 'ready', measures: directory.measures }
@@ -85,17 +85,20 @@ export function useMeasureDefinitions(
           // A refusal other than the modeled 409 is shown as what it is; the
           // table keeps working without measure columns.
           if (current)
-            setState({ projectId, reading: { kind: 'failed', sentence: refusalSentence(thrown) } });
+            setState({
+              workPackageId,
+              reading: { kind: 'failed', sentence: refusalSentence(thrown) },
+            });
         },
       );
     return () => {
       current = false;
     };
-  }, [commands, projectId, reachable]);
+  }, [commands, workPackageId, reachable]);
   // Proof: with this line removed, the same test read `{ kind: 'loading' }`.
   if (!reachable) return BEFORE_ACTIVATION;
-  // Proof: answering `state.reading` without this project check, `shows no
-  // project’s definitions against another, nor a late answer`
+  // Proof: answering `state.reading` without this work package check, `shows no
+  // work package’s definitions against another, nor a late answer`
   // (measure-panel.test.tsx) read p1's `ready` on the render after the switch.
-  return state.projectId === projectId ? state.reading : { kind: 'loading' };
+  return state.workPackageId === workPackageId ? state.reading : { kind: 'loading' };
 }

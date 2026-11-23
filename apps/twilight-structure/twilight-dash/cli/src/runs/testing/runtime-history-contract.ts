@@ -1,17 +1,17 @@
 import { rejects } from 'node:assert/strict';
 
 import {
-  canonicalRuntimeRequest,
+  encodeRuntimeRequestAtVersion,
   parseCanonicalRuntimeRequest,
   type RuntimeOperation,
-  type RuntimeScope,
+  type RuntimeScope1,
 } from '@wbs/contracts';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import type { ArtifactStore } from '../artifact-store';
 import { artifactDigest, ownerId } from '../record-codecs';
 import type { ArtifactRef } from '../records';
-import { digestRuntimeRequest } from '../runtime-codecs';
+import { digestRuntimeRequest, mapCurrentScope } from '../runtime-codecs';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeGuard, RuntimeIntent } from '../runtime-records';
 import { closeFixtures } from './close-fixtures';
@@ -19,7 +19,11 @@ import { createManifest, createRun, unwrapReply } from './fixtures';
 import type { HistoricalRunStore } from './predecessor-fixture';
 import type { StoreFixture } from './run-store-contract';
 
-export const runtimeScope: RuntimeScope = {
+/** Explicit generation1 fixture encoder for retained local histories; fresh current builders use the current encoder directly. */
+export function encodeHistoricalRequest(scope: RuntimeScope1, operation: unknown): string {
+  return encodeRuntimeRequestAtVersion(1, mapCurrentScope(scope), operation);
+}
+export const runtimeScope: RuntimeScope1 = {
   organizationId: 'organization',
   projectId: 'project',
   personId: 'person',
@@ -30,7 +34,7 @@ export function authorityRequest(
   expectedGeneration: number | null = null,
   scope = runtimeScope,
 ): string {
-  return canonicalRuntimeRequest(scope, {
+  return encodeHistoricalRequest(scope, {
     schemaVersion: 1,
     kind: 'authority',
     commandId,
@@ -407,7 +411,7 @@ export function runtimeHistoryContract(
       expect(
         await stores.runs.stageRuntimeRequest(
           stores.guard,
-          canonicalRuntimeRequest(runtimeScope, operation),
+          encodeHistoricalRequest(runtimeScope, operation),
         ),
       ).toEqual({ kind: 'refused', reason: 'state_conflict' });
       const write: RuntimeOperation = {
@@ -433,7 +437,7 @@ export function runtimeHistoryContract(
       expect(
         await stores.runs.stageRuntimeRequest(
           stores.guard,
-          canonicalRuntimeRequest(runtimeScope, write),
+          encodeHistoricalRequest(runtimeScope, write),
         ),
       ).toEqual({ kind: 'refused', reason: 'state_conflict' });
       expect(
@@ -553,7 +557,7 @@ export function dependentReceiptFixture() {
     },
   };
   if (operation.action.kind !== 'write') throw new Error('fixture write missing');
-  const canonicalRequest = canonicalRuntimeRequest(runtimeScope, operation);
+  const canonicalRequest = encodeHistoricalRequest(runtimeScope, operation);
   const intent: RuntimeIntent = {
     version: 1,
     commandId: operation.commandId,

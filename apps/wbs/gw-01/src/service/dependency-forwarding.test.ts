@@ -2,7 +2,7 @@ import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contract
 import { systemTimers } from '@wbs/runtime-portable';
 import { expect, test } from 'bun:test';
 
-import { projectAccessFor } from '../composition';
+import { workPackageAccessFor } from '../composition';
 import { requestBackend } from './backend-request';
 
 test('forward, resume and browser access forward only their connection selected semantics', async () => {
@@ -32,7 +32,7 @@ test('forward, resume and browser access forward only their connection selected 
         { clientId: 'ada', connectionId: 'socket', traceId: 'trace', dependencySemantics },
         (body) => body,
       );
-    const check = projectAccessFor(options)({
+    const check = workPackageAccessFor(options)({
       kind: 'cookie',
       forwarded: { accessCookie: 'credential', organizationCookie: null },
       dependencySemantics,

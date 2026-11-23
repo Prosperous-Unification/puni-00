@@ -16,13 +16,15 @@ test('emits four marker operations with a distinct markerId body argument', () =
     updateCalendarMarker,
     removeCalendarMarker,
   ]);
-  const collection = document.paths['/api/projects/{id}/calendar-markers'];
-  const addressed = document.paths['/api/projects/{id}/calendar-markers/{markerId}'];
-  expect(collection?.['get']?.operationId).toBe('getApiProjectsByIdCalendar-markers');
-  expect(collection?.['post']?.operationId).toBe('postApiProjectsByIdCalendar-markers');
-  expect(addressed?.['patch']?.operationId).toBe('patchApiProjectsByIdCalendar-markersByMarkerId');
+  const collection = document.paths['/api/work-packages/{id}/calendar-markers'];
+  const addressed = document.paths['/api/work-packages/{id}/calendar-markers/{markerId}'];
+  expect(collection?.['get']?.operationId).toBe('getApiWorkPackagesByIdCalendar-markers');
+  expect(collection?.['post']?.operationId).toBe('postApiWorkPackagesByIdCalendar-markers');
+  expect(addressed?.['patch']?.operationId).toBe(
+    'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+  );
   expect(addressed?.['delete']?.operationId).toBe(
-    'deleteApiProjectsByIdCalendar-markersByMarkerId',
+    'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
   );
   expect(collection?.['post']?.requestBody?.content['application/json']?.schema).toMatchObject({
     properties: {
@@ -54,7 +56,7 @@ test('PATCH describes optional writable fields and rejects undeclared immutable 
 test('responses require resolved colors and retain additive marker fields', async () => {
   const marker = {
     id: 'm',
-    projectId: 'p',
+    workPackageId: 'p',
     date: '2026-09-01',
     name: 'Name',
     color: '#5d6afe',

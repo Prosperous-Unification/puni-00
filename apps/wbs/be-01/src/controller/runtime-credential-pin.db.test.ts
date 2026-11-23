@@ -7,13 +7,15 @@ import type {
 import { AuthService } from '@wbs/core/module/authentication/authentication.feature';
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { addAgentPerson } from '../testing/machine-credential-fixture';
+import { addAgentPerson, grantCredential } from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const kind of ['machine', 'consent'] as const) {
   describe(`verified ${kind} runtime person pin`, () => {
     let harness: OrganizationHarness;
-    let projectId: string;
+    let workPackageId: string;
+    let stepId: string;
     let pinnedPersonId: string;
     let restorePrincipal: (() => void) | undefined;
 
@@ -22,31 +24,26 @@ for (const kind of ['machine', 'consent'] as const) {
       harness = OrganizationHarness.openComposed();
       await harness.register('ada');
       harness.organization('org-a');
-      harness.member('org-a', 'ada', 'admin');
+      harness.member('org-a', 'ada', 'admin', ['org-admin']);
       harness.bind('ada', 'org-a');
       harness.activate();
-      const created = await harness.call('ada', 'POST', '/api/projects', {
-        name: 'Runtime pins',
-      });
-      expect(created.status).toBe(200);
-      projectId = (created.body as { project: { id: string } }).project.id;
+      workPackageId = await createFixturePackage(harness, 'ada', 'Runtime pins');
       for (const personId of ['agent-a', 'agent-b'])
         addAgentPerson(harness.sqlite, personId, 'org-a', harness.userId('ada'));
-      // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
-      const first = harness.sqlite
-        .query<{ position: number }, [string]>(
-          'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
-        )
-        .get(projectId);
-      if (first === null) throw new Error('fixture default workflow steps missing');
-      expect(first.position).toBeGreaterThan(0);
+      const first = (await readFixturePackage(harness, 'ada', workPackageId)).steps.at(0);
+      if (first === undefined) throw new Error('fixture first step missing');
+      stepId = first.id;
       harness.sqlite.run(
-        "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Develop', 0, 'pin-dev')",
-        [projectId],
+        "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
+        [workPackageId],
       );
-      harness.sqlite.run(
-        "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
-        [projectId],
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        kind === 'machine' ? 'verified-machine' : 'verified-consent',
+        'project-contributor',
+        'organization',
+        'org-a',
       );
       pinnedPersonId = 'agent-a';
       // Verified-principal dependency seam only: the mounted routes, current admission,
@@ -99,7 +96,7 @@ for (const kind of ['machine', 'consent'] as const) {
       return harness.callWith(
         'verified-runtime-principal',
         method,
-        `/api/projects/${projectId}/${suffix}`,
+        `/api/work-packages/${workPackageId}/${suffix}`,
         body,
       );
     }
@@ -150,7 +147,7 @@ for (const kind of ['machine', 'consent'] as const) {
         action: {
           kind: 'claim',
           workItemId: 'leaf',
-          stepId: 'dev',
+          stepId,
           parentClaimId: null,
           execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
         },
@@ -175,7 +172,7 @@ for (const kind of ['machine', 'consent'] as const) {
         action: {
           kind: 'write',
           claim: receipt.acceptance.claim,
-          commands: [{ kind: 'setProgress', workItemId: 'leaf', stepId: 'dev', state: 'done' }],
+          commands: [{ kind: 'setProgress', workItemId: 'leaf', stepId, state: 'done' }],
         },
       };
       return { claimRequest, request };

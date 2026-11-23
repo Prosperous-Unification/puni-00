@@ -1,10 +1,13 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { digestMachineSecret } from '@wbs/core';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
 } from '../testing/machine-credential-fixture';
@@ -33,8 +36,9 @@ let logged: string[];
 /** Runs after each organization resolve, when a test arms it. */
 let onResolve: (() => void) | undefined;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let firstStepId: string;
+let fixtureAuditRow: number;
 let machineGrants: HarnessMachineGrants;
 
 beforeAll(async () => {
@@ -66,21 +70,43 @@ beforeEach(async () => {
   for (const username of ['dany', 'ada', 'mem', 'vic', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   for (const username of ['dany', 'ada', 'mem', 'vic']) h.bind(username, 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
+  const createdProject = await h.call('dany', 'POST', '/api/projects', { name: 'Pool project' });
+  if (createdProject.status !== 201)
+    throw new Error('pool fixture project refused: ' + JSON.stringify(createdProject));
+  const parent = h.sqlite
+    .query<{ id: string }, []>(
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Pool project'",
+    )
+    .get();
+  if (parent === null) throw new Error('pool fixture project is absent');
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', parent.id, {
+      by: h.userId('dany'),
+      at: now,
+    });
+    return { commit: true, value: undefined };
+  });
+  const created = await h.call('dany', 'POST', '/api/work-packages', {
+    name: 'Plan of A',
+    projectId: parent.id,
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
-  projectId = plan.project.id;
+  const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
+  workPackageId = plan.workPackage.id;
   const first = plan.steps.at(0);
-  if (first === undefined) throw new Error('pool fixture project has no first step');
+  if (first === undefined) throw new Error('pool fixture work package has no first step');
   firstStepId = first.id;
+  // Project and package creation have their own audit. All pool witnesses start here.
+  fixtureAuditRow = count('SELECT max(rowid) AS n FROM organization_audit');
 });
 
 afterEach(async () => {
@@ -115,9 +141,9 @@ async function createPool(
   return answer.body as KeysDocument;
 }
 
-function count(sql: string, ...params: string[]): number {
-  const row = h.sqlite.query<{ n: number }, string[]>(sql).get(...params);
-  if (row === null) throw new Error('count answered no row');
+function count(sql: string, ...params: (string | number)[]): number {
+  const row = h.sqlite.query<{ n: number }, (string | number)[]>(sql).get(...params);
+  if (row === null || !Number.isSafeInteger(row.n)) throw new Error('count answered no integer');
   return row.n;
 }
 
@@ -127,7 +153,8 @@ const agentPersons = () =>
   );
 const credentials = () => count('SELECT COUNT(*) AS n FROM machine_credential');
 const pools = () => count('SELECT COUNT(*) AS n FROM agent_pool');
-const auditCount = () => count('SELECT COUNT(*) AS n FROM organization_audit');
+const auditCount = () =>
+  count('SELECT COUNT(*) AS n FROM organization_audit WHERE rowid > ?', fixtureAuditRow);
 
 /**
  * The audit's rows, oldest first. Each agent call's grant writes its own
@@ -135,10 +162,10 @@ const auditCount = () => count('SELECT COUNT(*) AS n FROM organization_audit');
  */
 function auditRows(): { action: string; subject_kind: string; detail: string }[] {
   return h.sqlite
-    .query<{ action: string; subject_kind: string; detail: string }, []>(
-      'SELECT action, subject_kind, detail FROM organization_audit ORDER BY rowid',
+    .query<{ action: string; subject_kind: string; detail: string }, [number]>(
+      'SELECT action, subject_kind, detail FROM organization_audit WHERE rowid > ? ORDER BY rowid',
     )
-    .all();
+    .all(fixtureAuditRow);
 }
 
 /** The audit's actions, oldest first, without the agents' grant issuance. */
@@ -181,7 +208,7 @@ async function requestGrant(key: string): Promise<Answer> {
 }
 
 async function leafOf(name: string): Promise<string> {
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -189,7 +216,7 @@ async function leafOf(name: string): Promise<string> {
 }
 
 async function claimAs(agent: KeysDocument['agents'][number], leaf: string): Promise<void> {
-  const claimed = await asAgent(agent.key, 'POST', `/api/projects/${projectId}/commands`, {
+  const claimed = await asAgent(agent.key, 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'claimWorkItem', workItemId: leaf, personId: agent.personId, steps: [firstStepId] },
     ],
@@ -242,14 +269,22 @@ describe('creating a pool', () => {
     const first = doc.agents.at(0);
     const second = doc.agents.at(1);
     if (first === undefined || second === undefined) throw new Error('the pool has no agents');
-    expect(await asAgent(first.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(first.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
     expect(await asAgent(first.key, 'GET', '/api/organization/members')).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },
     });
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      first.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const leaf = await leafOf('Leaf');
     expect(
-      await asAgent(first.key, 'POST', `/api/projects/${projectId}/commands`, {
+      await asAgent(first.key, 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'claimWorkItem', workItemId: leaf, personId: second.personId }],
       }),
     ).toMatchObject({ status: 403, body: { error: 'credential_not_for_person' } });
@@ -334,9 +369,12 @@ describe('a refused creation', () => {
     for (const username of ['mem', 'vic'])
       expect(await h.call(username, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
-    expect(await h.call('mem', 'GET', PATH)).toEqual({ status: 403, body: { error: 'forbidden' } });
+    expect(await h.call('mem', 'GET', PATH)).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect([pools(), agentPersons(), credentials(), auditCount()]).toEqual([0, 0, 0, 0]);
   });
 
@@ -421,9 +459,9 @@ describe('re-keying a pool', () => {
     ).toBe(true);
     expect(agentPersons()).toBe(8);
     for (const agent of doc.agents)
-      expect(await asAgent(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(agent.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     for (const agent of fresh.agents)
-      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
     const actions = auditRows().map((row) => row.action);
     expect(actions.filter((action) => action === 'machine_credential_revoked')).toHaveLength(8);
     expect(actions.filter((action) => action === 'machine_credential_created')).toHaveLength(16);
@@ -443,6 +481,14 @@ describe('re-keying a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 1 });
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     expect((await h.call('dany', 'POST', `${PATH}/${doc.poolId}/rekey`, {})).status).toBe(201);
     const sweep = h.claimLeaseSweep();
@@ -464,7 +510,7 @@ describe('re-keying a pool', () => {
           h.userId('dany'),
         ],
       );
-    const answer = await h.call('dany', 'POST', `${PATH}/${doc.poolId}/rekey`, {});
+    const answer = await h.call('ada', 'POST', `${PATH}/${doc.poolId}/rekey`, {});
     expect(answer.status).toBe(201);
     const fresh = answer.body as KeysDocument;
     const grantsOf = (credentialId: string) =>
@@ -485,6 +531,30 @@ describe('re-keying a pool', () => {
         },
       ]);
     }
+
+    const grantAudits = readGrantAudits();
+    expect(grantAudits).toHaveLength(4);
+    expect(
+      grantAudits.every(
+        ({ actor_id, organization_id, origin, id, subject_id }) =>
+          actor_id === h.userId('ada') &&
+          organization_id === 'org-a' &&
+          origin === 'cascade' &&
+          id !== subject_id,
+      ),
+    ).toBe(true);
+    expect(
+      grantAudits
+        .filter(({ action }) => action === 'access_granted')
+        .map(({ grant_subject_id }) => grant_subject_id)
+        .sort(),
+    ).toEqual(fresh.agents.map(({ credentialId }) => credentialId).sort());
+    expect(
+      grantAudits
+        .filter(({ action }) => action === 'access_revoked')
+        .map(({ grant_subject_id }) => grant_subject_id)
+        .sort(),
+    ).toEqual(doc.agents.map(({ credentialId }) => credentialId).sort());
   });
 
   it('answers not_found for a revoked pool, another organization’s, and to an admin of B', async () => {
@@ -500,7 +570,7 @@ describe('re-keying a pool', () => {
     });
     expect(await h.call('mem', 'POST', `${PATH}/${doc.poolId}/rekey`, {})).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
   });
 });
@@ -510,8 +580,17 @@ describe('revoking a pool', () => {
   // claim survived the sweep here; watched 2026-10-28.
   it('revokes every key of the pool, ending their leases; claims go as credential revoked', async () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 3 });
-    for (const [index, agent] of doc.agents.entries())
+    for (const [index, agent] of doc.agents.entries()) {
+      grantCredential(
+        h.sqlite,
+        'org-a',
+        agent.credentialId,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       await claimAs(agent, await leafOf(`Leaf ${String(index)}`));
+    }
     const sweep = h.claimLeaseSweep();
     sweep.start();
     await sweep.settled();
@@ -524,10 +603,10 @@ describe('revoking a pool', () => {
     });
     await sweep.settled();
     expect(claims()).toBe(0);
-    const history = await h.call('dany', 'GET', `/api/projects/${projectId}/history`);
+    const history = await h.call('dany', 'GET', `/api/work-packages/${workPackageId}/history`);
     expect(JSON.stringify(history.body)).toContain('(credential revoked)');
     for (const agent of doc.agents) {
-      expect(await asAgent(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(agent.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
       expect(await requestGrant(agent.key)).toMatchObject({ status: 401 });
     }
     const actions = auditRows().map((row) => row.action);
@@ -554,6 +633,18 @@ describe('revoking a pool', () => {
     expect(credentialGrants()).toBe(2);
     expect(await h.call('dany', 'DELETE', `${PATH}/${doc.poolId}`)).toMatchObject({ status: 200 });
     expect(credentialGrants()).toBe(0);
+
+    const revokedAudits = readGrantAudits().filter(({ action }) => action === 'access_revoked');
+    expect(revokedAudits).toHaveLength(2);
+    expect(revokedAudits.map(({ grant_subject_id }) => grant_subject_id).sort()).toEqual(
+      doc.agents.map(({ credentialId }) => credentialId).sort(),
+    );
+    expect(
+      revokedAudits.every(
+        ({ actor_id, origin, id, subject_id }) =>
+          actor_id === h.userId('dany') && origin === 'cascade' && id !== subject_id,
+      ),
+    ).toBe(true);
   });
 
   // Proof: with the route's directory batch skipped, this answered
@@ -582,12 +673,24 @@ describe('revoking a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 1 });
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     expect(
       (await h.call('dany', 'DELETE', `${PATH}/${doc.poolId}?removePersons=true`)).body,
     ).toMatchObject({ removedPersons: 1 });
     expect(agentPersons()).toBe(0);
-    const history = await h.call('dany', 'GET', `/api/projects/${projectId}/claim-history`);
+    const history = await h.call(
+      'dany',
+      'GET',
+      `/api/work-packages/${workPackageId}/claim-history`,
+    );
     expect(history.status).toBe(200);
     const serialized = JSON.stringify(history.body);
     expect(serialized).toContain(`"personId":"${agent.personId}","name":null`);
@@ -627,10 +730,10 @@ describe('revoking a pool', () => {
     const doc = await createPool('dany', { name: 'swarm-a', size: 2 });
     expect(await h.call('mem', 'DELETE', `${PATH}/${doc.poolId}?removePersons=true`)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
     for (const agent of doc.agents)
-      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
     expect(agentPersons()).toBe(2);
   });
 });
@@ -641,10 +744,18 @@ describe('an expired pool', () => {
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
     expect(await requestGrant(agent.key)).toMatchObject({ status: 200 });
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      agent.credentialId,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     await claimAs(agent, await leafOf('Leaf'));
     now = T + 60 * 60_000;
     for (const each of doc.agents) {
-      expect(await asAgent(each.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(each.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
       expect(await requestGrant(each.key)).toEqual(UNKNOWN);
     }
     // The heartbeat is refused with the key, so the lease runs out on its own.
@@ -654,7 +765,7 @@ describe('an expired pool', () => {
     sweep.start();
     await sweep.settled();
     expect(claims()).toBe(0);
-    const history = await h.call('dany', 'GET', `/api/projects/${projectId}/history`);
+    const history = await h.call('dany', 'GET', `/api/work-packages/${workPackageId}/history`);
     expect(JSON.stringify(history.body)).toContain('(lease expired)');
   });
 });
@@ -690,7 +801,7 @@ describe('re-keying, the review fixes', () => {
     const fresh = renewed.body as KeysDocument;
     expect(fresh.expiresAt).toBe(now + 30 * DAY);
     for (const agent of fresh.agents)
-      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
   });
 
   it('re-keys an expired pool with a new expiry within 90 days, and refuses one past them', async () => {
@@ -730,3 +841,214 @@ describe('re-keying, the review fixes', () => {
     ).toBe(0);
   });
 });
+
+function readGrantAudits() {
+  return h.sqlite
+    .query<
+      {
+        id: string;
+        organization_id: string;
+        actor_id: string;
+        action: string;
+        subject_id: string;
+        grant_subject_id: string;
+        grant_subject_kind: string;
+        scope_kind: string;
+        scope_id: string;
+        role_id: string;
+        origin: string;
+      },
+      [number]
+    >(
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' AND rowid > ? ORDER BY rowid",
+    )
+    .all(fixtureAuditRow);
+}
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it('retains the pool route audit actor across resolution at ' + operation, async () => {
+    const doc = await createPool('dany', { name: 'retained-route', size: 1 });
+    const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolve = observer.getMockImplementation();
+    if (resolve === undefined) throw new Error('pool resolver lost its implementation');
+    observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+      const admitted = await resolve.call(this, principal);
+      Object.assign(principal, { id: h.userId('ada') });
+      return admitted;
+    });
+    try {
+      const answered = await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : ''),
+        operation === 'rekey' ? {} : undefined,
+      );
+      expect(answered.status).toBe(operation === 'rekey' ? 201 : 200);
+      const actions =
+        operation === 'rekey'
+          ? ['agent_pool_rekeyed', 'machine_credential_revoked', 'machine_credential_issued']
+          : ['agent_pool_revoked', 'machine_credential_revoked'];
+      const rows = h.sqlite
+        .query<{ actor_id: string }, [number]>(
+          'SELECT actor_id FROM organization_audit WHERE rowid > ? AND action IN (' +
+            actions.map((action) => "'" + action + "'").join(',') +
+            ')',
+        )
+        .all(0);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.actor_id === h.userId('dany'))).toBe(true);
+    } finally {
+      observer.mockRestore();
+    }
+  });
+}
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it(
+    'rolls pool ' +
+      operation +
+      ' and all access audit evidence back on a late lifecycle audit failure',
+    async () => {
+      const doc = await createPool('dany', { name: 'rollback-pool', size: 2 });
+      for (const agent of doc.agents)
+        grantCredential(
+          h.sqlite,
+          'org-a',
+          agent.credentialId,
+          'project-contributor',
+          'organization',
+          'org-a',
+        );
+      const snapshot = () =>
+        [
+          'agent_pool',
+          'machine_credential',
+          'machine_credential_secret',
+          'access_grant',
+          'organization_audit',
+          'person',
+          'claim',
+        ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+      const before = snapshot();
+      h.sqlite.run(
+        "CREATE TRIGGER fail_late_pool_audit BEFORE INSERT ON organization_audit WHEN NEW.action='agent_pool_" +
+          (operation === 'rekey' ? 'rekeyed' : 'revoked') +
+          "' BEGIN SELECT RAISE(ABORT,'late pool audit unavailable'); END",
+      );
+      const answered = await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : ''),
+        operation === 'rekey' ? {} : undefined,
+      );
+      expect(answered.status).toBe(500);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+}
+
+for (const substitution of ['authentication', 'delegation']) {
+  it(
+    'retains the original pool removal principal through directory cleanup: ' + substitution,
+    async () => {
+      const doc = await createPool('dany', { name: 'retained-cleanup', size: 1 });
+      const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+      const resolve = observer.getMockImplementation();
+      if (resolve === undefined) throw new Error('pool cleanup resolver lost implementation');
+      let calls = 0;
+      observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+        const admitted = await resolve.call(this, principal);
+        if (calls++ < 2) {
+          if (substitution === 'authentication')
+            Object.assign(principal, {
+              authentication: {
+                kind: 'machine',
+                credentialId: 'replacement',
+                personId: 'replacement',
+              },
+            });
+          else Object.assign(principal, { delegation: { organizationId: 'org-a' } });
+        }
+        return admitted;
+      });
+      try {
+        expect(
+          await h.call('dany', 'DELETE', PATH + '/' + doc.poolId + '?removePersons=true'),
+        ).toEqual({
+          status: 200,
+          body: { poolId: doc.poolId, revokedCredentials: 1, removedPersons: 1 },
+        });
+        expect(calls).toBeGreaterThan(1);
+        expect(
+          h.sqlite
+            .query('SELECT id FROM person WHERE id=?')
+            .get(doc.agents[0]?.personId ?? 'missing'),
+        ).toBeNull();
+      } finally {
+        observer.mockRestore();
+      }
+    },
+  );
+}
+
+it('preserves committed pool revocation when later person cleanup is CP14-blocked', async () => {
+  const doc = await createPool('dany', { name: 'cp14-two-owners', size: 2 });
+  onResolve = () => {
+    const revoked = h.sqlite
+      .query<{ n: number }, []>('SELECT count(*) AS n FROM agent_pool WHERE revoked_at IS NOT NULL')
+      .get();
+    if (revoked === null) throw new Error('pool CP14 fault count missing');
+    if (revoked.n !== 1) return;
+    onResolve = undefined;
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
+    );
+    h.grantPermissions('org-a', 'dany', ['organization.manage_directory']);
+  };
+  const answer = await h.call('dany', 'DELETE', PATH + '/' + doc.poolId + '?removePersons=true');
+  expect(answer).toEqual({
+    status: 409,
+    body: {
+      error: 'persons_not_removed',
+      poolId: doc.poolId,
+      revokedCredentials: 2,
+      cause: 'last_super_admin',
+    },
+  });
+  expect(agentPersons()).toBe(2);
+  expect(count('SELECT count(*) AS n FROM machine_credential WHERE revoked_at IS NOT NULL')).toBe(
+    2,
+  );
+  expect(count('SELECT count(*) AS n FROM agent_pool WHERE revoked_at IS NOT NULL')).toBe(1);
+  expect(auditRows().filter((row) => row.action === 'machine_credential_revoked')).toHaveLength(2);
+  expect(auditRows().filter((row) => row.action === 'agent_pool_revoked')).toHaveLength(1);
+});
+
+for (const operation of ['rekey', 'revoke'] as const) {
+  it('returns a named CP14 conflict before pool effects at ' + operation, async () => {
+    const doc = await createPool('dany', { name: 'cp14-first-owner', size: 1 });
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND role_id='org-super-admin'",
+    );
+    h.grantPermissions('org-a', 'dany', ['organization.manage_directory']);
+    const snapshot = () =>
+      [
+        'agent_pool',
+        'person',
+        'machine_credential',
+        'machine_credential_secret',
+        'organization_audit',
+        'event_log',
+      ].map((table) => h.sqlite.query('SELECT * FROM ' + table + ' ORDER BY rowid').all());
+    const before = snapshot();
+    expect(
+      await h.call(
+        'dany',
+        operation === 'rekey' ? 'POST' : 'DELETE',
+        PATH + '/' + doc.poolId + (operation === 'rekey' ? '/rekey' : '?removePersons=true'),
+        operation === 'rekey' ? {} : undefined,
+      ),
+    ).toEqual({ status: 409, body: { error: 'last_super_admin' } });
+    expect(snapshot()).toEqual(before);
+  });
+}

@@ -34,7 +34,7 @@ export interface ImportDirectory {
     actorId: string,
     name: string,
     access: ResourceAccess,
-  ): Promise<{ id: string; name: string } | null>;
+  ): Promise<DirectoryOutcome<{ id: string; name: string }>>;
 
   /** Reconciles a team's name and owned services within the admitted access. */
   patchTeamWithin(

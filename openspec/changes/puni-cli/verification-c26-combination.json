@@ -1,0 +1,283 @@
+{
+  "schemaVersion": 1,
+  "scope": "C26/resource-runtime combination without source edits",
+  "merge": "f105f53de05b7620988b4e4cf75b6efd7004b7e9",
+  "parents": [
+    "8d88c89112574b8f596f6b2f5f977716a39c98fe",
+    "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+  ],
+  "cliPaths": 18,
+  "wbsPaths": 23,
+  "sourceDrift": 0,
+  "inherited": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts",
+      "sha256": "c17cac6bd75af189fb9006d02cff475ba139f0b6abc4541a8b77c4749616f857",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "sha256": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts",
+      "sha256": "f6aefe61351cdc1ff290874d45964ccf03ed8fdf3a3ae612919d0b5304c6560d",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+      "sha256": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "openspec/changes/puni-cli/design.md",
+      "sha256": "38488b47b7a558e92d183b0f1c10c0efd59d830e5a974f3e47b08788e49c5946",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+      "sha256": "adf0279e1f68ef9aca53c70bf07cec1d6f3809464100e8663e210c0e812fe658",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "sha256": "18f7b5c72d5f87fb77f3fb3d396ec4cc50ed8ab2d99e376a438da00212482a0f",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "sha256": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "sha256": "3de801ea2b90da508f6dfd386dee39390e2c29356794c2e4b8092fe9ab950c25",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts",
+      "sha256": "dd15048ba40d8d36827712924143ce946e1c5c3155165962169aa22101958019",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "sha256": "4fa2f0d1e19accdfbdfcde377fd25723fd7452d1898af5d5a6fed7aaf4507671",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "sha256": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "sha256": "b679d0c0f319e213f20dc8b7126fe7a1c07dc54a00659dafdad2abd331701708",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "sha256": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+      "sha256": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "docs/adr/0083-deny-language-service-loaders-in-prepared-compilers.md",
+      "sha256": "9b92c5b45e3329005d5138785c852968b3c94dacb59f066d12ce4a3450320863",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "openspec/changes/puni-cli/verify.md",
+      "sha256": "572c224a883b24dcf929d4da9a5899292c8d502b69fecfb4fa1bb6473fac36ae",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "openspec/changes/puni-cli/verification-c26-relocation.json",
+      "sha256": "c9c1c380c558b4db6a55729a24fbb15a3d536e5ad53bb7484b0e3b1671c9e5b0",
+      "parent": "8d88c89112574b8f596f6b2f5f977716a39c98fe"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/command-permission.controller.db.test.ts",
+      "sha256": "3f9660c2ca27b409af62393a4182299f603e1a5dbb647e9348cdd8f614435263",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/host-job-use.controller.db.test.ts",
+      "sha256": "123a7cede041f3ca8241fa2659dbc84dacc9cbc2fbe049ecc057b89e4cf1cdc9",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/resource-use-authority.controller.db.test.ts",
+      "sha256": "04bf38104c73bad8e1e55fdc8b69b265528b4f9244669151e9d12c13952f2d32",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/resource-use-permission.controller.db.test.ts",
+      "sha256": "6398ebbf569bbb30b421624db68a750b7e53968675175b2ece39c88326fe0de9",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/resource-use.controller.db.test.ts",
+      "sha256": "98aeb8d5f4f6c4571d440f323303508e0a7760191e1b2cc160371bfd8f930245",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/runtime-write.db.test.ts",
+      "sha256": "af334557d8686f9085527f87c164b6f00ec64184d71eb5f4736b109b5ee137bb",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts",
+      "sha256": "6c0161185a82081970172509e93e5a54d6bea5074a38e1f55e03b9bcb5d83e2e",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/access-decisions.ts",
+      "sha256": "43d4f702910eca4b3c41fa234cf61bda0bc1e53e54636dcf39fb0051b5179e8f",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/organization-authorization.db.test.ts",
+      "sha256": "35e65f9edc94a9eed6c835b79167f07308086f31804e7a3eebece37544284c9a",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/resource-runtime.ts",
+      "sha256": "7c0525603c5f0a6f9088868dd7adb8abdcad535af2c3d41726930363a5a2c451",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/resource-use.ts",
+      "sha256": "fa77153f43187ef704d33d1ff84249063f1c933e274cdc1516a269cd53fb3fcd",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/resource-runtime.routes.ts",
+      "sha256": "46ddb9ea4e1d610349f9706423a27ad0f1ad3aba7584656f559c2eea36f5bfe5",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/application/core/src/http/resource-use.routes.ts",
+      "sha256": "ff93e2d6f59119421a6a0efaf17bed317e55101122a1075560ea4cd0ee9db565",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/application/core/src/ports/resource-runtime.ts",
+      "sha256": "ac627a1116719d8b6789dd8121e7e976e153e82f14310beeb7abc7c2a698cd98",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/application/core/src/ports/resource-uses.ts",
+      "sha256": "15b182dddf1df088a7e44a8b3520c60d75b68d6dd466653f434a3429defb26f6",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/domain/contracts/src/http/resource-runtime-shapes.ts",
+      "sha256": "ad2a944a1b03ae0d8f5c4ccb66e02d3cc8d89bfa427adab4b6d9113c7fc74196",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/domain/contracts/src/http/resource-use-shapes.ts",
+      "sha256": "00541047f93b78dfdce965aeea736efd869a89750a104ccacee73e99e515688f",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/domain/domain/src/access-role.test.ts",
+      "sha256": "b5ff3aa05e56b36cf366835489ed660510927e3f586cdbb8ca156737927faea8",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "libs/wbs/domain/domain/src/access-role.ts",
+      "sha256": "b76265d2f5724b654a18fdfb65297e353aa2123dacf361da235e662498262f66",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/design.md",
+      "sha256": "824a72ba21b9e61daddfaf07161ee503224e780a84cc673e922f82bac3494eee",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/specs/permissions/spec.md",
+      "sha256": "b713ff7055f9d71466ab54bdc1c2d928821388cd3088a74bf188190b142dde8f",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/verification-2.4b-resource-runtime.json",
+      "sha256": "f65c59a8419fd40dfadbf38b680923e9c45257613fbc2742988da7e9dcc96145",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    },
+    {
+      "path": "openspec/changes/wbs-permissions/verify.md",
+      "sha256": "fdb08ed5edafb96c2a9293a60ad90c1ee5bac2103cbb6368039023ba71b36492",
+      "parent": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d"
+    }
+  ],
+  "checks": [
+    {
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json",
+        "apps/wbs/be-01/tsconfig.json",
+        "apps/wbs/gw-01/tsconfig.json",
+        "apps/wbs/fe-01/tsconfig.json",
+        "apps/wbs/mcp-01/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c26-combination-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "apps/puni/cli/src/cli.test.ts",
+        "apps/puni/cli/src/cli-parser.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "apps/wbs/be-01/src/controller/resource-use-authority.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/resource-use-permission.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/resource-use.controller.db.test.ts",
+        "apps/wbs/be-01/src/controller/runtime-write.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/organization-authorization.db.test.ts",
+        "libs/wbs/domain/domain/src/access-role.test.ts",
+        "--timeout=300000"
+      ],
+      "exitCode": 0,
+      "seconds": 235.15284002200002,
+      "log": "/tmp/puni-c26-combination-tests.log",
+      "logSha256": "c47f88b60bdda3a3058b53ee50c03ae3fcc414842f5534b9b56644148d83a5be",
+      "merge": "f105f53de05b7620988b4e4cf75b6efd7004b7e9",
+      "inheritedPaths": 41,
+      "sourceDrift": 0
+    }
+  ],
+  "observed": {
+    "passed": 735,
+    "failed": 0,
+    "assertions": 5137,
+    "files": 11,
+    "duration": "235.07s"
+  },
+  "parentEvidence": {
+    "cli": "8d88c89112574b8f596f6b2f5f977716a39c98fe:415/0/1267;65canonical faults/130logs;Astra source/evidence/record clearance",
+    "wbs": "b7b98eb91128e09c9c0145e3d9c3038c43b7c06d:1626/0/8032 regression,175/0/13724 conformance;117canonical faults;Astra exact23 clearance",
+    "qualification": "Parent mutation and conformance proofs remain bounded inherited evidence; this merge adds no source faults and does not claim a repeat of parent full suites."
+  },
+  "remaining": "All-five-role current assets/entrypoint owner, public installed PUNI package/client surfaces/full Bun ports, original hierarchy/settings/spaces/step catalogue, exact-SHA host gate and rollout",
+  "wholeGoal": "active"
+}

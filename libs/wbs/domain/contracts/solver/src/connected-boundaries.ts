@@ -13,7 +13,7 @@ import type { SolverBoundary } from './wire-types';
 export class ConnectedBoundaryOverflow extends Error {}
 
 /**
- * Project every authoritative cross-project pair into a conservative integer
+ * Work package every authoritative cross-work-package pair into a conservative integer
  * start bound.
  *
  * Proof: changing the active incoming/outgoing SS ceil/floor, outgoing FS
@@ -29,7 +29,7 @@ export function buildConnectedSolverBoundaries(
   localSlices: readonly { readonly key: string; readonly durationUnits: number }[],
 ): readonly SolverBoundary[] {
   if (stage.input.order.kind !== 'connected') throw new Error('connected stage has local order');
-  const ownership = stage.input.order.projectIdByWorkItem;
+  const ownership = stage.input.order.workPackageIdByWorkItem;
   const groups = groupSlicesByLeaf(indexTree(stage.input.rows).leafIds, stage.input.slices);
   const localByKey = new Map(localSlices.map((slice) => [slice.key, slice]));
   const keyAndSlice = (leafId: string, at: number) => {
@@ -52,9 +52,10 @@ export function buildConnectedSolverBoundaries(
       throw new Error('resolved boundary has no owner');
     if (predecessorOwner === successorOwner) continue;
     if (edge.provenance !== 'authored')
-      throw new Error('cross-project boundary has no authored relationship');
-    if (predecessorOwner !== stage.projectId && successorOwner !== stage.projectId) continue;
-    const incoming = successorOwner === stage.projectId;
+      throw new Error('cross-work-package boundary has no authored relationship');
+    if (predecessorOwner !== stage.workPackageId && successorOwner !== stage.workPackageId)
+      continue;
+    const incoming = successorOwner === stage.workPackageId;
     const local = keyAndSlice(
       incoming ? edge.successor.leafId : edge.predecessor.leafId,
       incoming ? edge.successor.at : edge.predecessor.at,

@@ -13,7 +13,6 @@ import {
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { reserveSolverSlot } from '../repository/optimization-admission';
 import { releaseSolverSlot } from '../repository/optimization-drain';
@@ -21,8 +20,9 @@ import { allocateGeneration, readGeneration } from '../repository/optimization-g
 import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverQueue, solverSlot } from '../repository/schema';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '18+0.4.0';
 const BUDGET = 60_000;
 const INPUT: ScheduleInput = {
@@ -62,7 +62,8 @@ function prepared(): { path: string; db: ReturnType<typeof openDrizzle>; generat
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-restart-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'optimization-org', 'optimization-project');
   const raw = openDatabase(path);
   try {
     raw.run(
@@ -70,9 +71,9 @@ function prepared(): { path: string; db: ReturnType<typeof openDrizzle>; generat
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
-       VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+       VALUES ('p-1', 'Plan', 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
   } finally {
     raw.close();
@@ -89,7 +90,7 @@ function queued(
 ): void {
   expect(
     enqueueSolverRequest(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective,
@@ -222,7 +223,7 @@ describe('OptimizationCoordinator restart semantics', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective,
@@ -248,7 +249,9 @@ describe('OptimizationCoordinator restart semantics', () => {
 
     expect(calls).toEqual([]);
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
     expect(calls).toEqual([]);
     expect(readGeneration(db, 'p-1', CONTRACT)?.generation).toBe(generation);
@@ -256,7 +259,7 @@ describe('OptimizationCoordinator restart semantics', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         releaseSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective,
@@ -299,11 +302,11 @@ describe('OptimizationCoordinator restart semantics', () => {
     // Proof: discarding all prior-process queue entries leaves `calls` empty.
   });
 
-  it('discards generation, cancel-epoch, and project-toggle failures without spawning', async () => {
+  it('discards generation, cancel-epoch, and work-package-toggle failures without spawning', async () => {
     const mutations = [
-      `UPDATE optimization_generation SET generation = generation + 1 WHERE project_id = 'p-1'`,
-      `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1 WHERE project_id = 'p-1'`,
-      `UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'`,
+      `UPDATE optimization_generation SET generation = generation + 1 WHERE work_package_id = 'p-1'`,
+      `UPDATE optimization_generation SET cancel_epoch = cancel_epoch + 1 WHERE work_package_id = 'p-1'`,
+      `UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-1'`,
     ];
     for (const mutation of mutations) {
       const { path, db, generation } = prepared();

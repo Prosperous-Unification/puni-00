@@ -1,13 +1,14 @@
-import type { EstimateStore, StepStore, StoredEstimate, WorkItemStore } from '@wbs/core';
+import type { EstimateStore, StoredEstimate, WorkItemStore } from '@wbs/core';
 
-import { readTargetedSatelliteRows } from './targeted-satellite-rows';
-import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+import { readMemoryEstimatesIn } from './estimate-reads';
+import { type MemoryStepWriteContext, readMemoryStepWriteIn } from './step-write';
+import { listValueGroupPlacements } from './value-group-placement';
 
 /** An EstimateStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryEstimates(
   workItems: WorkItemStore,
+  context: MemoryStepWriteContext,
   table: MemoryEstimateTable = memoryEstimateTable(),
-  steps?: StepStore,
 ): EstimateStore {
   const { rows } = table;
   /**
@@ -16,42 +17,29 @@ export function inMemoryEstimates(
    */
 
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
-      return order(
-        rows.filter((row) => ids.has(row.workItemId)),
-        await steps?.listByProject(projectId),
+    async readTarget(workItemId, stepId) {
+      return await Promise.resolve(readMemoryStepWriteIn(context, workItemId, stepId));
+    },
+    async listByWorkPackage(workPackageId) {
+      return await Promise.resolve(readMemoryEstimatesIn(context, rows, workPackageId, null));
+    },
+    async listByWorkItems(workPackageId, workItemIds) {
+      return await Promise.resolve(
+        readMemoryEstimatesIn(context, rows, workPackageId, workItemIds),
       );
     },
-    async listByWorkItems(projectId, workItemIds) {
-      const targeted = await readTargetedSatelliteRows(
-        'estimate',
-        rows,
-        projectId,
-        workItemIds,
-        workItems,
-        steps,
-        (row) => {
-          for (const value of [row.optimistic, row.realistic, row.pessimistic]) {
-            if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-              throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid day value`);
-            }
-          }
-        },
-      );
-      return order(targeted.rows, targeted.steps);
-    },
-    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
-    set(toSet, _stamp) {
+    listPlacements: (workPackageId, ids) =>
+      listValueGroupPlacements(rows, workPackageId, ids, workItems),
+    async set(toSet, _stamp) {
+      const keptValue = structuredClone(toSet);
+      const decision = readMemoryStepWriteIn(context, keptValue.workItemId, keptValue.stepId);
+      // Proof: W_MEM removes this refusal; both post-unbind estimate owners return written.
+      if (decision.kind !== 'resolved') return await Promise.resolve(decision.kind);
       const kept = rows.filter(
-        (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
+        (row) => !(row.workItemId === keptValue.workItemId && row.stepId === keptValue.stepId),
       );
-      rows.splice(0, rows.length, ...kept, structuredClone(toSet));
-      // `'written'`, always: these fixtures enforce no references at all, so
-      // they cannot tell a step that has gone from one that never existed. That
-      // is the memory source lagging the SQLite one on a named method (D29),
-      // and slice 5 is where it goes on the allowlist or is tightened.
-      return Promise.resolve('written' as const);
+      rows.splice(0, rows.length, ...kept, keptValue);
+      return await Promise.resolve<'written'>('written');
     },
     remove(workItemId, stepId, _stamp) {
       const kept = rows.filter((row) => !(row.workItemId === workItemId && row.stepId === stepId));
@@ -66,20 +54,6 @@ export function inMemoryEstimates(
       return Promise.resolve();
     },
   };
-}
-
-function order(
-  rows: StoredEstimate[],
-  steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
-): StoredEstimate[] {
-  if (steps === undefined) return rows;
-  const position = new Map(steps.map((step) => [step.id, step.position]));
-  return [...rows].sort(
-    (left, right) =>
-      compareValueGroupIds(left.workItemId, right.workItemId) ||
-      (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
-      left.stepId.localeCompare(right.stepId),
-  );
 }
 
 export interface MemoryEstimateTable {

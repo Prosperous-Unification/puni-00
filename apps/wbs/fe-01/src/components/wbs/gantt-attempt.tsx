@@ -5,7 +5,7 @@ export function identifyAttemptMark(mark: GanttAttemptMark): string {
   return `attempt:${mark.nodeId}:${String(mark.attempt.attemptNumber)}`;
 }
 
-/** Original stored instants in the project zone; clamping never changes these facts. */
+/** Original stored instants in the work package zone; clamping never changes these facts. */
 export function AttemptCard({
   mark,
   timezone,

@@ -454,10 +454,8 @@ const jobTypeOption = () =>
     description: message`The job type, as the checkout's infra/jobs/catalogue.json at HEAD names it.`,
   });
 
-/** The admission and payload fields `ops job run` and `ops job calibrate` share (J7, J9). */
-const launchFields = (label: string, waitSeconds: number) => ({
-  config: poolConfig(),
-  type: jobTypeOption(),
+/** Queue admission options shared by foreground locks and catalogued job launchers. */
+const queueFields = (label: string, waitSeconds: number) => ({
   label: withDefault(
     option('--label', flagValue('NAME'), {
       description: message`The lane label status and refusals name, as HEAVY_LOCK_LABEL is; default ${label}.`,
@@ -479,6 +477,13 @@ const launchFields = (label: string, waitSeconds: number) => ({
     }),
     5,
   ),
+});
+
+/** Admission and payload fields shared by catalogued job launchers. */
+const launchFields = (label: string, waitSeconds: number) => ({
+  config: poolConfig(),
+  type: jobTypeOption(),
+  ...queueFields(label, waitSeconds),
   argv: multiple(
     argument(string({ metavar: 'COMMAND' }), {
       description: message`The payload, after --: its program, then arguments matching the type's argument profile.`,
@@ -547,16 +552,86 @@ const releaseNamespace = command(
   },
 );
 
+const lockNamespace = command(
+  'lock',
+  or(
+    command(
+      'hold-internal-v1',
+      object({
+        command: constant('ops'),
+        words: constant('lock hold-internal-v1'),
+        holdFile: operandOption('--hold-file', 'PATH', 'The owned full-identity hold token.'),
+        controllerPid: option(
+          '--controller-pid',
+          integer({ min: 1, max: 2147483647, metavar: 'PID' }),
+        ),
+        controllerBoot: operandOption(
+          '--controller-boot',
+          'BOOT',
+          'The selected controller boot identity.',
+        ),
+        controllerStart: operandOption(
+          '--controller-start',
+          'TICKS',
+          'The selected controller process start identity.',
+        ),
+        ...queueFields('dash durable holder', 0),
+      }),
+      { hidden: true, brief: message`Internal durable holder protocol version one.` },
+    ),
+    opsCommand('status', 'lock status', 'Observe the canonical host lock and queue.', {}),
+    opsCommand(
+      'run',
+      'lock run',
+      'Queue on the canonical host lock and run a foreground payload.',
+      {
+        ...queueFields('unlabeled', 0),
+        argv: multiple(argument(string({ metavar: 'COMMAND' })), { min: 1 }),
+      },
+    ),
+  ),
+);
+
+const payloadValues = multiple(argument(string({ metavar: 'COMMAND' })), { min: 1 });
+/** The private protocol requires its own explicit argv boundary before forwarding literal words. */
+const payloadArguments = {
+  ...payloadValues,
+  parse(context: Parameters<typeof payloadValues.parse>[0]) {
+    if (!context.optionsTerminated && context.buffer[0] !== '--')
+      return {
+        success: false as const,
+        consumed: 0,
+        error: message`Private payload requires -- before its executable.`,
+      };
+    return payloadValues.parse(context);
+  },
+};
+const gatedPayloadCommand = command(
+  'payload-internal-v1',
+  object({
+    command: constant('ops'),
+    words: constant('job payload-internal-v1'),
+    argv: map(payloadArguments, (values): readonly [string, ...string[]] => {
+      const [executable, ...operands] = values;
+      if (executable === '' || values.some((word) => word.includes('\0')))
+        throw new UsageRefusal('Private payload executable is missing or invalid.');
+      return [executable, ...operands];
+    }),
+  }),
+  { hidden: true, brief: message`Internal measured payload protocol version one.` },
+);
 /**
- * `ops` has one typed grammar for release operations, host jobs and the host pool. Release
- * dispatch remains independent of the heavier authority and host-job runtime.
+ * `ops` declares native lock, release, host-job and host-pool operations. Lock and release
+ * dispatch stay independent of the heavier authority and host-job runtime.
  */
 const opsNamespace = command(
   'ops',
   or(
+    lockNamespace,
     command(
       'job',
       or(
+        gatedPayloadCommand,
         opsCommand(
           'run',
           'job run',
@@ -747,6 +822,24 @@ export type DashCommand = InferValue<typeof dashParser>;
 /** The centrally parsed release request, handled before the authority graph is loaded. */
 export type ReleaseCommand = InferValue<typeof releaseNamespace>;
 
+/** Foreground/status and fixed private holder requests, dispatched without the host-pool graph. */
+export type LockCommand = InferValue<typeof lockNamespace>;
+
+/** Private measured-scope keeper, handled without loading host-pool or catalogue operations. */
+export type GatedPayloadCommand = InferValue<typeof gatedPayloadCommand>;
+export function isGatedPayloadCommand(command: DashCommand): command is GatedPayloadCommand {
+  return command.command === 'ops' && command.words === 'job payload-internal-v1';
+}
+
+export function isLockCommand(command: DashCommand): command is LockCommand {
+  return (
+    command.command === 'ops' &&
+    (command.words === 'lock status' ||
+      command.words === 'lock run' ||
+      command.words === 'lock hold-internal-v1')
+  );
+}
+
 /**
  * Select release operations from the parsed ops namespace without loading their handler.
  * Proof: broadening to every ops command failed `host status never follows release dispatch`.
@@ -907,7 +1000,7 @@ function refusalOf(args: readonly string[], errorText: string): string {
  * What a parsed command line states that no single option can refuse: the cross-option rules
  * the hand-written loops checked before any read. Undefined when the line is coherent.
  */
-function incoherenceOf(command: DashCommand): string | undefined {
+export function findIncoherence(command: DashCommand): string | undefined {
   if (isReleaseCommand(command)) {
     // Proof: replacing this condition with false ran an adapter in `production dev-fast cannot execute`.
     return command.profile === 'dev-fast' && command.environment !== 'development'
@@ -972,7 +1065,7 @@ export function readDashInvocation(
     if (cause instanceof Printed) return { kind: 'printed' };
     throw cause;
   }
-  const incoherence = incoherenceOf(parsed);
+  const incoherence = findIncoherence(parsed);
   if (incoherence !== undefined) {
     const path = commandPathOf(args);
     if (path === undefined) throw new Error(`parsed ${parsed.command} names no Dash command`);

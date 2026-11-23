@@ -4,18 +4,18 @@ import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Runtime' });
-  projectId = (created.body as { project: { id: string } }).project.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Runtime');
   h.sqlite.run("INSERT INTO person (id, name) VALUES ('person', 'Person')");
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('person', 'org-a', 'Person')",
@@ -28,13 +28,13 @@ test('mounts a real coherent runtime state and retained authority receipt', asyn
   const state = await h.call(
     'ada',
     'GET',
-    `/api/projects/${projectId}/runtime-state?personId=person`,
+    `/api/work-packages/${workPackageId}/runtime-state?personId=person`,
   );
   expect(state.status).toBe(200);
   expect(state.body).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     authority: { kind: 'uninitialized' },
-    scope: { organizationId: 'org-a', projectId, personId: 'person' },
+    scope: { organizationId: 'org-a', workPackageId, personId: 'person' },
     claims: [],
   });
 });
@@ -64,7 +64,7 @@ async function readState(): Promise<RuntimeState> {
   const answer = await h.call(
     'ada',
     'GET',
-    `/api/projects/${projectId}/runtime-state?personId=person`,
+    `/api/work-packages/${workPackageId}/runtime-state?personId=person`,
   );
   expect(answer.status).toBe(200);
   return answer.body as RuntimeState;
@@ -95,7 +95,7 @@ async function acquireAuthority() {
     expectedGeneration: null,
   };
   const accepted = await createClient().acquireRuntimeAuthority({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: request,
     headers: createHeaders(),
   });
@@ -109,21 +109,38 @@ async function acquireAuthority() {
 }
 async function createClaimRequest(): Promise<RuntimeClaimRequest & { personId: string }> {
   const { observation, grant } = await acquireAuthority();
-  // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
-  const first = h.sqlite
-    .query<{ position: number }, [string]>(
-      'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
-    )
-    .get(projectId);
-  if (first === null) throw new Error('fixture default workflow steps missing');
+  // Pin/cap/receipt fixtures require an unstarted first step before the work package's default Dev/QA.
+  const fixture = await readFixturePackage(h, 'ada', workPackageId);
+  const first = fixture.steps.at(0);
+  if (first === undefined) throw new Error('fixture default workflow steps missing');
   expect(first.position).toBeGreaterThan(0);
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    const bound = await stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'dev',
+        code: 'runtime-test',
+        name: 'Runtime test',
+        position: 0,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: 'runtime-test-binding',
+        scopeKind: 'project',
+        scopeId: fixture.workPackage.projectId,
+        workItemTypeId: null,
+        position: 0,
+      },
+      { at: 1, by: h.userId('ada') },
+    );
+    if (!bound.ok) throw new Error('fixture runtime step binding refused: ' + bound.reason);
+    return { commit: true, value: undefined };
+  });
+  expect((await readFixturePackage(h, 'ada', workPackageId)).steps.at(0)?.id).toBe('dev');
   h.sqlite.run(
-    "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Runtime test', 0, 'runtime-test')",
-    [projectId],
-  );
-  h.sqlite.run(
-    "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
-    [projectId],
+    "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
+    [workPackageId],
   );
   return {
     schemaVersion: 1,
@@ -154,7 +171,14 @@ test('validates full wire input before context projection and requires pins ever
     { ...request, expectedGeneration: Number.MAX_SAFE_INTEGER + 1 },
   ]) {
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, changed)).status,
+      (
+        await h.call(
+          'ada',
+          'POST',
+          `/api/work-packages/${workPackageId}/runtime-authority`,
+          changed,
+        )
+      ).status,
     ).toBe(400);
   }
   const valid = await createClaimRequestAfterAuthority(request.expectedLedgerId);
@@ -165,7 +189,8 @@ test('validates full wire input before context projection and requires pins ever
     { ...valid, action: { ...valid.action, extra: 1 } },
   ]) {
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-commands`, changed)).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-commands`, changed))
+        .status,
     ).toBe(400);
   }
   expect(
@@ -173,7 +198,7 @@ test('validates full wire input before context projection and requires pins ever
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${projectId}/runtime-commands/claim?personId=person`,
+        `/api/work-packages/${workPackageId}/runtime-commands/claim?personId=person`,
       )
     ).status,
   ).toBe(400);
@@ -182,7 +207,7 @@ test('validates full wire input before context projection and requires pins ever
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${projectId}/runtime-state?personId=person&expectedLedgerId=`,
+        `/api/work-packages/${workPackageId}/runtime-state?personId=person&expectedLedgerId=`,
       )
     ).status,
   ).toBe(400);
@@ -191,7 +216,7 @@ test('validates full wire input before context projection and requires pins ever
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${projectId}/runtime-state?personId=person&personId=person`,
+        `/api/work-packages/${workPackageId}/runtime-state?personId=person&personId=person`,
       )
     ).status,
   ).toBe(400);
@@ -213,39 +238,53 @@ async function createClaimRequestAfterAuthority(ledgerId: string) {
     },
   };
 }
-test('current role and person binding refuse before historical replay, and foreign projects match absence', async () => {
+test('current grant and person binding refuse before historical replay, and foreign work packages match absence', async () => {
   const { request, observation } = await acquireAuthority();
+  expect(
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation' AND (scope_kind='project' OR scope_kind='work_package')",
+      [h.userId('ada')],
+    ).changes,
+  ).toBe(2);
   h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
+  h.sqlite.run(
+    "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND scope_kind='organization' AND scope_id='org-a' AND subject_kind='user' AND subject_id=?",
+    [h.userId('ada')],
+  );
   expect(
-    await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, request),
-  ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-authority`, request),
+  ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.write' } });
   expect(
     (
       await h.call(
         'ada',
         'GET',
-        `/api/projects/${projectId}/runtime-commands/grant?personId=person&expectedLedgerId=${observation.ledgerId}`,
+        `/api/work-packages/${workPackageId}/runtime-commands/grant?personId=person&expectedLedgerId=${observation.ledgerId}`,
       )
     ).status,
   ).toBe(403);
   h.sqlite.run("UPDATE organization_membership SET role = 'member' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
+  h.sqlite.run(
+    "UPDATE access_grant SET role_id='project-contributor' WHERE organization_id='org-a' AND scope_kind='organization' AND scope_id='org-a' AND subject_kind='user' AND subject_id=?",
+    [h.userId('ada')],
+  );
   expect(
-    await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, request),
-  ).toEqual({ status: 403, body: { error: 'person_not_bound' } });
+    await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-authority`, request),
+  ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.claim_for_others' } });
   h.organization('org-b');
-  h.member('org-b', 'ada', 'admin');
+  h.member('org-b', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-b');
   const foreign = await h.call(
     'ada',
     'GET',
-    `/api/projects/${projectId}/runtime-state?personId=person`,
+    `/api/work-packages/${workPackageId}/runtime-state?personId=person`,
   );
   expect(foreign).toEqual(
-    await h.call('ada', 'GET', '/api/projects/absent/runtime-state?personId=person'),
+    await h.call('ada', 'GET', '/api/work-packages/absent/runtime-state?personId=person'),
   );
   expect(foreign.status).toBe(404);
 });
@@ -253,17 +292,16 @@ test('legacy runtime access refuses while ordinary APIs remain available', async
   await h.closeComposed();
   h = OrganizationHarness.openComposed();
   await h.register('ada');
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Legacy' });
-  projectId = (created.body as { project: { id: string } }).project.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Legacy');
   expect(
-    await h.call('ada', 'GET', `/api/projects/${projectId}/runtime-state?personId=person`),
+    await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/runtime-state?personId=person`),
   ).toEqual({ status: 403, body: { error: 'runtime_scope_unavailable' } });
-  expect((await h.call('ada', 'GET', '/api/projects')).status).toBe(200);
+  expect((await h.call('ada', 'GET', '/api/work-packages')).status).toBe(200);
 });
 test('commit then lose only reply, reopen and lookup or replay the exact immutable acceptance', async () => {
   const claim = await createClaimRequest();
   const claimed = await createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: claim,
     headers: createHeaders(),
   });
@@ -287,7 +325,7 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
     expect(response.status).toBe(200);
     committed = (await response.json()) as RuntimeReceipt;
     throw new TypeError('transport lost reply after committed application response');
-  }).applyRuntimeCommands({ params: { id: projectId }, body: write, headers: createHeaders() });
+  }).applyRuntimeCommands({ params: { id: workPackageId }, body: write, headers: createHeaders() });
   expect(lost.kind).toBe('failure');
   expect(committed?.acceptance.kind).toBe('write');
   const journal = readJournal();
@@ -322,6 +360,13 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
           if (source === undefined) throw new Error('source missing');
           const mounted = buildApp({
             ...options,
+            workPackageObservation: source.createWorkPackageObservation({
+              activeOrganizationOf: () =>
+                userBoundOrganizationOf((userId) =>
+                  Promise.resolve(userId === actorId ? 'org-a' : null),
+                ),
+              now: Date.now,
+            }),
             organizations: new SqliteOrganizationAccess(
               source.db,
               userBoundOrganizationOf((userId) =>
@@ -344,14 +389,14 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
       return app.handle(request);
     });
     const lookup = await recovered.lookupRuntimeReceipt({
-      params: { id: projectId, commandId: 'write' },
+      params: { id: workPackageId, commandId: 'write' },
       query: { personId: 'person', expectedLedgerId: write.expectedLedgerId },
       headers: credentials,
     });
     expect(lookup).toMatchObject({ kind: 'success', body: committed });
     expect(
       await recovered.applyRuntimeCommands({
-        params: { id: projectId },
+        params: { id: workPackageId },
         body: write,
         headers: credentials,
       }),
@@ -359,7 +404,7 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
     if (source === undefined) throw new Error('source missing');
     expect(source.db.all('SELECT * FROM command_journal ORDER BY id')).toEqual(journal);
     const latest = await recovered.readRuntimeState({
-      params: { id: projectId },
+      params: { id: workPackageId },
       query: { personId: 'person', expectedLedgerId: write.expectedLedgerId },
       headers: credentials,
     });
@@ -373,7 +418,7 @@ test('absence before fence is inconclusive and delayed old dispatch refuses afte
   const original = createClient();
   const absent = () =>
     original.lookupRuntimeReceipt({
-      params: { id: projectId, commandId: request.commandId },
+      params: { id: workPackageId, commandId: request.commandId },
       query: { personId: 'person', expectedLedgerId: request.expectedLedgerId },
       headers: createHeaders(),
     });
@@ -388,12 +433,16 @@ test('absence before fence is inconclusive and delayed old dispatch refuses afte
     entered.resolve(undefined);
     await held.promise;
     return h.app.handle(wire);
-  }).applyRuntimeCommands({ params: { id: projectId }, body: request, headers: createHeaders() });
+  }).applyRuntimeCommands({
+    params: { id: workPackageId },
+    body: request,
+    headers: createHeaders(),
+  });
   await entered.promise;
   try {
     expect(
       await original.acquireRuntimeAuthority({
-        params: { id: projectId },
+        params: { id: workPackageId },
         body: {
           schemaVersion: 1,
           commandId: 'takeover',
@@ -422,64 +471,31 @@ test('absence before fence is inconclusive and delayed old dispatch refuses afte
   expect(readJournal()).toEqual([]);
 });
 
-import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { reconstructRuntimeInstallation } from '../testing/runtime-installation-fixture';
 
-import { runMigrations } from '../repository/migrate';
-
-test('unused rollback and valid reinstall change the pin before replay or absence', async () => {
+test('explicit current-schema reconstruction changes the pin before replay or absence', async () => {
   const old = await readState();
-  const folder = new URL('../../drizzle', import.meta.url).pathname;
-  expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
-    '20261102120000_add_access_grants',
-    '20261101120000_add_host_job_projection',
-    '20261101100100_add_resource_directory_capacity',
-    '20261101100000_widen_organization_audit_directory_capacity',
-    '20261028100100_widen_organization_audit_agent_pools',
-    '20261028100000_add_agent_pool',
-    '20261026130000_widen_organization_audit_machine_tokens',
-    '20261026120000_add_command_journal_person',
-    '20261025130000_add_resource_runtime',
-    '20261025120000_add_resource_use',
-    '20261023170000_add_work_item_budget',
-    '20261023160000_add_measure_estimate',
-    '20261023150000_key_step_measure',
-    '20261023140000_add_measure',
-    '20261023100000_add_claim_lease',
-    '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_project_dependency_activation',
-    '20261022211000_add_external_dependencies',
-    '20261022210000_add_project_abbreviations',
-    '20261022140100_widen_organization_audit_compute_providers',
-    '20261022140000_add_resource_provider',
-    '20261022130100_widen_organization_audit_organization_limits',
-    '20261022130000_add_organization_limits',
-    '20261022121000_add_runtime_commands',
-    '20261022120000_scope_trusted_issuer_audience',
-    '20261022110100_check_machine_credential_id',
-    '20261022110000_widen_organization_audit_machine_credentials',
-    '20261022100000_add_machine_credential',
-  ]);
-  runMigrations(h.databasePath(), folder);
+  reconstructRuntimeInstallation(h.databasePath());
   const replacement = await readState();
   expect(replacement.ledgerId).not.toBe(old.ledgerId);
   const pinned = createClient();
   expect(
     await pinned.readRuntimeState({
-      params: { id: projectId },
+      params: { id: workPackageId },
       query: { personId: 'person', expectedLedgerId: old.ledgerId },
       headers: createHeaders(),
     }),
   ).toMatchObject({ kind: 'refusal', status: 409, body: { error: 'runtime_ledger_mismatch' } });
   expect(
     await pinned.lookupRuntimeReceipt({
-      params: { id: projectId, commandId: 'absent' },
+      params: { id: workPackageId, commandId: 'absent' },
       query: { personId: 'person', expectedLedgerId: old.ledgerId },
       headers: createHeaders(),
     }),
   ).toMatchObject({ kind: 'refusal', status: 409, body: { error: 'runtime_ledger_mismatch' } });
   expect(
     await pinned.acquireRuntimeAuthority({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: {
         schemaVersion: 1,
         commandId: 'never',
@@ -504,14 +520,19 @@ for (const fault of ['missing', 'corrupt'] as const) {
       );
       expect(
         await createClient().lookupRuntimeReceipt({
-          params: { id: projectId, commandId: 'never' },
+          params: { id: workPackageId, commandId: 'never' },
           query: { personId: 'person', expectedLedgerId: observation.ledgerId },
           headers: createHeaders(),
         }),
       ).toMatchObject({ kind: 'failure' });
       expect(
-        (await h.call('ada', 'GET', `/api/projects/${projectId}/runtime-state?personId=person`))
-          .status,
+        (
+          await h.call(
+            'ada',
+            'GET',
+            `/api/work-packages/${workPackageId}/runtime-state?personId=person`,
+          )
+        ).status,
       ).toBe(500);
       expect(errors).toHaveBeenCalledTimes(2);
     } finally {
@@ -527,7 +548,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
   );
   expect(
     (
-      await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [
           {
             kind: 'claimWorkItem',
@@ -541,7 +562,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
     ).status,
   ).toBe(200);
   const refused = await createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: { ...request, expectedBasis: (await readState()).basis },
     headers: createHeaders(),
   });
@@ -557,7 +578,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
   });
   expect(
     (
-      await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [
           { kind: 'releaseWorkItem', workItemId: 'leaf', personId: 'other', steps: ['dev'] },
         ],
@@ -571,7 +592,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
   if (resourceId === undefined) throw new Error('resource not created');
   expect(
     (
-      await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [
           { kind: 'setResourceCapacity', resourceId, units: 0 },
           { kind: 'setDemand', resourceId, workItemId: 'leaf', units: 1 },
@@ -581,7 +602,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
   ).toBe(200);
   expect(
     await createClient().applyRuntimeCommands({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: { ...request, expectedBasis: (await readState()).basis },
       headers: createHeaders(),
     }),
@@ -602,7 +623,7 @@ test('mounted runtime refusals preserve ordinary holder and resource details', a
 test('semantic parser refusals remain typed 400 and exact claimed writes include applied order', async () => {
   const request = await createClaimRequest();
   const claimed = await createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: request,
     headers: createHeaders(),
   });
@@ -626,7 +647,7 @@ test('semantic parser refusals remain typed 400 and exact claimed writes include
   };
   expect(
     await createClient().applyRuntimeCommands({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: write,
       headers: createHeaders(),
     }),
@@ -636,7 +657,7 @@ test('semantic parser refusals remain typed 400 and exact claimed writes include
     body: { error: 'externalRefs_entry_needs_a_systemId', at: 0, kind: 'patchWorkItem' },
   });
   const accepted = await createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: {
       ...write,
       action: {
@@ -674,30 +695,20 @@ test('semantic parser refusals remain typed 400 and exact claimed writes include
 
 test('fully reconstructed valid runtime tables never inherit an accepted command pin', async () => {
   const { request, observation } = await acquireAuthority();
-  for (const table of [
-    'runtime_command_receipt',
-    'runtime_claim_binding',
-    'runtime_authority',
-    'runtime_ledger',
-  ])
-    h.sqlite.run(`DROP TABLE ${table}`);
-  const installation = await Bun.file(
-    new URL('../../drizzle/20261022121000_add_runtime_commands/migration.sql', import.meta.url),
-  ).text();
-  for (const statement of installation.split('--> statement-breakpoint')) h.sqlite.run(statement);
+  reconstructRuntimeInstallation(h.databasePath());
   const replacement = await readState();
   expect(replacement.ledgerId).not.toBe(observation.ledgerId);
   expect(replacement.authority).toEqual({ kind: 'uninitialized' });
   expect(
     await createClient().lookupRuntimeReceipt({
-      params: { id: projectId, commandId: request.commandId },
+      params: { id: workPackageId, commandId: request.commandId },
       query: { personId: 'person', expectedLedgerId: request.expectedLedgerId },
       headers: createHeaders(),
     }),
   ).toMatchObject({ kind: 'refusal', status: 409, body: { error: 'runtime_ledger_mismatch' } });
   expect(
     await createClient().acquireRuntimeAuthority({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: request,
       headers: createHeaders(),
     }),
@@ -718,24 +729,28 @@ test('all four runtime routes enforce authentication before revealing scope or r
     expectedGeneration: null,
   };
   expect(
-    (await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-authority`, request)).status,
+    (await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-authority`, request))
+      .status,
   ).toBe(200);
   const anonymous = createClient();
   expect(
-    await anonymous.readRuntimeState({ params: { id: projectId }, query: { personId: 'person' } }),
+    await anonymous.readRuntimeState({
+      params: { id: workPackageId },
+      query: { personId: 'person' },
+    }),
   ).toMatchObject({ kind: 'refusal', status: 401, body: { error: 'unauthenticated' } });
   expect(
     await anonymous.lookupRuntimeReceipt({
-      params: { id: projectId, commandId: 'grant' },
+      params: { id: workPackageId, commandId: 'grant' },
       query: { personId: 'person', expectedLedgerId: observation.ledgerId },
     }),
   ).toMatchObject({ kind: 'refusal', status: 401 });
   expect(
-    await anonymous.acquireRuntimeAuthority({ params: { id: projectId }, body: request }),
+    await anonymous.acquireRuntimeAuthority({ params: { id: workPackageId }, body: request }),
   ).toMatchObject({ kind: 'refusal', status: 401 });
   expect(
     await anonymous.applyRuntimeCommands({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: {
         schemaVersion: 1,
         commandId: 'claim',
@@ -774,7 +789,8 @@ test('malformed trusted command refusal throws its producer diagnostic', async (
   );
   try {
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-commands`, request)).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-commands`, request))
+        .status,
     ).toBe(500);
     expect(JSON.stringify(errors.mock.calls)).toContain('invalid runtime command refusal producer');
   } finally {
@@ -785,7 +801,7 @@ test('malformed trusted command refusal throws its producer diagnostic', async (
 test('unregistered trusted parser refusal throws its producer diagnostic', async () => {
   const request = await createClaimRequest();
   const claimed = await createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: request,
     headers: createHeaders(),
   });
@@ -807,7 +823,8 @@ test('unregistered trusted parser refusal throws its producer diagnostic', async
       },
     };
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${projectId}/runtime-commands`, write)).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-commands`, write))
+        .status,
     ).toBe(500);
     expect(JSON.stringify(errors.mock.calls)).toContain('invalid runtime parser refusal');
   } finally {
@@ -818,7 +835,7 @@ test('unregistered trusted parser refusal throws its producer diagnostic', async
 
 test('receipt query rejects duplicate person and pin keys', async () => {
   const observation = await readState();
-  const base = `/api/projects/${projectId}/runtime-commands/absent?personId=person&expectedLedgerId=${observation.ledgerId}`;
+  const base = `/api/work-packages/${workPackageId}/runtime-commands/absent?personId=person&expectedLedgerId=${observation.ledgerId}`;
   for (const suffix of ['&personId=person', `&expectedLedgerId=${observation.ledgerId}`]) {
     expect(await h.call('ada', 'GET', base + suffix)).toEqual({
       status: 400,
@@ -833,7 +850,11 @@ test.each(['authority', 'claim', 'write'] as const)(
     if (kind === 'authority') {
       const { observation, request, receipt } = await acquireAuthority();
       const { personId: _personId, ...operation } = request;
-      expect(observation.scope).toEqual({ organizationId: 'org-a', projectId, personId: 'person' });
+      expect(observation.scope).toEqual({
+        organizationId: 'org-a',
+        workPackageId,
+        personId: 'person',
+      });
       expect(receipt.scope).toEqual(observation.scope);
       expect(receipt.actorId).toBe(h.userId('ada'));
       expect(receipt.requestDigest).toBe(
@@ -861,7 +882,11 @@ test.each(['authority', 'claim', 'write'] as const)(
     }
     const request = await createClaimRequest();
     const observation = await readState();
-    expect(observation.scope).toEqual({ organizationId: 'org-a', projectId, personId: 'person' });
+    expect(observation.scope).toEqual({
+      organizationId: 'org-a',
+      workPackageId,
+      personId: 'person',
+    });
     expect(request.action.execution).toEqual({
       storeId: 'store',
       runId: 'run',
@@ -869,7 +894,7 @@ test.each(['authority', 'claim', 'write'] as const)(
       sessionId: 'session',
     });
     const claimed = await createClient().applyRuntimeCommands({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: request,
       headers: createHeaders(),
     });
@@ -921,7 +946,7 @@ test.each(['authority', 'claim', 'write'] as const)(
       },
     };
     const accepted = await createClient().applyRuntimeCommands({
-      params: { id: projectId },
+      params: { id: workPackageId },
       body: write,
       headers: createHeaders(),
     });

@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { expect, it } from 'bun:test';
 
 import { openDatabase } from './repository/db';
-import { runMigrations } from './repository/migrate';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 
 it('replays committed capacity fanout after killing its writer before push', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'capacity-crash-'));
   const databasePath = join(directory, 'capacity.sqlite');
-  runMigrations(databasePath, new URL('../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(databasePath);
   const sqlite = openDatabase(databasePath);
   const children: ReturnType<typeof Bun.spawn>[] = [];
   const launch = (role: string) => {
@@ -69,7 +69,7 @@ it('replays committed capacity fanout after killing its writer before push', asy
     });
     const durable = sqlite
       .query<{ seq: number; message: string }, []>(
-        "SELECT seq, message FROM event_log WHERE subscription = 'project:B' ORDER BY seq",
+        "SELECT seq, message FROM event_log WHERE subscription = 'work-package:B' ORDER BY seq",
       )
       .all();
     // Proof: skipping recipient recording or the installed live-plan binding lost B;
@@ -77,7 +77,10 @@ it('replays committed capacity fanout after killing its writer before push', asy
     expect(
       durable.map(({ seq, message }) => ({ seq, message: JSON.parse(message) as unknown })),
     ).toEqual([
-      { seq: 0, message: { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } },
+      {
+        seq: 0,
+        message: { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
+      },
     ]);
     writer.kill('SIGKILL');
     await writer.exited;
@@ -100,24 +103,27 @@ it('replays committed capacity fanout after killing its writer before push', asy
       pid: reader.pid,
       emptyBuffer: true,
       resume: {
-        'project:B': {
+        'work-package:B': {
           status: 'replaying',
           events: [
-            { seq: 0, message: { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } },
+            {
+              seq: 0,
+              message: { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
+            },
           ],
         },
       },
-      repeated: { 'project:B': { status: 'replaying', events: [] } },
+      repeated: { 'work-package:B': { status: 'replaying', events: [] } },
       slice: {
         start: 3,
         end: 4,
         personId: 'ana',
         boundBy: 'elsewhere',
-        elsewhereHolder: { projectId: 'A', workItemId: 'A' },
+        elsewhereHolder: { workPackageId: 'A', workItemId: 'A' },
       },
       waitingElsewhere: 1,
-      foreign: { 'project:B': { status: 'denied', reason: 'forbidden' } },
-      removed: { 'project:B': { status: 'denied', reason: 'forbidden' } },
+      foreign: { 'work-package:B': { status: 'denied', reason: 'forbidden' } },
+      removed: { 'work-package:B': { status: 'denied', reason: 'forbidden' } },
       unchanged: true,
     });
   } finally {

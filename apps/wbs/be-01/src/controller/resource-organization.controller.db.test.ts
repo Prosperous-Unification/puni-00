@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage, readProjectIds } from '../testing/space-rollup';
 
 /**
  * Resources (`wbs-resources` slice 1) under organization isolation, over real
  * SQLite units of work and the production organization access; see
  * {@link OrganizationHarness.openComposed}.
  * Directory writes go through `POST /api/directory/commands`, plan writes
- * through `POST /api/projects/:id/commands`, the read through
- * `GET /api/projects/:id/resources`.
+ * through `POST /api/work-packages/:id/commands`, the read through
+ * `GET /api/work-packages/:id/resources`.
  */
 let h: OrganizationHarness;
 let own: string;
@@ -20,19 +21,19 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell', 'sue']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-a', 'sue', 'admin');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-a', 'sue', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('sue', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   h.sqlite.run(
-    "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Build')",
+    "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Build')",
     [own],
   );
 });
@@ -40,12 +41,6 @@ beforeEach(async () => {
 afterEach(() => {
   h.close();
 });
-
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
-}
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
 async function declare(username: string, name: string): Promise<string> {
@@ -79,7 +74,7 @@ describe('resources in an organization', () => {
       status: 409,
       body: { at: 0, kind: 'createResource', error: 'taken', name: 'h2puni ram' },
     });
-    const read = await h.call('vic', 'GET', `/api/projects/${own}/resources`);
+    const read = await h.call('vic', 'GET', `/api/work-packages/${own}/resources`);
     expect(read).toEqual({
       status: 200,
       body: {
@@ -105,14 +100,14 @@ describe('resources in an organization', () => {
     const ram = await declare('ada', 'h2puni ram');
     await declare('grace', 'b ram');
     expect(
-      await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
         commands: [
           { kind: 'setResourceCapacity', resourceId: ram, units: 32 },
           { kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 },
         ],
       }),
     ).toMatchObject({ status: 200 });
-    expect(await h.call('ada', 'GET', `/api/projects/${own}/resources`)).toEqual({
+    expect(await h.call('ada', 'GET', `/api/work-packages/${own}/resources`)).toEqual({
       status: 200,
       body: {
         resources: [
@@ -145,7 +140,9 @@ describe('resources in an organization', () => {
         { kind: 'setResourceCapacity', resourceId, units: null },
       ])
         expect(
-          await h.call('ada', 'POST', `/api/projects/${own}/commands`, { commands: [command] }),
+          await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
+            commands: [command],
+          }),
         ).toEqual({
           status: 404,
           body: { at: 0, kind: command.kind, error: 'unknown_resource' },
@@ -178,7 +175,7 @@ describe('resources in an organization', () => {
       throw new Error(`the person was refused: ${JSON.stringify(person)}`);
     for (const resourceId of [theirs, 'no-such-resource'])
       expect(
-        await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
           commands: [
             {
               kind: 'claimWorkItem',
@@ -197,7 +194,7 @@ describe('resources in an organization', () => {
 
   it('refuses removing a demanded resource with the counts, and cascades on confirmation', async () => {
     const ram = await declare('ada', 'h2puni ram');
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
     });
     const refused = await h.call('sue', 'POST', '/api/directory/commands', {
@@ -210,7 +207,7 @@ describe('resources in an organization', () => {
         counts: { demands: 1, capacities: 0, occupancies: 0 },
         usage: {
           members: [],
-          projects: [
+          workPackages: [
             {
               id: own,
               workItems: [{ id: 'w-a', effects: [{ kind: 'demand_removed', units: 4 }] }],
@@ -224,7 +221,7 @@ describe('resources in an organization', () => {
         commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
       }),
     ).toMatchObject({ status: 200 });
-    expect(await h.call('ada', 'GET', `/api/projects/${own}/resources`)).toEqual({
+    expect(await h.call('ada', 'GET', `/api/work-packages/${own}/resources`)).toEqual({
       status: 200,
       body: { resources: [], capacities: [], demands: [] },
     });
@@ -233,23 +230,27 @@ describe('resources in an organization', () => {
   it('refuses a member removing a resource on either route, an admin and a super-admin allowed', async () => {
     const ram = await declare('ada', 'h2puni ram');
     const staging = await declare('ada', 'staging');
-    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [{ kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 }],
     });
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id = 'project-contributor' WHERE subject_id = ? AND role_id = 'org-admin'",
+      [h.userId('ada')],
+    );
     const demands = () =>
       h.sqlite.query('SELECT count(*) AS n FROM work_item_resource_demand').get();
-    for (const path of ['/api/directory/commands', `/api/projects/${own}/commands`])
+    for (const path of ['/api/directory/commands', `/api/work-packages/${own}/commands`])
       for (const command of [
         { kind: 'deleteResource', resourceId: ram, cascade: true },
         { kind: 'deleteResource', resourceId: ram },
       ]) {
-        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toEqual({
+        expect(await h.call('ada', 'POST', path, { commands: [command] }), path).toMatchObject({
           status: 403,
-          body: { at: 0, kind: 'deleteResource', error: 'forbidden' },
+          body: { error: 'forbidden', permission: 'organization.manage_directory' },
         });
-        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toEqual({
+        expect(await h.call('vic', 'POST', path, { commands: [command] }), path).toMatchObject({
           status: 403,
-          body: { error: 'forbidden' },
+          body: { error: 'forbidden', permission: 'organization.manage_directory' },
         });
       }
     expect(demands()).toEqual({ n: 1 });
@@ -264,13 +265,19 @@ describe('resources in an organization', () => {
         await h.call('ada', 'POST', '/api/directory/commands', {
           commands: [{ kind: 'deleteResource', resourceId }],
         }),
-      ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
-    // Creating and editing stay open to a member.
+      ).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
+      });
+    // P7 narrows directory creation and editing to manage_directory.
     expect(
       await h.call('ada', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: ram, patch: { unitLabel: 'TB' } }],
       }),
-    ).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await h.call('sue', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'deleteResource', resourceId: ram, cascade: true }],
@@ -282,14 +289,14 @@ describe('resources in an organization', () => {
       [h.userId('sue')],
     );
     expect(
-      await h.call('sue', 'POST', `/api/projects/${own}/commands`, {
+      await h.call('sue', 'POST', `/api/work-packages/${own}/commands`, {
         commands: [{ kind: 'deleteResource', resourceId: staging }],
       }),
     ).toMatchObject({ status: 200 });
     expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 1 }); // grace's, in org-b
   });
 
-  /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */
+  /** Every top-level key of a version 15 document but `optimization`, the same in both modes. */
   const EXPORT_KEYS = [
     'assignedPeople',
     'budgets',
@@ -307,7 +314,6 @@ describe('resources in an organization', () => {
     'pertWeights',
     'priorityBands',
     'project',
-    'projectRevision',
     'resourceCapacities',
     'scheduleError',
     'seq',
@@ -322,6 +328,8 @@ describe('resources in an organization', () => {
     'waitingForCapacity',
     'waitingForPerson',
     'workItems',
+    'workPackage',
+    'workPackageRevision',
   ];
 
   // Both export paths: an isolated organization's direct read, and a shared one's
@@ -335,17 +343,17 @@ describe('resources in an organization', () => {
         h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       const ram = await declare('ada', 'h2puni ram');
       await declare('ada', 'unused');
-      await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
         commands: [
           { kind: 'setResourceCapacity', resourceId: ram, units: 32 },
           { kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 },
         ],
       });
-      const exported = await h.call('ada', 'GET', `/api/projects/${own}/export?format=json`);
+      const exported = await h.call('ada', 'GET', `/api/work-packages/${own}/export?format=json`);
       expect(exported).toMatchObject({
         status: 200,
         body: {
-          document: { version: 11 },
+          document: { version: 15 },
           directory: {
             resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
           },
@@ -365,10 +373,13 @@ describe('resources in an organization', () => {
           .filter((key) => key !== 'optimization')
           .sort(),
       ).toEqual(EXPORT_KEYS);
-      const imported = await h.call('ada', 'POST', '/api/projects/import', exported.body);
+      const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
+        projectId: readProjectIds(h, own),
+        document: exported.body,
+      });
       expect(imported.status).toBe(201);
-      const { projectId } = imported.body as { projectId: string };
-      const read = await h.call('ada', 'GET', `/api/projects/${projectId}/resources`);
+      const { workPackageId } = imported.body as { workPackageId: string };
+      const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/resources`);
       expect(read).toMatchObject({
         status: 200,
         body: {
@@ -384,17 +395,14 @@ describe('resources in an organization', () => {
   );
 
   it('names the organization’s resource in a refused undo’s detail', async () => {
-    h.member('org-a', 'nell', 'member');
+    h.member('org-a', 'nell', 'member', ['project-contributor']);
     h.bind('nell', 'org-a');
     const ram = await declare('ada', 'h2puni ram');
-    const firstStep = h.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
-      )
-      .get(own);
-    if (firstStep === null) throw new Error('resource occupancy project has no first step');
+    const firstStep = (await readFixturePackage(h, 'ada', own)).steps.at(0);
+    if (firstStep === undefined)
+      throw new Error('resource occupancy work package has no first step');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 1, 'Test')",
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 1, 'Test')",
       [own],
     );
     for (const [id, username] of [
@@ -413,7 +421,7 @@ describe('resources in an organization', () => {
       );
     }
     const batch = (username: string, commands: unknown[]) =>
-      h.call(username, 'POST', `/api/projects/${own}/commands`, { commands });
+      h.call(username, 'POST', `/api/work-packages/${own}/commands`, { commands });
     expect(
       await batch('ada', [
         { kind: 'setResourceCapacity', resourceId: ram, units: 4 },
@@ -431,7 +439,7 @@ describe('resources in an organization', () => {
         { kind: 'claimWorkItem', workItemId: 'w-b', personId: 'agent-n', steps: [firstStep.id] },
       ]),
     ).toMatchObject({ status: 200 });
-    const undone = await h.call('ada', 'POST', `/api/projects/${own}/undo`);
+    const undone = await h.call('ada', 'POST', `/api/work-packages/${own}/undo`);
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     const { detail } = undone.body as { detail: string };
     expect(detail).toBe('resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.');
@@ -439,15 +447,15 @@ describe('resources in an organization', () => {
   });
 
   it('refuses an unbound session and a stranger alike', async () => {
-    expect(await h.call('ada', 'GET', `/api/projects/${foreign}/resources`)).toEqual({
+    expect(await h.call('ada', 'GET', `/api/work-packages/${foreign}/resources`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
     });
-    expect(await h.call('grace', 'GET', `/api/projects/${own}/resources`)).toEqual({
+    expect(await h.call('grace', 'GET', `/api/work-packages/${own}/resources`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
     });
-    expect(await h.call('nell', 'GET', `/api/projects/${own}/resources`)).toEqual({
+    expect(await h.call('nell', 'GET', `/api/work-packages/${own}/resources`)).toEqual({
       status: 403,
       body: { error: 'no_active_organization' },
     });

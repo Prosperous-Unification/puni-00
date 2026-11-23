@@ -6,28 +6,29 @@ import {
   JOURNAL_DEPTH,
   type NewJournalEntry,
   type PlanEvent,
-  type Project,
   type UndoStack,
+  type WorkPackage,
   type WriteStamp,
 } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CommandJournalRepository } from './command-journal';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
-import { ProjectRepository } from './project';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 /** The account's own stack on `p1`, with no agent person acting. */
-const OWNER_STACK: UndoStack = { projectId: 'p1', userId: 'owner', personId: null };
+const OWNER_STACK: UndoStack = { workPackageId: 'p1', userId: 'owner', personId: null };
 /** The stack of `codex`, an agent person acting as the `owner` account. */
-const CODEX_STACK: UndoStack = { projectId: 'p1', userId: 'owner', personId: 'codex' };
+const CODEX_STACK: UndoStack = { workPackageId: 'p1', userId: 'owner', personId: 'codex' };
 
 /** The stamp the setup's writes carry; `owner` is the account it creates first. */
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -44,18 +45,19 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 describe('appending a command', () => {
   let dir: string;
   let sqlite: Database;
+  let closeSqlite: (() => void) | undefined;
   let journal: CommandJournalRepository;
   let events: PlanEventRepository;
 
-  const project = (id: string): Project =>
-    projectRow({
+  const workPackage = (id: string): WorkPackage =>
+    workPackageRow({
       id,
-      ownerId: 'owner',
+      projectId: 'fixture-project',
     });
 
   const entry = (id: string, at: number): NewJournalEntry => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     userId: 'owner',
     personId: null,
     kind: 'estimate',
@@ -67,7 +69,7 @@ describe('appending a command', () => {
 
   const event = (id: string, at: number, over: Partial<PlanEvent> = {}): PlanEvent => ({
     id: `e-${id}`,
-    projectId: 'p1',
+    workPackageId: 'p1',
     userId: 'owner',
     kind: 'estimate',
     label: `estimate ${id}`,
@@ -82,28 +84,32 @@ describe('appending a command', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-journal-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    closeSqlite = undefined;
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
+    closeSqlite = sqlite.close.bind(sqlite, true);
     journal = new CommandJournalRepository(db, OPEN);
     events = new PlanEventRepository(db, OPEN);
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(project('p1'), [], wrote);
+    await new WorkPackageRepository(db, OPEN).create(workPackage('p1'), [], wrote);
   });
 
   afterEach(() => {
-    sqlite.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeSqlite?.();
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('writes the undo entry and the history row in one transaction', async () => {
     await journal.append(entry('j1', 1_000), event('j1', 1_000));
 
     expect(
-      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+      (await journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null })).map(
         (each) => each.id,
       ),
     ).toEqual(['j1']);
@@ -112,8 +118,8 @@ describe('appending a command', () => {
 
   it('writes neither when the history row is refused', async () => {
     // The whole reason the history is a second argument rather than a second
-    // call. A `plan_event` this database refuses — an unknown project, which is a
-    // project deleted between the mutation and the record — must take the journal
+    // call. A `plan_event` this database refuses — an unknown work package, which is a
+    // work package deleted between the mutation and the record — must take the journal
     // entry with it, because a plan holding an undo key for a change absent from
     // its history is a history that is quietly short.
     //
@@ -124,15 +130,15 @@ describe('appending a command', () => {
     sqlite.run('PRAGMA foreign_keys = ON');
     const refused = journal.append(
       entry('j1', 1_000),
-      event('j1', 1_000, { projectId: 'gone-since' }),
+      event('j1', 1_000, { workPackageId: 'gone-since' }),
     );
 
     expect(refused).rejects.toThrow();
     await refused.catch(() => undefined);
 
-    expect(await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).toEqual(
-      [],
-    );
+    expect(
+      await journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null }),
+    ).toEqual([]);
     expect(await events.listFor('p1', {})).toEqual([]);
   });
 
@@ -151,7 +157,7 @@ describe('appending a command', () => {
     }
 
     expect(
-      await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+      await journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null }),
     ).toHaveLength(JOURNAL_DEPTH);
     expect(await events.listFor('p1', {})).toHaveLength(JOURNAL_DEPTH + 10);
     // Including the very first, which left the stack ten commands ago.
@@ -167,7 +173,7 @@ describe('appending a command', () => {
     await journal.append(entry('the-new-one', 2_000), event('the-new-one', 2_000));
 
     expect(
-      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+      (await journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null })).map(
         (each) => each.id,
       ),
     ).toEqual(['the-new-one']);
@@ -177,8 +183,8 @@ describe('appending a command', () => {
     ]);
   });
 
-  it('records one project’s history whoever ran the command', async () => {
-    // Per project, not per (project, account): two people editing one plan produce
+  it('records one work package’s history whoever ran the command', async () => {
+    // Per work package, not per (work package, account): two people editing one plan produce
     // two disjoint stacks and **one** history, which is the difference R5 asks for.
     await new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN).create(
       { id: 'someone-else', username: 'someone-else', passwordHash: 'x', createdAt: 1 },
@@ -191,14 +197,14 @@ describe('appending a command', () => {
     );
 
     expect(
-      (await journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })).map(
+      (await journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null })).map(
         (each) => each.id,
       ),
     ).toEqual(['mine']);
     expect(
-      (await journal.entriesFor({ projectId: 'p1', userId: 'someone-else', personId: null })).map(
-        (each) => each.id,
-      ),
+      (
+        await journal.entriesFor({ workPackageId: 'p1', userId: 'someone-else', personId: null })
+      ).map((each) => each.id),
     ).toEqual(['theirs']);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['e-theirs', 'e-mine']);
   });
@@ -215,8 +221,8 @@ describe('appending a command', () => {
     it('puts an entry the outgoing colour wrote on the account’s own stack', async () => {
       await journal.append({ ...entry('agent', 1_000), personId: 'codex' }, event('agent', 1_000));
       sqlite.run(
-        `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
-         VALUES ('outgoing', 'p1', 'owner', (SELECT coalesce(max(seq), 0) + 1 FROM command_journal WHERE project_id = 'p1' AND user_id = 'owner'), 'estimate', '{}', '{}', '{}', 0, 2000)`,
+        `INSERT INTO command_journal (id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+         VALUES ('outgoing', 'p1', 'owner', (SELECT coalesce(max(seq), 0) + 1 FROM command_journal WHERE work_package_id = 'p1' AND user_id = 'owner'), 'estimate', '{}', '{}', '{}', 0, 2000)`,
       );
 
       expect((await journal.entriesFor(OWNER_STACK)).map((each) => [each.id, each.seq])).toEqual([
@@ -227,14 +233,14 @@ describe('appending a command', () => {
       ]);
       const outgoingUndo = sqlite
         .query<{ id: string }, []>(
-          "SELECT id FROM command_journal WHERE project_id = 'p1' AND user_id = 'owner' AND undone = 0 ORDER BY seq",
+          "SELECT id FROM command_journal WHERE work_package_id = 'p1' AND user_id = 'owner' AND undone = 0 ORDER BY seq",
         )
         .all();
       expect(outgoingUndo.map(({ id }) => id)).toEqual(['agent', 'outgoing']);
     });
 
     // The outgoing colour's own append, verbatim in shape: it clears the redo
-    // branch and prunes by (project, account) alone, so until it stops it can
+    // branch and prunes by (work package, account) alone, so until it stops it can
     // clear an agent's redo and, counting the agent's rows, prune the human's
     // older entries. Pinned here so the window is a stated fact, not a surprise.
     it('lets the outgoing colour clear and prune by the pair until it stops', async () => {
@@ -245,10 +251,10 @@ describe('appending a command', () => {
           event(`agent-${String(n)}`, 2_000 + n),
         );
       await journal.flip(CODEX_STACK, 'agent-49', true, { expected: {}, from: {} });
-      const pair = "project_id = 'p1' AND user_id = 'owner'";
+      const pair = "work_package_id = 'p1' AND user_id = 'owner'";
       sqlite.run(`DELETE FROM command_journal WHERE ${pair} AND undone = 1`);
       sqlite.run(
-        `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+        `INSERT INTO command_journal (id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
          VALUES ('outgoing', 'p1', 'owner', (SELECT coalesce(max(seq), 0) + 1 FROM command_journal WHERE ${pair}), 'estimate', '{}', '{}', '{}', 0, 3000)`,
       );
       sqlite.run(

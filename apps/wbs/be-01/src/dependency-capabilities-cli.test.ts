@@ -15,12 +15,15 @@ it('advertises frozen V1 support without database configuration or migrations', 
       cwd: directory,
       env: {
         PATH: process.env['PATH'],
-        CROSS_PROJECT_DEPENDENCIES: 'enabled',
+        CROSS_WORK_PACKAGE_DEPENDENCIES: 'enabled',
         DEPENDENCY_ACTIVATION: 'ENABLED',
       },
     });
     expect(execution.exitCode).toBe(0);
     expect(execution.stderr.toString()).toBe('');
+    expect(execution.stdout.toString()).toBe(
+      '{"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1"]}\n',
+    );
     expect(parseDependencyRuntimeCapability(JSON.parse(execution.stdout.toString()))).toEqual({
       protocol: 'wbs-dependency-runtime',
       version: 1,

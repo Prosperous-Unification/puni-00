@@ -1,13 +1,13 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { assertOrdinaryAccount } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
- * The project settings modal, laid out by a browser: what jsdom cannot measure.
+ * The work package settings modal, laid out by a browser: what jsdom cannot measure.
  *
  * Two findings of the 2026-10-13 UI review live here. F-020: the Steps section's
- * name boxes collapsed to ~40px beside their unit, allowance and remove controls,
- * so a step could be neither read nor renamed. F-021: the modal took each
+ * names collapsed beside their unit and allowance controls,
+ * so a step could not be read. Names are now read-only catalogue values. F-021: the modal took each
  * section's own height and re-centred, so changing section made it jump.
  */
 
@@ -19,8 +19,21 @@ const NEARLY = 1;
 
 async function openSettings(page: Page): Promise<Locator> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await assertOrdinaryAccount(page);
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Settings layout',
+      steps: [
+        { code: 'implementation', name: 'Implementation' },
+        { code: 'code-review', name: 'Code review' },
+        { code: 'release-notes', name: 'Release notes' },
+      ],
+      rows: [],
+    },
+    { run: 'settings-layout', worker: 0, test: crypto.randomUUID() },
+  );
+  await openSeededPlan(page, seeded);
   // A phone reaches the toolbar only through its sheet; everywhere else the
   // toolbar is on the page.
   const sheet = page.getByRole('button', { name: 'Plan actions' });
@@ -30,25 +43,16 @@ async function openSettings(page: Page): Promise<Locator> {
     await sheet.click();
     await expect(page.getByRole('dialog', { name: 'Plan actions' })).toBeVisible();
   }
-  const control = page.getByRole('button', { name: 'Project settings' });
+  const control = page.getByRole('button', { name: 'Work package settings' });
   await expect(control).toBeEnabled();
   await control.click();
-  const dialog = page.getByRole('dialog', { name: 'Project settings' });
+  const dialog = page.getByRole('dialog', { name: 'Work package settings' });
   await expect(dialog).toBeVisible();
   return dialog;
 }
 
-async function addSteps(dialog: Locator): Promise<void> {
-  await dialog.getByRole('tab', { name: 'Steps' }).click();
-  for (const name of STEP_NAMES) {
-    await dialog.getByLabel('New step', { exact: true }).fill(name);
-    await dialog.getByRole('button', { name: 'Add step' }).click();
-    await expect(dialog.getByLabel(name, { exact: true })).toHaveValue(name);
-  }
-}
-
 /**
- * One step row's measured shape: how wide its name box is against how wide its
+ * One step row's measured shape: how wide its name is against how wide its
  * name is drawn in that box's own font, and where its controls stand.
  */
 interface StepRowShape {
@@ -56,7 +60,7 @@ interface StepRowShape {
   boxWidth: number;
   textWidth: number;
   boxLeft: number;
-  removeLeft: number;
+  allowanceLeft: number;
   unitRows: number;
   /** The shorter of the two unit labels, which are the radios' tap targets. */
   unitTargetHeight: number;
@@ -68,10 +72,11 @@ function measureStepRows(dialog: Locator): Promise<StepRowShape[]> {
     const pen = canvas.getContext('2d');
     if (pen === null) throw new Error('no 2d canvas to measure text with');
     return names.map((name) => {
-      const box = [...surface.querySelectorAll('input')].find(
-        (input) => input.labels?.[0]?.textContent === name,
+      const row = [...surface.querySelectorAll('[data-step-row]')].find(
+        (row) => row.querySelector('span[title]')?.textContent === name,
       );
-      if (box === undefined) throw new Error(`no name box labelled ${name}`);
+      const box = row?.querySelector('span[title]');
+      if (box === undefined || box === null) throw new Error(`no readonly name for ${name}`);
       const style = getComputedStyle(box);
       pen.font = style.font;
       const padding =
@@ -79,11 +84,9 @@ function measureStepRows(dialog: Locator): Promise<StepRowShape[]> {
         Number.parseFloat(style.paddingRight) +
         Number.parseFloat(style.borderLeftWidth) +
         Number.parseFloat(style.borderRightWidth);
-      const remove = [...surface.querySelectorAll('button')].find(
-        (button) =>
-          (button.getAttribute('aria-label') ?? button.textContent.trim()) === `Remove ${name}`,
-      );
-      if (remove === undefined) throw new Error(`no remove control for ${name}`);
+      const allowance = row?.querySelector('input[type="number"]');
+      if (allowance === undefined || allowance === null)
+        throw new Error(`no allowance control for ${name}`);
       const radios = [...surface.querySelectorAll('input[type="radio"]')].filter((radio) =>
         radio.getAttribute('aria-label')?.startsWith(`${name} `),
       );
@@ -93,7 +96,7 @@ function measureStepRows(dialog: Locator): Promise<StepRowShape[]> {
         boxWidth: box.getBoundingClientRect().width,
         textWidth: pen.measureText(name).width + padding,
         boxLeft: box.getBoundingClientRect().left,
-        removeLeft: remove.getBoundingClientRect().left,
+        allowanceLeft: allowance.getBoundingClientRect().left,
         unitRows: new Set(radios.map((radio) => Math.round(radio.getBoundingClientRect().top)))
           .size,
         unitTargetHeight: Math.min(
@@ -116,17 +119,17 @@ for (const viewport of [
   test(`step rows are readable and aligned at ${String(viewport.width)}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const dialog = await openSettings(page);
-    await addSteps(dialog);
+    await dialog.getByRole('tab', { name: 'Steps' }).click();
 
     const rows = await measureStepRows(dialog);
     // Proof: on main at 16eaa121f (one flex row per step) this failed at 1440,
-    // 1024 and 375 on `Implementation's name box is 96px wide for a 122px name`
+    // 1024 and 375 on `Implementation's name is 96px wide for a 122px name`
     // (Expected >= 121.7, Received 95.7): the name form was the one flex child
     // allowed to shrink. Watched 2026-10-13.
     for (const row of rows) {
       expect(
         row.boxWidth,
-        `${row.name}'s name box is ${String(Math.round(row.boxWidth))}px wide for a ${String(
+        `${row.name}'s name is ${String(Math.round(row.boxWidth))}px wide for a ${String(
           Math.round(row.textWidth),
         )}px name`,
       ).toBeGreaterThanOrEqual(row.textWidth);
@@ -150,8 +153,8 @@ for (const viewport of [
         `${row.name}'s box is out of line`,
       ).toBeLessThanOrEqual(NEARLY);
       expect(
-        Math.abs(row.removeLeft - first.removeLeft),
-        `${row.name}'s remove control is out of line`,
+        Math.abs(row.allowanceLeft - first.allowanceLeft),
+        `${row.name}'s allowance control is out of line`,
       ).toBeLessThanOrEqual(NEARLY);
     }
   });
@@ -167,8 +170,8 @@ for (const viewport of [
   )}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const dialog = await openSettings(page);
-    await addSteps(dialog);
-    const title = dialog.getByRole('heading', { name: 'Project settings' });
+    await dialog.getByRole('tab', { name: 'Steps' }).click();
+    const title = dialog.getByRole('heading', { name: 'Work package settings' });
 
     const frames: { section: string; top: number; titleTop: number }[] = [];
     for (const section of [
@@ -323,7 +326,7 @@ test.describe('one commit model (F-060, decision D7)', () => {
       if (width === 375 && !(await sheet.isVisible())) {
         await page.getByRole('button', { name: 'Plan actions' }).click();
       }
-      await page.getByRole('button', { name: 'Project settings' }).click();
+      await page.getByRole('button', { name: 'Work package settings' }).click();
       await dialog.getByRole('tab', { name: 'Priorities' }).click();
       await expect(dialog.getByLabel('Name of band 1')).toHaveValue(`Blocker ${String(width)}`);
       await expect(dialog.getByRole('button', { name: 'Save' })).toHaveCount(0);
@@ -338,7 +341,7 @@ test.describe('one commit model (F-060, decision D7)', () => {
  * through, so a case can look at the modal while the write travels.
  */
 async function delaySettingsWrites(page: Page, ms: number): Promise<void> {
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, ms));
     await route.continue();
   });
@@ -461,7 +464,7 @@ test.describe('the settings flow while a write travels (round 3)', () => {
     const dialog = await openSettings(page);
     await dialog.getByRole('tab', { name: 'Priorities' }).click();
     await dialog.getByLabel('Name of band 1').fill('Blocker');
-    const tabs = dialog.getByRole('tablist', { name: 'Project settings sections' });
+    const tabs = dialog.getByRole('tablist', { name: 'Work package settings sections' });
     const before = await tabs.boundingBox();
     await delaySettingsWrites(page, 2000);
     await dialog.getByRole('tab', { name: 'Timezone' }).click();
@@ -513,7 +516,7 @@ test.describe('the settings flow while a write travels (round 3)', () => {
     });
     const dialog = await openSettings(page);
     await dialog.getByRole('tab', { name: 'Timezone' }).click();
-    const zone = dialog.locator('#project-timezone');
+    const zone = dialog.locator('#work-package-timezone');
     // Proof: on 2026-10-14, against 85849d1f3 (the box disabled while the zones
     // load), this failed on `locator.fill: Test timeout of 60000ms exceeded`
     // with `element is not enabled` in its log.

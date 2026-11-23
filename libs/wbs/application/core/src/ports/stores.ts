@@ -18,13 +18,14 @@ import type { OrganizationLimitGauge } from './organization-limits';
 import type { PlanEventStore } from './plan-event-store';
 import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
-import type { ProjectRankStore, SharedPeopleStore } from './project-rank-store';
-import type { ProjectStore } from './project-store';
 import type { ResourceCapacityStore } from './resource-capacity-store';
 import type { RuntimeCommandStore } from './runtime-command-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
+import type { SettingStore } from './setting-store';
+import type { SpaceStore } from './space-store';
 import type { StepBlockageStore } from './step-blockage-store';
+import type { StepCatalogue } from './step-catalogue';
 import type { StepNodeAttemptStore } from './step-node-attempt-store';
 import type { StepParallelStore } from './step-parallel-store';
 import type { StepStore } from './step-store';
@@ -32,25 +33,31 @@ import type { SubtreeStore } from './subtree-store';
 import type { TypedDependencyStore } from './typed-dependency-store';
 import type { OidcIdentityStore, UserStore } from './user-store';
 import type { WorkItemStore } from './work-item-store';
+import type { SharedPeopleStore, WorkPackageRankStore } from './work-package-rank-store';
+import type { WorkPackageStore } from './work-package-store';
 
 /** Every store a command batch may use. Account and history stores are absent. */
 export interface PlanTransactionalStores {
+  /** Actual settings evidence on this catalog's admitted owner; no column or empty-store fallback. */
+  settings: SettingStore;
   /** Required authority, resolved only within the catalog owner's admitted writer lifetime. */
   readonly externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
   livePlans?: LivePlanStore;
-  projects: ProjectStore;
+  workPackages: WorkPackageStore;
+  /** Borrowed space writer; scoped space routes require it in their admitted unit of work. */
+  spaces?: SpaceStore;
   /**
    * Borrowed SQLite rank and capacity-mode writer; legacy in-memory sources
    * need not install this capability.
    */
-  projectRanks?: ProjectRankStore & SharedPeopleStore;
+  workPackageRanks?: WorkPackageRankStore & SharedPeopleStore;
   directory: DirectoryStore;
   /**
    * Grant decisions (`wbs-permissions` P13). The SQLite source installs them
    * on its public catalogs and on every catalog a unit of work admits, so a
    * batch decides inside its own transaction; memory fixtures do not
-   * (`livePlans` and `projectRanks` precedent). A caller that needs a
+   * (`livePlans` and `workPackageRanks` precedent). A caller that needs a
    * decision from a graph without them throws; it never answers unchecked.
    */
   accessDecisions?: AccessDecisions;
@@ -65,12 +72,14 @@ export interface PlanTransactionalStores {
    */
   organizationLimits?: OrganizationLimitGauge;
   capacity: CapacityStore;
-  /** How many units of each resource a project's plan may use (`wbs-resources`). */
+  /** How many units of each resource a work package's plan may use (`wbs-resources`). */
   resourceCapacity: ResourceCapacityStore;
   priorityBands: PriorityBandStore;
   calendarMarkers: CalendarMarkerStore;
   eventLog: EventLogStore;
   planEvents: PlanEventStore;
+  /** Required organization catalogue and explicit package values; no legacy or optional fallback. */
+  stepCatalogue: StepCatalogue;
   steps: StepStore;
   workItems: WorkItemStore;
   estimates: EstimateStore;

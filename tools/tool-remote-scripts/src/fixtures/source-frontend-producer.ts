@@ -32,10 +32,6 @@ const PINS = {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
   },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
-  },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
     sha256: '431666ddc8762b08feaa201642c95df6d4b7de983d002b09d32e360161167fcc',
@@ -85,16 +81,45 @@ const PINS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
 };
-const PROJECT_PATH = 'apps/wbs/fe-01/project.json';
-const HISTORICAL_PROJECT = {
-  bytes: 8117,
-  sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
-};
+// Both selected files must belong to one complete member; recognized off-diagonals refuse.
+const CONFIGURATIONS = [
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8117,
+      sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19552,
+      sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8132,
+      sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8218,
+      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+    },
+    // Proof: removing the epoch gate made both fixed-root producer negatives reached Git.
+    onlyEpoch: 'registry-s3-20261108',
+  },
+];
 
-const EPOCHS = [
+const PAIRS = [
   {
     epoch: 'before-ctt',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4885,
       sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
@@ -106,7 +131,6 @@ const EPOCHS = [
   },
   {
     epoch: 'ctt-0.12.0',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4930,
       sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
@@ -118,7 +142,6 @@ const EPOCHS = [
   },
   {
     epoch: 'fresh-main-20261104',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4992,
       sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
@@ -134,7 +157,6 @@ const EPOCHS = [
   // entry necessity only; see verify-producer-p-execution-20261105.md, not all pair predicates.
   {
     epoch: 'fresh-main-20261105-ctt-0.13.0',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4992,
       sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
@@ -148,22 +170,6 @@ const EPOCHS = [
   // this proves valid-input entry necessity, not invalid-input admission.
   {
     epoch: 'registry-s3-20261108',
-    project: HISTORICAL_PROJECT,
-    'package.json': {
-      bytes: 5030,
-      sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
-    },
-    'bun.lock': {
-      bytes: 543082,
-      sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
-    },
-  },
-  {
-    epoch: 'registry-s3-20261108',
-    project: {
-      bytes: 8218,
-      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
-    },
     'package.json': {
       bytes: 5030,
       sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
@@ -198,7 +204,13 @@ async function inspectPins(
   root: string,
 ): Promise<{ epoch: string; selectedInputs: SelectedInputs }> {
   const selectedInputs: SelectedInputs = {};
-  for (const path of [...Object.keys(PINS), PROJECT_PATH, 'package.json', 'bun.lock']) {
+  for (const path of [
+    ...Object.keys(PINS),
+    'apps/wbs/fe-01/vite.config.ts',
+    'apps/wbs/fe-01/project.json',
+    'package.json',
+    'bun.lock',
+  ]) {
     const bytes = await readFile(join(root, path));
     selectedInputs[path] = { bytes: bytes.byteLength, sha256: digest(bytes) };
   }
@@ -206,12 +218,19 @@ async function inspectPins(
     const observed = selectedInputs[path];
     return observed?.bytes === expected.bytes && observed.sha256 === expected.sha256;
   };
-  const pair = EPOCHS.find(
+  const pair = PAIRS.find(
     (pair) =>
-      // Proof: omitting the project check let the mixed fourth pair pass admission and reach Git before Node.
-      matches(PROJECT_PATH, pair.project) &&
       matches('package.json', pair['package.json']) &&
-      matches('bun.lock', pair['bun.lock']),
+      matches('bun.lock', pair['bun.lock']) &&
+      CONFIGURATIONS.some(
+        (configuration) =>
+          (!('onlyEpoch' in configuration) || configuration.onlyEpoch === pair.epoch) &&
+          matches(
+            'apps/wbs/fe-01/vite.config.ts',
+            configuration['apps/wbs/fe-01/vite.config.ts'],
+          ) &&
+          matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+      ),
   );
   if (
     pair === undefined ||

@@ -1,10 +1,9 @@
-import { expect, test } from '@playwright/test';
-
 import { buildBrowserProbeBundle } from './browser-probe-bundle';
 // A type-only import, and it has to stay one: Playwright loads a spec in Node, so a value
 // imported from the probe would execute the probe here and fail on `document is not
 // defined` before a browser existed. Watched 2026-09-20.
 import type { FaultBoundaryProof } from './fault-boundary-probe';
+import { expect, test } from './ordinary-test';
 
 /**
  * Strings that exist only inside the thrown value, and must therefore exist nowhere else.

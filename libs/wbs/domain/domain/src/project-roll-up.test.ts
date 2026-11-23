@@ -1,95 +1,15 @@
-import { describe, expect, it } from 'bun:test';
+import { expect, test } from 'bun:test';
 
-import type { WorkItemStatus } from './progress';
-import { rollUpProject, type RollUpRow, type RollUpTree } from './project-roll-up';
+import type { WorkPackageRollUp } from './work-package-roll-up';
+import * as rollUps from './work-package-roll-up';
 
-const row = (overrides: Partial<RollUpRow> & Pick<RollUpRow, 'id'>): RollUpRow => ({
-  parentId: null,
-  status: 'unknown',
-  finalTotal: 0,
-  dates: null,
-  estimated: false,
-  ...overrides,
-});
-
-const tree = (workItems: RollUpRow[], overrides: Partial<RollUpTree> = {}): RollUpTree => ({
-  workItems,
-  scheduleError: null,
-  waitingForPerson: 0,
-  waitingForCapacity: 0,
-  displayed: 'fast',
-  projectRevision: 3,
-  seq: 7,
-  ...overrides,
-});
-
-describe('rollUpProject', () => {
-  it('spans the dated roots and sums their final totals', () => {
-    const rolled = rollUpProject(
-      tree([
-        row({ id: 'r1', finalTotal: 3, dates: { startsOn: '2026-10-01', endsOn: '2026-10-05' } }),
-        row({ id: 'r2', finalTotal: 8, dates: { startsOn: '2026-10-03', endsOn: '2026-10-20' } }),
-        row({ id: 'c1', parentId: 'r2', finalTotal: 8 }),
-      ]),
-    );
-    expect(rolled.dates).toEqual({ startsOn: '2026-10-01', endsOn: '2026-10-20' });
-    expect(rolled.finalTotal).toBe(11);
-    expect(rolled).toMatchObject({ projectRevision: 3, seq: 7, displayed: 'fast' });
-  });
-
-  it('drops an undated (held) root from the span, and answers null when none is dated', () => {
-    expect(
-      rollUpProject(
-        tree([
-          row({ id: 'r1', dates: null }),
-          row({ id: 'r2', dates: { startsOn: '2026-10-03', endsOn: '2026-10-04' } }),
-        ]),
-      ).dates,
-    ).toEqual({ startsOn: '2026-10-03', endsOn: '2026-10-04' });
-    expect(rollUpProject(tree([row({ id: 'r1' })])).dates).toBeNull();
-  });
-
-  it('answers no dates while the schedule failed', () => {
-    expect(
-      rollUpProject(
-        tree([row({ id: 'r1', dates: { startsOn: '2026-10-01', endsOn: '2026-10-02' } })], {
-          scheduleError: 'cycle',
-        }),
-      ).dates,
-    ).toBeNull();
-  });
-
-  it('folds the roots, so a project whose roots are all on hold reads on_hold', () => {
-    // Proof, observed 2026-09-29: with `foldStatuses` swapped for a fold by
-    // the step-progress rule `agree` (seeded `unknown`), this read
-    // `in_progress` instead of `on_hold`.
-    expect(
-      rollUpProject(
-        tree([row({ id: 'r1', status: 'on_hold' }), row({ id: 'r2', status: 'on_hold' })]),
-      ).status,
-    ).toBe('on_hold');
-    expect(rollUpProject(tree([])).status).toBe('unknown');
-    expect(
-      rollUpProject(tree([row({ id: 'r1', status: 'done' }), row({ id: 'r2', status: 'ready' })]))
-        .status,
-    ).toBe('in_progress');
-  });
-
-  it('counts leaves per status, leaves and estimated leaves, never parents', () => {
-    const rolled = rollUpProject(
-      tree([
-        row({ id: 'r1', status: 'in_progress', estimated: true }),
-        row({ id: 'c1', parentId: 'r1', status: 'done', estimated: true }),
-        row({ id: 'c2', parentId: 'r1', status: 'ready' }),
-        row({ id: 'r2', status: 'blocked', estimated: true }),
-      ]),
-    );
-    const byStatus: Partial<Record<WorkItemStatus, number>> = {
-      done: 1,
-      ready: 1,
-      blocked: 1,
-    };
-    expect(rolled.counts).toEqual({
+function child(overrides: Partial<WorkPackageRollUp> = {}): WorkPackageRollUp {
+  return {
+    kind: 'rolled_up',
+    dates: null,
+    finalTotal: 0,
+    status: 'unknown',
+    counts: {
       byStatus: {
         unknown: 0,
         draft: 0,
@@ -99,10 +19,96 @@ describe('rollUpProject', () => {
         on_hold: 0,
         blocked: 0,
         done: 0,
-        ...byStatus,
       },
-      leaves: 3,
-      estimated: 2,
-    });
+      leaves: 0,
+      estimated: 0,
+    },
+    scheduleError: null,
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    displayed: 'fast',
+    workPackageRevision: 3,
+    seq: 7,
+    ...overrides,
+  };
+}
+
+test('project totals span child dates and add effort and leaf counts without inventing one engine or revision', () => {
+  const first = child({
+    dates: { startsOn: '2026-11-02', endsOn: '2026-11-17' },
+    finalTotal: 12,
+    status: 'done',
+    waitingForPerson: 2,
+  });
+  first.counts.byStatus.done = 2;
+  first.counts.leaves = 2;
+  first.counts.estimated = 1;
+  const second = child({
+    dates: { startsOn: '2026-11-09', endsOn: '2026-12-02' },
+    finalTotal: 8,
+    status: 'ready',
+    waitingForCapacity: 4,
+  });
+  second.counts.byStatus.ready = 3;
+  second.counts.leaves = 3;
+  second.counts.estimated = 3;
+  const folded = rollUps.rollUpProject([first, second]);
+  expect(folded).toEqual({
+    kind: 'rolled_up',
+    dates: { startsOn: '2026-11-02', endsOn: '2026-12-02' },
+    finalTotal: 20,
+    status: 'in_progress',
+    counts: {
+      byStatus: {
+        unknown: 0,
+        draft: 0,
+        ready: 3,
+        in_progress: 0,
+        blocked_by_proxy: 0,
+        on_hold: 0,
+        blocked: 0,
+        done: 2,
+      },
+      leaves: 5,
+      estimated: 4,
+    },
+    waitingForPerson: 2,
+    waitingForCapacity: 4,
+  });
+  expect(first.counts.byStatus.ready).toBe(0);
+});
+
+test('a project with no readable children has an explicit empty rollup', () => {
+  expect(rollUps.rollUpProject([])).toEqual({ kind: 'empty' });
+});
+
+test('an unavailable child refuses a partial project total while available child figures remain independent', () => {
+  expect(rollUps.rollUpProject([child({ finalTotal: 12 }), { kind: 'unavailable' }])).toEqual({
+    kind: 'unavailable',
+  });
+});
+
+test('a failed child schedule suppresses the project span but retains known effort and counts', () => {
+  expect(
+    rollUps.rollUpProject([
+      child({ dates: { startsOn: '2026-11-02', endsOn: '2026-11-17' }, finalTotal: 12 }),
+      child({ scheduleError: 'cycle', finalTotal: 8 }),
+    ]),
+  ).toMatchObject({ kind: 'rolled_up', dates: null, finalTotal: 20 });
+});
+
+test('project status folds package states, including a silent empty package, by the normal parent rule', () => {
+  expect(
+    rollUps.rollUpProject([child({ status: 'on_hold' }), child({ status: 'on_hold' })]),
+  ).toMatchObject({ status: 'on_hold' });
+  expect(rollUps.rollUpProject([child({ status: 'done' }), child()])).toMatchObject({
+    status: 'in_progress',
+  });
+});
+
+test('undated children contribute effort and do not invent dates', () => {
+  expect(rollUps.rollUpProject([child({ finalTotal: 4 })])).toMatchObject({
+    dates: null,
+    finalTotal: 4,
   });
 });

@@ -13,10 +13,11 @@ import {
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
+const THROUGH = '20261103110000_add_initial_access_offers';
 const MIGRATION = '20261102120000_add_access_grants';
 const BASELINE = '20261101120000_add_host_job_projection';
 const MATRIX = parsePermissionMatrix(
@@ -36,12 +37,13 @@ const credentialId = (n: number) => `00000000-0000-4000-8000-${String(n).padStar
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 /**
  * A store at {@link BASELINE} shaped like dev. `org-a`: sam super_admin, ada
  * admin, mo member, vi viewer; `org-b`: bo member, ada viewer; `out` belongs
- * nowhere. Projects: `p-mo` (mo, org-a), `p-out` (out, org-a), `p-ada` (ada,
+ * nowhere. Work packages: `p-mo` (mo, org-a), `p-out` (out, org-a), `p-ada` (ada,
  * org-a), `p-loose` (mo, no organization), `p-bo` (bo, org-b), `p-mo-b` (mo,
  * org-b, where mo is not a member). Credentials in org-a bound through agent
  * persons to ada, mo (one live, one revoked), vi and out, and one unbound.
@@ -92,12 +94,17 @@ function seedBaseline(): void {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-access-grants-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  migrations = copyRecoveryPrefix(dir, THROUGH);
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+    THROUGH,
+    '20261102130000_widen_organization_audit_access',
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -135,7 +142,7 @@ const tablesLeft = () =>
 
 const customRole = (id: string, name: string, organizationId = 'org-a') =>
   db.run(
-    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'project', '${organizationId}', 1)`,
+    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'work_package', '${organizationId}', 1)`,
   );
 
 const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo') =>
@@ -148,7 +155,7 @@ const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo
 function rollBack(): string[] {
   db.close();
   try {
-    return rollbackTo(path, FOLDER, BASELINE);
+    return rollbackTo(path, migrations, BASELINE);
   } finally {
     db = openDatabase(path);
   }
@@ -231,12 +238,12 @@ describe(MIGRATION, () => {
     it('refuses a role that is neither built-in nor custom, and an unknown kind', () => {
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, level, organization_id, created_at) VALUES ('01JLEVEL', 'Levelled', 'project', 3, 'org-a', 1)",
+          "INSERT INTO access_role (id, name, object_kind, level, organization_id, created_at) VALUES ('01JLEVEL', 'Levelled', 'work_package', 3, 'org-a', 1)",
         ),
       ).toThrow('CHECK constraint failed');
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, created_at) VALUES ('nobody', 'nobody', 'project', 1)",
+          "INSERT INTO access_role (id, name, object_kind, created_at) VALUES ('nobody', 'nobody', 'work_package', 1)",
         ),
       ).toThrow('CHECK constraint failed');
       expect(() =>
@@ -261,12 +268,12 @@ describe(MIGRATION, () => {
     });
 
     // Proof: `access_role_reaches_restricted_kind` made `CHECK (1)` in
-    // migration.sql made this case store a project-kind role with
+    // migration.sql made this case store a work-package-kind role with
     // `reaches_restricted = 1`; watched 2026-11-03.
     it('refuses reaches_restricted outside an organization role, and outside 0 and 1', () => {
       expect(() =>
         db.run(
-          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JPROJECT', 'Project auditors', 'project', 1, 'org-a', 1)",
+          "INSERT INTO access_role (id, name, object_kind, reaches_restricted, organization_id, created_at) VALUES ('01JPROJECT', 'WorkPackage auditors', 'work_package', 1, 'org-a', 1)",
         ),
       ).toThrow('CHECK constraint failed: access_role_reaches_restricted_kind');
       expect(() =>
@@ -342,10 +349,10 @@ describe(MIGRATION, () => {
           ['org-a', 'ada', 'p-ada'],
           ['org-a', 'mo', 'p-mo'],
           ['org-b', 'bo', 'p-bo'],
-        ].map(([organization, user, project]) => ({
+        ].map(([organization, user, workPackage]) => ({
           organization_id: organization,
           scope_kind: 'work_package',
-          scope_id: project,
+          scope_id: workPackage,
           subject_kind: 'user',
           subject_id: user,
           role_id: 'package-manager',
@@ -463,7 +470,11 @@ describe(MIGRATION, () => {
   describe('the rollback', () => {
     it('rolls back over the backfill and the built-ins, dropping the five tables', () => {
       expect(tablesLeft()).toEqual(TABLES);
-      expect(rollBack()).toEqual([MIGRATION]);
+      expect(rollBack()).toEqual([
+        THROUGH,
+        '20261102130000_widen_organization_audit_access',
+        MIGRATION,
+      ]);
       expect(tablesLeft()).toEqual([]);
       expect(db.query('SELECT COUNT(*) AS n FROM organization_membership').get()).toEqual({ n: 6 });
     });
@@ -501,6 +512,12 @@ describe(MIGRATION, () => {
     });
 
     it('refuses rollback over a permission row of no built-in role', () => {
+      // Isolate this historical grant guard before corrupting trusted state; the
+      // newer audit rebuild independently rejects foreign-key violations.
+      expect(rollbackTo(path, migrations, MIGRATION)).toEqual([
+        THROUGH,
+        '20261102130000_widen_organization_audit_access',
+      ]);
       db.run('PRAGMA foreign_keys = OFF');
       db.run(
         "INSERT INTO access_role_permission (role_id, permission) VALUES ('01JGONE', 'package.read')",

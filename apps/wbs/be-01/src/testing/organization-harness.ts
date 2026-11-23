@@ -12,16 +12,16 @@ import {
   trustedIssuerDiscovery,
   TrustedIssuerKeySets,
 } from '@wbs/auth';
-import type { AuthenticatedUser } from '@wbs/contracts';
+import { type AuthenticatedUser, createProject } from '@wbs/contracts';
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import {
   type CapacityModeSwitch,
   clockOf,
-  CREATOR_ADMISSION,
   type DomainResolver,
   type EmailMessage,
+  LEGACY_EDIT_ADMISSION,
   type PasswordHasher,
-  type ProjectRankStore,
+  type WorkPackageRankStore,
 } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import type { RecoveryWriteBoundary } from '@wbs/core/http/recovery-write';
@@ -32,25 +32,26 @@ import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import type { ImportService } from '@wbs/core/module/plan-import/plan-import.feature';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
+import type { SecurityPrincipal } from '@wbs/core/ports/security-principal';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
 import type { DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
-import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
-import type { CapacityMode } from '@wbs/domain';
+import { ProjectResource } from '@wbs/core/service/project.resource';
+import { WorkPackageAddressSearch } from '@wbs/core/service/work-package-address-search';
+import type { AccessObjectKind, CapacityMode, Permission } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
   AgentPoolRepository,
   computeProvidersOver,
-  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
@@ -60,13 +61,14 @@ import {
   MachineCredentialAdministrationRepository,
   MachineCredentialRepository,
   MachineTokenAuditRepository,
+  NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
   OrganizationLimitGaugeRepository,
   OrganizationLimitsRepository,
   OrganizationRepository,
-  ProjectRankRepository,
   ProvisioningTokenRepository,
+  readMembershipIn,
   readOrganizationActivation,
   scheduleInputHash,
   ScimUserRepository,
@@ -81,24 +83,33 @@ import {
   type SqliteSource,
   TrustedIssuerAdministrationRepository,
   userBoundOrganizationOf,
+  WorkPackageRankRepository,
 } from '@wbs/store-sqlite';
+import { AccessDecisionRepository } from '@wbs/store-sqlite/access-decisions';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { CaptureReadSeam } from '@wbs/store-sqlite/capture-read-seam';
+import { createLivePlanStore } from '@wbs/store-sqlite/chain-snapshot';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
+import { openConnection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { PlanEventRepository } from '@wbs/store-sqlite/plan-event';
-import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
+import { SqliteProjectAdministration } from '@wbs/store-sqlite/project-administration';
+import { SqliteProjectRead } from '@wbs/store-sqlite/project-read';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
+import { createSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
 import { openSqliteSourceWithCaptureReadSeam } from '@wbs/store-sqlite/source';
+import { SqliteSpaceRead } from '@wbs/store-sqlite/space-read';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
+import { WorkPackageAddressSearchRepository } from '@wbs/store-sqlite/work-package-address-search';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
 
 import { type AppOptions, buildApp } from '../app';
 import type { ReservedSpawner } from '../module/optimization/contract';
@@ -106,18 +117,17 @@ import type { OptimizationCoordinator } from '../module/optimization/optimizatio
 import { ActualRepository } from '../repository/actual';
 import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CommandJournalRepository } from '../repository/command-journal';
-import { openDatabase, openDrizzle } from '../repository/db';
+import { openDatabase } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
-import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
+import { type Gate, OPEN, WriteCoordinator } from '../repository/gate';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-context';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { joseTokenCodec } from '../runtime/bun-runtime';
@@ -141,13 +151,14 @@ import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from './machine-grant-fixture';
 import { requestGrant } from './mcp-forwarded-call';
+import { migrateOrganizationCatalogueFixture } from './organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
 import { testWrites } from './writes-fixture';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+export { migrateRenamedRuntimeCatalogueFixture } from './organization-catalogue-fixture';
 
 /**
  * A deterministic, non-cryptographic stand-in for `Bun.password` in {@link OrganizationHarness.open}.
@@ -168,6 +179,8 @@ export interface Answer {
 
 /** What {@link OrganizationHarness.open} wires beyond its defaults. */
 export interface OrganizationHarnessOptions {
+  /** Explicit fixture migration owner; catalogue fixtures use their real report/apply path. */
+  readonly migrate?: (path: string) => void;
   readonly admitDependencyClient?: AppOptions['admitDependencyClient'];
   readonly delegationKey?: CryptoKey;
   readonly directSigningKey?: CryptoKey;
@@ -210,6 +223,7 @@ interface TestMail {
  * binding when enabled (`boot-browser-session.db.test.ts`).
  */
 export class OrganizationHarness {
+  private closeStandalone: (() => void) | undefined;
   private appOrigin = 'http://localhost';
   private readonly tokens = new Map<string, string>();
   private readonly ids = new Map<string, string>();
@@ -227,17 +241,17 @@ export class OrganizationHarness {
     private readonly bound: Map<string, string>,
     private readonly domains: DomainClaimRepository,
     private readonly mail?: TestMail,
-    private readonly retryHash?: (projectId: string) => Promise<string>,
+    private readonly retryHash?: (workPackageId: string) => Promise<string>,
     private readonly retryDecision?: (
-      projectId: string,
+      workPackageId: string,
       organizationId: string,
       actorId: string,
       inputHash: string,
     ) => Promise<string>,
-    private readonly inputChanged?: (projectId: string) => void,
+    private readonly inputChanged?: (workPackageId: string) => void,
     private readonly startOptimizer?: () => void,
     private readonly bareRemoveStep?: ReturnType<typeof createAdmittedWrites>['removeStepWithin'],
-    private readonly composedGate?: WriteCoordinator,
+    private readonly composedGate?: Gate,
     private readonly standaloneDirectory?: DirectoryService,
     private readonly composedUow?: UnitOfWork,
     private readonly optimizerCoordinator?: OptimizationCoordinator,
@@ -288,9 +302,9 @@ export class OrganizationHarness {
   }
 
   /** Reads one coherent source input for a selected-ready mounted fixture. */
-  capturePlanInput(projectId: string) {
+  capturePlanInput(workPackageId: string) {
     if (this.savedPlanCapture === undefined) throw new Error('saved-plan capture is absent');
-    return this.savedPlanCapture.readPlanInput(projectId);
+    return this.savedPlanCapture.readPlanInput(workPackageId);
   }
 
   /** Waits for composed edit admission before closing a selected-ready fixture. */
@@ -386,9 +400,9 @@ export class OrganizationHarness {
   }
 
   /** Runs the composed background edit admission in integration tests. */
-  triggerOptimization(projectId: string): void {
+  triggerOptimization(workPackageId: string): void {
     if (this.inputChanged === undefined) throw new Error('composed optimizer is absent');
-    this.inputChanged(projectId);
+    this.inputChanged(workPackageId);
   }
 
   /** Starts the composed restart pump in integration tests. */
@@ -411,16 +425,16 @@ export class OrganizationHarness {
   }
 
   /** Calls the production rotation transaction directly to prove its marker guard. */
-  rotateDomainClaim(organizationId: string, actorId: string, claimId: string) {
-    return this.domains.rotateClaim(organizationId, actorId, claimId, '0'.repeat(64), {
+  rotateDomainClaim(organizationId: string, principal: SecurityPrincipal, claimId: string) {
+    return this.domains.rotateClaim(organizationId, principal, claimId, '0'.repeat(64), {
       at: Date.now(),
-      by: actorId,
+      by: principal.id,
     });
   }
 
   /** Calls the production release transaction directly to prove its marker guard. */
-  releaseDomainClaim(organizationId: string, actorId: string, claimId: string) {
-    return this.domains.releaseClaim(organizationId, actorId, claimId);
+  releaseDomainClaim(organizationId: string, principal: SecurityPrincipal, claimId: string) {
+    return this.domains.releaseClaim(organizationId, principal, claimId);
   }
 
   /**
@@ -432,6 +446,7 @@ export class OrganizationHarness {
    * their TXT lookups.
    */
   static open({
+    migrate = migrateOrganizationCatalogueFixture,
     admitDependencyClient = () => null,
     delegationKey,
     directSigningKey,
@@ -446,8 +461,9 @@ export class OrganizationHarness {
       throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const db = openDrizzle(path);
+    migrate(path);
+    const connection = openConnection(path);
+    const db = connection.db;
     const gate = new WriteCoordinator();
     const domains = new DomainClaimRepository(db, gate, policyDirectory, resolver);
     const bound = new Map<string, string>();
@@ -493,11 +509,12 @@ export class OrganizationHarness {
             passwordSessions: true,
           }),
     });
-    const projects = new ProjectRepository(db, OPEN);
+    const workPackages = new WorkPackageRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
     const writing = {
       stepParallels: new StepParallelRepository(db, OPEN),
       directory: new DirectoryService({
+        accessDecisions: new AccessDecisionRepository(db),
         clock: testClock,
         directory: directoryStore,
         broadcast: recordingBroadcaster(),
@@ -509,37 +526,41 @@ export class OrganizationHarness {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       calendarMarkers: new CalendarMarkerService({
-        projects,
+        accessDecisions: new AccessDecisionRepository(db),
+        workPackages,
         markers: new CalendarMarkerRepository(db, OPEN),
         clock: testClock,
       }),
-      projects: new ProjectService({
-        dependencyContext: sqliteDependencyContext(db, projects),
+      workPackages: new WorkPackageService({
+        accessDecisions: new AccessDecisionRepository(db),
+        dependencyContext: sqliteDependencyContext(db, workPackages),
         clock: testClock,
-        projects,
+        workPackages,
         broadcast: recordingBroadcaster(),
       }),
       steps: new StepService({
-        dependencyContext: sqliteDependencyContext(db, projects),
+        accessDecisions: new AccessDecisionRepository(db),
+        dependencyContext: sqliteDependencyContext(db, workPackages),
         clock: testClock,
-        projects,
+        workPackages,
         steps: new StepRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
       workItems: new WorkItemService({
+        accessDecisions: new AccessDecisionRepository(db),
         dependencyContext: createLocalDependencyContext({
-          projects: projects,
+          workPackages: workPackages,
           workItems: new WorkItemRepository(db, OPEN),
           estimates: new EstimateRepository(db, OPEN),
           dependencies: new DependencyRepository(db, OPEN),
           typedDependencies: new TypedDependencyRepository(db, OPEN),
         }),
         externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),
-        projects,
+        workPackages,
         estimates: new EstimateRepository(db, OPEN),
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
@@ -572,8 +593,61 @@ export class OrganizationHarness {
     };
     const mail: TestMail = { tokens: new Map<string, string>(), purposes: new Map(), fail: false };
     const app = buildApp({
-      projectAddressSearch: new ProjectAddressSearch(
-        new ProjectAddressSearchRepository({
+      workPackageObservation: new SqliteWorkPackageObservation({
+        currentCapture: createSavedCurrentCapture({ schedulerOf: () => fastScheduler }),
+        openConnection: () => openReadOnlyConnection(path),
+        activeOrganizationOf: (snapshot) =>
+          selection === undefined
+            ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+            : organizationSelection(
+                new SqliteOrganizationSelection(snapshot),
+                organizationCookieBinding(sessionKey, now),
+                new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                (principal, organizationId) =>
+                  new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, now).admitTo(
+                    principal,
+                    organizationId,
+                  ),
+              ).activeOrganizationOf,
+        now,
+      }),
+      planExports: createLivePlanStore({
+        kind: 'owned',
+        openConnection: () => openReadOnlyConnection(path),
+        schedulerOf: () => fastScheduler,
+      }),
+      projects: new ProjectResource({
+        settings: {
+          read: () => Promise.reject(new Error('standalone harness has no project settings owner')),
+          writeBudget: () =>
+            Promise.reject(new Error('standalone harness has no project settings owner')),
+        },
+        administration: new SqliteProjectAdministration(
+          db,
+          gate,
+          new SqliteCommandAccess(db, organizations, new MachineCredentialRepository(db, gate)),
+        ),
+        read: new SqliteProjectRead({
+          openConnection: () => openReadOnlyConnection(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(sessionKey, now),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, now).admitTo(
+                      principal,
+                      organizationId,
+                    ),
+                ).activeOrganizationOf,
+          now,
+        }),
+        clock: testClock,
+      }),
+      workPackageAddressSearch: new WorkPackageAddressSearch(
+        new WorkPackageAddressSearchRepository({
           openConnection: () => openAddressConnection(path),
           activeOrganizationOf: (snapshot) =>
             selection === undefined
@@ -616,7 +690,12 @@ export class OrganizationHarness {
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
-      organizationLimits: new OrganizationLimitsRepository(db, TEST_ORGANIZATION_DEFAULT_LIMITS),
+      organizationLimits: new OrganizationLimitsRepository(
+        db,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+        // Proof: limits-http-harness-gate-dependency failed `uses a minimal organization.read grant for limits despite a viewer membership label` with the injected fault; restored GREEN.
+        gate,
+      ),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       provisioning: {
@@ -635,8 +714,29 @@ export class OrganizationHarness {
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
       joinRequests: new JoinRequestRepository(db, OPEN),
+      spaceRead: new SqliteSpaceRead(
+        {
+          openConnection: () => openReadOnlyConnection(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(sessionKey, now),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, now).admitTo(
+                      principal,
+                      organizationId,
+                    ),
+                ).activeOrganizationOf,
+          now,
+        },
+        createSavedCurrentCapture({ schedulerOf: () => fastScheduler }),
+      ),
       spaces: new SpaceRepository(db, OPEN),
-      projectRanks: uncomposedRanks(new ProjectRankRepository(db, OPEN)),
+      workPackageRanks: uncomposedRanks(new WorkPackageRankRepository(db, OPEN)),
+      accessDecisions: new AccessDecisionRepository(db),
       emailDelivery: {
         deliver: async (message) => {
           await mail.beforeDelivery?.();
@@ -677,7 +777,7 @@ export class OrganizationHarness {
                 // Membership only: the credential rules already ran for this
                 // source in `bearerContextIssuer`'s resolution.
                 (userId, organizationId) =>
-                  Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+                  Promise.resolve(readMembershipIn(db, organizationId, userId) !== null),
               ),
               () => readOrganizationActivation(db),
             ),
@@ -692,6 +792,7 @@ export class OrganizationHarness {
       migrationsApplied: true,
     });
     const harness = new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
+    harness.closeStandalone = connection.close;
     harness.federated = provider !== undefined;
     return harness;
   }
@@ -758,9 +859,7 @@ export class OrganizationHarness {
     machineGrants,
     logDestination,
     delegationKey,
-    migrate = (path) => {
-      runMigrations(path, FOLDER);
-    },
+    migrate = migrateOrganizationCatalogueFixture,
   }: ComposedHarnessOptions): OrganizationHarness {
     if (provider !== undefined && upstreamCredential !== undefined)
       throw new Error('a harness takes a fake provider or an upstream credential, not both');
@@ -804,6 +903,53 @@ export class OrganizationHarness {
       new MachineCredentialRepository(source.db, source.gate),
     );
     const services = buildServices({
+      createWorkPackageObservation: (configured) =>
+        configured.createWorkPackageObservation({
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(TEST_JWT_KEY, () => clock.now()),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+                      clock.now(),
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now: () => clock.now(),
+        }),
+      createSpaceRead: (configured) =>
+        configured.createSpaceRead({
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(TEST_JWT_KEY, () => clock.now()),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+                      clock.now(),
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now: () => clock.now(),
+        }),
+      projectRead: source.createProjectRead({
+        activeOrganizationOf: (snapshot) =>
+          selection === undefined
+            ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+            : organizationSelection(
+                new SqliteOrganizationSelection(snapshot),
+                organizationCookieBinding(TEST_JWT_KEY, () => clock.now()),
+                new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                (principal, organizationId) =>
+                  new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+                    clock.now(),
+                  ).admitTo(principal, organizationId),
+              ).activeOrganizationOf,
+        now: () => clock.now(),
+      }),
       source,
       clock,
       commandAccess,
@@ -857,8 +1003,8 @@ export class OrganizationHarness {
     });
     const app = buildApp(
       {
-        projectAddressSearch: new ProjectAddressSearch(
-          new ProjectAddressSearchRepository({
+        workPackageAddressSearch: new WorkPackageAddressSearch(
+          new WorkPackageAddressSearchRepository({
             openConnection: () => (openReadOnlyConnection ?? openAddressConnection)(path),
             activeOrganizationOf: (snapshot) =>
               selection === undefined
@@ -876,6 +1022,10 @@ export class OrganizationHarness {
           }),
           nodeDigest,
         ),
+        spaceRead: services.spaceRead,
+        projects: services.projects,
+        planExports: services.planExports,
+        workPackageObservation: services.workPackageObservation,
         appOrigin,
         ...(delivery === undefined ? {} : { delivery }),
         ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
@@ -884,9 +1034,8 @@ export class OrganizationHarness {
         ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
         auth: services.auth,
         loginThrottle: services.loginThrottle,
-        projects: services.projects,
+        workPackages: services.workPackages,
         organizations: {
-          mayReadProjectWithin: (...args) => organizationAccess.mayReadProjectWithin(...args),
           resolve: async (principal) => {
             const access = await organizationAccess.resolve(principal);
             afterResolve?.();
@@ -936,6 +1085,8 @@ export class OrganizationHarness {
         organizationLimits: new OrganizationLimitsRepository(
           source.db,
           TEST_ORGANIZATION_DEFAULT_LIMITS,
+          // Proof: limits-composed-gate failed `uses the composed limits gate before admitting a current organization read` with the injected fault; restored GREEN.
+          services.gate,
         ),
         ...(trustedIssuers === undefined
           ? {}
@@ -951,7 +1102,8 @@ export class OrganizationHarness {
         invitations: new InvitationRepository(source.db, services.gate),
         joinRequests: new JoinRequestRepository(source.db, services.gate),
         spaces: new SpaceRepository(source.db, services.gate),
-        projectRanks: services.projectRanks,
+        workPackageRanks: services.workPackageRanks,
+        accessDecisions: services.accessDecisions,
         ...(supportedCapacityModes === undefined ? {} : { supportedCapacityModes }),
         emailDelivery: {
           deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
@@ -981,7 +1133,7 @@ export class OrganizationHarness {
                   broadcast,
                   admission,
                   dependencies,
-                  beforeProjectUpdate,
+                  beforeWorkPackageUpdate,
                   beforeStepRemoval,
                   beforeStepWrite,
                 ) => ({
@@ -990,7 +1142,7 @@ export class OrganizationHarness {
                     broadcast,
                     admission,
                     dependencies,
-                    beforeProjectUpdate,
+                    beforeWorkPackageUpdate,
                     beforeStepRemoval,
                     beforeStepWrite,
                   ),
@@ -1070,22 +1222,24 @@ export class OrganizationHarness {
       bound,
       new DomainClaimRepository(source.db, services.gate),
       undefined,
-      async (projectId) => {
-        const input = await services.workItems.scheduleInput(projectId);
-        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+      async (workPackageId) => {
+        const input = await services.workItems.scheduleInput(workPackageId);
+        if (input === null)
+          throw new Error(`work package ${workPackageId} has no optimization input`);
         return scheduleInputHash(input);
       },
-      async (projectId, organizationId, actorId, inputHash) => {
-        const input = await services.workItems.scheduleInput(projectId);
-        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+      async (workPackageId, organizationId, actorId, inputHash) => {
+        const input = await services.workItems.scheduleInput(workPackageId);
+        if (input === null)
+          throw new Error(`work package ${workPackageId} has no optimization input`);
         if (services.optimizer === undefined) throw new Error('harness optimizer is absent');
         return (
           await services.optimizer.retry({
-            projectId,
+            workPackageId,
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId, role: 'super_admin' },
+            scoped: { organizationId, actorId, principal: { id: actorId } },
           })
         ).kind;
       },
@@ -1175,7 +1329,7 @@ export class OrganizationHarness {
                 broadcast,
                 scheduler: fastScheduler,
                 schedulerMode: 'capture',
-                admission: CREATOR_ADMISSION,
+                admission: LEGACY_EDIT_ADMISSION,
                 dependencyContext: createLocalDependencyContext(scope.stores),
               }),
           })
@@ -1225,25 +1379,36 @@ export class OrganizationHarness {
   }
 
   /** Hashes the same current schedule input the mounted Retry route rebuilds. */
-  async optimizationHash(projectId: string): Promise<string> {
+  async optimizationHash(workPackageId: string): Promise<string> {
     if (this.retryHash === undefined) throw new Error('harness has no composed schedule input');
-    return this.retryHash(projectId);
+    return this.retryHash(workPackageId);
   }
 
   /** Calls the production retry admission without HTTP's earlier role check. */
   async retryAtStore(
-    projectId: string,
+    workPackageId: string,
     organizationId: string,
     actorId: string,
     inputHash: string,
   ): Promise<string> {
     if (this.retryDecision === undefined) throw new Error('harness has no composed optimizer');
-    return this.retryDecision(projectId, organizationId, actorId, inputHash);
+    return this.retryDecision(workPackageId, organizationId, actorId, inputHash);
   }
 
   close(): void {
     this.sqlite.close();
+    // Proof: application-writer-close omission lets the actual retained writer
+    // answer SELECT after removal in organization-catalogue-fixture.db.test.ts.
+    this.closeStandalone?.();
     rmSync(this.dir, { recursive: true, force: true });
+  }
+
+  /** Current composed fixtures retain their directory until the actual Source closes. */
+  async closeOwned(): Promise<void> {
+    // Proof: composed-source-close omission skips the injected actual Source
+    // close rejection and removes its directory in the same fixture test file.
+    if (this.composedSource !== undefined) await this.composedSource.close();
+    this.close();
   }
 
   /** The fixture database path for a separate-process contention probe. */
@@ -1277,7 +1442,36 @@ export class OrganizationHarness {
     this.ids.set(username, body.user.id);
   }
 
-  /** `username`'s session token, as {@link register} received it. */
+  /** Signs a restored password fixture account in through the real route; {@link bind} still selects its fixture organization. */
+  async signIn(username: string): Promise<void> {
+    const response = await this.app.handle(
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          origin: this.appOrigin,
+          'content-type': 'application/json',
+          ...(this.federated ? { 'x-forwarded-for': '203.0.113.250' } : {}),
+        },
+        body: JSON.stringify({ username, password: 'correct-horse' }),
+      }),
+    );
+    // The real password route owns this fixture reply; token/id remain unknown until checked below.
+    const reply = (await response.json()) as { token?: unknown; user?: { id?: unknown } };
+    const token = this.federated
+      ? /__Host-wbs_access=([^;]+)/.exec(response.headers.get('set-cookie') ?? '')?.[1]
+      : reply.token;
+    if (
+      response.status !== 200 ||
+      typeof token !== 'string' ||
+      token === '' ||
+      typeof reply.user?.id !== 'string'
+    )
+      throw new Error('fixture sign-in did not return a verified account/session');
+    this.tokens.set(username, decodeURIComponent(token));
+    this.ids.set(username, reply.user.id);
+  }
+
+  /** `username`'s session token, as {@link register} or {@link signIn} received it. */
   token(username: string): string {
     const found = this.tokens.get(username);
     if (found === undefined) throw new Error(`${username} was never registered`);
@@ -1294,10 +1488,64 @@ export class OrganizationHarness {
     this.sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [id, id]);
   }
 
-  member(organizationId: string, username: string, role: string): void {
+  /** Creates a Project and its first Work Package through the named account's current session. */
+  async createProjectPackage(username: string, name: string): Promise<string> {
+    const reply = await this.call(username, 'POST', '/api/projects', {
+      name: name + ' engagement',
+      workPackage: { name },
+    });
+    if (reply.status !== 201) throw new Error('fixture project creation refused', { cause: reply });
+    const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+      reply.body,
+    );
+    if (checked.issues !== undefined || checked.value.workPackage === undefined)
+      throw new Error('fixture project creation omitted requested package', { cause: reply });
+    return checked.value.workPackage.id;
+  }
+
+  member(
+    organizationId: string,
+    username: string,
+    role: string,
+    grants: readonly string[] = [],
+  ): void {
     this.sqlite.run(
       'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
       [organizationId, this.userId(username), role],
+    );
+    for (const roleId of grants) this.grant(organizationId, username, roleId);
+  }
+
+  /** Grants only the listed permissions to the named fixture account and organization. */
+  grantPermissions(
+    organizationId: string,
+    username: string,
+    permissions: readonly Permission[],
+  ): void {
+    const roleId = crypto.randomUUID();
+    this.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES(?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Named fixture permissions ' + roleId, organizationId],
+    );
+    for (const permission of permissions)
+      this.sqlite.run('INSERT INTO access_role_permission(role_id,permission) VALUES(?,?)', [
+        roleId,
+        permission,
+      ]);
+    this.grant(organizationId, username, roleId);
+  }
+
+  /** Explicit account grants; membership itself never invents a role grant. */
+  grant(
+    organizationId: string,
+    username: string,
+    roleId: string,
+    scopeKind: AccessObjectKind = 'organization',
+    scopeId: string = organizationId,
+  ): void {
+    this.sqlite.run(
+      "INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES (?, ?, ?, ?, 'user', ?, ?, 'route', 1)",
+      [crypto.randomUUID(), organizationId, scopeKind, scopeId, this.userId(username), roleId],
     );
   }
 
@@ -1424,8 +1672,9 @@ export interface ComposedHarnessOptions {
   /** Verifies upstream Bearer tokens; see {@link OrganizationHarnessOptions}. */
   upstreamCredential?: OrganizationHarnessOptions['upstreamCredential'];
   /**
-   * Migrates the fresh, empty file at `dbPath` before anything opens it; in-process
-   * `runMigrations` when absent. A rehearsal passes the operator's `migrate-cli.ts`.
+   * Migrates the fresh, empty file at `dbPath` before anything opens it; the default
+   * uses the real catalogue report, backup and atomic apply owner. A rehearsal can
+   * supply its own migration boundary without granting the ordinary migrator cutover authority.
    */
   migrate?: (dbPath: string) => void;
   /**
@@ -1469,10 +1718,13 @@ export interface HarnessTrustedIssuers {
  * mode needs the composed write-turn owner, so it refuses here; use
  * {@link OrganizationHarness.openComposed}.
  */
-function uncomposedRanks(ranks: ProjectRankRepository): ProjectRankStore & CapacityModeSwitch {
+function uncomposedRanks(
+  ranks: WorkPackageRankRepository,
+): WorkPackageRankStore & CapacityModeSwitch {
   return {
     orderIn: (organizationId) => ranks.orderIn(organizationId),
-    moveAfter: (...args) => ranks.moveAfter(...args),
+    moveAfter: (organizationId, workPackageId, afterWorkPackageId, stamp) =>
+      ranks.moveAfter(organizationId, workPackageId, afterWorkPackageId, stamp),
     capacityModeIn: (organizationId) => ranks.capacityModeIn(organizationId),
     switchCapacityMode: () =>
       Promise.reject(

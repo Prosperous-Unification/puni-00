@@ -1,44 +1,78 @@
+import { rejects } from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { type Connection, openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import { openSqliteSource } from './source';
 import { StepBlockageRepository } from './step-blockage';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent, seedPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string;
+let path: string;
 let connection: Connection;
+let opened: Connection | undefined;
+let custody = { hasUnknownOwner: false };
 let blockages: StepBlockageRepository;
 const stamp = { at: 10, by: 'u' };
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-'));
-  const path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  path = join(directory, 'plan.db');
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   activateTestStepBlockages(path);
+  seedLegacyPackageParent(path, 'org', 'project');
+  seedPackageParent(path, 'org', 'other-project');
+  custody.hasUnknownOwner = true;
   connection = openConnection(path);
+  opened = connection;
+  custody.hasUnknownOwner = false;
   connection.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
   );
   connection.db.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+    "INSERT INTO work_package (id,project_id,name,created_by,revision,created_at) VALUES ('p','project','Plan','u',0,1),('foreign','other-project','Foreign','u',0,1)",
   );
+  expect(
+    connection.db.all(
+      'SELECT resource_id,organization_id FROM work_package_organization ORDER BY resource_id',
+    ),
+  ).toEqual([
+    { resource_id: 'foreign', organization_id: 'org' },
+    { resource_id: 'p', organization_id: 'org' },
+  ]);
+  for (const [id, name, project, workPackage, position] of [
+    ['dev', 'Dev', 'project', 'p', 1],
+    ['qa', 'QA', 'project', 'p', 2],
+    ['foreign', 'Other', 'other-project', 'foreign', 1],
+  ] as const) {
+    connection.db.run(
+      sql`INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES (${id},'org',${id},${name},'workdays',0,${position},'project',${project},'authored')`,
+    );
+    connection.db.run(
+      sql`INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES (${id + '-binding'},'org','project',${project},${id},${position},'authored')`,
+    );
+    connection.db.run(
+      sql`INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES (${workPackage},${id},'workdays',0,0)`,
+    );
+  }
   connection.db.run(
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Other',1)",
-  );
-  connection.db.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
   );
   blockages = new StepBlockageRepository(connection.db, OPEN);
 });
 afterEach(() => {
-  connection.close();
-  rmSync(directory, { recursive: true, force: true });
+  opened?.close();
+  opened = undefined;
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 const set = (workItemId: string, stepId: string, blockedAt = 100) =>
@@ -46,11 +80,11 @@ const set = (workItemId: string, stepId: string, blockedAt = 100) =>
 
 describe('StepBlockageRepository', () => {
   it('reads sparse facts in step order and persists audit/revision updates', async () => {
-    expect(await blockages.listByProject('p')).toEqual([]);
+    expect(await blockages.listByWorkPackage('p')).toEqual([]);
     expect(await set('a', 'qa')).toBe('written');
     await set('a', 'dev', 90);
     await set('b', 'dev', 80);
-    expect(await blockages.listByProject('p')).toEqual([
+    expect(await blockages.listByWorkPackage('p')).toEqual([
       { workItemId: 'a', stepId: 'dev', blockedAt: 90 },
       { workItemId: 'a', stepId: 'qa', blockedAt: 100 },
       { workItemId: 'b', stepId: 'dev', blockedAt: 80 },
@@ -59,7 +93,7 @@ describe('StepBlockageRepository', () => {
       { workItemId: 'b', stepId: 'dev', blockedAt: 80 },
     ]);
     expect(await blockages.listByWorkItems('p', [])).toEqual([]);
-    expect(await blockages.listByProject('foreign')).toEqual([]);
+    expect(await blockages.listByWorkPackage('foreign')).toEqual([]);
     await blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 95 }, { at: 20, by: 'u' });
     expect(
       connection.db.get<{ created_at: number; updated_at: number; created_by: string }>(
@@ -78,12 +112,12 @@ describe('StepBlockageRepository', () => {
     await set('a', 'qa', 2);
     await set('b', 'dev', 3);
     await blockages.remove('a', 'dev', stamp);
-    expect(await blockages.listByProject('p')).toEqual([
+    expect(await blockages.listByWorkPackage('p')).toEqual([
       { workItemId: 'a', stepId: 'qa', blockedAt: 2 },
       { workItemId: 'b', stepId: 'dev', blockedAt: 3 },
     ]);
     await blockages.moveAll('a', 'b', stamp);
-    expect(await blockages.listByProject('p')).toEqual([
+    expect(await blockages.listByWorkPackage('p')).toEqual([
       { workItemId: 'b', stepId: 'dev', blockedAt: 3 },
       { workItemId: 'b', stepId: 'qa', blockedAt: 2 },
     ]);
@@ -100,32 +134,35 @@ describe('StepBlockageRepository', () => {
     await set('a', 'dev', 1);
     await set('a', 'qa', 2);
     await set('b', 'qa', 3);
-    const before = await blockages.listByProject('p');
+    const before = await blockages.listByWorkPackage('p');
     const revisions = connection.db.all('SELECT id,revision FROM work_item ORDER BY id');
-    expect(blockages.moveAll('a', 'b', stamp)).rejects.toThrow();
-    expect(await blockages.listByProject('p')).toEqual(before);
+    await rejects(blockages.moveAll('a', 'b', stamp));
+    expect(await blockages.listByWorkPackage('p')).toEqual(before);
     expect(connection.db.all('SELECT id,revision FROM work_item ORDER BY id')).toEqual(revisions);
   });
 
   it('refuses fractional writes and malformed stored timestamp reads', async () => {
-    expect(set('a', 'dev', 1.5)).rejects.toThrow(/invalid blocked time/);
+    await rejects(set('a', 'dev', 1.5), /invalid blocked time/);
     await set('a', 'dev');
     connection.db.run('PRAGMA ignore_check_constraints = ON');
     connection.db.run('UPDATE step_blockage SET blocked_at = 1.5');
-    expect(blockages.listByProject('p')).rejects.toThrow(/invalid blocked time/);
-    expect(blockages.listByWorkItems('p', ['a'])).rejects.toThrow(/invalid blocked time/);
+    await rejects(blockages.listByWorkPackage('p'), /invalid blocked time/);
+    await rejects(blockages.listByWorkItems('p', ['a']), /invalid blocked time/);
   });
 
   it('refuses corrupted owner/step membership and parent-owned facts on reads', async () => {
     await set('a', 'dev');
     connection.db.run('DROP TRIGGER step_blockage_owner_update');
     connection.db.run("UPDATE step_blockage SET step_id='foreign'");
-    expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+    await rejects(
+      blockages.listByWorkPackage('p'),
+      /stored blockage is not leaf-resolved: step_not_resolved/,
+    );
     connection.db.run("UPDATE step_blockage SET step_id='dev'");
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
+      "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
     );
-    expect(blockages.listByProject('p')).rejects.toThrow(/not a leaf/);
+    await rejects(blockages.listByWorkPackage('p'), /stored blockage names a parent work item/);
   });
 
   it('refuses missing trusted owner and step references on reads', async () => {
@@ -133,14 +170,36 @@ describe('StepBlockageRepository', () => {
     connection.db.run('DROP TRIGGER step_blockage_owner_update');
     connection.db.run('PRAGMA foreign_keys = OFF');
     connection.db.run("UPDATE step_blockage SET step_id='gone'");
-    expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+    await rejects(
+      blockages.listByWorkPackage('p'),
+      /stored blockage is not leaf-resolved: unknown_step/,
+    );
     connection.db.run("UPDATE step_blockage SET step_id='dev'");
     connection.db.run("DELETE FROM work_item WHERE id='a'");
-    expect(blockages.listByProject('p')).rejects.toThrow(/invalid work-item reference/);
+    await rejects(blockages.listByWorkPackage('p'), /invalid work-item reference/);
   });
 
-  it('reports an unknown step and does not invent an absent owner', async () => {
-    expect(await set('a', 'gone')).toBe('unknown_step');
-    expect(set('gone', 'dev')).rejects.toThrow();
+  it('refuses unknown or unresolved steps through the Source without writing a blockage or revision', async () => {
+    const source = openSqliteSource({
+      dbPath: path,
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    });
+    try {
+      const write = (workItemId: string, stepId: string) =>
+        source.stores.blockages.set({ workItemId, stepId, blockedAt: 10 }, stamp);
+      const revisions = connection.db.all('SELECT id,revision FROM work_item ORDER BY id');
+      expect(await write('a', 'gone')).toBe('unknown_step');
+      expect(await write('a', 'foreign')).toBe('step_not_resolved');
+      await rejects(write('gone', 'dev'), /step write work item is absent or inconsistent/);
+      await rejects(write('gone', 'gone'), /step write work item is absent or inconsistent/);
+      expect(connection.db.all('SELECT * FROM step_blockage')).toEqual([]);
+      expect(connection.db.all('SELECT id,revision FROM work_item ORDER BY id')).toEqual(revisions);
+      expect(await write('a', 'dev')).toBe('written');
+      expect(await source.stores.blockages.listByWorkPackage('p')).toEqual([
+        { workItemId: 'a', stepId: 'dev', blockedAt: 10 },
+      ]);
+    } finally {
+      await source.close();
+    }
   });
 });

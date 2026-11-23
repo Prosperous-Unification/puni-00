@@ -2,12 +2,14 @@ import type { PlanInputReads, SavedPlanCaptureStore, TransactionalStores } from 
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { CURRENT_SOURCE_PROJECT_IDS } from '../source-catalogue-fixture';
 import type { SeededPlan } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
 type CaptureSeedStores = Pick<
   TransactionalStores,
-  | 'projects'
+  | 'workPackages'
+  | 'settings'
   | 'workItems'
   | 'estimates'
   | 'actuals'
@@ -63,30 +65,31 @@ const byPair = <Row extends { readonly workItemId: string; readonly stepId: stri
   right: Row,
 ) => left.workItemId.localeCompare(right.workItemId) || left.stepId.localeCompare(right.stepId);
 
-/** Projects every declared capture field into a stable cross-source value. */
+/** Work packages every declared capture field into a stable cross-source value. */
 export function observePlanInput(reads: PlanInputReads) {
   return {
-    project: {
-      id: reads.project.id,
-      name: reads.project.name,
-      ownerId: reads.project.ownerId,
-      restricted: reads.project.restricted,
-      estimateMethod: reads.project.estimateMethod,
-      depReach: reads.project.depReach,
-      pertWeights: { ...reads.project.pertWeights },
-      estimateRounding: reads.project.estimateRounding,
-      startDate: reads.project.startDate,
-      scheduleEngine: reads.project.scheduleEngine,
-      scheduleObjective: reads.project.scheduleObjective,
-      optimizationEnabled: reads.project.optimizationEnabled,
-      solutionRef: reads.project.solutionRef === null ? null : { ...reads.project.solutionRef },
-      budgetFactor: reads.project.budgetFactor,
+    workPackage: {
+      id: reads.workPackage.id,
+      name: reads.workPackage.name,
+      projectId: reads.workPackage.projectId,
+      restricted: reads.workPackage.restricted,
+      estimateMethod: reads.workPackage.estimateMethod,
+      depReach: reads.workPackage.depReach,
+      pertWeights: { ...reads.workPackage.pertWeights },
+      estimateRounding: reads.workPackage.estimateRounding,
+      startDate: reads.workPackage.startDate,
+      scheduleEngine: reads.workPackage.scheduleEngine,
+      scheduleObjective: reads.workPackage.scheduleObjective,
+      optimizationEnabled: reads.workPackage.optimizationEnabled,
+      solutionRef:
+        reads.workPackage.solutionRef === null ? null : { ...reads.workPackage.solutionRef },
+      budgetFactor: reads.workPackage.budgetFactor,
     },
     steps: reads.steps.map(({ id, name, position }) => ({ id, name, position })),
     workItems: reads.workItems
       .map((row) => ({
         id: row.id,
-        projectId: row.projectId,
+        workPackageId: row.workPackageId,
         parentId: row.parentId,
         position: row.position,
         name: row.name,
@@ -155,7 +158,7 @@ export function observePlanInput(reads: PlanInputReads) {
 }
 
 function expectedWorkItem(
-  projectId: string,
+  workPackageId: string,
   id: string,
   name: string,
   revision: number,
@@ -163,7 +166,7 @@ function expectedWorkItem(
 ) {
   return {
     id,
-    projectId,
+    workPackageId,
     parentId: null,
     position: 10,
     name: captured ? 'Captured A' : name,
@@ -190,20 +193,20 @@ function expectedWorkItem(
 /** Builds the complete expected capture without consulting an adapter read. */
 export function savedPlanCaptureExpected(
   seed: SeededPlan,
-  projectIndex: 0 | 1,
+  workPackageIndex: 0 | 1,
   revisionPolicy: CaptureRevisionPolicy,
   directoryEpoch: CaptureDirectoryEpoch = 'before',
 ): ReturnType<typeof observePlanInput> {
-  const isA = projectIndex === 0;
-  const projectId = seed.projectIds[projectIndex];
-  const [firstWorkItemId, secondWorkItemId] = seed.workItemIds[projectIndex];
-  const [firstStepId, secondStepId] = seed.stepIds[projectIndex];
+  const isA = workPackageIndex === 0;
+  const workPackageId = seed.workPackageIds[workPackageIndex];
+  const [firstWorkItemId, secondWorkItemId] = seed.workItemIds[workPackageIndex];
+  const [firstStepId, secondStepId] = seed.stepIds[workPackageIndex];
   return {
-    project: isA
+    workPackage: isA
       ? {
-          id: projectId,
-          name: 'Captured project A',
-          ownerId: 'owner-a',
+          id: workPackageId,
+          name: 'Captured work package A',
+          projectId: CURRENT_SOURCE_PROJECT_IDS[workPackageIndex],
           restricted: true,
           estimateMethod: 'pessimistic',
           depReach: 'anchor-slice',
@@ -217,9 +220,9 @@ export function savedPlanCaptureExpected(
           budgetFactor: 1.5,
         }
       : {
-          id: projectId,
-          name: 'Project 2',
-          ownerId: 'owner-b',
+          id: workPackageId,
+          name: 'Work package 2',
+          projectId: CURRENT_SOURCE_PROJECT_IDS[workPackageIndex],
           restricted: false,
           estimateMethod: 'pert',
           depReach: 'whole-item',
@@ -233,12 +236,12 @@ export function savedPlanCaptureExpected(
           budgetFactor: 1,
         },
     steps: [
-      { id: firstStepId, name: 'Dev', position: 10 },
-      { id: secondStepId, name: 'QA', position: 20 },
+      { id: firstStepId, name: isA ? 'Dev' : 'Other Dev', position: 10 },
+      { id: secondStepId, name: isA ? 'QA' : 'Other QA', position: 20 },
     ],
     workItems: [
       expectedWorkItem(
-        projectId,
+        workPackageId,
         firstWorkItemId,
         'Work 1',
         // A's first row also takes the tokens trio and budget, two writes more.
@@ -246,7 +249,7 @@ export function savedPlanCaptureExpected(
         isA,
       ),
       expectedWorkItem(
-        projectId,
+        workPackageId,
         secondWorkItemId,
         'Work 2',
         revisionPolicy === 'sqlite-bumped' ? 4 : 0,
@@ -287,7 +290,7 @@ export function savedPlanCaptureExpected(
       },
     ],
     // A three-point tokens trio and a tokens budget, the measures an unowned
-    // project may hold beyond its legacy facts (`wbs-measure-budgets` D66).
+    // work package may hold beyond its legacy facts (`wbs-measure-budgets` D66).
     measureEstimates: isA
       ? [
           {
@@ -382,10 +385,10 @@ async function expectWritten(outcome: Promise<string>) {
 
 async function readSeededPlanInput(
   stores: CaptureSeedStores,
-  projectId: string,
+  workPackageId: string,
 ): Promise<PlanInputReads> {
   const [
-    project,
+    workPackage,
     steps,
     workItems,
     estimates,
@@ -412,26 +415,26 @@ async function readSeededPlanInput(
     workItemTypes,
     externalSystems,
   ] = await Promise.all([
-    stores.projects.findById(projectId),
-    stores.projects.stepsOf(projectId),
-    stores.workItems.listByProject(projectId),
-    stores.estimates.listByProject(projectId),
-    stores.actuals.listByProject(projectId),
-    stores.progress.listByProject(projectId),
-    stores.blockages.listByProject(projectId),
-    stores.stepParallels.listByProject(projectId),
-    stores.measures.listByProject(projectId),
-    stores.measures.definitionsFor(projectId),
-    stores.measureEstimates.listByProject(projectId),
-    stores.budgets.listByProject(projectId),
-    stores.dependencies.listByProject(projectId),
-    stores.typedDependencies.listByProject(projectId),
-    stores.directory.assignmentsInProject(projectId),
-    stores.capacity.slotsFor(projectId),
-    stores.demands.listByProject(projectId),
-    stores.resourceCapacity.listFor(projectId),
+    stores.workPackages.findById(workPackageId),
+    stores.workPackages.stepsOf(workPackageId),
+    stores.workItems.listByWorkPackage(workPackageId),
+    stores.estimates.listByWorkPackage(workPackageId),
+    stores.actuals.listByWorkPackage(workPackageId),
+    stores.progress.listByWorkPackage(workPackageId),
+    stores.blockages.listByWorkPackage(workPackageId),
+    stores.stepParallels.listByWorkPackage(workPackageId),
+    stores.measures.listByWorkPackage(workPackageId),
+    stores.measures.definitionsFor(workPackageId),
+    stores.measureEstimates.listByWorkPackage(workPackageId),
+    stores.budgets.listByWorkPackage(workPackageId),
+    stores.dependencies.listByWorkPackage(workPackageId),
+    stores.typedDependencies.listByWorkPackage(workPackageId),
+    stores.directory.assignmentsInWorkPackage(workPackageId),
+    stores.capacity.slotsFor(workPackageId),
+    stores.demands.listByWorkPackage(workPackageId),
+    stores.resourceCapacity.listFor(workPackageId),
     stores.directory.listResources(),
-    stores.priorityBands.listFor(projectId),
+    stores.priorityBands.listFor(workPackageId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
     stores.directory.listServices(),
@@ -439,11 +442,12 @@ async function readSeededPlanInput(
     stores.directory.listWorkItemTypes(),
     stores.directory.listExternalSystems(),
   ]);
-  if (project === null) throw new Error(`capture seed project ${projectId} is absent`);
-  const timezone = await stores.projects.timezoneOf(projectId);
-  if (timezone === null) throw new Error(`capture seed project ${projectId} has no timezone`);
+  if (workPackage === null) throw new Error(`capture seed work package ${workPackageId} is absent`);
+  const timezone = await stores.workPackages.timezoneOf(workPackageId);
+  if (timezone === null)
+    throw new Error(`capture seed work package ${workPackageId} has no timezone`);
   return {
-    project: { ...project, timezone },
+    workPackage: { ...workPackage, timezone },
     steps,
     workItems,
     estimates,
@@ -490,17 +494,27 @@ async function readSeededPlanInput(
   };
 }
 
-/** Adds every project-scoped fact and every capture-only directory witness. */
+/** Adds every work-package-scoped fact and every capture-only directory witness. */
 export async function seedSavedPlanCapture(
   stores: CaptureSeedStores,
   seed: SeededPlan,
   ownCaptureResource: () => void,
 ) {
   const stamp = seed.stamps[0];
+  const workPackage = await stores.workPackages.findById(seed.workPackageIds[0]);
+  if (workPackage === null) throw new Error('capture fixture work package is absent');
+  const project = await stores.settings.readTarget(
+    { level: 'project', id: workPackage.projectId },
+    null,
+  );
+  if (project === null) throw new Error('capture fixture project is absent');
+  expect(await stores.settings.write(project, { key: 'budgetFactor', value: 1.5 }, stamp)).toEqual({
+    ok: true,
+  });
   expect(await stores.directory.patchTeam('team-a', { serviceIds: ['service-a'] }, stamp)).toEqual({
     ok: true,
     team: { id: 'team-a', name: 'Team 1', serviceIds: ['service-a'] },
-    projectIds: [],
+    workPackageIds: [],
   });
   expect(
     await stores.directory.addTag({ id: 'capture-tag-only', name: 'Capture-only tag' }, stamp),
@@ -557,13 +571,13 @@ export async function seedSavedPlanCapture(
   expect(await stores.directory.assign('work-b-one', 'step-b-dev', 'person-b', stamp)).toEqual({
     ok: true,
   });
-  expect(await stores.capacity.set('project-a', 'team-b', 4, stamp)).toEqual({ ok: true });
-  expect(await stores.capacity.set('project-b', 'team-a', 6, stamp)).toEqual({ ok: true });
+  expect(await stores.capacity.set('work-package-a', 'team-b', 4, stamp)).toEqual({ ok: true });
+  expect(await stores.capacity.set('work-package-b', 'team-a', 6, stamp)).toEqual({ ok: true });
   expect(
-    await stores.projects.update(
-      'project-a',
+    await stores.workPackages.update(
+      'work-package-a',
       {
-        name: 'Captured project A',
+        name: 'Captured work package A',
         restricted: true,
         estimateMethod: 'pessimistic',
         depReach: 'anchor-slice',
@@ -574,11 +588,10 @@ export async function seedSavedPlanCapture(
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
         scheduleObjective: 'time',
-        budgetFactor: 1.5,
       },
       stamp,
     ),
-  ).toMatchObject({ id: 'project-a', name: 'Captured project A' });
+  ).toMatchObject({ id: 'work-package-a', name: 'Captured work package A' });
   await expectWritten(
     stores.measureEstimates.set(
       {
@@ -672,7 +685,7 @@ export async function seedSavedPlanCapture(
   await stores.dependencies.add(
     {
       id: 'capture-dependency-a',
-      projectId: 'project-a',
+      workPackageId: 'work-package-a',
       predecessorId: 'work-a-one',
       successorId: 'work-a-two',
     },
@@ -681,14 +694,14 @@ export async function seedSavedPlanCapture(
   await stores.typedDependencies.add(
     {
       id: 'capture-typed-a',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       predecessor: {
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         scope: 'whole',
         workItemId: seed.workItemIds[0][0],
       },
       successor: {
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         scope: 'whole',
         workItemId: seed.workItemIds[0][1],
       },
@@ -699,15 +712,15 @@ export async function seedSavedPlanCapture(
   await stores.typedDependencies.add(
     {
       id: 'capture-typed-b',
-      projectId: seed.projectIds[1],
+      workPackageId: seed.workPackageIds[1],
       predecessor: {
-        projectId: seed.projectIds[1],
+        workPackageId: seed.workPackageIds[1],
         scope: 'node',
         workItemId: seed.workItemIds[1][0],
         stepId: seed.stepIds[1][0],
       },
       successor: {
-        projectId: seed.projectIds[1],
+        workPackageId: seed.workPackageIds[1],
         scope: 'node',
         workItemId: seed.workItemIds[1][1],
         stepId: seed.stepIds[1][1],
@@ -719,14 +732,18 @@ export async function seedSavedPlanCapture(
   await stores.dependencies.add(
     {
       id: 'capture-dependency-b',
-      projectId: 'project-b',
+      workPackageId: 'work-package-b',
       predecessorId: 'work-b-two',
       successorId: 'work-b-one',
     },
     stamp,
   );
-  expect(await stores.priorityBands.replace('project-a', A_BANDS, stamp)).toEqual({ ok: true });
-  expect(await stores.priorityBands.replace('project-b', B_BANDS, stamp)).toEqual({ ok: true });
+  expect(await stores.priorityBands.replace('work-package-a', A_BANDS, stamp)).toEqual({
+    ok: true,
+  });
+  expect(await stores.priorityBands.replace('work-package-b', B_BANDS, stamp)).toEqual({
+    ok: true,
+  });
 
   expect(
     await stores.directory.addResource(
@@ -736,7 +753,7 @@ export async function seedSavedPlanCapture(
   ).toHaveProperty('ok', true);
   ownCaptureResource();
   expect(
-    await stores.resourceCapacity.set(seed.projectIds[0], CAPTURE_RESOURCE, 32, stamp),
+    await stores.resourceCapacity.set(seed.workPackageIds[0], CAPTURE_RESOURCE, 32, stamp),
   ).toHaveProperty('ok', true);
   expect(
     await stores.directory.setDirectoryCapacity(CAPTURE_RESOURCE, 16, {
@@ -746,26 +763,26 @@ export async function seedSavedPlanCapture(
     }),
   ).toHaveProperty('ok', true);
 
-  const [projectA, projectB, dependenciesA, dependenciesB] = await Promise.all([
-    readSeededPlanInput(stores, seed.projectIds[0]),
-    readSeededPlanInput(stores, seed.projectIds[1]),
-    stores.dependencies.listByProject(seed.projectIds[0]),
-    stores.dependencies.listByProject(seed.projectIds[1]),
+  const [workPackageA, workPackageB, dependenciesA, dependenciesB] = await Promise.all([
+    readSeededPlanInput(stores, seed.workPackageIds[0]),
+    readSeededPlanInput(stores, seed.workPackageIds[1]),
+    stores.dependencies.listByWorkPackage(seed.workPackageIds[0]),
+    stores.dependencies.listByWorkPackage(seed.workPackageIds[1]),
   ]);
   const completeState = {
-    projectA: observePlanInput(projectA),
-    projectB: observePlanInput(projectB),
+    workPackageA: observePlanInput(workPackageA),
+    workPackageB: observePlanInput(workPackageB),
   };
   expect(
     (['memory-unbumped', 'sqlite-bumped'] as const).map((revisionPolicy) => ({
-      projectA: savedPlanCaptureExpected(seed, 0, revisionPolicy),
-      projectB: savedPlanCaptureExpected(seed, 1, revisionPolicy),
+      workPackageA: savedPlanCaptureExpected(seed, 0, revisionPolicy),
+      workPackageB: savedPlanCaptureExpected(seed, 1, revisionPolicy),
     })),
   ).toContainEqual(completeState);
   expect(dependenciesA).toEqual([
     {
       id: 'capture-dependency-a',
-      projectId: 'project-a',
+      workPackageId: 'work-package-a',
       predecessorId: 'work-a-one',
       successorId: 'work-a-two',
     },
@@ -773,7 +790,7 @@ export async function seedSavedPlanCapture(
   expect(dependenciesB).toEqual([
     {
       id: 'capture-dependency-b',
-      projectId: 'project-b',
+      workPackageId: 'work-package-b',
       predecessorId: 'work-b-two',
       successorId: 'work-b-one',
     },
@@ -788,14 +805,14 @@ export async function changeSavedPlanCaptureTypedDependencies(
   await stores.typedDependencies.update(
     {
       id: 'capture-typed-a',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       predecessor: {
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         scope: 'whole',
         workItemId: seed.workItemIds[0][0],
       },
       successor: {
-        projectId: seed.projectIds[0],
+        workPackageId: seed.workPackageIds[0],
         scope: 'node',
         workItemId: seed.workItemIds[0][1],
         stepId: seed.stepIds[0][1],
@@ -810,15 +827,15 @@ export async function changeSavedPlanCaptureTypedDependencies(
 function captureAlternatives(seed: SeededPlan, missing: PlanInputReads | null) {
   return (['memory-unbumped', 'sqlite-bumped'] as const).map((revisionPolicy) => ({
     missing,
-    projectA: savedPlanCaptureExpected(seed, 0, revisionPolicy),
-    projectB: savedPlanCaptureExpected(seed, 1, revisionPolicy),
+    workPackageA: savedPlanCaptureExpected(seed, 0, revisionPolicy),
+    workPackageB: savedPlanCaptureExpected(seed, 1, revisionPolicy),
   }));
 }
 
-async function readComplete(port: SavedPlanCaptureStore, projectId: string) {
-  const captured = await port.readPlanInput(projectId);
+async function readComplete(port: SavedPlanCaptureStore, workPackageId: string) {
+  const captured = await port.readPlanInput(workPackageId);
   expect(captured).not.toBeNull();
-  if (captured === null) throw new Error(`capture unexpectedly absent for ${projectId}`);
+  if (captured === null) throw new Error(`capture unexpectedly absent for ${workPackageId}`);
   return captured;
 }
 
@@ -826,7 +843,7 @@ function clearArray(array: readonly unknown[]) {
   Reflect.apply(Array.prototype.splice, array, [0, array.length]);
 }
 
-/** Shared complete, missing-project, and detached capture cases. */
+/** Shared complete, missing-work-package, and detached capture cases. */
 export function savedPlanCaptureRegistrations(
   open: OpenCase<'savedPlanCapture'>,
 ): readonly CaseRegistration[] {
@@ -836,7 +853,7 @@ export function savedPlanCaptureRegistrations(
       'savedPlanCapture.readPlanInput:complete',
       open,
       async ({ port, seed }) => {
-        const captured = observePlanInput(await readComplete(port, seed.projectIds[0]));
+        const captured = observePlanInput(await readComplete(port, seed.workPackageIds[0]));
         expect([
           savedPlanCaptureExpected(seed, 0, 'memory-unbumped'),
           savedPlanCaptureExpected(seed, 0, 'sqlite-bumped'),
@@ -850,7 +867,7 @@ export function savedPlanCaptureRegistrations(
       async ({ port, seed, scenario }) => {
         if (scenario.kind !== 'capture-interleave')
           throw new Error('coherent capture requires its interleave scenario');
-        const heldRead = port.readPlanInput(seed.projectIds[0]);
+        const heldRead = port.readPlanInput(seed.workPackageIds[0]);
         await scenario.firstRead.entered;
         let change: Awaited<ReturnType<typeof scenario.changeDirectory>> | undefined;
         let changeFailure: unknown;
@@ -877,7 +894,7 @@ export function savedPlanCaptureRegistrations(
         if (!tag.ok) throw new Error(`capture tag change was refused: ${tag.reason}`);
         if (!person.ok) throw new Error(`capture person change was refused: ${person.reason}`);
         if (held.value === null) throw new Error('held capture unexpectedly absent');
-        const next = await readComplete(port, seed.projectIds[0]);
+        const next = await readComplete(port, seed.workPackageIds[0]);
         const observed = {
           change: { tag, person },
           held: observePlanInput(held.value),
@@ -889,7 +906,7 @@ export function savedPlanCaptureRegistrations(
               tag: {
                 ok: true as const,
                 tag: { id: 'tag-a', name: 'Tag after interleave' },
-                projectIds: [seed.projectIds[0]] as readonly string[],
+                workPackageIds: [seed.workPackageIds[0]] as readonly string[],
               },
               person: {
                 ok: true as const,
@@ -900,7 +917,7 @@ export function savedPlanCaptureRegistrations(
                   teamIds: ['team-a'] as readonly string[],
                   accountId: null as string | null,
                 },
-                projectIds: [] as readonly string[],
+                workPackageIds: [] as readonly string[],
               },
             },
             held: savedPlanCaptureExpected(seed, 0, revisionPolicy, 'before'),
@@ -911,18 +928,18 @@ export function savedPlanCaptureRegistrations(
     ),
     storeCase(
       'savedPlanCapture',
-      'savedPlanCapture.readPlanInput:missing-project',
+      'savedPlanCapture.readPlanInput:missing-work-package',
       open,
       async ({ port, seed }) => {
-        const [missing, projectA, projectB] = await Promise.all([
-          port.readPlanInput('capture-project-missing'),
-          readComplete(port, seed.projectIds[0]),
-          readComplete(port, seed.projectIds[1]),
+        const [missing, workPackageA, workPackageB] = await Promise.all([
+          port.readPlanInput('capture-work-package-missing'),
+          readComplete(port, seed.workPackageIds[0]),
+          readComplete(port, seed.workPackageIds[1]),
         ]);
         expect(captureAlternatives(seed, null)).toContainEqual({
           missing,
-          projectA: observePlanInput(projectA),
-          projectB: observePlanInput(projectB),
+          workPackageA: observePlanInput(workPackageA),
+          workPackageB: observePlanInput(workPackageB),
         });
       },
     ),
@@ -933,14 +950,14 @@ export function savedPlanCaptureRegistrations(
       async ({ port, seed, readers, scenario }) => {
         if (scenario.kind !== 'capture-typed-change')
           throw new Error('detached capture requires its typed-change scenario');
-        const first = await readComplete(port, seed.projectIds[0]);
-        const firstB = await readComplete(port, seed.projectIds[1]);
-        expect(captureAlternatives(seed, null).map(({ projectA }) => projectA)).toContainEqual(
-          observePlanInput(first),
-        );
-        expect(captureAlternatives(seed, null).map(({ projectB }) => projectB)).toContainEqual(
-          observePlanInput(firstB),
-        );
+        const first = await readComplete(port, seed.workPackageIds[0]);
+        const firstB = await readComplete(port, seed.workPackageIds[1]);
+        expect(
+          captureAlternatives(seed, null).map(({ workPackageA }) => workPackageA),
+        ).toContainEqual(observePlanInput(first));
+        expect(
+          captureAlternatives(seed, null).map(({ workPackageB }) => workPackageB),
+        ).toContainEqual(observePlanInput(firstB));
         const labelled = first.workItems.find(({ id }) => id === 'work-a-one');
         const unassigned = first.people.find(({ id }) => id === 'capture-person-unassigned');
         const team = first.teams.find(({ id }) => id === 'team-a');
@@ -980,27 +997,27 @@ export function savedPlanCaptureRegistrations(
           first.externalSystems,
         ])
           clearArray(collection);
-        const [projectA, projectB] = await Promise.all([
-          readComplete(port, seed.projectIds[0]),
-          readComplete(port, seed.projectIds[1]),
+        const [workPackageA, workPackageB] = await Promise.all([
+          readComplete(port, seed.workPackageIds[0]),
+          readComplete(port, seed.workPackageIds[1]),
         ]);
         expect(captureAlternatives(seed, null)).toContainEqual({
           missing: null,
-          projectA: observePlanInput(projectA),
-          projectB: observePlanInput(projectB),
+          workPackageA: observePlanInput(workPackageA),
+          workPackageB: observePlanInput(workPackageB),
         });
         await scenario.changeTypedDependencies();
-        expect(await readers.typedDependencies.listByProject(seed.projectIds[0])).toEqual([
+        expect(await readers.typedDependencies.listByWorkPackage(seed.workPackageIds[0])).toEqual([
           {
             id: 'capture-typed-a',
-            projectId: seed.projectIds[0],
+            workPackageId: seed.workPackageIds[0],
             predecessor: {
-              projectId: seed.projectIds[0],
+              workPackageId: seed.workPackageIds[0],
               scope: 'whole',
               workItemId: seed.workItemIds[0][0],
             },
             successor: {
-              projectId: seed.projectIds[0],
+              workPackageId: seed.workPackageIds[0],
               scope: 'node',
               workItemId: seed.workItemIds[0][1],
               stepId: seed.stepIds[0][1],
@@ -1008,7 +1025,9 @@ export function savedPlanCaptureRegistrations(
             type: 'FS',
           },
         ]);
-        expect(await readers.typedDependencies.listByProject(seed.projectIds[1])).toEqual([]);
+        expect(await readers.typedDependencies.listByWorkPackage(seed.workPackageIds[1])).toEqual(
+          [],
+        );
         expect(first.typedDependencies).toEqual([
           {
             id: 'capture-typed-a',

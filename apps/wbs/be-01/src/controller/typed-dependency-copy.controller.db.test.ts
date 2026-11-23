@@ -1,12 +1,22 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { readPreconditions } from '@wbs/core/service/compensating';
@@ -30,14 +40,13 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildStores } from '../services';
@@ -62,24 +71,28 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let folder: string;
 let app: ReturnType<typeof buildApp>;
+let catalogue: StepCatalogueRepository;
 let typed: TypedDependencyRepository;
 let journal: CommandJournalRepository;
 let workItems: WorkItemRepository;
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-typed-lifecycle-'));
+  migrateOrganizationCatalogueFixture(join(folder, 'test.db'));
   const db = openDrizzle(join(folder, 'test.db'));
-  runMigrations(join(folder, 'test.db'), FOLDER);
-  const projects = new ProjectRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
+  seedLegacyProject(join(folder, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
+  const workPackages = new WorkPackageRepository(db, OPEN);
   const steps = new StepRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   journal = new CommandJournalRepository(db, OPEN);
@@ -88,7 +101,7 @@ beforeEach(() => {
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
   const dependencyContext = createLocalDependencyContext({
-    projects,
+    workPackages,
     workItems,
     estimates,
     dependencies,
@@ -104,33 +117,33 @@ beforeEach(() => {
     priorityBands: testPriorityBandService(),
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
+    workPackages: new WorkPackageService({
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
-      projects,
+      workPackages,
       steps,
       broadcast: recordingBroadcaster(),
       dependencyContext,
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: estimates,
         dependencies: dependencies,
         typedDependencies: typed,
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates,
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -157,7 +170,15 @@ beforeEach(() => {
     clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(join(folder, 'test.db')),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -167,7 +188,8 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
@@ -188,18 +210,18 @@ beforeEach(() => {
         ...writing,
         workItems: new WorkItemService({
           dependencyContext: createLocalDependencyContext({
-            projects: scope.stores.projects,
+            workPackages: scope.stores.workPackages,
             workItems: scope.stores.workItems,
             estimates: scope.stores.estimates,
             dependencies: scope.stores.dependencies,
             typedDependencies: scope.stores.typedDependencies,
           }),
           externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           scheduler: fastScheduler,
           clock: testClock,
           workItems: scope.stores.workItems,
-          projects: scope.stores.projects,
+          workPackages: scope.stores.workPackages,
           estimates: scope.stores.estimates,
           actuals: scope.stores.actuals,
           measures: scope.stores.measures,
@@ -250,18 +272,25 @@ async function setup() {
     }),
   );
   const { token, user } = (await registered.json()) as { token: string; user: { id: string } };
-  const created = await send('/api/projects', token, { name: 'Lifecycle' });
-  const project = (await created.json()) as {
-    project: { id: string };
+  await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, {
+    at: testClock.now(),
+    by: user.id,
+  });
+  const created = await send('/api/work-packages', token, {
+    projectId: PROJECT_ID,
+    name: 'Lifecycle',
+  });
+  const workPackage = (await created.json()) as {
+    workPackage: { id: string };
     steps: { id: string; name: string }[];
   };
-  const projectId = project.project.id;
-  const devId = project.steps.find((step) => step.name === 'Dev')?.id;
+  const workPackageId = workPackage.workPackage.id;
+  const devId = workPackage.steps.find((step) => step.name === 'Dev')?.id;
   if (devId === undefined) throw new Error('Dev step missing');
-  const qaId = project.steps.find((step) => step.name === 'QA')?.id;
+  const qaId = workPackage.steps.find((step) => step.name === 'QA')?.id;
   if (qaId === undefined) throw new Error('QA step missing');
   const command = (step: object) =>
-    send(`/api/projects/${projectId}/commands`, token, { commands: [step] });
+    send(`/api/work-packages/${workPackageId}/commands`, token, { commands: [step] });
   const create = async (name: string, parentId: string | null = null) => {
     const response = await command({ kind: 'createWorkItem', name, parentId, afterId: null });
     expect(response.status).toBe(200);
@@ -279,7 +308,7 @@ async function setup() {
     const body = (await response.json()) as { results: { id: string }[] };
     return body.results[0].id;
   };
-  return { token, userId: user.id, projectId, devId, qaId, command, create, add };
+  return { token, userId: user.id, workPackageId, devId, qaId, command, create, add };
 }
 const node = (workItemId: string, stepId: string): DependencyEndpoint => ({
   scope: 'node',
@@ -313,7 +342,7 @@ it('copies typed prerequisites and replays them with stable ids', async () => {
   expect(duplicated.status).toBe(200);
   const copyId = ((await duplicated.json()) as { results: { id: string }[] }).results[0].id;
   const tree = (await (
-    await send(`/api/projects/${plan.projectId}/work-items`, plan.token)
+    await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token)
   ).json()) as {
     workItems: { id: string; parentId: string | null; name: string }[];
     typedDependencies: {
@@ -383,9 +412,13 @@ it('copies typed prerequisites and replays them with stable ids', async () => {
     predecessor: whole(branch),
     successor: whole(outside),
   });
-  expect(await typed.listByProject(plan.projectId)).toHaveLength(9);
+  expect(await typed.listByWorkPackage(plan.workPackageId)).toHaveLength(9);
   const entry = (
-    await journal.entriesFor({ projectId: plan.projectId, userId: plan.userId, personId: null })
+    await journal.entriesFor({
+      workPackageId: plan.workPackageId,
+      userId: plan.userId,
+      personId: null,
+    })
   ).at(-1);
   if (entry === undefined) throw new Error('copy journal missing');
   const preconditions = readPreconditions(entry.preconditions);
@@ -403,21 +436,23 @@ it('copies typed prerequisites and replays them with stable ids', async () => {
   );
 
   expect(
-    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/undo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
-  expect((await typed.listByProject(plan.projectId)).map((edge) => edge.id).sort()).toEqual(
+  expect((await typed.listByWorkPackage(plan.workPackageId)).map((edge) => edge.id).sort()).toEqual(
     [internalId, wholeId, descendantId, externalId, outgoingId].sort(),
   );
   const undone = (await (
-    await send(`/api/projects/${plan.projectId}/work-items`, plan.token)
+    await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token)
   ).json()) as { workItems: { id: string }[] };
   expect(undone.workItems.some((row) => row.id === copyId)).toBe(false);
 
   expect(
-    (await send(`/api/projects/${plan.projectId}/redo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/redo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
   expect(
-    (await typed.listByProject(plan.projectId)).find((edge) => edge.id === copied?.id),
+    (await typed.listByWorkPackage(plan.workPackageId)).find((edge) => edge.id === copied?.id),
   ).toMatchObject({
     id: copied?.id,
     predecessor: node(firstCopy.id, plan.devId),
@@ -425,21 +460,23 @@ it('copies typed prerequisites and replays them with stable ids', async () => {
     type: 'FF',
   });
   expect(
-    (await typed.listByProject(plan.projectId)).find((edge) => edge.id === copiedWhole?.id),
+    (await typed.listByWorkPackage(plan.workPackageId)).find((edge) => edge.id === copiedWhole?.id),
   ).toMatchObject({
     predecessor: whole(firstCopy.id),
     successor: whole(secondCopy.id),
     type: 'SS',
   });
   expect(
-    (await typed.listByProject(plan.projectId)).find((edge) => edge.id === copiedDescendant?.id),
+    (await typed.listByWorkPackage(plan.workPackageId)).find(
+      (edge) => edge.id === copiedDescendant?.id,
+    ),
   ).toMatchObject({
     predecessor: descendant(branchCopy.id, plan.devId),
     successor: whole(secondCopy.id),
     type: 'FF',
   });
   const redone = (await (
-    await send(`/api/projects/${plan.projectId}/work-items`, plan.token)
+    await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token)
   ).json()) as { workItems: { id: string }[] };
   expect(redone.workItems.some((row) => row.id === copyId)).toBe(true);
 });
@@ -454,7 +491,7 @@ it('undoes first-child hand-down before undoing a copied typed relationship', as
   expect(duplicate.status).toBe(200);
   const copyId = ((await duplicate.json()) as { results: { id: string }[] }).results[0].id;
   const copied = (await (
-    await send(`/api/projects/${plan.projectId}/work-items`, plan.token)
+    await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token)
   ).json()) as {
     workItems: { id: string; parentId: string | null; name: string }[];
     typedDependencies: {
@@ -472,18 +509,22 @@ it('undoes first-child hand-down before undoing a copied typed relationship', as
   if (copiedEdge === undefined) throw new Error('copied relationship missing');
   await plan.create('C1.1', firstCopy.id);
   expect(
-    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/undo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
   // Proof: 2026-09-28, dropping the other endpoint from create.touched made this return 409.
   expect(
-    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/undo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
   expect(
-    (await typed.listByProject(plan.projectId)).some((edge) => edge.id === copiedEdge.id),
+    (await typed.listByWorkPackage(plan.workPackageId)).some((edge) => edge.id === copiedEdge.id),
   ).toBe(false);
   expect(
     (
-      (await (await send(`/api/projects/${plan.projectId}/work-items`, plan.token)).json()) as {
+      (await (
+        await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token)
+      ).json()) as {
         workItems: { id: string }[];
       }
     ).workItems.some((row) => row.id === secondCopy.id),
@@ -497,13 +538,15 @@ it('undoes an earlier typed write after undoing a first-child hand-down', async 
   const edgeId = await plan.add(node(first, plan.devId), node(second, plan.devId));
   await plan.create('A1', first);
   expect(
-    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/undo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
   // Proof: 2026-09-28, dropping B from create.touched made this return 409.
   expect(
-    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+    (await send(`/api/work-packages/${plan.workPackageId}/undo`, plan.token, undefined, 'POST'))
+      .status,
   ).toBe(200);
-  expect((await typed.listByProject(plan.projectId)).some((edge) => edge.id === edgeId)).toBe(
-    false,
-  );
+  expect(
+    (await typed.listByWorkPackage(plan.workPackageId)).some((edge) => edge.id === edgeId),
+  ).toBe(false);
 });

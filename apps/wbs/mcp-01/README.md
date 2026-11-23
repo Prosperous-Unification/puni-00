@@ -13,36 +13,46 @@ that binding; see [Organizations](#organizations).
 
 ## Writing plans
 
-Since `plan-commands` every plan edit is one tool, `postApiProjectsByIdCommands`:
+Since `plan-commands` every plan edit is one tool, `postApiWorkPackagesByIdCommands`:
 an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
-created by its ref. The directory has no project, so its edits alone have
+created by its ref. The directory has no work package, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-81 tools in all:
+100 tools in all:
 
+- the five engagement-project tools (create, list, detail, rename and delete); creation accepts an optional first work package, written atomically with the project and creator grants;
+- the separate engagement-project settings read and write;
+- person and service-team space membership add/remove tools; their identities are required path parameters, with no request body or query string. Space reads include `personIds` and `serviceTeamIds`. Links change no grants, capacity or scheduling facts;
+- the organization step catalogue read, scope binding/definition creation, definition metadata/default edit and retirement (`listStepCatalogue`, `bindCatalogueStep`, `patchStepDefinition`, `retireStepDefinition`);
+- project step resolution (`readProjectSteps`): omit `type` for untyped leaves or supply an owned type id; returns all matching scope provenance under that project’s read permission, without package units or allowances;
+- revision-bound project applicability (`readProjectStepManifest`): untyped default codes and every owned type mapping by stable ID, captured with the actual project revision;
+- project step usage (`readProjectStepUsage`): a required `stepId` query lists protected pairs even with redundant bindings; only readable child packages contribute to count and the first200pairs;
+- exact scoped binding order (`reorderCatalogueBindings`): `scopeKind`, `scopeId` and the complete `ids` across all types; stale lists refuse and inherited scopes retain their own order;
+- scoped binding removal (`unbindCatalogueStep`): `dryRun:true` previews protected pairs, and `dryRun:false` applies removal under that binding’s scope permission;
+- addressed work-package units and allowance basis points (`patchWorkPackageStepValues`); definition names and defaults use the catalogue tools;
 - the reads (the timezone list among them), the work-item page and single work-item reads;
-- bounded project discovery, project-qualified dependency endpoint lookup and address resolution;
+- bounded work package discovery, work-package-qualified dependency endpoint lookup and address resolution;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
-- the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
+- the startable read (`getApiWorkPackagesByIdStartable`: which steps a team may claim, and which are
   claimed);
-- the budget headroom read (`getApiProjectsByIdBudget-headroom`: per startable and claimed step,
+- the budget headroom read (`getApiWorkPackagesByIdBudget-headroom`: per startable and claimed step,
   the tightest budget per measure with what is spent, held and remaining, set with the `setBudget`
   and `clearBudget` batch kinds);
-- the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and
-  claims in a project, each claim with its lease expiry);
-- the claims read (`getApiProjectsByIdClaims`: every claim held in a project, with holder, run,
+- the by-person read (`getApiWorkPackagesByIdPeopleByPersonIdWork`: one person's assignments and
+  claims in a work package, each claim with its lease expiry);
+- the claims read (`getApiWorkPackagesByIdClaims`: every claim held in a work package, with holder, run,
   parent claim, lease expiry and revocation, and the server's read instant);
-- the claim history read (`getApiProjectsByIdClaim-history`: a project's newest claims and
+- the claim history read (`getApiWorkPackagesByIdClaim-history`: a work package's newest claims and
   releases, batched ones included, each with holder, items and reason, such as a lease that
   expired);
 - the agent heartbeat (`postApiClaimsRenew`: renews every claim lease of the calling agent; a
   claim an agent takes for itself is released 15 minutes after its last write unless renewed; a
   raw HTTP caller sends no body and no query string, either is refused `400` and renews nothing);
-- the project resource read (`getApiProjectsByIdResources`: the directory's resources, each
-  with its directory capacity, the project's capacities and demands);
+- the work package resource read (`getApiWorkPackagesByIdResources`: the directory's resources, each
+  with its directory capacity, the work package's capacities and demands);
 - the directory capacity preview
   (`postApiOrganizationResourcesByResourceIdDirectory-capacityPreview`: what stating, lowering or
   clearing a resource's directory capacity would leave, writing nothing; an organization admin or
@@ -55,20 +65,20 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five
   seeded and any it defined, written with the `createMeasure`, `patchMeasure` and `deleteMeasure`
   directory commands, which only an organization admin or super-admin may send);
-- the two person-load reads, the project rank read and move;
+- the two person-load reads, the work package rank read and move;
 - the organization's capacity-mode read;
 - the capacity report
   (`putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`), which only a
   machine token of an agent person may send: a consent session is refused
   `not_an_agent_principal`;
-- the two batches, undo, redo, the project and step routes, the export, the import;
+- the two batches, undo, redo, the work package and step routes, the export, the import;
 - the six saved-plan routes: the five that create, list, read, rename and delete a snapshot, plus
-  `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two of them;
+  `getApiWorkPackagesByIdSaved-plansCompare`, which answers what changed between two of them;
 - the four calendar-marker routes that list, add, edit and delete a dated annotation on a
-  project's axis;
+  work package's axis;
 - the ten space routes that list, create, read, rename and delete a space, add, remove and move
-  its projects, and read its projects' roll-ups and the work in progress across it;
-- one call that retries a failed or corrupt optimized variant; Retry is a project lifecycle action
+  its projects, and read work-package roll-ups and the work in progress across it;
+- one call that retries a failed or corrupt optimized variant; Retry is a work package lifecycle action
   with no plan-command equivalent.
 
 `readRuntimeState` returns coherent runtime facts, current authority and the revision basis.
@@ -81,7 +91,7 @@ command creates one. One call drafts a plan:
 
 ```json
 {
-  "id": "<projectId>",
+  "id": "<workPackageId>",
   "commands": [
     {
       "kind": "createWorkItem",
@@ -112,20 +122,20 @@ command creates one. One call drafts a plan:
 A refused command refuses the whole batch with `{ "error", "at", "kind" }` and
 nothing is applied; fix that command and resend.
 
-Typed dependencies use the same command tool. An omitted endpoint `projectId`
+Typed dependencies use the same command tool. An omitted endpoint `workPackageId`
 keeps owner-local IDs and exact batch aliases, including `PUNI.080.39`. An explicit
-`projectId` requires stable IDs without surrounding whitespace (or the existing
-`sn1` node ID), and forbids `workItemRef` even for the owner project. The route's
-project owns the successor:
+`workPackageId` requires stable IDs without surrounding whitespace (or the existing
+`sn1` node ID), and forbids `workItemRef` even for the owner work package. The route's
+work package owns the successor:
 
 ```json
 {
-  "id": "<successor-project-id>",
+  "id": "<successor-work-package-id>",
   "commands": [
     {
       "kind": "addTypedDependency",
       "predecessor": {
-        "projectId": "<predecessor-project-id>",
+        "workPackageId": "<predecessor-work-package-id>",
         "scope": "whole",
         "workItemId": "<predecessor-id>"
       },
@@ -146,7 +156,7 @@ add/update/remove commands continue through the same admission path.
 `updateTypedDependency` and `removeTypedDependency` address the stable
 `dependencyId`; changing endpoints keeps that identity.
 
-Connecting an AI client and importing a project through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
+Connecting an AI client and importing a work package through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
 
 ## Endpoint and probes
 
@@ -226,7 +236,7 @@ organization, local user and upstream issuer are stored on the code, refresh
 family and session (`src/oauth.ts`). Each tool call then gets a fresh
 `wbs-be-01/via-mcp-01` delegation from be-01 for exactly that binding and the
 access token's scopes (`src/organization-authority.ts`); no tool argument or
-header can name another organization, and another organization's project
+header can name another organization, and another organization's work package
 answers 404. Every request rereads the family's membership; a removed member's
 request answers 401 and its refresh `invalid_grant`. A be-01 401 refreshes the
 upstream token and asks for a new delegation, never forwarding the raw token.

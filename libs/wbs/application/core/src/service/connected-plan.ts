@@ -1,6 +1,6 @@
 import {
   CalendarRangeError,
-  type ConnectedProjectGraph,
+  type ConnectedWorkPackageGraph,
   formatTypedDependencyKey,
   groupSlicesByLeaf,
   indexTree,
@@ -21,20 +21,20 @@ import { resolveConnectedCalendar, translateConnectedCalendar } from './connecte
 import {
   type ConnectedIdentities,
   type ConnectedPlanProjection,
-  projectConnectedSchedule,
   restoreConnectedSchedule,
+  workPackageConnectedSchedule,
 } from './connected-plan-projection';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { prepareCapturedScheduleParts } from './schedule-parts';
 
 function buildLocalGraph(
-  projectId: string,
+  workPackageId: string,
   input: ScheduleInput,
   relationships: readonly ScopedTypedDependency[],
-): ConnectedProjectGraph {
+): ConnectedWorkPackageGraph {
   const tree = indexTree(input.rows);
   return {
-    projectId,
+    workPackageId,
     tree,
     slicesByLeaf: groupSlicesByLeaf(tree.leafIds, input.slices),
     graph: resolveScheduleInput(input).graph,
@@ -54,41 +54,42 @@ export function deriveConnectedPlan(
   scheduleFast: (input: ResolvedScheduleInput) => Schedule,
   optimizer: ConnectedOptimizedCapturedAdapter | null = null,
 ): ConnectedPlanProjection {
-  const members = [...capture.projects].sort(
+  const members = [...capture.workPackages].sort(
     (a, b) =>
-      a.rank - b.rank || (a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0),
+      a.rank - b.rank ||
+      (a.workPackageId < b.workPackageId ? -1 : a.workPackageId > b.workPackageId ? 1 : 0),
   );
   const locals = new Map<string, ScopedTypedDependency[]>();
   const external: ScopedTypedDependency[] = [];
-  const projectIds = new Set(members.map((member) => member.projectId));
+  const workPackageIds = new Set(members.map((member) => member.workPackageId));
   for (const relationship of capture.relationships) {
     // Proof: removing owner equality failed `refuses wrong relationship ownership and mismatched local captured evidence` (accepted capture).
-    if (relationship.projectId !== relationship.successor.projectId)
+    if (relationship.workPackageId !== relationship.successor.workPackageId)
       throw new Error(`relationship ${relationship.id} has wrong owner`);
-    // Proof (diagnostic): removing this guard failed `refuses foreign project rows, absent endpoint project and cross owned endpoint identity` (downstream graph refusal).
+    // Proof (diagnostic): removing this guard failed `refuses foreign workPackage rows, absent endpoint workPackage and cross owned endpoint identity` (downstream graph refusal).
     if (
-      !projectIds.has(relationship.predecessor.projectId) ||
-      !projectIds.has(relationship.successor.projectId)
+      !workPackageIds.has(relationship.predecessor.workPackageId) ||
+      !workPackageIds.has(relationship.successor.workPackageId)
     )
-      throw new Error(`relationship ${relationship.id} has uncaptured project`);
-    if (relationship.predecessor.projectId !== relationship.successor.projectId)
+      throw new Error(`relationship ${relationship.id} has uncaptured work package`);
+    if (relationship.predecessor.workPackageId !== relationship.successor.workPackageId)
       external.push(relationship);
     else {
-      const projectId = relationship.projectId;
-      const previous = locals.get(projectId) ?? [];
+      const workPackageId = relationship.workPackageId;
+      const previous = locals.get(workPackageId) ?? [];
       previous.push(relationship);
-      locals.set(projectId, previous);
+      locals.set(workPackageId, previous);
     }
   }
   const prepared = new Map<string, ReturnType<typeof prepareCapturedScheduleParts>>();
   for (const member of members) {
-    // Proof: removing identity failed `refuses corrupted project identity and nonfinite rank`; removing rank failed `validates rank before an engine refusal` (engine_unavailable).
-    if (member.reads.project.id !== member.projectId || !Number.isFinite(member.rank))
-      throw new Error(`invalid captured project ${member.projectId}`);
-    // Proof: removing row ownership failed `refuses foreign project rows, absent endpoint project and cross owned endpoint identity` (accepted foreign row).
-    if (member.reads.workItems.some((row) => row.projectId !== member.projectId))
-      throw new Error(`foreign work item in ${member.projectId}`);
-    const relationships = locals.get(member.projectId) ?? [];
+    // Proof: removing identity failed `refuses corrupted workPackage identity and nonfinite rank`; removing rank failed `validates rank before an engine refusal` (engine_unavailable).
+    if (member.reads.workPackage.id !== member.workPackageId || !Number.isFinite(member.rank))
+      throw new Error(`invalid captured work package ${member.workPackageId}`);
+    // Proof: removing row ownership failed `refuses foreign workPackage rows, absent endpoint workPackage and cross owned endpoint identity` (accepted foreign row).
+    if (member.reads.workItems.some((row) => row.workPackageId !== member.workPackageId))
+      throw new Error(`foreign work item in ${member.workPackageId}`);
+    const relationships = locals.get(member.workPackageId) ?? [];
     const expected = new Map(
       relationships.map((relationship) => [
         relationship.id,
@@ -103,21 +104,21 @@ export function deriveConnectedPlan(
     );
     // Proof: removing captured-local equality failed `refuses wrong relationship ownership and mismatched local captured evidence` (modeled cycle instead of throw).
     if (expected.size !== actual.size || [...expected].some(([id, key]) => actual.get(id) !== key))
-      throw new Error(`local relationships disagree in ${member.projectId}`);
-    prepared.set(member.projectId, prepareCapturedScheduleParts(member.reads));
+      throw new Error(`local relationships disagree in ${member.workPackageId}`);
+    prepared.set(member.workPackageId, prepareCapturedScheduleParts(member.reads));
   }
-  const getProjectParts = (projectId: string) => {
-    const parts = prepared.get(projectId);
+  const getWorkPackageParts = (workPackageId: string) => {
+    const parts = prepared.get(workPackageId);
     // Invariant diagnostic: every captured member is prepared before graph construction.
-    if (parts === undefined) throw new Error(`missing prepared project ${projectId}`);
+    if (parts === undefined) throw new Error(`missing prepared work package ${workPackageId}`);
     return parts;
   };
   const authored = resolveConnectedGraph({
-    projects: members.map((member) =>
+    workPackages: members.map((member) =>
       buildLocalGraph(
-        member.projectId,
-        getProjectParts(member.projectId).unreducedInput,
-        locals.get(member.projectId) ?? [],
+        member.workPackageId,
+        getWorkPackageParts(member.workPackageId).unreducedInput,
+        locals.get(member.workPackageId) ?? [],
       ),
     ),
     external,
@@ -127,52 +128,60 @@ export function deriveConnectedPlan(
   ): ConnectedPlanProjection => ({ kind: 'connected', capture, authored, placement });
   const required = members.filter(
     (member) =>
-      member.reads.project.optimizationEnabled &&
-      member.reads.project.scheduleEngine === 'optimized' &&
-      getProjectParts(member.projectId).input.slices.length > 0,
+      member.reads.workPackage.optimizationEnabled &&
+      member.reads.workPackage.scheduleEngine === 'optimized' &&
+      getWorkPackageParts(member.workPackageId).input.slices.length > 0,
   );
   // Proof: disabling this branch failed `inspects the nontarget required optimized member before calendar refusal` (dependency_calendar_missing).
   if (optimizer === null && required.length > 0)
     return projection({
       kind: 'engine_unavailable',
       engine: 'optimized',
-      projects: required.map((member) => member.projectId),
+      workPackages: required.map((member) => member.workPackageId),
       reason: scheduler.supports('optimized')
         ? 'connected_optimization_not_supported'
         : 'adapter_missing',
     });
   const inputs = new Map(
-    members.map((member) => [member.projectId, getProjectParts(member.projectId).input]),
+    members.map((member) => [
+      member.workPackageId,
+      getWorkPackageParts(member.workPackageId).input,
+    ]),
   );
-  const calendar = resolveConnectedCalendar({ ...capture, projects: members }, inputs);
+  const calendar = resolveConnectedCalendar({ ...capture, workPackages: members }, inputs);
   if (calendar.kind === 'dependency_calendar_missing') return projection(calendar);
   const reduced = members.map((member) =>
     buildLocalGraph(
-      member.projectId,
-      getProjectParts(member.projectId).input,
-      (locals.get(member.projectId) ?? []).filter((relationship) =>
-        getProjectParts(member.projectId).input.typed.some((kept) => kept.id === relationship.id),
+      member.workPackageId,
+      getWorkPackageParts(member.workPackageId).input,
+      (locals.get(member.workPackageId) ?? []).filter((relationship) =>
+        getWorkPackageParts(member.workPackageId).input.typed.some(
+          (kept) => kept.id === relationship.id,
+        ),
       ),
     ),
   );
-  const hasSurvivingEndpoint = (projectId: string, workItemId: string) =>
-    indexTree(getProjectParts(projectId).input.rows).leavesUnder.has(workItemId);
+  const hasSurvivingEndpoint = (workPackageId: string, workItemId: string) =>
+    indexTree(getWorkPackageParts(workPackageId).input.rows).leavesUnder.has(workItemId);
   const scheduling = resolveConnectedGraph({
-    projects: reduced,
+    workPackages: reduced,
     external: external.filter(
       (relationship) =>
         hasSurvivingEndpoint(
-          relationship.predecessor.projectId,
+          relationship.predecessor.workPackageId,
           relationship.predecessor.workItemId,
         ) &&
-        hasSurvivingEndpoint(relationship.successor.projectId, relationship.successor.workItemId),
+        hasSurvivingEndpoint(
+          relationship.successor.workPackageId,
+          relationship.successor.workItemId,
+        ),
     ),
   });
-  const getProjectShift = (projectId: string): number => {
-    if (getProjectParts(projectId).input.slices.length === 0) return 0;
-    const shift = calendar.shiftByProject.get(projectId);
-    // Invariant diagnostic: calendar preparation guarantees every active project has a shift.
-    if (shift === undefined) throw new Error(`missing calendar shift ${projectId}`);
+  const getWorkPackageShift = (workPackageId: string): number => {
+    if (getWorkPackageParts(workPackageId).input.slices.length === 0) return 0;
+    const shift = calendar.shiftByWorkPackage.get(workPackageId);
+    // Invariant diagnostic: calendar preparation guarantees every active work package has a shift.
+    if (shift === undefined) throw new Error(`missing calendar shift ${workPackageId}`);
     return shift;
   };
   const personByKey = new Map<string, string>();
@@ -182,7 +191,7 @@ export function deriveConnectedPlan(
     personByKey,
     teamByKey,
     resourceByKey,
-    projectIdByWorkItem: authored.projectIdByWorkItem,
+    workPackageIdByWorkItem: authored.workPackageIdByWorkItem,
   };
   const poolSizes = new Map<string, number>();
   const resourceCapacities = new Map<string, number>();
@@ -190,13 +199,13 @@ export function deriveConnectedPlan(
   const deadlines = new Map<string, number>();
   const slices: Slice[] = [];
   for (const member of members) {
-    const input = getProjectParts(member.projectId).input;
+    const input = getWorkPackageParts(member.workPackageId).input;
     const encode = (kind: 'team' | 'resource' | 'person', id: string) => {
-      // Proof: dropping each scope independently failed `uses own rounding...team capacity`, `keeps identical resource catalog IDs project local`, or `shares people only in shared mode` on real starts.
+      // Proof: dropping each scope independently failed `uses own rounding...team capacity`, `keeps identical resource catalog IDs workPackage local`, or `shares people only in shared mode` on real starts.
       const key =
         kind === 'person' && capture.mode === 'shared'
           ? id
-          : JSON.stringify([kind, member.projectId, id]);
+          : JSON.stringify([kind, member.workPackageId, id]);
       const reverse =
         kind === 'team' ? teamByKey : kind === 'resource' ? resourceByKey : personByKey;
       reverse.set(key, id);
@@ -220,14 +229,14 @@ export function deriveConnectedPlan(
             }),
       });
     if (input.slices.length > 0) {
-      const shift = getProjectShift(member.projectId);
+      const shift = getWorkPackageShift(member.workPackageId);
       const translated = translateConnectedCalendar(input, shift);
       for (const [id, offset] of translated.notBefore) notBefore.set(id, offset);
       for (const [id, offset] of translated.deadlines) deadlines.set(id, offset);
     }
   }
   const input: ResolvedScheduleInput = {
-    rows: members.flatMap((member) => [...getProjectParts(member.projectId).input.rows]),
+    rows: members.flatMap((member) => [...getWorkPackageParts(member.workPackageId).input.rows]),
     slices,
     graph: scheduling.graph,
     notBefore,
@@ -237,8 +246,8 @@ export function deriveConnectedPlan(
     elsewhere: new Map(),
     order: {
       kind: 'connected',
-      projectIdByWorkItem: scheduling.projectIdByWorkItem,
-      rankByProject: new Map(members.map((member) => [member.projectId, member.rank])),
+      workPackageIdByWorkItem: scheduling.workPackageIdByWorkItem,
+      rankByWorkPackage: new Map(members.map((member) => [member.workPackageId, member.rank])),
     },
   };
   try {
@@ -249,16 +258,16 @@ export function deriveConnectedPlan(
         originOrdinal: calendar.originOrdinal,
         input,
         relationships: capture.relationships,
-        projects: members.map((member) => ({
-          projectId: member.projectId,
+        workPackages: members.map((member) => ({
+          workPackageId: member.workPackageId,
           rank: member.rank,
           anchorOrdinal:
-            member.reads.project.startDate === null
+            member.reads.workPackage.startDate === null
               ? null
-              : workdayOrdinalOf(member.reads.project.startDate),
-          engine: member.reads.project.scheduleEngine,
-          objective: member.reads.project.scheduleObjective,
-          enabled: member.reads.project.optimizationEnabled,
+              : workdayOrdinalOf(member.reads.workPackage.startDate),
+          engine: member.reads.workPackage.scheduleEngine,
+          objective: member.reads.workPackage.scheduleObjective,
+          enabled: member.reads.workPackage.optimizationEnabled,
         })),
       },
       scheduleFast(input),
@@ -274,16 +283,16 @@ export function deriveConnectedPlan(
       combined,
       baseline: restoreConnectedSchedule(selected.baseline, identities),
       stages: selected.stages,
-      idleProjects: selected.idleProjects,
+      idleWorkPackages: selected.idleWorkPackages,
       identities,
-      byProject: new Map(
+      byWorkPackage: new Map(
         members.map((member) => [
-          member.projectId,
-          projectConnectedSchedule(
+          member.workPackageId,
+          workPackageConnectedSchedule(
             combined,
-            member.projectId,
-            getProjectShift(member.projectId),
-            authored.projectIdByWorkItem,
+            member.workPackageId,
+            getWorkPackageShift(member.workPackageId),
+            authored.workPackageIdByWorkItem,
           ),
         ]),
       ),

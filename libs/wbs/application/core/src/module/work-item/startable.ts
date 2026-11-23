@@ -8,22 +8,22 @@ import {
   leafOccupancyOf,
   occupancyByResource,
   type OccupancyScope,
-  projectExecutionBlockers,
   refuseOccupancy,
   type Resource,
   type ResourceKind,
   sliceKey,
   treeOrder,
   type WorkItemStatus,
+  workPackageExecutionBlockers,
 } from '@wbs/domain';
 
 import type { StampedClaim } from '../../ports/claim-store';
 import type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
-import type { DirectoryTotals } from '../../ports/project-report-store';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
+import type { DirectoryTotals } from '../../ports/work-package-report-store';
 import type { NamedOccupancyHolder } from './claims';
-import { directoryTotalsOf } from './project-resources';
 import { nameOccupancyHolder, sharedHolders } from './shared-holders';
+import { directoryTotalsOf } from './work-package-resources';
 
 /** A person as the startable read names them: id and the caller's display name. */
 export interface NamedPerson {
@@ -58,7 +58,7 @@ export interface WorkItemAddress {
 
 /** One leaf with at least one **Startable** step, before its demand is weighed. */
 export interface LeafSteps extends WorkItemAddress {
-  /** In project step order. */
+  /** In this leaf's resolved execution order. */
   readonly stepIds: string[];
   /** The assignee of each startable step that has one, in step order. */
   readonly assignees: (NamedPerson & { readonly stepId: string })[];
@@ -109,8 +109,8 @@ export type Shortfall = {
 );
 
 /**
- * A resource this project states a capacity for, or a resource with a directory
- * capacity demanded by one of the project's leaves. `occupied` counts the project's
+ * A resource this work package states a capacity for, or a resource with a directory
+ * capacity demanded by one of the work package's leaves. `occupied` counts the work package's
  * leaves. `free` is limited by each stated capacity and may be negative after lowering.
  */
 export type ResourceFree = {
@@ -122,7 +122,7 @@ export type ResourceFree = {
   readonly occupied: number;
   readonly free: number;
 } & (
-  | { readonly occupancyScope: 'project'; readonly directory: null }
+  | { readonly occupancyScope: 'work_package'; readonly directory: null }
   | { readonly occupancyScope: 'organization'; readonly directory: DirectoryTotals }
 );
 
@@ -141,7 +141,7 @@ export interface ClaimedStep extends WorkItemAddress {
   readonly leaseExpiresAt: number | null;
 }
 
-/** A subtree claim in force anywhere in the project, so a silent one shows too. */
+/** A subtree claim in force anywhere in the work package, so a silent one shows too. */
 export interface HeldSubtree extends WorkItemAddress {
   readonly claimId: string;
   readonly holder: NamedPerson;
@@ -167,7 +167,7 @@ export interface StepPrerequisites {
 /**
  * The startable read: leaves with startable steps that fit now, and apart the
  * leaves that do not fit, the claimed steps of those leaves and every subtree
- * claim of the project, with the resource summary across applicable scopes.
+ * claim of the work package, with the resource summary across applicable scopes.
  */
 export interface StartableWork {
   readonly prerequisites: StepPrerequisites[];
@@ -176,13 +176,13 @@ export interface StartableWork {
   readonly doesNotFit: UnfitLeaf[];
   readonly claimed: ClaimedStep[];
   readonly subtreeClaims: HeldSubtree[];
-  /** Project capacity statements and shared leaf demands, in resource-id order. */
+  /** Work package capacity statements and shared leaf demands, in resource-id order. */
   readonly resources: ResourceFree[];
   /**
-   * The `resources` summary counts this project's occupancy. Fit also checks
+   * The `resources` summary counts this work package's occupancy. Fit also checks
    * organization occupancy when a resource has a directory capacity.
    */
-  readonly occupancyScope: 'project';
+  readonly occupancyScope: 'work_package';
 }
 
 export type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
@@ -199,13 +199,13 @@ export type { ExecutionReads as StartableReads } from '../../ports/execution-rea
  * of `leaves`; every claimed step of a leaf the filter keeps is in `claimed`,
  * whatever the leaf's status, so a claim on work that has since stopped shows.
  * A subtree claim never hides a step; the nearest one above the leaf is named,
- * and every subtree claim of the project is listed in `subtreeClaims`, team or
+ * and every subtree claim of the work package is listed in `subtreeClaims`, team or
  * not, so one over work that has all stopped still shows. A claimed step carries
  * its assignee beside its holder.
  *
  * Fit (`wbs-resources` R6): a leaf with startable steps is in `leaves` when
  * what a claim on it would carry with no `resources` ask passes
- * {@link refuseOccupancy} against the project's stated capacities and
+ * {@link refuseOccupancy} against the work package's stated capacities and
  * occupancy, and in `doesNotFit` with the first exhausted resource otherwise.
  * An unheld leaf carries its declared demand; a leaf some claim already holds
  * carries its standing copy, so it always fits. An unstated capacity never excludes; a stated 0 excludes any
@@ -217,7 +217,7 @@ export type { ExecutionReads as StartableReads } from '../../ports/execution-rea
  * a miss is corrupt trusted state, never an empty answer.
  */
 export function findStartableWork(reads: StartableReads): StartableWork {
-  const { rows, statuses, stepIds, teamId } = reads;
+  const { rows, statuses, teamId } = reads;
   const index = indexTree(rows);
   const order = treeOrder(rows);
   const numbers = deriveNumbers(rows);
@@ -298,7 +298,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
       // The claim's own inputs, so a leaf listed as fitting is one a claim
       // admits, across the organization too (`wbs-shared-occupancy` S6).
       // Proof: with both answered empty, `agrees with the claim across
-      // projects` (shared-occupancy.db.test.ts) listed B's leaf as startable
+      // work packages` (shared-occupancy.db.test.ts) listed B's leaf as startable
       // and its claim was refused resources_exhausted, on both stores;
       // watched 2026-10-25.
       directoryCapacities: reads.directoryCapacities,
@@ -321,6 +321,9 @@ export function findStartableWork(reads: StartableReads): StartableWork {
   const doesNotFit: UnfitLeaf[] = [];
   const claimed: ClaimedStep[] = [];
   for (const leafId of leafIds) {
+    const stepIds = reads.leafSteps.get(leafId);
+    // Proof: current-execution-fault-startable-absence-v1 silently accepted missing empty-leaf metadata with an empty-list fallback.
+    if (stepIds === undefined) throw new Error(`execution leaf step order is absent for ${leafId}`);
     const row = byId.get(leafId);
     if (row === undefined) throw new Error(`leaf ${leafId} is not a row of this read`);
     const inForce = teams.get(leafId);
@@ -341,8 +344,8 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         started: evidence.started,
         canStart: eligibility.canStart,
         canFinish: eligibility.canFinish,
-        startBlockers: projectExecutionBlockers(eligibility.startBlockers),
-        finishBlockers: projectExecutionBlockers(eligibility.finishBlockers),
+        startBlockers: workPackageExecutionBlockers(eligibility.startBlockers),
+        finishBlockers: workPackageExecutionBlockers(eligibility.finishBlockers),
       });
     }
     const address = addressOf(row);
@@ -450,7 +453,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         capacity: local ?? shared.capacity,
         // Proof: using local free alone reported 6 instead of 4 while the shortage remained correct.
         free: local === undefined ? shared.free : Math.min(local - held, shared.free),
-        // Proof: using project scope here failed the actual shared summaries on both stores.
+        // Proof: using work package scope here failed the actual shared summaries on both stores.
         occupancyScope: 'organization',
         directory: shared,
       };
@@ -459,7 +462,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
       ...resource,
       capacity: local,
       free: local - held,
-      occupancyScope: 'project',
+      occupancyScope: 'work_package',
       directory: null,
     };
   });
@@ -470,8 +473,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     claimed,
     subtreeClaims: held,
     resources,
-    // Proof: changing this literal on the serialized shared reply failed the immutable old validator.
-    occupancyScope: 'project',
+    occupancyScope: 'work_package',
   };
 }
 
@@ -515,7 +517,7 @@ export async function startableWithHolders(
       : [{ resourceId: exhausted.resourceId, scope: exhausted.scope }],
   );
   if (shortages.length === 0) return work;
-  const project = await sharedHolders(authority, shortages);
+  const projectHolders = await sharedHolders(authority, shortages);
   const enriched = work.doesNotFit.map((leaf) => {
     const { exhausted } = leaf;
     if (exhausted.scope === undefined) return { leaf, projection: null };
@@ -523,7 +525,10 @@ export async function startableWithHolders(
       leaf,
       projection: {
         scope: exhausted.scope,
-        ...project({ resourceId: exhausted.resourceId, scope: exhausted.scope }, leaf.workItemId),
+        ...projectHolders(
+          { resourceId: exhausted.resourceId, scope: exhausted.scope },
+          leaf.workItemId,
+        ),
       },
     };
   });

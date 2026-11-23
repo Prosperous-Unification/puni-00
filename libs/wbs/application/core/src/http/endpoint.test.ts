@@ -17,15 +17,15 @@ const echoShape = defineEndpointShape({
   ],
   document: { summary: 'Echo a probe' },
 });
-const projectShape = defineEndpointShape({
+const workPackageShape = defineEndpointShape({
   method: 'GET',
-  path: '/projects/:id',
-  operationId: 'readProjectProbe',
+  path: '/work-packages/:id',
+  operationId: 'readWorkPackageProbe',
   policies: [{ kind: 'identity', require: 'signed-in' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ id: 'string' })) }],
   refusals: [],
-  document: { summary: 'Read a project probe' },
+  document: { summary: 'Read a work package probe' },
 });
 const openedShape = defineEndpointShape({
   method: 'POST',
@@ -58,14 +58,14 @@ const internalShape = defineEndpointShape({
   document: { summary: 'Read the internal identity' },
 });
 
-/** These negative fixtures are compiled by the actual backend spec project. */
+/** These negative fixtures are compiled by the actual backend spec work package. */
 export function endpointTypeFixtures(path: `/${string}` = '/probe'): void {
   bind(echoShape, (input) => {
     // @ts-expect-error An unauthenticated endpoint has no principal property.
     const _principal: unknown = input.principal;
     return Promise.resolve({ ok: true, status: 200, body: { echoed: input.body.text } });
   });
-  bind(projectShape, (input) => {
+  bind(workPackageShape, (input) => {
     const absentParam = 'wrong';
     // @ts-expect-error Parameters derive from this literal path.
     const _absent: unknown = input.params[absentParam];
@@ -159,14 +159,14 @@ export function endpointTypeFixtures(path: `/${string}` = '/probe'): void {
   // @ts-expect-error A slash-prefixed template is not a literal route path.
   defineEndpointShape({ ...echoShape, path });
   // @ts-expect-error A schema cannot omit the second parameter from a nested path.
-  defineEndpointShape({ ...projectShape, path: '/projects/:id/steps/:stepId' });
+  defineEndpointShape({ ...workPackageShape, path: '/work-packages/:id/steps/:stepId' });
   // @ts-expect-error An empty supplied params schema cannot drop a path parameter.
-  defineEndpointShape({ ...projectShape, params: requestSchema(type({})) });
+  defineEndpointShape({ ...workPackageShape, params: requestSchema(type({})) });
   // @ts-expect-error The params schema cannot rename a path parameter.
-  defineEndpointShape({ ...projectShape, params: requestSchema(type({ wrong: 'string' })) });
+  defineEndpointShape({ ...workPackageShape, params: requestSchema(type({ wrong: 'string' })) });
   // @ts-expect-error The params schema cannot add a path parameter.
   defineEndpointShape({
-    ...projectShape,
+    ...workPackageShape,
     params: requestSchema(type({ id: 'string', extra: 'string' })),
   });
 }

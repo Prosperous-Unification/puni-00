@@ -10,28 +10,31 @@ import type {
   RuntimeReply,
   RuntimeWriteRequest,
 } from '@wbs/contracts';
+import { readRuntimeReceiptScope } from '@wbs/contracts';
 import type { ResourceRuntimeActor } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
+import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
 import {
   createPlanCommandRunner,
   createRuntimeReceiver,
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
 import { type Clock, clockOf } from '@wbs/core/ports/clock';
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
 import type { DependencyContext } from '@wbs/core/ports/dependency-context';
 import type { EditAdmission } from '@wbs/core/ports/edit-admission';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
-import type { Broadcaster } from '@wbs/core/ports/project-event';
-import { subscriptionFor } from '@wbs/core/ports/project-event';
 import type { Scope } from '@wbs/core/ports/unit-of-work';
+import type { Broadcaster } from '@wbs/core/ports/work-package-event';
+import { subscriptionFor } from '@wbs/core/ports/work-package-event';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { CLAIM_LEASE_MS, CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
+import { openDatabase } from '@wbs/store-sqlite/db';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite/resource-runtime';
@@ -47,8 +50,12 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
-  projectId: 'a1',
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+  },
+  workPackageId: 'a1',
   personId: 'agent',
 };
 const stamp = { at: 2, by: 'ada' };
@@ -60,6 +67,51 @@ function value<T>(reply: RuntimeReply<T>): T {
   if (!reply.ok) throw new Error(`runtime refused: ${JSON.stringify(reply)}`);
   return reply.value;
 }
+/** Gives each package a project so its runtime steps resolve only for that package. */
+async function definePackageSteps(
+  dbPath: string,
+  source: ReturnType<typeof openSqliteSource>,
+  workPackageId: string,
+  steps: readonly string[],
+) {
+  const project = 'runtime-project-' + workPackageId;
+  const database = openDatabase(dbPath);
+  try {
+    database.transaction(() => {
+      database.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+        [project, project],
+      );
+      database.run('UPDATE work_package SET project_id=? WHERE id=?', [project, workPackageId]);
+    })();
+  } finally {
+    database.close();
+  }
+  for (const [index, id] of steps.entries()) {
+    const position = (index + 1) * 10;
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id,
+        name: id,
+        code: id,
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: project,
+        workItemTypeId: null,
+        position,
+      },
+      stamp,
+    );
+    if (!defined.ok) throw new Error('runtime fixture step refused: ' + defined.reason);
+  }
+}
+
 async function seeded(shared = false, runtimeContext = context, clock: Clock = testClock) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-write-'));
   const dbPath = await openSpaceDatabase(directory);
@@ -84,17 +136,39 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
+  // The runtime principal has only the explicit org role below, including during revocation.
   sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+    "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND subject_kind='user' AND subject_id='ada' AND origin='creation'",
   );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  for (const credentialId of [
+    'verified-machine',
+    'verified-consent',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ])
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-" +
+        credentialId +
+        "','org-a','organization','org-a','machine_credential','" +
+        credentialId +
+        "','project-contributor','route',1)",
+    );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
-  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
+  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent', stamp);
   await source.stores.directory.addPerson(
     { id: 'other-agent', name: 'Other Agent', kind: 'agent' },
     [],
     stamp,
   );
-  await source.stores.directory.mapInOrganization('people', 'other-agent', 'org-a', 'Other Agent');
+  await source.stores.directory.mapInOrganization(
+    'people',
+    'other-agent',
+    'org-a',
+    'Other Agent',
+    stamp,
+  );
   expect(
     await source.stores.directory.patchPerson('other-agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
@@ -103,22 +177,19 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     'sys-github-pr',
     'org-a',
     'GitHub PR',
+    stamp,
   );
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  for (const id of ['dev', 'review'])
-    await source.stores.steps.add(
-      { id, projectId: 'a1', name: id, code: id, allowancePercent: 0, estimateUnit: 'workdays' },
-      stamp,
-    );
+  await definePackageSteps(dbPath, sqlite, 'a1', ['dev', 'review']);
   await source.stores.workItems.insert(
-    workItemRow({ id: 'leaf', projectId: 'a1', readiness: 'ready' }),
+    workItemRow({ id: 'leaf', workPackageId: 'a1', readiness: 'ready' }),
     [],
     stamp,
   );
   await source.stores.workItems.insert(
-    workItemRow({ id: 'other', projectId: 'a1', readiness: 'ready' }),
+    workItemRow({ id: 'other', workPackageId: 'a1', readiness: 'ready' }),
     [],
     stamp,
   );
@@ -130,7 +201,7 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     broadcast,
     scheduler: fastScheduler,
   };
-  const delivered: CommittedProjectEvent[] = [];
+  const delivered: CommittedWorkPackageEvent[] = [];
   const runnerSource = {
     commandAccess: new SqliteCommandAccess(
       sqlite.db,
@@ -143,7 +214,7 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     ),
     committedFanout: {
       now: () => 10,
-      deliverCommitted: (events: readonly CommittedProjectEvent[]) => {
+      deliverCommitted: (events: readonly CommittedWorkPackageEvent[]) => {
         delivered.push(...events);
         return Promise.resolve();
       },
@@ -168,30 +239,20 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
   const runner = createPlanCommandRunner(runnerSource, nodeDigest);
   if (shared) {
     sqlite.db.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
-    sqlite.db.run("UPDATE project SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
-    await source.stores.steps.add(
-      {
-        id: 'dev2',
-        projectId: 'a2',
-        name: 'dev2',
-        code: 'dev2',
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+    sqlite.db.run("UPDATE work_package SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
+    await definePackageSteps(dbPath, sqlite, 'a2', ['dev2']);
     await source.stores.workItems.insert(
-      workItemRow({ id: 'leaf2', projectId: 'a2', readiness: 'ready' }),
+      workItemRow({ id: 'leaf2', workPackageId: 'a2', readiness: 'ready' }),
       [],
       stamp,
     );
-    for (const [projectId, workItemId, stepId] of [
+    for (const [workPackageId, workItemId, stepId] of [
       ['a1', 'leaf', 'dev'],
       ['a2', 'leaf2', 'dev2'],
     ] as const) {
       expect(
         await runner.runWithin(
-          projectId,
+          workPackageId,
           actor,
           [
             {
@@ -239,13 +300,13 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     },
   });
   const snapshot = async () => ({
-    claims: await source.stores.claims.listByProject('a1'),
-    claims2: await source.stores.claims.listByProject('a2'),
+    claims: await source.stores.claims.listByWorkPackage('a1'),
+    claims2: await source.stores.claims.listByWorkPackage('a2'),
     claimRows: sqlite.db.all('SELECT * FROM claim ORDER BY id'),
     ledger: await source.stores.runtimeCommands.inspectLedger(),
     ledgerRows: sqlite.db.all('SELECT * FROM runtime_ledger'),
     authorities: sqlite.db.all('SELECT * FROM runtime_authority'),
-    rows: await source.stores.workItems.listByProject('a1'),
+    rows: await source.stores.workItems.listByWorkPackage('a1'),
     journal: sqlite.db.all('SELECT * FROM command_journal'),
     progress: sqlite.db.all('SELECT * FROM step_progress'),
     measures: sqlite.db.all('SELECT * FROM step_measure'),
@@ -327,6 +388,11 @@ const T = 1_900_000_000_000;
 // Verified-principal dependency seam: these runner tests do not exercise credential cryptography.
 const machineContext: RuntimeContext = {
   ...context,
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { organizationId: 'org-a', userId: 'ada', cap: CONTRIBUTOR_CAP },
+  },
   actor: {
     ...actor,
     authentication: { kind: 'machine', credentialId: 'verified-machine', personId: 'agent' },
@@ -364,19 +430,19 @@ async function leased() {
           workItemId: 'leaf2',
           personId: 'agent',
           steps: ['dev2'],
-          runId: 'ordinary-second-project',
+          runId: 'ordinary-second-work-package',
         },
       ],
       machineContext.access,
     ),
   ).toMatchObject({ ok: true });
   const leases = () =>
-    fixture.sqlite.db.all<{ projectId: string; personId: string; leaseExpiresAt: number }>(
-      'SELECT work_item.project_id AS projectId, claim.person_id AS personId, claim.lease_expires_at AS leaseExpiresAt FROM claim JOIN work_item ON work_item.id=claim.work_item_id ORDER BY work_item.project_id',
+    fixture.sqlite.db.all<{ workPackageId: string; personId: string; leaseExpiresAt: number }>(
+      'SELECT work_item.work_package_id AS workPackageId, claim.person_id AS personId, claim.lease_expires_at AS leaseExpiresAt FROM claim JOIN work_item ON work_item.id=claim.work_item_id ORDER BY work_item.work_package_id',
     );
   expect(leases()).toEqual([
-    { projectId: 'a1', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
-    { projectId: 'a2', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
+    { workPackageId: 'a1', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
+    { workPackageId: 'a2', personId: 'agent', leaseExpiresAt: T + CLAIM_LEASE_MS },
   ]);
   return {
     ...fixture,
@@ -388,22 +454,22 @@ async function leased() {
 }
 
 describe('leased runtime write transaction', () => {
-  it('renews both project leases on acceptance and replays without renewal or effects', async () => {
+  it('renews both work package leases on acceptance and replays without renewal or effects', async () => {
     const fixture = await leased();
     fixture.advanceTo(T + 120_000);
     const request = await fixture.write([{ ...progress, state: 'done' }]);
     const publishedBefore = fixture.published.length;
     const accepted = value(await fixture.runner.writeRuntime(machineContext, request));
     expect(fixture.leases()).toEqual([
-      { projectId: 'a1', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
-      { projectId: 'a2', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
+      { workPackageId: 'a1', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
+      { workPackageId: 'a2', personId: 'agent', leaseExpiresAt: T + 120_000 + CLAIM_LEASE_MS },
     ]);
     const published = fixture.published.slice(publishedBefore);
     expect(published.filter(({ event }) => event.type === 'claims_changed')).toEqual([
-      { projectId: 'a2', event: { type: 'claims_changed' } },
+      { workPackageId: 'a2', event: { type: 'claims_changed' } },
     ]);
     expect(published.filter(({ event }) => event.type === 'tree_replaced')).toMatchObject([
-      { projectId: 'a1', event: { type: 'tree_replaced' } },
+      { workPackageId: 'a1', event: { type: 'tree_replaced' } },
     ]);
     expect(
       await fixture.receiver.lookupRuntimeReceipt(machineContext, {
@@ -422,7 +488,7 @@ describe('leased runtime write transaction', () => {
 
   it('rolls back renewed leases and announcements after a late runtime receipt failure', async () => {
     const fixture = await leased();
-    // The bound runtime claim uses session sess-42; the other project predates run opt-in.
+    // The bound runtime claim uses session sess-42; the other work package predates run opt-in.
     fixture.sqlite.db.run("UPDATE claim SET run_id=NULL WHERE work_item_id='leaf2'");
     const authentication = {
       kind: 'machine' as const,
@@ -477,7 +543,7 @@ describe('leased runtime write transaction', () => {
     );
     const expiry = T + 120_000 + CLAIM_LEASE_MS;
     fixture.sqlite.db.run(
-      `CREATE TRIGGER reject_leased_runtime_receipt BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT count(*) FROM claim JOIN work_item ON work_item.id=claim.work_item_id WHERE work_item.project_id IN ('a1','a2') AND claim.person_id='agent' AND claim.lease_expires_at=${String(expiry)})=2 AND (SELECT count(*) FROM claim)=2 AND (SELECT count(*) FROM step_progress WHERE work_item_id='leaf' AND step_id='dev' AND state='done')=1 AND (SELECT count(*) FROM command_journal)>${String(journalBefore.count)} THEN RAISE(ABORT,'late runtime receipt after lease renewal') ELSE RAISE(ABORT,'late runtime receipt missing staged renewal or progress') END; END`,
+      `CREATE TRIGGER reject_leased_runtime_receipt BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT count(*) FROM claim JOIN work_item ON work_item.id=claim.work_item_id WHERE work_item.work_package_id IN ('a1','a2') AND claim.person_id='agent' AND claim.lease_expires_at=${String(expiry)})=2 AND (SELECT count(*) FROM claim)=2 AND (SELECT count(*) FROM step_progress WHERE work_item_id='leaf' AND step_id='dev' AND state='done')=1 AND (SELECT count(*) FROM command_journal)>${String(journalBefore.count)} THEN RAISE(ABORT,'late runtime receipt after lease renewal') ELSE RAISE(ABORT,'late runtime receipt missing staged renewal or progress') END; END`,
     );
     try {
       await runner.writeRuntime(admittedContext, request).then(
@@ -510,14 +576,14 @@ describe('leased runtime write transaction', () => {
       { personId: 'agent', runId: 'sess-42' },
     ]);
     expect(fixture.leases()).toEqual([
-      { projectId: 'a1', personId: 'agent', leaseExpiresAt: expiry },
-      { projectId: 'a2', personId: 'agent', leaseExpiresAt: expiry },
+      { workPackageId: 'a1', personId: 'agent', leaseExpiresAt: expiry },
+      { workPackageId: 'a2', personId: 'agent', leaseExpiresAt: expiry },
     ]);
     expect(
       fixture.published
         .slice(publishedBefore.length)
         .filter(({ event }) => event.type === 'claims_changed'),
-    ).toEqual([{ projectId: 'a2', event: { type: 'claims_changed' } }]);
+    ).toEqual([{ workPackageId: 'a2', event: { type: 'claims_changed' } }]);
     expect(
       await fixture.receiver.lookupRuntimeReceipt(machineContext, {
         commandId: request.commandId,
@@ -541,9 +607,12 @@ describe('conditional exact runtime write', () => {
     });
     expect(accepted.acceptance.basisAfter).not.toBe(request.expectedBasis);
     expect(await source.stores.claims.findById('a1', claim.claimId)).toBeNull();
-    expect(await source.stores.runtimeCommands.readBinding(accepted.scope, claim.claimId)).toEqual(
-      claim,
-    );
+    expect(
+      await source.stores.runtimeCommands.readBinding(
+        readRuntimeReceiptScope(accepted),
+        claim.claimId,
+      ),
+    ).toEqual(claim);
   });
 
   it.each(['claimId', 'workItemId', 'stepId', 'parentClaimId'] as const)(
@@ -602,8 +671,8 @@ describe('conditional exact runtime write', () => {
                     claims: new Proxy(scope.stores.claims, {
                       get(target, key) {
                         if (key === 'findById')
-                          return async (projectId: string, claimId: string) => {
-                            const live = await target.findById(projectId, claimId);
+                          return async (workPackageId: string, claimId: string) => {
+                            const live = await target.findById(workPackageId, claimId);
                             if (live === null) throw new Error('fixture live claim missing');
                             return { ...live, [field]: 'wrong' };
                           };
@@ -745,9 +814,14 @@ describe('conditional exact runtime write', () => {
     expect(refused).toEqual({ ok: false, reason: 'runtime_claim_mismatch' });
     expect(await snapshot()).toEqual(before);
     expect(await source.stores.claims.findById('a1', b.acceptance.claim.claimId)).not.toBeNull();
-    expect(await source.stores.runtimeCommands.readBinding(b.scope, claim.claimId)).toEqual(claim);
     expect(
-      await source.stores.runtimeCommands.readBinding(b.scope, b.acceptance.claim.claimId),
+      await source.stores.runtimeCommands.readBinding(readRuntimeReceiptScope(b), claim.claimId),
+    ).toEqual(claim);
+    expect(
+      await source.stores.runtimeCommands.readBinding(
+        readRuntimeReceiptScope(b),
+        b.acceptance.claim.claimId,
+      ),
     ).toEqual(b.acceptance.claim);
   });
 
@@ -770,7 +844,7 @@ describe('conditional exact runtime write', () => {
         context.access,
       ),
     ).toMatchObject({ ok: true });
-    const live = (await source.stores.claims.listByProject('a1')).at(0);
+    const live = (await source.stores.claims.listByWorkPackage('a1')).at(0);
     if (live === undefined) throw new Error('competing claim missing');
     const fresh = await request('claim-b', 'attempt-b');
     const before = await snapshot();
@@ -908,30 +982,44 @@ describe('runtime write transaction boundaries', () => {
       ok: false,
       reason: 'runtime_scope_unavailable',
     });
-    sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'",
+    );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
-    expect(await runner.writeRuntime(context, request)).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await runner.writeRuntime(context, request)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.write',
+    });
     expect(await snapshot()).toEqual(before);
-    sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+    );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
     ).toMatchObject({ ok: true });
     expect(await runner.writeRuntime(context, await write([release], 'admin'))).toMatchObject({
       ok: true,
     });
-    sqlite.db.run("UPDATE organization_membership SET role='member' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
+    );
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runner.writeRuntime(
         {
           ...context,
           access: {
+            principal: { id: 'ada' },
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
           },
         },
         request,
       ),
-    ).toEqual({ ok: false, reason: 'person_not_bound' });
+    ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.claim_for_others' });
   });
 
   it('rejects malformed and unsupported shapes before queued admission', async () => {
@@ -970,12 +1058,13 @@ describe('runtime write transaction boundaries', () => {
     ]);
     const mutable = structuredClone(original);
     const identity = {
-      projectId: 'a1',
+      workPackageId: 'a1',
       personId: 'agent',
       actor: { ...actor, scopes: [...actor.scopes] },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
     };
     const entered = Promise.withResolvers<undefined>();
@@ -987,7 +1076,7 @@ describe('runtime write transaction boundaries', () => {
     });
     await entered.promise;
     const writing = runner.writeRuntime(identity, mutable);
-    Object.assign(identity, { projectId: 'b1', personId: 'wrong' });
+    Object.assign(identity, { workPackageId: 'b1', personId: 'wrong' });
     identity.actor.id = 'wrong';
     identity.actor.scopes.splice(0);
     identity.access.scope.organizationId = 'org-b';
@@ -1029,7 +1118,7 @@ describe('runtime write transaction boundaries', () => {
     expect(accepted).toMatchObject({
       commandId: 'write',
       actorId: 'ada',
-      scope: { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+      scope: { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
       acceptance: { claim: original.action.claim, authority: original.authority },
     });
     expect(await runner.writeRuntime(context, original)).toEqual({ ok: true, value: accepted });
@@ -1085,27 +1174,36 @@ describe('runtime write transaction boundaries', () => {
       "INSERT INTO resource (id,name,kind,unit_label,provider_id) VALUES ('release-disk','Release disk','divisible','GB','resource-provider')",
       "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('release-disk','org-a','Release disk')",
       "INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES ('00000000-0000-4000-8000-000000000001','org-a','other-agent','ada','api_key','Release controller',2,'ada')",
-      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+      "UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('release-controller-write','org-a','work_package','a1','machine_credential','00000000-0000-4000-8000-000000000001','package-contributor','route',1)",
     ])
       sqlite.db.run(statement);
+    if (context.access.kind !== 'scoped') throw new Error('expected scoped runtime fixture');
+    const controllerPrincipal = {
+      id: actor.id,
+      authentication: { kind: 'machine' as const, credentialId, personId: 'other-agent' },
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
+    };
     const controller: ResourceRuntimeActor = {
-      id: 'ada',
-      personId: 'other-agent',
+      ...resourceUseActorOf(controllerPrincipal, {
+        kind: 'scoped',
+        scope: { ...context.access.scope, cap: CONTRIBUTOR_CAP },
+        principal: {
+          id: controllerPrincipal.id,
+          authentication: structuredClone(controllerPrincipal.authentication),
+        },
+      }),
       credentialId,
-      fingerprint: 'release-controller',
-      access: { ...context.access },
     };
     expect(
       await runtime.bind(
         'release-runtime',
-        { ...controller, credentialId: null, personId: null },
+        { ...resourceUseActorOf(actor, context.access), credentialId: null },
         { providerId: 'resource-provider', credentialId, epoch: 'release-epoch' },
         2,
       ),
     ).toMatchObject({ ok: true });
-    sqlite.db.run(
-      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
-    );
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runtime.ingest(
         'release-runtime',
@@ -1121,7 +1219,7 @@ describe('runtime write transaction boundaries', () => {
           observedAt: 2,
           reason: 'Track the exact runtime claim session',
           use: {
-            projectId: 'a1',
+            workPackageId: 'a1',
             resourceId: 'release-disk',
             workItemId: claim.workItemId,
             agentRun: claim.execution.sessionId,
@@ -1236,8 +1334,8 @@ describe('runtime write transaction boundaries', () => {
     const announce = runnerSource.publicServices.workItems.announceTreeNow.bind(
       runnerSource.publicServices.workItems,
     );
-    runnerSource.publicServices.workItems.announceTreeNow = async (projectId) => {
-      await announce(projectId);
+    runnerSource.publicServices.workItems.announceTreeNow = async (workPackageId) => {
+      await announce(workPackageId);
       throw new Error('write reply lost');
     };
     const losing = createPlanCommandRunner(runnerSource, nodeDigest);
@@ -1245,7 +1343,7 @@ describe('runtime write transaction boundaries', () => {
     const before = {
       ledger: await source.stores.runtimeCommands.inspectLedger(),
       journal: sqlite.db.all('SELECT * FROM command_journal'),
-      rows: await source.stores.workItems.listByProject('a1'),
+      rows: await source.stores.workItems.listByWorkPackage('a1'),
       events: sqlite.db.all('SELECT * FROM event_log'),
       sequences: sqlite.db.all('SELECT * FROM event_sequencer'),
       delivered: [...delivered],
@@ -1285,7 +1383,7 @@ describe('runtime write transaction boundaries', () => {
       expect({
         ledger: await bound.stores.runtimeCommands.inspectLedger(),
         journal: reopened.db.all('SELECT * FROM command_journal'),
-        rows: await bound.stores.workItems.listByProject('a1'),
+        rows: await bound.stores.workItems.listByWorkPackage('a1'),
         events: reopened.db.all('SELECT * FROM event_log'),
         sequences: reopened.db.all('SELECT * FROM event_sequencer'),
         delivered: [...delivered],
@@ -1314,12 +1412,15 @@ it('normalizes omitted external ref names through ordinary semantics while retai
     },
   ]);
   const receipt = value(await runner.writeRuntime(context, request));
-  const row = (await source.stores.workItems.listByProject('a1')).find(({ id }) => id === 'leaf');
+  const row = (await source.stores.workItems.listByWorkPackage('a1')).find(
+    ({ id }) => id === 'leaf',
+  );
   expect(row?.externalRefs).toMatchObject([
     { systemId: 'sys-github-pr', url: 'https://example.com/unnamed', name: '' },
   ]);
   expect(
-    (await source.stores.runtimeCommands.readAcceptance(accepted.scope, 'write'))?.canonicalRequest,
+    (await source.stores.runtimeCommands.readAcceptance(readRuntimeReceiptScope(accepted), 'write'))
+      ?.canonicalRequest,
   ).toContain('"externalRefs":[{"systemId":"sys-github-pr","url":"https://example.com/unnamed"}]');
   expect(await runner.writeRuntime(context, request)).toEqual({ ok: true, value: receipt });
   const explicit = await write([
@@ -1421,40 +1522,30 @@ it('requires a write action at the write boundary before admission', async () =>
   expect(await snapshot()).toEqual(before);
 });
 
-/** Isolated projects share authored prerequisites, with no shared-people bookings. */
+/** Isolated work packages share authored prerequisites, with no shared-people bookings. */
 async function openLinkedRuntime() {
   let now = T;
   let ids = 0;
   const clock = clockOf({ now: () => now, newId: () => `mixed-${String(++ids)}` });
   const fixture = await seeded(false, machineContext, clock);
   seedDependencyAuthority(fixture.dbPath);
-  for (const [projectId, workItemId, stepId] of [
+  for (const [workPackageId, workItemId, stepId] of [
     ['a2', 'leaf2', 'dev2'],
     ['a3', 'leaf3', 'dev3'],
   ]) {
-    await fixture.source.stores.steps.add(
-      {
-        id: stepId,
-        projectId,
-        name: stepId,
-        code: stepId,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+    await definePackageSteps(fixture.dbPath, fixture.sqlite, workPackageId, [stepId]);
     await fixture.source.stores.workItems.insert(
-      workItemRow({ id: workItemId, projectId, readiness: 'ready' }),
+      workItemRow({ id: workItemId, workPackageId, readiness: 'ready' }),
       [],
       stamp,
     );
     await fixture.source.uow.run(async (scope) => {
       await scope.stores.typedDependencies.add(
         {
-          id: `from-a1-to-${projectId}`,
-          projectId,
-          predecessor: { projectId: 'a1', workItemId: 'leaf', scope: 'node', stepId: 'dev' },
-          successor: { projectId, workItemId, scope: 'node', stepId },
+          id: `from-a1-to-${workPackageId}`,
+          workPackageId,
+          predecessor: { workPackageId: 'a1', workItemId: 'leaf', scope: 'node', stepId: 'dev' },
+          successor: { workPackageId, workItemId, scope: 'node', stepId },
           type: 'FS',
         },
         stamp,
@@ -1506,7 +1597,7 @@ async function claimLinkedRuntime() {
 
 it('refuses an unstarted runtime claim until its external predecessor completes through ordinary commands', async () => {
   const fixture = await openLinkedRuntime();
-  const downstream = { ...context, projectId: 'a2' };
+  const downstream = { ...context, workPackageId: 'a2' };
   const state = value(await fixture.receiver.readRuntimeState(downstream, {}));
   const authority = value(
     await fixture.receiver.acquireRuntimeAuthority(downstream, {
@@ -1579,7 +1670,7 @@ it('refuses an unstarted runtime claim until its external predecessor completes 
   );
   expect(
     await fixture.source.stores.runtimeCommands.readBinding(
-      receipt.scope,
+      readRuntimeReceiptScope(receipt),
       receipt.acceptance.claim.claimId,
     ),
   ).toEqual(receipt.acceptance.claim);
@@ -1593,15 +1684,22 @@ it('commits isolated runtime dependency invalidations and replays without graphs
   const accepted = await fixture.runner.writeRuntime(machineContext, request);
   expect(accepted).toMatchObject({ ok: true });
   expect(fixture.delivered.slice(deliveredBefore).map(({ event }) => event)).toEqual([
-    { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
-    { type: 'elsewhere_changed', projectId: 'a3', causeProjectId: 'a1' },
+    { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
+    { type: 'elsewhere_changed', workPackageId: 'a3', causeWorkPackageId: 'a1' },
   ]);
-  for (const projectId of ['a2', 'a3']) {
-    const events = await fixture.source.stores.eventLog.rangeSince(subscriptionFor(projectId), -1);
+  for (const workPackageId of ['a2', 'a3']) {
+    const events = await fixture.source.stores.eventLog.rangeSince(
+      subscriptionFor(workPackageId),
+      -1,
+    );
     const last = events.at(-1);
     if (last === undefined) throw new Error('missing committed dependency event');
-    expect(last.message).toEqual({ type: 'elsewhere_changed', projectId, causeProjectId: 'a1' });
-    expect(await fixture.source.stores.eventLog.latestSeq(subscriptionFor(projectId))).toBe(
+    expect(last.message).toEqual({
+      type: 'elsewhere_changed',
+      workPackageId,
+      causeWorkPackageId: 'a1',
+    });
+    expect(await fixture.source.stores.eventLog.latestSeq(subscriptionFor(workPackageId))).toBe(
       last.seq,
     );
   }

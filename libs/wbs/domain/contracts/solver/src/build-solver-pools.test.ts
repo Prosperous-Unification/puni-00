@@ -32,7 +32,7 @@ describe('poolIdsNamedBy', () => {
 });
 
 describe('buildSolverPools', () => {
-  it('emits only the pools the request names, not every size the project holds', () => {
+  it('emits only the pools the request names, not every size the work package holds', () => {
     // A size for a team no slice is labelled with constrains nothing, and the
     // request is hashed as a cache key — so shipping it would invalidate a
     // cached result on an edit to a team this plan does not use.

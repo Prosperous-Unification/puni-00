@@ -1,5 +1,5 @@
 import {
-  createProject,
+  createWorkPackage,
   defineEndpointShape,
   requestSchema,
   responseSchema,
@@ -1512,7 +1512,7 @@ test('refuses a resource declaration whose user identity policy was lost', async
   let calls = 0;
   const failures: unknown[] = [];
   const shape = {
-    ...createProject,
+    ...createWorkPackage,
     policies: [{ kind: 'organization-resource', operation: 'mutation' }] as const,
   };
   const app = appFor(
@@ -1525,16 +1525,16 @@ test('refuses a resource declaration whose user identity policy was lost', async
     (failure) => failures.push(failure),
   );
   const response = await app.handle(
-    new Request('https://backend.example/api/projects', {
+    new Request('https://backend.example/api/work-packages', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'unsafe' }),
+      body: JSON.stringify({ name: 'unsafe', projectId: 'project-a' }),
     }),
   );
   expect(response.status).toBe(500);
   expect(calls).toBe(0);
   expect(failures).toEqual([
-    new Error('Organization resource lacks a user identity: postApiProjects'),
+    new Error('Organization resource lacks a user identity: postApiWorkPackages'),
   ]);
 });
 

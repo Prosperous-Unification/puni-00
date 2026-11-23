@@ -8,39 +8,52 @@ import {
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage, readProjectIds } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 beforeEach(async () => {
   harness = OrganizationHarness.openComposed();
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'admin');
+  harness.member('org-a', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'org-a');
   harness.activate();
-  const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Runtime cap' });
-  expect(created.status).toBe(200);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  workPackageId = await createFixturePackage(harness, 'ada', 'Runtime cap');
   harness.sqlite.run("INSERT INTO person (id,name,kind) VALUES ('person','Agent','agent')");
   harness.sqlite.run(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('person','org-a','Agent')",
   );
-  // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
-  const first = harness.sqlite
-    .query<{ position: number }, [string]>(
-      'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
-    )
-    .get(projectId);
-  if (first === null) throw new Error('fixture default workflow steps missing');
-  expect(first.position).toBeGreaterThan(0);
-  harness.sqlite.run(
-    "INSERT INTO step (id,project_id,name,position,code) VALUES ('dev',?,'Runtime cap dev',0,'runtime-cap-dev')",
-    [projectId],
-  );
+  // Pin/cap/receipt fixtures require an unstarted first step before the work package's default Dev/QA.
+  const projectId = readProjectIds(harness, workPackageId);
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    const bound = await stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'dev',
+        code: 'runtime-cap-dev',
+        name: 'Runtime cap dev',
+        position: 0,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'runtime-cap-dev-binding',
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position: 0,
+      },
+      { at: 1, by: harness.userId('ada') },
+    );
+    if (!bound.ok) throw new Error('runtime cap first step was not bound: ' + bound.reason);
+    return { commit: true, value: undefined };
+  });
+  expect((await readFixturePackage(harness, 'ada', workPackageId)).steps.at(0)?.id).toBe('dev');
   for (const id of ['leaf', 'other'])
     harness.sqlite.run(
-      "INSERT INTO work_item (id,project_id,position,name,readiness) VALUES (?,?,? ,?,'ready')",
-      [id, projectId, id === 'leaf' ? 10 : 20, id],
+      "INSERT INTO work_item (id,work_package_id,position,name,readiness) VALUES (?,?,? ,?,'ready')",
+      [id, workPackageId, id === 'leaf' ? 10 : 20, id],
     );
 });
 afterEach(async () => {
@@ -61,7 +74,7 @@ function createHeaders() {
 }
 async function readState(): Promise<RuntimeState> {
   const answer = await createClient().readRuntimeState({
-    params: { id: projectId },
+    params: { id: workPackageId },
     query: { personId: 'person' },
     headers: createHeaders(),
   });
@@ -71,7 +84,7 @@ async function readState(): Promise<RuntimeState> {
 async function createRequest(): Promise<RuntimeClaimRequest & { personId: string }> {
   const observed = await readState();
   const granted = await createClient().acquireRuntimeAuthority({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: {
       schemaVersion: 1,
       commandId: 'grant',
@@ -128,7 +141,7 @@ function readEffects() {
 }
 function submit(request: RuntimeClaimRequest & { personId: string }) {
   return createClient().applyRuntimeCommands({
-    params: { id: projectId },
+    params: { id: workPackageId },
     body: request,
     headers: createHeaders(),
   });
@@ -180,8 +193,14 @@ test('mounted below-cap claim commits once and exact replay survives a lower cap
   capClaims(0);
   expect(await submit(request)).toEqual(accepted);
   expect(readEffects()).toEqual(committed);
+  expect(
+    harness.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation' AND (scope_kind='project' OR scope_kind='work_package')",
+      [harness.userId('ada')],
+    ).changes,
+  ).toBe(2);
   harness.sqlite.run(
-    "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a'",
+    "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND scope_kind='organization'",
   );
   expect(await submit(request)).toMatchObject({
     kind: 'refusal',

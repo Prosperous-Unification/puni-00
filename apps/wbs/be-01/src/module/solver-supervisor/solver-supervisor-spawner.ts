@@ -25,7 +25,7 @@ export function solverSupervisorSpawner(options: SolverSupervisorSpawnerOptions)
     const attempt = await connect({
       unix: options.unix,
       callerId: options.callerId,
-      projectId: request.key.projectId,
+      workPackageId: request.key.workPackageId,
       objective: request.objective,
       attemptToken: request.admission.attemptToken,
       childDeadlineAt: request.admission.childDeadlineAt,

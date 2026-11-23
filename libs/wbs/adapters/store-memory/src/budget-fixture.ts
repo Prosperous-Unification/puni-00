@@ -16,14 +16,14 @@ export function memoryBudgetTable(): MemoryBudgetTable {
  * (`wbs-measure-budgets` design D36).
  *
  * `definitionsOf` answers the owning organization's definitions, or null for
- * an unowned project, which answers the seeded four (design D19). A deleted
+ * an unowned work package, which answers the seeded four (design D19). A deleted
  * work item's budgets are taken by the source's satellite removal, as SQLite's
  * cascade takes them.
  */
 export function inMemoryBudgets(
   workItems: WorkItemStore,
   table: MemoryBudgetTable = memoryBudgetTable(),
-  definitionsOf: (projectId: string) => MeasureDefinition[] | null = () => null,
+  definitionsOf: (workPackageId: string) => MeasureDefinition[] | null = () => null,
 ): BudgetStore {
   const { rows } = table;
   const removeStored = (workItemId: string, key: string): void => {
@@ -31,8 +31,10 @@ export function inMemoryBudgets(
     rows.splice(0, rows.length, ...kept);
   };
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map((each) => each.id));
+    async listByWorkPackage(workPackageId) {
+      const ids = new Set(
+        (await workItems.listByWorkPackage(workPackageId)).map((each) => each.id),
+      );
       return rows
         .filter((row) => ids.has(row.workItemId))
         .sort(
@@ -47,8 +49,11 @@ export function inMemoryBudgets(
       if (owner === null) throw new Error(`budget names absent work item ${budget.workItemId}`);
       // Proof: with this check removed, the memory certification's
       // `budgets.set:defined-key` stored `story_points`; watched 2026-10-23.
+      // Proof: admitting only the independently held foreign_gpu_minutes key
+      // returned written at the current cross-organization refusal oracle
+      // (owned-measure-effect-memory-budget-foreign-v1).
       if (
-        !definitionsOrUnowned(definitionsOf(owner.projectId)).some(
+        !definitionsOrUnowned(definitionsOf(owner.workPackageId)).some(
           (each) => each.key === budget.key,
         )
       )

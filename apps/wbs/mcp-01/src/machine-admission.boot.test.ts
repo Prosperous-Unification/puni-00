@@ -244,14 +244,17 @@ function currentToken(): string {
   return token;
 }
 
-const ids = { project: '', leaf: '' };
+const ids = { workPackage: '', leaf: '' };
 
 describe('a headless agent on /mcp', () => {
   test('activation', async () => {
     await fixture('activate');
     Object.assign(
       agent,
-      await fixture<{ id: string; key: string }>('api-key', { personId: 'claire' }),
+      await fixture<{ id: string; key: string }>('api-key', {
+        personId: 'claire',
+        grantRoleId: 'project-contributor',
+      }),
     );
   });
 
@@ -264,25 +267,29 @@ describe('a headless agent on /mcp', () => {
       TOOLS.map((tool) => tool.name).toSorted(),
     );
 
-    const created = await call('postApiProjects', { name: 'Fleet' });
-    expect(created.isError).toBe(false);
-    const project = JSON.parse(created.text) as {
-      project: { id: string };
+    const workPackage = await fixture<{
+      workPackage: { id: string; projectId: string };
       steps: { id: string }[];
-    };
-    ids.project = project.project.id;
-    const firstStep = project.steps.at(0);
-    if (firstStep === undefined) throw new Error('created project has no first workflow step');
-    const leaf = await call('postApiProjectsByIdCommands', {
-      id: ids.project,
+    }>('work-package', { name: 'Fleet' });
+    const created = await call('postApiWorkPackages', {
+      name: 'Unauthorized fleet',
+      projectId: workPackage.workPackage.projectId,
+    });
+    expect(created.isError).toBe(true);
+    expect(created.text).toContain('HTTP 403 forbidden');
+    ids.workPackage = workPackage.workPackage.id;
+    const firstStep = workPackage.steps.at(0);
+    if (firstStep === undefined) throw new Error('created work package has no first workflow step');
+    const leaf = await call('postApiWorkPackagesByIdCommands', {
+      id: ids.workPackage,
       commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Leaf' }],
     });
     expect(leaf.isError).toBe(false);
     ids.leaf = (JSON.parse(leaf.text) as { results: { id: string }[] }).results[0]?.id ?? '';
 
     // The token is pinned to claire: another person of the same account is refused.
-    const asOther = await call('postApiProjectsByIdCommands', {
-      id: ids.project,
+    const asOther = await call('postApiWorkPackagesByIdCommands', {
+      id: ids.workPackage,
       commands: [
         {
           kind: 'claimWorkItem',
@@ -293,15 +300,15 @@ describe('a headless agent on /mcp', () => {
       ],
     });
     expect(asOther.isError).toBe(true);
-    const claimed = await call('postApiProjectsByIdCommands', {
-      id: ids.project,
+    const claimed = await call('postApiWorkPackagesByIdCommands', {
+      id: ids.workPackage,
       commands: [
         { kind: 'claimWorkItem', workItemId: ids.leaf, personId: 'claire', steps: [firstStep.id] },
       ],
     });
     expect(claimed.isError, claimed.text).toBe(false);
 
-    const claims = await call('getApiProjectsByIdClaims', { id: ids.project });
+    const claims = await call('getApiWorkPackagesByIdClaims', { id: ids.workPackage });
     expect(claims.isError).toBe(false);
     const listedClaims = (
       JSON.parse(claims.text) as {
@@ -349,8 +356,8 @@ describe('a headless agent on /mcp', () => {
     const before = tokenRequests;
     const expired = currentToken();
     clockOffsetMs = 13 * 60 * 60 * 1000;
-    expect((await rawCall(replicaA.handle, expired, 'getApiProjects')).status).toBe(401);
-    const listed = await call('getApiProjects');
+    expect((await rawCall(replicaA.handle, expired, 'getApiWorkPackages')).status).toBe(401);
+    const listed = await call('getApiWorkPackages');
     expect(listed.isError).toBe(false);
     expect(tokenRequests).toBe(before + 1);
     expect(currentToken()).not.toBe(expired);
@@ -360,12 +367,12 @@ describe('a headless agent on /mcp', () => {
     const before = tokenRequests;
     const rotatedAway = currentToken();
     await fixture('rotate-grant-key');
-    const refused = await rawCall(replicaA.handle, rotatedAway, 'getApiProjects');
+    const refused = await rawCall(replicaA.handle, rotatedAway, 'getApiWorkPackages');
     // Proof: answering be-01's unknown_grant_key as a tool error (`grantRejected()` dropped in
     // server.ts) made this 200, and the SDK call below resolved with the tool error without
     // re-fetching; watched 2026-10-27.
     expect(refused.status).toBe(401);
-    const listed = await call('getApiProjects');
+    const listed = await call('getApiWorkPackages');
     expect(listed.isError).toBe(false);
     expect(tokenRequests).toBe(before + 1);
   });
@@ -374,16 +381,18 @@ describe('a headless agent on /mcp', () => {
     const wrong = replica('wrong-secret', randomBytes(32).toString('base64url'));
     try {
       const before = faults.length;
-      const answer = await rawCall(wrong.handle, currentToken(), 'getApiProjects');
+      const answer = await rawCall(wrong.handle, currentToken(), 'getApiWorkPackages');
       // Proof: with be-01 answering a missing or wrong secret `unknown_grant_key` (identity.ts,
       // slice 1's negative), this answered 401 and the client would re-fetch; watched
       // 2026-10-27.
       expect(answer.status).toBe(502);
       expect(faults.slice(before).map((fault) => fault.message)).toEqual([
-        'be-01 answered a machine call to GET /api/projects HTTP 401 internal_unauthorized',
+        'be-01 answered a machine call to GET /api/work-packages HTTP 401 internal_unauthorized',
       ]);
       // The token stays good where the secret is right.
-      expect((await rawCall(replicaA.handle, currentToken(), 'getApiProjects')).status).toBe(200);
+      expect((await rawCall(replicaA.handle, currentToken(), 'getApiWorkPackages')).status).toBe(
+        200,
+      );
     } finally {
       wrong.store.close();
     }
@@ -392,13 +401,13 @@ describe('a headless agent on /mcp', () => {
   test('revocation at the next call: machine_credential_refused, then 401, then invalid_client', async () => {
     const token = currentToken();
     await fixture('revoke', { id: agent.id });
-    const refused = await rawCall(replicaA.handle, token, 'getApiProjects');
+    const refused = await rawCall(replicaA.handle, token, 'getApiWorkPackages');
     // Proof: with a per-jti admission cache in be-01's grant branch (identity.ts skipping
     // `admitMachineGrant` for a grant it admitted before), this call succeeded after the
     // revocation committed; watched 2026-10-27.
     expect(refused.status).toBe(200);
     expect(refused.text).toContain('machine_credential_refused');
-    const next = await rawCall(replicaA.handle, token, 'getApiProjects');
+    const next = await rawCall(replicaA.handle, token, 'getApiWorkPackages');
     expect(next.status).toBe(401);
     const reissued = await replicaA.handle(
       new Request(TOKEN, {

@@ -87,7 +87,7 @@ export interface UsedWorkItem {
   effects: DirectoryEffect[];
 }
 
-export interface UsedProject {
+export interface UsedWorkPackage {
   id: string;
   name: string;
   workItems: UsedWorkItem[];
@@ -102,7 +102,7 @@ export interface UsedProject {
  * say", and an absent key says the second while meaning the first.
  */
 export interface DirectoryUsage {
-  projects: UsedProject[];
+  workPackages: UsedWorkPackage[];
   members: { id: string; name: string }[];
   /**
    * The unrevoked machine credentials of the person being removed or rebound
@@ -124,25 +124,25 @@ function byStepOn(assignments: readonly Assignment[], workItemId: string): Recor
  * The usage assembled from `rows`, keeping only the work items `effectsOf`
  * found something to say about.
  *
- * Sorted — projects by name, work items by tree order (ADR 0023) — because a
+ * Sorted — work packages by name, work items by tree order (ADR 0023) — because a
  * confirmation that lists the same impact in a different order each time reads
  * as a different answer.
  *
- * Proof: with the per-project grouping removed and every project's rows handed
- * to `deriveNumbers` at once, `names both projects a team is labelled in` fails
- * — the second project's only work item was named `020`, which is the number a
+ * Proof: with the per-work-package grouping removed and every work package's rows handed
+ * to `deriveNumbers` at once, `names both workPackages a team is labelled in` fails
+ * — the second work package's only work item was named `020`, which is the number a
  * combined tree gives it and no screen anywhere shows. Watched 2026-08-09.
  */
 function usageFrom(
   rows: DirectoryUsageRows,
   effectsOf: (row: LabelledWorkItem) => DirectoryEffect[],
 ): DirectoryUsage {
-  // Per project, never across them. `deriveNumbers` numbers one tree, and two
-  // projects' roots handed to it in one array become one numbering: the second
-  // project's first row reads `020`, which is a number nobody's screen shows.
+  // Per work package, never across them. `deriveNumbers` numbers one tree, and two
+  // work packages' roots handed to it in one array become one numbering: the second
+  // work package's first row reads `020`, which is a number nobody's screen shows.
   const treeOf = new Map<string, LabelledWorkItem[]>();
   for (const row of rows.workItems) {
-    treeOf.set(row.projectId, [...(treeOf.get(row.projectId) ?? []), row]);
+    treeOf.set(row.workPackageId, [...(treeOf.get(row.workPackageId) ?? []), row]);
   }
   const numbers = new Map<string, string>();
   // Places beside numbers, and per tree for the same reason: since ADR 0023 a
@@ -153,29 +153,29 @@ function usageFrom(
     for (const [id, number] of deriveNumbers(tree)) numbers.set(id, number);
     for (const [id, place] of treeOrder(tree)) places.set(id, place);
   }
-  const byProject = new Map<string, UsedWorkItem[]>();
+  const byWorkPackage = new Map<string, UsedWorkItem[]>();
   for (const row of rows.workItems) {
     const effects = effectsOf(row);
     if (effects.length === 0) continue;
     const number = numbers.get(row.id);
     // Every work item here came out of the same read the numbers were derived
     // from, so a missing one is not a state to default past.
-    if (number === undefined) throw new Error(`${row.id} was not numbered by its own project`);
-    byProject.set(row.projectId, [
-      ...(byProject.get(row.projectId) ?? []),
+    if (number === undefined) throw new Error(`${row.id} was not numbered by its own work package`);
+    byWorkPackage.set(row.workPackageId, [
+      ...(byWorkPackage.get(row.workPackageId) ?? []),
       { id: row.id, number, name: row.name, effects },
     ]);
   }
-  const projects = rows.projects
-    .filter((each) => byProject.has(each.id))
+  const workPackages = rows.workPackages
+    .filter((each) => byWorkPackage.has(each.id))
     .map((each) => ({
       id: each.id,
       name: each.name,
-      workItems: (byProject.get(each.id) ?? []).sort(byTreeOrder(places)),
+      workItems: (byWorkPackage.get(each.id) ?? []).sort(byTreeOrder(places)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return {
-    projects,
+    workPackages,
     members: rows.members.map((each) => ({ id: each.id, name: each.name })),
     machineCredentials: rows.machineCredentials,
   };
@@ -267,7 +267,7 @@ function usageOfLabelIn(
  * whole point of the function.**
  *
  * No `capacity_released`, because a tag has no pool: there is no `size` on the
- * table and no per-project capacity beside it, so there is nothing a removal
+ * table and no per-work-package capacity beside it, so there is nothing a removal
  * could give back. No inherited arm either, and that is the subtler one — a team
  * removal names rows that carry no label of their own, because an inherited pool
  * moves their dates. Losing an inherited **tag** moves nothing: the row stops
@@ -296,7 +296,7 @@ export function directoryUsageOfTag(rows: DirectoryUsageRows, tagId: string): Di
  * absences.
  *
  * No `capacity_released`, because a type has no pool: no size on the table and
- * no per-project capacity beside it, so there is nothing a removal could give
+ * no per-work-package capacity beside it, so there is nothing a removal could give
  * back. `label_removed` rather than `label_nulled`, because there is no column
  * to null — a row's types are rows in `work_item_work_item_type`, and what a
  * cascade takes is the row.
@@ -333,7 +333,7 @@ export function directoryUsageOfWorkItemType(
  * and keeps the other, and "nulled" describes a row that lost the lot.
  *
  * **No `capacity_released` arm**, for {@link directoryUsageOfTag}'s reason: a
- * service has no pool, no size and no per-project capacity, so there is nothing
+ * service has no pool, no size and no per-work-package capacity, so there is nothing
  * a removal could give back. No inherited arm either — losing an inherited
  * service moves no date, so the rows that only inherit it are not named. Both
  * absences are the model rule, and a service that grew a pool would have to
@@ -400,31 +400,31 @@ export function directoryUsageOfService(
  * which is a confirmation lying in the other direction. Both watched
  * 2026-08-12.
  *
- * **The number is each row's own project's**, since `capacity-per-project`: the
+ * **The number is each row's own work package's**, since `capacity-per-work-package`: the
  * same team may be stated at four on one plan and unstated on the next, and one
  * number for the whole confirmation would name a bound half the rows it printed
  * on were never under.
  *
- * Proof: the per-project lookup replaced by "any project stated something"
- * (`[...rows.capacityOf.values()].at(0)`), and `names each project's own
- * capacity, and says nothing where a project stated none` failed — the second
- * project's rows carried `capacity_released, size: 4` for a plan that has no
+ * Proof: the per-work-package lookup replaced by "any work package stated something"
+ * (`[...rows.capacityOf.values()].at(0)`), and `names each workPackage's own
+ * capacity, and says nothing where a workPackage stated none` failed — the second
+ * work package's rows carried `capacity_released, size: 4` for a plan that has no
  * pool at all. Watched 2026-08-13.
  *
  * That test was **missing** when this comment was first written, and the
  * injection above left all 693 be-01 tests green: the three other capacity
- * tests here use a single-project fixture, where `capacityOf` holds one entry
- * and `.at(0)` is the per-project answer by accident. The cross-review of PR #58
+ * tests here use a single-work-package fixture, where `capacityOf` holds one entry
+ * and `.at(0)` is the per-work-package answer by accident. The cross-review of PR #58
  * caught it. The proof above is the run against the test as it now stands.
  */
 export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): DirectoryUsage {
-  // A project that has stated nothing for this team is *unstated*, and an
+  // A work package that has stated nothing for this team is *unstated*, and an
   // unstated pair bounds nothing: removing the team moves no date there, so there
   // is no capacity effect to name. Read off `capacityOf` rather than guessed from
   // the work items, which cannot tell the two apart.
   //
-  // Computed once for every project rather than per project, because
-  // `effectiveTeamsOf` walks `parentId` and a parent never leaves its project —
+  // Computed once for every work package rather than per work package, because
+  // `effectiveTeamsOf` walks `parentId` and a parent never leaves its work package —
   // so one pass over all the rows answers for each of them.
   const inForce: ReadonlyMap<string, EffectiveTeams> =
     rows.capacityOf.size === 0 ? new Map() : effectiveTeamsOf(rows.workItems);
@@ -441,7 +441,7 @@ export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): 
     const effects: DirectoryEffect[] = row.teamIds.includes(teamId)
       ? [{ kind: 'label_nulled' }]
       : [];
-    const size = rows.capacityOf.get(row.projectId);
+    const size = rows.capacityOf.get(row.workPackageId);
     const effective = inForce.get(row.id);
     if (size !== undefined && effective?.teamIds.includes(teamId) === true) {
       effects.push({ kind: 'capacity_released', size, fromId: effective.fromId });

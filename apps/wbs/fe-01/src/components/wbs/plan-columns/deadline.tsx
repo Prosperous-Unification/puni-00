@@ -1,6 +1,6 @@
 import { DEADLINE_EFFECT_HINT } from '../column-hints';
 import { DateField } from '../date-field';
-import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from '../deadline-impossible';
+import { DEADLINE_BEFORE_START, deadlineBeforeWorkPackageStart } from '../deadline-impossible';
 import { cellKey } from '../editable-grid';
 import type { PlanLive } from '../plan-live';
 import { shortIsoDate } from '../short-date';
@@ -18,7 +18,7 @@ export function createDeadlineColumn({ live }: { live: PlanLive }) {
     cell: ({ row }) => {
       const day = row.original.deadline;
       const noCalendar = row.original.readings.startDate === null;
-      const impossible = deadlineBeforeProjectStart(row.original.readings.startDate, day);
+      const impossible = deadlineBeforeWorkPackageStart(row.original.readings.startDate, day);
       const impossibleMarkId = impossible ? `deadline-impossible-${row.original.id}` : undefined;
       const editing = row.original.readings.editingDeadline;
       const open = (): void => {
@@ -69,7 +69,7 @@ export function createDeadlineColumn({ live }: { live: PlanLive }) {
               data-cell={cellKey(row.original.id, 'deadline')}
               data-fact={
                 noCalendar
-                  ? 'Set the project start date first — without one there are no dates to hold a work item deadline against.'
+                  ? 'Set the work package start date first — without one there are no dates to hold a work item deadline against.'
                   : [
                       day === null ? null : `${day}.`,
                       impossible ? DEADLINE_BEFORE_START : DEADLINE_EFFECT_HINT,
@@ -109,7 +109,7 @@ export function createDeadlineColumn({ live }: { live: PlanLive }) {
           )}
           {impossible && (
             <span
-              aria-label={`Work item deadline for ${row.original.number} falls before the project's first working day`}
+              aria-label={`Work item deadline for ${row.original.number} falls before the work package's first working day`}
               role="img"
               id={impossibleMarkId}
               data-deadline-impossible={row.original.id}

@@ -4,9 +4,9 @@ import { parseOrThrow } from '@wbs/validation';
 import { expect, it } from 'bun:test';
 
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
-const PROJECT_SUBSCRIPTION = 'project:00000000-0000-4000-8000-000000000001';
+const WORK_PACKAGE_SUBSCRIPTION = 'work-package:00000000-0000-4000-8000-000000000001';
 
 interface CapturedFrame {
   type?: string;
@@ -85,7 +85,7 @@ for (const kind of ['forward', 'resume'] as const) {
         const app = buildApp(
           {
             beUrl: `http://127.0.0.1:${String(backend.port)}`,
-            projectAccess: GRANT_EVERY_PROJECT,
+            workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
             internalAuthSecret: 's'.repeat(32),
             jwtKey: 'k'.repeat(32),
             localIdentity: 'deadline-test',
@@ -110,8 +110,8 @@ for (const kind of ['forward', 'resume'] as const) {
                 : {
                     type: 'resume',
                     resume_points: {
-                      'project:00000000-0000-4000-8000-0000000000aa': 0,
-                      [PROJECT_SUBSCRIPTION]: 8,
+                      'work-package:00000000-0000-4000-8000-0000000000aa': 0,
+                      [WORK_PACKAGE_SUBSCRIPTION]: 8,
                     },
                   },
             ),
@@ -138,12 +138,12 @@ for (const kind of ['forward', 'resume'] as const) {
                 : [
                     {
                       type: 'resume_denied',
-                      subscription: 'project:00000000-0000-4000-8000-0000000000aa',
+                      subscription: 'work-package:00000000-0000-4000-8000-0000000000aa',
                       reason: 'unavailable',
                     },
                     {
                       type: 'resume_denied',
-                      subscription: PROJECT_SUBSCRIPTION,
+                      subscription: WORK_PACKAGE_SUBSCRIPTION,
                       reason: 'unavailable',
                     },
                     { type: 'resume_ack', replayed: {} },
@@ -173,7 +173,7 @@ it('maps success-shaped 503 resume replies to unavailable on the live socket', a
   const app = buildApp(
     {
       beUrl: 'http://be.invalid',
-      projectAccess: GRANT_EVERY_PROJECT,
+      workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
       internalAuthSecret: 's'.repeat(32),
       jwtKey: 'k'.repeat(32),
       localIdentity: 'status-test',
@@ -181,7 +181,7 @@ it('maps success-shaped 503 resume replies to unavailable on the live socket', a
         Promise.resolve(
           Response.json(
             {
-              'project:00000000-0000-4000-8000-0000000000aa': {
+              'work-package:00000000-0000-4000-8000-0000000000aa': {
                 status: 'replaying',
                 events: [{ seq: 1, message: { unexpected: true } }],
               },
@@ -203,14 +203,14 @@ it('maps success-shaped 503 resume replies to unavailable on the live socket', a
   try {
     await until(() => frames.length === 1);
     socket.send(
-      '{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":0}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":0}}',
     );
     await until(() => frames.length > 1);
     // Proof: routing the rejection through the forward frame changed these exact bytes.
     expect(frames.slice(1)).toEqual([
       {
         type: 'resume_denied',
-        subscription: 'project:00000000-0000-4000-8000-0000000000aa',
+        subscription: 'work-package:00000000-0000-4000-8000-0000000000aa',
         reason: 'unavailable',
       },
       { type: 'resume_ack', replayed: {} },

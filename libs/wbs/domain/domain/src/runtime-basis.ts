@@ -2,8 +2,8 @@
 export interface RuntimeBasisInput {
   readonly ledgerId: string;
   readonly organizationId: string;
-  readonly projectId: string;
-  readonly projectRevision: number;
+  readonly workPackageId: string;
+  readonly workPackageRevision: number;
   readonly workItems: readonly { readonly id: string; readonly revision: number }[];
 }
 
@@ -28,8 +28,8 @@ function assertRevision(revision: number): void {
 export function describeRuntimeBasis(input: RuntimeBasisInput): string {
   assertIdentity(input.ledgerId);
   assertIdentity(input.organizationId);
-  assertIdentity(input.projectId);
-  assertRevision(input.projectRevision);
+  assertIdentity(input.workPackageId);
+  assertRevision(input.workPackageRevision);
   const ids = new Set<string>();
   const pairs: (readonly [string, number])[] = [];
   // Proof: F19 restored Array.map; the sparse absent-row test returned a null pair instead of throwing.
@@ -47,9 +47,9 @@ export function describeRuntimeBasis(input: RuntimeBasisInput): string {
     1,
     input.ledgerId,
     input.organizationId,
-    input.projectId,
+    input.workPackageId,
     // Proof: F01 omitted this field; the pinned canonical-byte test failed with revision 2 absent.
-    input.projectRevision,
+    input.workPackageRevision,
     pairs,
   ]);
 }

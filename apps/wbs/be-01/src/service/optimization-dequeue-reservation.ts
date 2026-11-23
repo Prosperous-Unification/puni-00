@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
@@ -27,15 +27,15 @@ export function createDequeueReservationOwner(
         throw new Error('dequeue reservation lacks borrowed ownership and capture');
 
       const ownership = new Map<string, string>();
-      for (const { projectId } of db
-        .select({ projectId: solverSlot.projectId })
+      for (const { workPackageId } of db
+        .select({ workPackageId: solverSlot.workPackageId })
         .from(solverSlot)
         .all()) {
-        if (ownership.has(projectId)) continue;
+        if (ownership.has(workPackageId)) continue;
         // Proof: replacing this borrowed resolver with a guessed organization
         // let a malformed A owner pass the installed queue pump.
-        const owner = await capture.resolveLifecycleOwner(projectId);
-        if (owner.kind === 'scoped') ownership.set(projectId, owner.organizationId);
+        const owner = await capture.resolveLifecycleOwner(workPackageId);
+        if (owner.kind === 'scoped') ownership.set(workPackageId, owner.organizationId);
       }
 
       const before = new Map<string, CapturedFanout>();
@@ -45,8 +45,8 @@ export function createDequeueReservationOwner(
         before.set(organizationId, await capture.capture(organizationId));
 
       const finished = new Set<string>();
-      const dequeued = dequeueSolverRequest(db, request, ({ projectId }) =>
-        finished.add(projectId),
+      const dequeued = dequeueSolverRequest(db, request, ({ workPackageId }) =>
+        finished.add(workPackageId),
       );
       // Proof: committing here and reopening the writer before event recording
       // left A/C deleted and the FIFO queue consumed after the second event
@@ -61,10 +61,10 @@ export function createDequeueReservationOwner(
               },
             }
           : dequeued;
-      const envelopes: CommittedProjectEvent[] = [];
+      const envelopes: CommittedWorkPackageEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         const causes = [...finished].filter(
-          (projectId) => ownership.get(projectId) === organizationId,
+          (workPackageId) => ownership.get(workPackageId) === organizationId,
         );
         const after = await capture.capture(organizationId);
         // Proof: omitting this recording left the reclaimed A graph committed

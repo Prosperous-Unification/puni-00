@@ -54,7 +54,7 @@
       "cache": false,
       "inputs": ["{workspaceRoot}/**/*"],
       "options": {
-        "command": "bash bin/tool-wiki-lint.sh working . HEAD"
+        "command": "/usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts working . HEAD"
       }
     },
     "lint:source": {

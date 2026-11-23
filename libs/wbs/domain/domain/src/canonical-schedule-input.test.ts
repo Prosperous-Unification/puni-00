@@ -609,7 +609,7 @@ describe('canonicalScheduleInput', () => {
      * schedule is byte-identical — and it stays that way only until somebody
      * clears `a`'s priority or moves a work item under `p`. Hashing the
      * resolved leaf priority instead would leave every cached row for this
-     * project matching its key across an edit that changes what the project
+     * work package matching its key across an edit that changes what the work package
      * means.
      */
     it('a parent’s as-written priority, which binds no leaf today', () => {
@@ -656,8 +656,8 @@ describe('canonicalScheduleInput', () => {
   describe('facts that must not move the canonical bytes', () => {
     /**
      * The (c) asymmetry, and the reason it is not a rounding error. The global
-     * slice order is whatever `WorkItemRepo.listByProject` returned and it has
-     * no `ORDER BY`, so hashing it made one unchanged project hash two ways
+     * slice order is whatever `WorkItemRepo.listByWorkPackage` returned and it has
+     * no `ORDER BY`, so hashing it made one unchanged work package hash two ways
      * between reads. Grouping by work item and ordering the groups is what
      * makes this stable; preserving each group's own order is what keeps the
      * swap case above red.
@@ -764,7 +764,7 @@ describe('bookings elsewhere in the canonical input', () => {
   const held = (start: number, end: number, workItemId = 'x1') => ({
     start,
     end,
-    projectId: 'platform',
+    workPackageId: 'platform',
     workItemId,
   });
   const run10 = (input: ScheduleInput): unknown =>

@@ -1,0 +1,75 @@
+{
+  "format": "puni-resource-use-117-acquisition",
+  "version": 1,
+  "source": {
+    "path": "/tmp/puni-freeze117-producer-live-v2/source-pins.json",
+    "sha256": "fe11ed0ecdbe94ed2eafa3ca002fc266a5bd74cc63edaccfe16ef4795c0ee22e",
+    "bytes": 5177931,
+    "mode": 384
+  },
+  "sourceCount": 19343,
+  "producerManifest": {
+    "path": "/tmp/puni-resource-location-fixture-producer-v2/manifest.json",
+    "sha256": "e581da5b3df5c2b9d371aaf786ee012b19194ee60f1f407b0250043c275b19dc",
+    "bytes": 3926,
+    "mode": 436
+  },
+  "producer": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/resource-use-117-fixture-producer.test.ts",
+    "sha256": "f341621d04c0a2b586aa89657d1349ffbfa122b682b5d5ca3b071377727cd553",
+    "bytes": 13944,
+    "mode": 436
+  },
+  "receipt": {
+    "schema": "activation-protected-native-v1",
+    "prefix": "/tmp/puni-freeze117-producer-live-v2/freeze117/native",
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "libs/wbs/adapters/store-sqlite/src/testing/resource-use-117-fixture-producer.test.ts",
+        "--test-name-pattern=^freeze genuine117 resource lifecycle migration fixtures from current production stores$",
+        "--timeout=30000"
+      ],
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "deadlineMs": 180000
+    },
+    "environment": {
+      "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/home/df",
+      "TMPDIR": "/tmp",
+      "TZ": "UTC",
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "NODE_ENV": "test",
+      "NO_COLOR": "1",
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false"
+    },
+    "startedAt": "2026-11-18T13:06:12.523Z",
+    "endedAt": "2026-11-18T13:06:17.064Z",
+    "exitCode": 0,
+    "signal": null,
+    "originalObserved": true,
+    "launched": true,
+    "primary": null,
+    "cleanup": [],
+    "ownerState": "stopped-and-reaped",
+    "descriptorState": "closed",
+    "output": {
+      "state": "acquired",
+      "stdoutFd": 5,
+      "stderrFd": 5,
+      "sameNumericFd": true
+    },
+    "transcript": {
+      "state": "owned",
+      "path": "/tmp/puni-freeze117-producer-live-v2/freeze117/native.log",
+      "sha256": "0263e3298443a1a7e68a5b4262efcdcbb1db57124c41ad0d5e25a7558c5ca616",
+      "bytes": 384
+    },
+    "settled": true
+  },
+  "log": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/resource-use-117-fixture-producer.test.ts:\nFrozen resource fixture manifest: /tmp/puni-resource-use-117-frozen-native-v1/manifest.json\n(pass) freeze genuine117 resource lifecycle migration fixtures from current production stores [2018.30ms]\n\n 1 pass\n 0 fail\n 152 expect() calls\nRan 1 test across 1 file. [4.49s]\n",
+  "qualification": "Synthetic fixture-owned Source and resource-use APIs, full schema/table/117-ledger readback, integrity/FK checks and known owner close. Historical absolute paths and window reports are provenance, not reusable operator authority. No migration118/backfill claim."
+}

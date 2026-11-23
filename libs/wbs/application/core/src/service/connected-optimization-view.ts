@@ -15,7 +15,7 @@ type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 /** Captured foreign placements on the common axis; labels never enter question identity. */
 export interface ConnectedOptimizationScope {
   readonly kind: 'connected-stage';
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly originOrdinal: number;
   readonly mode: CapacityMode;
   readonly quantum: number;
@@ -26,9 +26,9 @@ export interface ConnectedOptimizationScope {
     readonly canonical: string;
   };
   readonly fixed: readonly {
-    readonly projectId: string;
-    readonly projectName: string;
-    readonly projectAbbreviation: string;
+    readonly workPackageId: string;
+    readonly workPackageName: string;
+    readonly workPackageAbbreviation: string;
     readonly workItemId: string;
     readonly workItemName: string;
     readonly stepId: string | null;
@@ -43,56 +43,56 @@ export type ConnectedOptimizationView = ConnectedPlanOptimization;
 
 function requireCaptured<T>(value: T | null | undefined, name: string): T {
   // Proof: removing null and undefined predicates independently admitted absent C
-  // project/row/step labels through projectConnectedTree (view tests, 2026-10-22).
+  // work-package/row/step labels through workPackageConnectedTree (view tests, 2026-10-22).
   if (value === null || value === undefined)
     throw new Error(`missing connected optimization ${name}`);
   return value;
 }
 
 /**
- * Project an already validated detached selection without IO, scheduling, hashing
- * or admission. Foreign starts/finishes and canonical bytes belong to the retained
- * pre-selection stage. Displayed dates remain the separate final by-project placement.
+ * Derive a display view from an already validated detached connected selection without IO,
+ * scheduling, hashing or admission. Foreign starts/finishes and canonical bytes belong to the retained
+ * pre-selection stage. Displayed dates remain the separate final by-work-package placement.
  * Finish comparisons use only target slices and target-relative workday offsets;
  * ready quantisation-floor decisions use their published baseline placement.
  * Disabled, idle and unavailable observations have no optimization view or invented identity.
  *
  * @throws when a scheduled active member has no stage or captured scope labels.
  */
-export function projectConnectedOptimization(
+export function deriveConnectedOptimizationView(
   captured: ConnectedRead,
-  projectId: string,
+  workPackageId: string,
 ): ConnectedOptimizationView | null {
-  const { projection, metadataByProject } = captured;
+  const { projection, metadataByWorkPackage } = captured;
   const placement = projection.placement;
   if (placement.kind !== 'scheduled') return null;
-  const selection = placement.stages.find((entry) => entry.stage.projectId === projectId);
+  const selection = placement.stages.find((entry) => entry.stage.workPackageId === workPackageId);
   if (selection === undefined) {
-    if (placement.idleProjects.includes(projectId)) return null;
+    if (placement.idleWorkPackages.includes(workPackageId)) return null;
     // Proof: returning null here accepted an active member without its retained
-    // stage; `disabled and idle members` failed through projectConnectedTree.
-    throw new Error(`missing connected optimization stage ${projectId}`);
+    // stage; `disabled and idle members` failed through workPackageConnectedTree.
+    throw new Error(`missing connected optimization stage ${workPackageId}`);
   }
   const observation = selection.optimization;
   if (observation === null) return null;
   const { stage } = selection;
   const member = requireCaptured(
-    projection.capture.projects.find((entry) => entry.projectId === projectId),
-    `member ${projectId}`,
+    projection.capture.workPackages.find((entry) => entry.workPackageId === workPackageId),
+    `member ${workPackageId}`,
   );
   const order = stage.input.order;
   // canonicalConnectedStageInput validates the connected order and exact retained key sets.
   const canonical = canonicalConnectedStageInput(stage);
   if (order.kind !== 'connected') throw new Error('connected optimization order absent');
-  const ownership = order.projectIdByWorkItem;
+  const ownership = order.workPackageIdByWorkItem;
   const target = requireCaptured(
-    stage.projects.find((entry) => entry.projectId === projectId),
+    stage.workPackages.find((entry) => entry.workPackageId === workPackageId),
     'target',
   );
   const shift = requireCaptured(target.anchorOrdinal, 'target anchor') - stage.originOrdinal;
   const localKeys = new Set(
     stage.input.slices
-      .filter((slice) => ownership.get(slice.workItemId) === projectId)
+      .filter((slice) => ownership.get(slice.workItemId) === workPackageId)
       .map((slice) => sliceKey(slice.workItemId, slice.stepId)),
   );
   // Proof: removing the target filter made the tree producer compare whole
@@ -119,8 +119,8 @@ export function projectConnectedOptimization(
   }
   const fixed = stage.input.slices.flatMap((slice) => {
     const ownerId = requireCaptured(ownership.get(slice.workItemId), 'slice owner');
-    if (ownerId === projectId) return [];
-    const metadata = requireCaptured(metadataByProject.get(ownerId), `metadata ${ownerId}`);
+    if (ownerId === workPackageId) return [];
+    const metadata = requireCaptured(metadataByWorkPackage.get(ownerId), `metadata ${ownerId}`);
     const row = requireCaptured(
       metadata.workItems.find((entry) => entry.id === slice.workItemId),
       `row ${slice.workItemId}`,
@@ -135,11 +135,11 @@ export function projectConnectedOptimization(
     const key = sliceKey(slice.workItemId, slice.stepId);
     return [
       {
-        projectId: ownerId,
-        projectName: requireCaptured(metadata.project.name, `project name ${ownerId}`),
-        projectAbbreviation: requireCaptured(
-          metadata.project.abbreviation,
-          `project abbreviation ${ownerId}`,
+        workPackageId: ownerId,
+        workPackageName: requireCaptured(metadata.workPackage.name, `work package name ${ownerId}`),
+        workPackageAbbreviation: requireCaptured(
+          metadata.workPackage.abbreviation,
+          `work package abbreviation ${ownerId}`,
         ),
         workItemId: row.id,
         workItemName: requireCaptured(row.name, `row name ${row.id}`),
@@ -154,7 +154,7 @@ export function projectConnectedOptimization(
     ];
   });
   return {
-    enabled: member.reads.project.optimizationEnabled,
+    enabled: member.reads.workPackage.optimizationEnabled,
     engine: selection.engine,
     objective: selection.objective,
     inputHash: observation.inputHash,
@@ -169,13 +169,13 @@ export function projectConnectedOptimization(
     sameOrderAsFast,
     scope: {
       kind: 'connected-stage',
-      projectId,
+      workPackageId,
       originOrdinal: stage.originOrdinal,
       mode: stage.mode,
       quantum: observation.quantum,
       wireVersion: observation.wireVersion,
       // Proof: empty canonical bytes failed the retained descriptor assertion
-      // through projectConnectedTree; final dates cannot recreate this boundary.
+      // through workPackageConnectedTree; final dates cannot recreate this boundary.
       boundary: { format: 'wbs-connected-stage', version: 1, canonical },
       fixed,
     },

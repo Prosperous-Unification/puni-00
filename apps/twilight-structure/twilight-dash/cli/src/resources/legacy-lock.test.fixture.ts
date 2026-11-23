@@ -2,7 +2,15 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { LegacyLock } from './legacy-lock';
+import { createLaunch } from '@shared/bun-startup';
+
+import { monotonicClock, wallClock } from '../clock';
+import type { HostLock } from './host-lock';
+
+/** Immutable historical Bash peer metadata belongs only to this interoperability fixture. */
+export interface FixtureLegacyLock extends HostLock {
+  readonly library: string;
+}
 
 /** This repository's own shell lock library, which every legacy-lock test drives for real. */
 export const LOCK_LIBRARY = join(
@@ -18,8 +26,20 @@ export const LOCK_LIBRARY = join(
 );
 
 /** A private lock at `<directory>/heavy.lock` through the real library. */
-export function privateLegacyLock(directory: string): LegacyLock {
-  return { library: LOCK_LIBRARY, lockPath: join(directory, 'heavy.lock') };
+export function privateLegacyLock(directory: string): FixtureLegacyLock {
+  return {
+    clock: wallClock(),
+    monotonic: monotonicClock(),
+    library: LOCK_LIBRARY,
+    lockPath: join(directory, 'heavy.lock'),
+    helperPrefix: [
+      ...createLaunch(
+        process.execPath,
+        join(import.meta.dir, '../ops/testing/lock-owner.test.fixture.ts'),
+      ),
+      join(directory, 'heavy.lock'),
+    ],
+  };
 }
 
 /** A legacy caller: `with_heavy_lock` with an explicit path, as an older checkout's launcher. */
@@ -34,7 +54,7 @@ export interface LegacyCaller {
  * `end <name> <ms>` (wall milliseconds) to `log` around a `seconds`-long sleep.
  */
 export function startLegacyCaller(
-  lock: LegacyLock,
+  lock: FixtureLegacyLock,
   name: string,
   log: string,
   options: { waitSeconds: number; seconds: number; pollSeconds?: number },
@@ -125,9 +145,13 @@ export function overlaps(left: Span, right: Span): boolean {
 }
 
 /** Poll `probe` every 50 ms until it is true or `ms` pass; throws naming `what` on timeout. */
-export async function eventually(what: string, probe: () => boolean, ms = 15_000): Promise<void> {
+export async function eventually(
+  what: string,
+  probe: () => boolean | Promise<boolean>,
+  ms = 15_000,
+): Promise<void> {
   const until = Date.now() + ms;
-  while (!probe()) {
+  while (!(await probe())) {
     if (Date.now() > until) throw new Error(`timed out waiting for ${what}`);
     await Bun.sleep(50);
   }

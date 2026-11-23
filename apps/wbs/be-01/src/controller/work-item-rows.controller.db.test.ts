@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * Work-item pages and the single work-item read (`list-search-and-paging`,
@@ -12,7 +13,7 @@ let own: string;
 let foreign: string;
 /** Work item ids by ref, in the order the batch created them. */
 let refs: Record<string, string>;
-/** The one work item of the foreign project. */
+/** The one work item of the foreign work package. */
 let foreignWorkItem: string;
 
 interface TreeWorkItem {
@@ -33,17 +34,11 @@ interface Row {
 interface Page {
   rows: Row[];
   nextCursor: string | null;
-  projectRevision: number;
+  workPackageRevision: number;
 }
 
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
-}
-
-async function batch(username: string, projectId: string, commands: unknown[]) {
-  const answer = await h.call(username, 'POST', `/api/projects/${projectId}/commands`, {
+async function batch(username: string, workPackageId: string, commands: unknown[]) {
+  const answer = await h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands,
   });
   if (answer.status !== 200) throw new Error(`batch refused: ${JSON.stringify(answer)}`);
@@ -64,13 +59,15 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   // a { a1 { a11 }, a2 }, b, c { c1 } — seven work items across three levels.
   const applied = await batch('ada', own, [
     child('a', null, null),
@@ -95,8 +92,8 @@ afterEach(() => {
   h.close();
 });
 
-async function rows(username: string, projectId: string, search: string) {
-  return h.call(username, 'GET', `/api/projects/${projectId}/work-item-rows?${search}`);
+async function rows(username: string, workPackageId: string, search: string) {
+  return h.call(username, 'GET', `/api/work-packages/${workPackageId}/work-item-rows?${search}`);
 }
 
 async function page(search: string): Promise<Page> {
@@ -106,12 +103,12 @@ async function page(search: string): Promise<Page> {
 }
 
 async function wholeTree(): Promise<TreeWorkItem[]> {
-  const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+  const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`);
   if (answer.status !== 200) throw new Error(`tree refused: ${JSON.stringify(answer)}`);
   return (answer.body as { workItems: TreeWorkItem[] }).workItems;
 }
 
-describe('GET /api/projects/:id/work-item-rows', () => {
+describe('GET /api/work-packages/:id/work-item-rows', () => {
   it('walks the whole tree once, with the whole-tree read’s order, numbers and dates', async () => {
     const walked: Row[] = [];
     let current = await page('limit=3');
@@ -170,10 +167,10 @@ describe('GET /api/projects/:id/work-item-rows', () => {
       'name',
       'number',
       'parentId',
-      'projectId',
       'revision',
       'status',
       'updatedAt',
+      'workPackageId',
     ]);
     expect(outline.rows.every((row) => typeof row.updatedAt === 'number')).toBe(true);
     const grouped = await page(`fields=notes,slices&parentId=${refs['a1'] ?? ''}`);
@@ -182,7 +179,7 @@ describe('GET /api/projects/:id/work-item-rows', () => {
     expect(grouped.rows[0]).not.toHaveProperty('schedule');
   });
 
-  it('answers a foreign project as not found', async () => {
+  it('answers a foreign work package as not found', async () => {
     expect(await rows('grace', own, '')).toMatchObject({
       status: 404,
       body: { error: 'not_found' },
@@ -190,15 +187,15 @@ describe('GET /api/projects/:id/work-item-rows', () => {
   });
 
   it('includes native charges only when the estimates group is requested', async () => {
-    const tree = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+    const tree = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`);
     expect(tree.status).toBe(200);
     const steps = (tree.body as { steps: { id: string }[] }).steps;
     const minuteStep = steps.at(0);
     const workdayStep = steps.at(1);
     if (minuteStep === undefined || workdayStep === undefined)
-      throw new Error('the project needs two default steps');
+      throw new Error('the work package needs two default steps');
     expect(
-      await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${minuteStep.id}`, {
+      await h.call('ada', 'PATCH', `/api/work-packages/${own}/steps/${minuteStep.id}`, {
         estimateUnit: 'minutes',
       }),
     ).toMatchObject({ status: 200 });
@@ -271,17 +268,17 @@ describe('GET /api/projects/:id/work-item-rows', () => {
   });
 });
 
-describe('GET /api/projects/:id/work-items', () => {
+describe('GET /api/work-packages/:id/work-items', () => {
   it('answers full=true byte for byte as the parameterless whole-tree read', async () => {
-    const plain = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
-    const full = await h.call('ada', 'GET', `/api/projects/${own}/work-items?full=true`);
+    const plain = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`);
+    const full = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items?full=true`);
     expect(plain.status).toBe(200);
     expect(JSON.stringify(full)).toBe(JSON.stringify(plain));
   });
 
   it('refuses any other query with 400', async () => {
     for (const search of ['full=false', 'full=1', 'limit=5', 'full=true&full=true']) {
-      const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items?${search}`);
+      const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items?${search}`);
       expect({ search, status: answer.status, body: answer.body }).toEqual({
         search,
         status: 400,
@@ -291,10 +288,10 @@ describe('GET /api/projects/:id/work-items', () => {
   });
 });
 
-describe('GET /api/projects/:id/work-items/:workItemId', () => {
+describe('GET /api/work-packages/:id/work-items/:workItemId', () => {
   it('answers one work item as the whole-tree read does, with its own slices', async () => {
     const id = refs['a11'] ?? '';
-    const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items/${id}`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/work-items/${id}`);
     expect(answer.status).toBe(200);
     const { workItem } = answer.body as {
       workItem: TreeWorkItem & { updatedAt: number | null; slices: { workItemId: string }[] };
@@ -308,13 +305,13 @@ describe('GET /api/projects/:id/work-items/:workItemId', () => {
   });
 
   it('answers an absent and a foreign work item alike', async () => {
-    for (const [username, projectId, id] of [
+    for (const [username, workPackageId, id] of [
       ['ada', own, 'nobody'],
       ['ada', own, foreignWorkItem],
       ['grace', own, refs['a'] ?? ''],
     ] as const) {
       expect(
-        await h.call(username, 'GET', `/api/projects/${projectId}/work-items/${id}`),
+        await h.call(username, 'GET', `/api/work-packages/${workPackageId}/work-items/${id}`),
       ).toMatchObject({ status: 404, body: { error: 'not_found' } });
     }
   });

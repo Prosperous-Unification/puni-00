@@ -52,6 +52,19 @@ function events(directory: string): { event: string; pid: number; cwd: string; p
 }
 
 describe('staged lint production CLI', () => {
+  test('runs the installed ESLint through Bun when PATH contains no Node executable', () => {
+    const directory = fixture();
+    write(directory, 'source.js', 'const value = 1;\n');
+    const invocation = Bun.spawnSync([process.execPath, 'run', cli, 'source.js'], {
+      cwd: directory,
+      env: { ...process.env, PATH: '' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    expect(events(directory).map(({ event }) => event)).toEqual(['start', 'file', 'exit']);
+  });
+
   test('lefthook runs distinct serial nearest-project batches covering all supplied paths', () => {
     const directory = fixture();
     for (const project of ['apps/outer', 'libs/second', 'apps/outer/nested']) {
@@ -189,7 +202,6 @@ describe('staged lint production CLI', () => {
     write(directory, 'source.js', 'const value = 1;\n');
     const invocation = run(directory, ['source.js']);
     expect(invocation.exitCode).not.toBe(0);
-    // Volta may convert its Node child's SIGTERM to exit 1 without exposing signalCode.
     expect(invocation.stderr.toString()).toContain('ESLint failed');
     expect(events(directory).map(({ event }) => event)).toEqual(['start']);
   });

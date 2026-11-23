@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,19 +15,47 @@ import {
 import { clockOf } from '@wbs/core';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { createLogger } from '@wbs/observability';
+import { userBoundOrganizationOf } from '@wbs/store-sqlite';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { captureConnectedQuestion } from '@wbs/store-sqlite/connected-question-identity';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
-import { expect, test } from 'bun:test';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { expect, spyOn, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
 import { buildServices } from '../src/services';
 import {
   openComposedImageFixture,
-  TARGET_PROJECT_ID,
+  TARGET_WORK_PACKAGE_ID,
   trackComposedImageReaders,
 } from './connected-composed-image-scenario';
+
+test('composed image fixture refuses a real duplicate catalogue code before seeding facts', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-duplicate-code-'));
+  // The mock below invokes the captured method with its original repository receiver.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const define = StepCatalogueRepository.prototype.defineAndBindStep;
+  const authoring = spyOn(StepCatalogueRepository.prototype, 'defineAndBindStep');
+  authoring.mockImplementation(async function (
+    this: StepCatalogueRepository,
+    organizationId,
+    definition,
+    binding,
+    stamp,
+  ) {
+    return await define.call(this, organizationId, { ...definition, code: 'a1-s' }, binding, stamp);
+  });
+  try {
+    await assert.rejects(openComposedImageFixture(folder), {
+      message: 'disposable image step authoring refused: code_taken',
+    });
+    expect(authoring).toHaveBeenCalledTimes(2);
+  } finally {
+    authoring.mockRestore();
+  }
+  rmSync(folder, { recursive: true, force: true });
+});
 
 test('disposable composed image fixture captures a feasible priority improvement with exact foreign pins', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'connected-image-fixture-'));
@@ -37,6 +66,20 @@ test('disposable composed image fixture captures a feasible priority improvement
   });
   const installed = { solverVersion: '0.4.0', budgetMs: 30_000 };
   const services = buildServices({
+    createWorkPackageObservation: (configured) =>
+      configured.createWorkPackageObservation({
+        activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+        now: Date.now,
+      }),
+    createSpaceRead: (configured) =>
+      configured.createSpaceRead({
+        activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+        now: Date.now,
+      }),
+    projectRead: source.createProjectRead({
+      activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+      now: Date.now,
+    }),
     source,
     commandAccess: localCommandAccess,
     clock: clockOf({ now: Date.now, newId: () => crypto.randomUUID() }),
@@ -53,7 +96,7 @@ test('disposable composed image fixture captures a feasible priority improvement
     },
   });
   try {
-    const captured = await services.workItems.optimizationCapture(TARGET_PROJECT_ID);
+    const captured = await services.workItems.optimizationCapture(TARGET_WORK_PACKAGE_ID);
     if (captured.kind !== 'scheduled' || captured.input.kind !== 'connected') {
       throw new Error('fixture omitted installed connected stage');
     }
@@ -78,7 +121,7 @@ test('disposable composed image fixture captures a feasible priority improvement
         type: 'start',
         protocolVersion: SUPERVISOR_PROTOCOL_VERSION,
         callerId: 'a'.repeat(12),
-        projectId: stage.projectId,
+        workPackageId: stage.workPackageId,
         objective: 'pri',
         attemptToken: crypto.randomUUID(),
         childDeadlineAt: Date.now() + 60_000,
@@ -94,7 +137,7 @@ test('disposable composed image fixture captures a feasible priority improvement
         maxMemoryLimitMb: 512,
       },
     );
-    expect(accepted.projectId).toBe(TARGET_PROJECT_ID);
+    expect(accepted.workPackageId).toBe(TARGET_WORK_PACKAGE_ID);
     expect(prepared.request.slices).toHaveLength(2);
     expect(prepared.request.slices.map(({ durationUnits }) => durationUnits)).toEqual([96, 48]);
     expect(source.db.all('SELECT * FROM solver_slot')).toEqual([]);
@@ -116,9 +159,10 @@ test('composed image admission permits idle pooled readers and source close drai
     openReadOnlyConnection: readers.openConnection,
   });
   try {
-    const observation = await source.stores.claims.observeProject(TARGET_PROJECT_ID, {
+    const observation = await source.stores.claims.observeWorkPackage(TARGET_WORK_PACKAGE_ID, {
+      principal: { id: 'ada' },
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
     });
     expect(observation).toBeDefined();
     expect(() => {
@@ -143,7 +187,7 @@ test('composed image admission refuses active read transactions until real commi
     }).toThrow('fixture read transaction was not observed');
     for (const terminal of ['COMMIT', 'ROLLBACK']) {
       connection.db.run(sql.raw('BEGIN DEFERRED'));
-      connection.db.all(sql.raw('SELECT id FROM project'));
+      connection.db.all(sql.raw('SELECT id FROM work_package'));
       expect(() => {
         readers.assertSettled();
       }).toThrow();
@@ -172,7 +216,7 @@ test('COMMIT rejected by its real run logger keeps the composed image transactio
   const connection = readers.openConnection(path);
   try {
     connection.db.run(sql.raw('BEGIN DEFERRED'));
-    connection.db.all(sql.raw('SELECT id FROM project'));
+    connection.db.all(sql.raw('SELECT id FROM work_package'));
     expect(() => connection.db.run(sql.raw('COMMIT'))).toThrow('injected real COMMIT refusal');
     expect(() => {
       readers.assertSettled();

@@ -31,6 +31,7 @@ import { TEST_JWT_KEY } from './testing/auth-fixture';
 import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { OrganizationHarness } from './testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
+import { createFixturePackage, readFixturePackage } from './testing/space-rollup';
 
 async function awaitPhase<T>(promise: Promise<T>, phase: string, milliseconds = 8000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -105,34 +106,46 @@ async function runIntegration(
   try {
     await awaitPhase(harness.register('ada'), 'register');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'admin');
+    harness.member('org-a', 'ada', 'admin', ['org-admin']);
     harness.bind('ada', 'org-a');
     harness.activate();
-    const created = await awaitPhase(
-      harness.call('ada', 'POST', '/api/projects', { name: 'Runtime dispatch' }),
-      'project',
+    const workPackageId = await awaitPhase(
+      createFixturePackage(harness, 'ada', 'Runtime dispatch'),
+      'work_package',
     );
-    assert(created.body !== null && typeof created.body === 'object' && 'project' in created.body);
-    const project = created.body.project;
-    assert(
-      project !== null &&
-        typeof project === 'object' &&
-        'id' in project &&
-        typeof project.id === 'string',
-    );
+    const fixture = await readFixturePackage(harness, 'ada', workPackageId);
     harness.sqlite.run("INSERT INTO person (id, name) VALUES ('person', 'Person')");
     harness.sqlite.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('person', 'org-a', 'Person')",
     );
     // Proof: position 100 produced a real FS workflow prerequisite refusal;
     // placing Plan before default Dev/QA restored the same conditional integration.
+    await harness.publicWrites().uow.run(async ({ stores }) => {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: 'step',
+          code: 'plan',
+          name: 'Plan',
+          position: 0,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: 'plan-binding',
+          scopeKind: 'project',
+          scopeId: fixture.workPackage.projectId,
+          workItemTypeId: null,
+          position: 0,
+        },
+        { at: 1, by: harness.userId('ada') },
+      );
+      if (!bound.ok) throw new Error('runtime dispatch plan binding refused: ' + bound.reason);
+      return { commit: true, value: undefined };
+    });
     harness.sqlite.run(
-      "INSERT INTO step (id, project_id, name, position, code) VALUES ('step', ?, 'Plan', 0, 'plan')",
-      [project.id],
-    );
-    harness.sqlite.run(
-      "INSERT INTO work_item (id, project_id, position, name, readiness) VALUES ('work', ?, 10, 'Work', 'ready')",
-      [project.id],
+      "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('work', ?, 10, 'Work', 'ready')",
+      [workPackageId],
     );
     const credential = harness.token('ada');
     const actorId = harness.userId('ada');
@@ -196,6 +209,13 @@ async function runIntegration(
           assert(source !== undefined, 'boot source missing');
           const app = buildApp({
             ...options,
+            workPackageObservation: source.createWorkPackageObservation({
+              activeOrganizationOf: () =>
+                userBoundOrganizationOf((userId) =>
+                  Promise.resolve(userId === actorId ? 'org-a' : null),
+                ),
+              now: Date.now,
+            }),
             organizations: new SqliteOrganizationAccess(
               source.db,
               userBoundOrganizationOf((userId) =>
@@ -257,8 +277,8 @@ async function runIntegration(
           fetch(
             'http://127.0.0.1:' +
               String(running.port) +
-              '/api/projects/' +
-              encodeURIComponent(project.id) +
+              '/api/work-packages/' +
+              encodeURIComponent(workPackageId) +
               '/runtime-state?personId=person',
             { headers },
           ),
@@ -279,7 +299,7 @@ async function runIntegration(
         base: 'http://127.0.0.1:' + String(running.port),
         credential,
         organizationId: 'org-a',
-        projectId: project.id,
+        projectId: workPackageId,
         path: join(directory, 'runs.sqlite'),
         ...(variant === 'delayed-ready'
           ? { readyHold: 'after-build' }

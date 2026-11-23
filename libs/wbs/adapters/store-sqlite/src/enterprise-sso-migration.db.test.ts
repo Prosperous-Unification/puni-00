@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const RECORDS = '20261012090000_add_enterprise_sso_records';
 const TIMES = '20261012090100_add_browser_auth_times';
 const WIDENED = '20261012090200_widen_organization_audit';
@@ -25,11 +25,13 @@ const ESTIMATE_UNIT = '20261012130000_add_step_estimate_unit';
 describe('the enterprise SSO migrations', () => {
   let dir: string;
   let path: string;
+  let history: string;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-enterprise-sso-migration-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    history = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+    runMigrations(path, history);
     run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1), ('sam', 'sam', 'x', 1)",
     );
@@ -86,7 +88,9 @@ describe('the enterprise SSO migrations', () => {
       "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_project_recovery', 'project', 'p1', '{}', 1)",
     );
     const migrated = schema();
-    expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([
+    expect(rollbackTo(path, history, BEFORE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -137,7 +141,7 @@ describe('the enterprise SSO migrations', () => {
       expect.objectContaining({ name: 'organization_scim_user' }),
     );
     expect(all('SELECT id FROM organization_audit')).toEqual([{ id: 'r1' }]);
-    runMigrations(path, FOLDER);
+    runMigrations(path, history);
     expect(schema()).toEqual(migrated);
     expect(all('SELECT id FROM organization_audit')).toEqual([{ id: 'r1' }]);
   });
@@ -255,12 +259,12 @@ describe('the enterprise SSO migrations', () => {
     ];
     for (const [index, insert] of inserts.entries()) {
       insert();
-      expect(() => rollbackTo(path, FOLDER, BEFORE)).toThrow(/enterprise SSO records exist/);
+      expect(() => rollbackTo(path, history, BEFORE)).toThrow(/enterprise SSO records exist/);
       expect(all("SELECT name FROM __drizzle_migrations WHERE name LIKE '20261012%'")).toHaveLength(
         1,
       );
       run(deletes[index]);
-      runMigrations(path, FOLDER);
+      runMigrations(path, history);
     }
   });
 
@@ -269,7 +273,7 @@ describe('the enterprise SSO migrations', () => {
       `INSERT INTO browser_auth_lifecycle (session_digest, user_id, generation, state, current_kind, current_digest, current_expires_at, opened_at)
        VALUES ('${'d'.repeat(64)}', 'ada', 1, 'active', 'oidc', '${'e'.repeat(64)}', 9, 5)`,
     );
-    expect(() => rollbackTo(path, FOLDER, RECORDS)).toThrow(/browser sign-in times are recorded/);
+    expect(() => rollbackTo(path, history, RECORDS)).toThrow(/browser sign-in times are recorded/);
     expect(all('SELECT opened_at FROM browser_auth_lifecycle')).toEqual([{ opened_at: 5 }]);
   });
 
@@ -277,7 +281,7 @@ describe('the enterprise SSO migrations', () => {
     run(
       "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('a1', 'org-a', 'scim:t1', 'scim_user_provisioned', 'scim_user', 'u1', '{}', 1)",
     );
-    expect(() => rollbackTo(path, FOLDER, TIMES)).toThrow(/enterprise SSO audit rows exist/);
+    expect(() => rollbackTo(path, history, TIMES)).toThrow(/enterprise SSO audit rows exist/);
     expect(all('SELECT action FROM organization_audit')).toEqual([
       { action: 'scim_user_provisioned' },
     ]);

@@ -1,5 +1,7 @@
 import type { ImportOutcome } from '@wbs/core';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
+import { testWorkItemService } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, mock, spyOn, test } from 'bun:test';
 
 import { testApp } from '../testing/app-fixture';
@@ -8,7 +10,7 @@ import { testWrites } from '../testing/writes-fixture';
 
 const summary = {
   ok: true as const,
-  projectId: 'project-imported',
+  workPackageId: 'work-package-imported',
   rows: 2,
   created: {
     teams: ['Billing'],
@@ -25,11 +27,15 @@ function request(body: string, headers: HeadersInit = {}) {
   const requestHeaders = new Headers(headers);
   requestHeaders.set('authorization', 'Bearer token');
   requestHeaders.set('content-type', 'application/json');
-  return new Request('http://localhost/api/projects/import', {
+  return new Request('http://localhost/api/work-packages/import', {
     method: 'POST',
     headers: requestHeaders,
     body,
   });
+}
+
+function requestDocument(document: ReturnType<typeof planDocumentFixture>) {
+  return request(JSON.stringify({ projectId: 'fixture-project', document }));
 }
 
 function mounted(
@@ -39,7 +45,7 @@ function mounted(
   const auth = testAuthService();
   spyOn(auth, 'authenticateOrRefuse').mockResolvedValue({ id: 'actor', username: 'actor', scopes });
   const imports = mock(() => Promise.resolve(outcome));
-  const writes = testWrites();
+  const writes = testWrites(undefined, { workItems: testWorkItemService(openTestSource()) });
   writes.imports = { import: imports };
   return { app: testApp({ auth, writes }), imports };
 }
@@ -47,32 +53,37 @@ function mounted(
 test('mounts the production import path and returns the typed 201 summary', async () => {
   const { app, imports } = mounted();
   const document = planDocumentFixture();
-  const response = await app.handle(request(JSON.stringify(document)));
+  const response = await app.handle(requestDocument(document));
 
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual({
-    projectId: summary.projectId,
+    workPackageId: summary.workPackageId,
     rows: summary.rows,
     created: summary.created,
     solutionRef: summary.solutionRef,
   });
-  expect(imports).toHaveBeenCalledWith(document, {
-    kind: 'human',
-    principal: {
-      id: 'actor',
-      username: 'actor',
-      scopes: ['read', 'write'],
-      organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+  expect(imports).toHaveBeenCalledWith(
+    document,
+    {
+      kind: 'human',
+      principal: {
+        id: 'actor',
+        username: 'actor',
+        scopes: ['read', 'write'],
+        organizationOperation: { kind: 'mutation', expected: { kind: 'absent' } },
+      },
+      expectedAccess: { kind: 'legacy' },
     },
-    expectedAccess: { kind: 'legacy' },
-  });
+    'fixture-project',
+    { defineMissing: false },
+  );
 });
 
 test('returns mounted document paths and admitted conflicts through declared refusals', async () => {
   const malformed = planDocumentFixture();
   Reflect.set(malformed.workItems[0] ?? {}, 'priority', 'high');
   const boundary = mounted();
-  const invalid = await boundary.app.handle(request(JSON.stringify(malformed)));
+  const invalid = await boundary.app.handle(requestDocument(malformed));
   expect(invalid.status).toBe(400);
   expect(await invalid.json()).toEqual({
     error: 'invalid_body',
@@ -87,7 +98,7 @@ test('returns mounted document paths and admitted conflicts through declared ref
     path: 'settings.scheduleEngine',
     detail: 'optimized',
   });
-  const refused = await conflict.app.handle(request(JSON.stringify(planDocumentFixture())));
+  const refused = await conflict.app.handle(requestDocument(planDocumentFixture()));
   expect(refused.status).toBe(409);
   expect(await refused.json()).toEqual({
     error: 'engine_unavailable',
@@ -108,7 +119,7 @@ test('refuses a malformed version-4 typed dependency at the mounted import bound
     },
   ]);
   const boundary = mounted();
-  const response = await boundary.app.handle(request(JSON.stringify(document)));
+  const response = await boundary.app.handle(requestDocument(document));
   expect(response.status).toBe(400);
   const payload: unknown = await response.json();
   expect(payload).toMatchObject({ error: 'invalid_typed_dependency' });
@@ -118,7 +129,7 @@ test('refuses a malformed version-4 typed dependency at the mounted import bound
 
 test('checks cookie origin and write scope before parsing the import document', async () => {
   const reader = mounted(['read']);
-  const valid = await reader.app.handle(request(JSON.stringify(planDocumentFixture())));
+  const valid = await reader.app.handle(requestDocument(planDocumentFixture()));
   expect(valid.status).toBe(403);
   expect(await valid.json()).toEqual({ error: 'insufficient_scope' });
   const scoped = await reader.app.handle(request('{'));
@@ -145,7 +156,7 @@ test('refuses malformed current and nonempty legacy blockage facts at the mounte
     document.document.version = version;
     Reflect.set(document, 'stepBlockages', facts);
     const boundary = mounted();
-    const response = await boundary.app.handle(request(JSON.stringify(document)));
+    const response = await boundary.app.handle(requestDocument(document));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'invalid_body', path, detail: null });
     expect(boundary.imports).not.toHaveBeenCalled();

@@ -1,0 +1,649 @@
+{
+  "schema": "puni-current-leaf-addresses-v1",
+  "recordedAt": "2026-11-20T07:42:16.910Z",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+      "sha256": "57e83963bce1b69ca39d4c351b8dcd89798735644280cfa7fbaecaa316574a02",
+      "bytes": 8872,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+      "sha256": "0b4345597b54d64add8cbd89afa6aa36bae0cfe2f8e4a7571d884949208c1cac",
+      "bytes": 8515,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+      "sha256": "8695d56ae1d4af8d50be1ee2085fab4a45ed832669b9236ea7b86c1ca7d74bbc",
+      "bytes": 6272,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "aab84391de1cff0b6c8a4b9d0f835fa985a0b73c8b4e32fe1ddb841c6aec1ba5",
+      "bytes": 577164,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-package-address-revision.ts",
+      "sha256": "b786e24dadb4b627f17937745a38f46d5995751c593c956b9e24cca2f64695a4",
+      "bytes": 533,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-package-address-search.ts",
+      "sha256": "b1960e0840e27d07610af7ab2cf586e1018908cc62a98d3fcfd57c9a9814edcd",
+      "bytes": 14679,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/step-reference.test.ts",
+      "sha256": "3a7fce4a328372b2fa2be2f3b6fb595b2416e14b73205306eea6a5129b8cc3ec",
+      "bytes": 6891,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/step-reference.ts",
+      "sha256": "205b9c194ce388212c78a3a5e041a8aa2a16252bae838ef0bd063dcd069ec5ec",
+      "bytes": 8477,
+      "mode": 436
+    }
+  ],
+  "behavior": {
+    "current": "Current tree stepNodes and local reference resolution consume each leaf ordered identities/codes, never the package union. Zero-step and retained-conflict leaves have no nodes. Parent nodes remain absent. Local service readAddresses uses the actual listTreeByWorkPackage purpose and retains its leaf metadata.",
+    "revision": "Current ar2 hashes effective numbers/leafhood and the ordered identity/code list for every leaf, including explicit empty lists. Direct type edits that empty a leaf change the digest while the package union stays equal. Names/provenance and unused union columns do not change address meaning. Ordinal padding counts only the addressed leaf.",
+    "trustedState": "Local calls always select leaf mode. Partial or wholly absent leaf metadata throws; missing metadata does not choose uniform mode. The domain reader also throws for a missing required map entry.",
+    "legacy": "Uniform construction is explicit and retains the exact ar1 descriptor and ordering. The still-unconverted qualified-address receiver explicitly selects uniform mode because its Source capture still reads legacy local-step rows. This is an open catalogue cutover, not current qualified-reference certification.",
+    "ownership": "Rows/types/bindings/values come through the actual V75tree-row capture. Complete caller/header/row/fact observation ownership still requires the wider Source cutover; this slice does not certify current local authorization as one complete snapshot."
+  },
+  "verification": {
+    "api": {
+      "phase": "current-leaf-address-api-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-api-mcp-v1.receipt.json",
+        "sha256": "55e0f8cfd4e9fbd5ad7e5448cc5850288cbdc6531e1127595b6165064f3069c6",
+        "bytes": 2159,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-api-mcp-v1.log",
+        "sha256": "583aa1cab33ed1de6c883fcb087239f8ab684915faa6c572dca8385c0c421a92",
+        "bytes": 30963,
+        "mode": 384
+      },
+      "passed": 220,
+      "failed": 0,
+      "assertions": 5147,
+      "tests": 220,
+      "files": 11,
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-api-roster-v1.json",
+        "sha256": "349e9ec8f7eeae7ebc51dbc866d69964380931a2bda3666fd94e44939525a3e4",
+        "bytes": 1198,
+        "mode": 384
+      }
+    },
+    "selected": {
+      "phase": "current-leaf-address-proof-control-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-proof-control-v1.receipt.json",
+        "sha256": "aed74f3239549fc7d5495dd20ceca35ef34ef54a7851487dca3e9ee2c0ac822e",
+        "bytes": 1480,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-proof-control-v1.log",
+        "sha256": "fd6ca46bb7eba65169ac37992c6b70ba73b7d3e34a612d8d2080d9f4e2f12ac6",
+        "bytes": 2826,
+        "mode": 384
+      },
+      "passed": 28,
+      "failed": 0,
+      "assertions": 128,
+      "tests": 28,
+      "files": 3,
+      "qualification": "These28cases overlap220; do not add totals."
+    },
+    "core": {
+      "phase": "current-core-source-only-v18",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v18.receipt.json",
+        "sha256": "3e05b8faa8e7d25bfeed8959d130bb4093b58da038c0689d486b958969638867",
+        "bytes": 14593,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v18.log",
+        "sha256": "2494e11fed816ac2d020291c0e49c1b23e8a0b74119ba275d1ca43078ef10ab9",
+        "bytes": 261662,
+        "mode": 384
+      },
+      "passed": 2062,
+      "failed": 27,
+      "assertions": 9429,
+      "tests": 2089,
+      "files": 168,
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v18.json",
+        "sha256": "5a2784dea668f877b167619649f3a23caf20a9a6a7f7c085ad813e60f4f16270",
+        "bytes": 43283,
+        "mode": 384
+      },
+      "same27FailureNames": [
+        "a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "counting unit of work rejects unexpected store access and records rollback",
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "refuses a typed node endpoint absent from the full tree",
+        "rejects a required work package read returning another work package identity",
+        "setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "the Plan import module > admits a small document over the graph installPlanImport wires",
+        "the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "throws for missing required work packages, unreadable facts and foreign work-item rows",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "qualification": "Failed broader gate; source168andalltestpinsmatch. Adds5current address cases toV75core. Property-generated assertion counts may vary."
+    },
+    "backendTypes": {
+      "phase": "current-leaf-address-final-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-types-v1.receipt.json",
+        "sha256": "f1fdbe8804f0ebdfdeff897895f5eadec23739d855f18bac9ea3f70d100bdbe9",
+        "bytes": 1358,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "frontendTypes": {
+      "phase": "current-leaf-address-frontend-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-frontend-types-v1.receipt.json",
+        "sha256": "f1f62cfa4c41cafc5a97b1980472e15f0a503e630f79809bbc695952a276574c",
+        "bytes": 1364,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-frontend-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "lint": {
+      "phase": "current-leaf-address-final-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-lint-v1.receipt.json",
+        "sha256": "21b772b29017dd3c7ed0de6d337a13de8cc45d9dcbedb4565fc811e0e728c1c9",
+        "bytes": 1884,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "format": {
+      "phase": "current-leaf-address-final-format-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-format-v1.receipt.json",
+        "sha256": "63d9858ab38c35fed279220654bb7fdffd3118a7cd0c498837dd53ceaf059467",
+        "bytes": 1886,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-final-format-v1.log",
+        "sha256": "e6d91f3214e5c0b08def7cfcaa9dffdc6a70529ee5d529d3183abeff9ea040b4",
+        "bytes": 645,
+        "mode": 384
+      }
+    },
+    "legacyHttp": {
+      "phase": "current-leaf-address-legacy-http-baseline-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-legacy-http-baseline-v1.receipt.json",
+        "sha256": "486b69b2052ebcf96f18701b3324f012768d71172bcf1853062a8f7372112e85",
+        "bytes": 1314,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-legacy-http-baseline-v1.log",
+        "sha256": "da95db4b9592cfb1eddd228644e4d704f71bf889f0a6db95a629530c0c6352d4",
+        "bytes": 54,
+        "mode": 384
+      },
+      "native": {
+        "phase": "current-leaf-address-legacy-http-baseline-native-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-legacy-http-baseline-native-v1.receipt.json",
+          "sha256": "537299b609c58dd4027736e8e29ec3589da62d383d14e322adc3750247bd8fa4",
+          "bytes": 1356,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-legacy-http-baseline-native-v1.log",
+          "sha256": "1f1f03425b7ab199557b0fc755420c50606f30e91fce9a18d3394a1b68920d95",
+          "bytes": 252986,
+          "mode": 384
+        }
+      },
+      "baseline": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-legacy-http-baseline-v1.json",
+        "sha256": "62d64dae22a902f6247da0edb03341ce3479b2603fe97ea1e74043c677aa56f2",
+        "bytes": 11701,
+        "mode": 384
+      },
+      "canonical": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-baseline-canonical-v1.json",
+        "sha256": "2175819fa086fa20f502bfe275f773a34ac0ff76ea87072a35e3ee4a0be5fc62",
+        "bytes": 1204547,
+        "mode": 384
+      },
+      "qualification": "The unconverted HTTPcontroller fixture fails during current package birth through a raw non-Source owner. Full109failure identities persist under exact V75domain/address/resource production bytes; no new local-address code runs before setup refuses. Original fixture and its guarantees remain required; this is failed-baseline attribution, not test success."
+    }
+  },
+  "proofs": {
+    "independentFaults": 14,
+    "selectedFailures": 14,
+    "observations": [
+      {
+        "id": "required-domain-map",
+        "title": "current address reader throws for an absent required leaf inventory",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-required-domain-map-v1.receipt.json",
+          "sha256": "96f8578019d2910e91319a0e565e5a5d6e19a30de0b618150a413c841b2a98f3",
+          "bytes": 1448,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-required-domain-map-v1.log",
+          "sha256": "e5c02a86e9a450cf4a96c4fde12e98145eb159c022ef052180b4338e79fc00eb",
+          "bytes": 861,
+          "mode": 384
+        },
+        "assertion": "red leaf inventory', () => {\n57 |   expect(() => readAddressSteps({ ...currentSpace, leafSteps: new Map() }, 'w-010')).toThrow(\n                                                                                          ^\nerror: expect(received).toThrow(expected)\n\nExpected substring: \"address leaf steps are absent\"\n\nReceived function did not throw\nReceived value: undefined\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/step-reference.test.ts:57:86)\n(fail) current address reader throws for an absent required leaf inventory [0.19ms]\n\n 0 pass\n 17 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [21.00ms]\n",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "default-uniform",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-default-uniform-v1.receipt.json",
+          "sha256": "dfab33ba10540ef9448304c146c47b26c22c787c2c599d44198731a5c3aa07f6",
+          "bytes": 1479,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-default-uniform-v1.log",
+          "sha256": "c6e723b57d4538fbcd749b4eff58c24a7f1ddccdb5906506561995e8c600fde2",
+          "bytes": 2038,
+          "mode": 384
+        },
+        "assertion": " tree.body);\n142 |         if (decoded.issues !== undefined) throw new Error('Current tree response is malformed');\n143 |         expect(decoded.value.stepNodes).toEqual([\n                                              ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n+     \"id\": \"sn1.6259fed9-52a3-4dc8-872d-f3af20d8a552.a2000000-0000-4000-8000-000000000001\",\n+     \"reference\": \"010.1.s1-current-http-shared\",\n+     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n+     \"workItemId\": \"6259fed9-52a3-4dc8-872d-f3af20d8a552\",\n+   },\n+   {\n      \"id\": \"sn1.597e3bd4-7dac-46c5-baa2-0545398c2970.a2000000-0000-4000-8000-000000000001\",\n      \"reference\": \"020.s1-curr",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "missing-as-empty",
+        "title": "current address construction refuses a missing leaf list instead of using the package union",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-missing-as-empty-v1.receipt.json",
+          "sha256": "ee4377b200b44eac71e1b39dc18e9b0506514ba3e232ad1095ee475ec162b29b",
+          "bytes": 1487,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-missing-as-empty-v1.log",
+          "sha256": "3e9e7d42e824a19bb938577a5c98d95439c4fcdf0a814b8aaabcbb3c036f3496",
+          "bytes": 2179,
+          "mode": 384
+        },
+        "assertion": "id, parentId: row.parentId, number: row.number } : row,\n150 |   );\n151 |   expect(() => buildAddressSpace(partial, currentSteps, 'leaf')).toThrow(\n                                                                       ^\nerror: expect(received).toThrow(expected)\n\nExpected substring: \"leaf step metadata is absent\"\n\nReceived function did not throw\nReceived value: {\n  workItems: [\n    {\n      id: \"00000000-0000-4000-8000-000000000001\",\n      number: \"010\",\n      isLeaf: false,\n    }, {\n      id: \"00000000-0000-4000-8000-000000000002\",\n      number: \"010.1\",\n      isLeaf: true,\n    }, {\n      id: \"00000000-0000-4000-8000-000000000005\",\n      number: \"020\",\n      isLe",
+        "qualification": "One policy fault replaces both the explicit absence refusal and its required mapping with an empty-list fallback. Do not describe this as removal of only one line."
+      },
+      {
+        "id": "resolver-union",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-union-v1.receipt.json",
+          "sha256": "d16f3bc4af87ce647b5a909e16458d0167f5b67b65a58ce4651b3f88c753d37d",
+          "bytes": 1477,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-union-v1.log",
+          "sha256": "e43b5f358f5e2f7203290b753d5a003ec53d25b11916ba1cdf1a0204c6ac9e05",
+          "bytes": 1564,
+          "mode": 384
+        },
+        "assertion": "rence: '020.s1-current-http-shared' },\n187 |         });\n188 |         for (const reference of ['010.1.current-http-shared', '030.current-http-shared'])\n189 |           expect(await resolve(reference)).toEqual({\n      ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"body\": {\n-     \"error\": \"unresolvable_reference\",\n-     \"reason\": \"unknown_code\",\n+     \"reference\": \"010.1.s1-current-http-shared\",\n+     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n+     \"stepNodeId\": \"sn1.ba228e43-b15f-45a0-8218-02270d38b868.a2000000-0000-4000-8000-000000000001\",\n+     \"workItemId\": \"ba228e43-b15f-45a0-8218-02270d38b868\",\n    },\n-   \"status\": 422,\n+   \"status\": 200,\n  }",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "node-union",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-node-union-v1.receipt.json",
+          "sha256": "8cc363e1db743bb04db564815183c3843eba48e302a3d8e7113fe0a5b60aeb6f",
+          "bytes": 1469,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-node-union-v1.log",
+          "sha256": "1951fa40049154409395789d92b6798a29e7da717cad372ade1a2fa03fee3b79",
+          "bytes": 2038,
+          "mode": 384
+        },
+        "assertion": " tree.body);\n142 |         if (decoded.issues !== undefined) throw new Error('Current tree response is malformed');\n143 |         expect(decoded.value.stepNodes).toEqual([\n                                              ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n+     \"id\": \"sn1.98222a8c-205d-47e3-8b63-71f1e916d2b7.a2000000-0000-4000-8000-000000000001\",\n+     \"reference\": \"010.1.s1-current-http-shared\",\n+     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n+     \"workItemId\": \"98222a8c-205d-47e3-8b63-71f1e916d2b7\",\n+   },\n+   {\n      \"id\": \"sn1.f8c87489-18b0-4767-a016-3b000bf5c410.a2000000-0000-4000-8000-000000000001\",\n      \"reference\": \"020.s1-curr",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "source-purpose",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-source-purpose-v1.receipt.json",
+          "sha256": "e3dc4577cad2cdd94cf9496806231207e64e1d64cfcc28753b276dbc55337848",
+          "bytes": 1477,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-source-purpose-v1.log",
+          "sha256": "d1fc211f85d38f5dd839395414225f119aa515602d3285c9470cd741f5095cf5",
+          "bytes": 2136,
+          "mode": 384
+        },
+        "assertion": "ms({ reference, revision: currentRevision }).toString(),\n183 |           );\n184 |         expect(await resolve('020.current-http-shared')).toMatchObject({\n                                                               ^\nerror: expect(received).toMatchObject(expected)\n\n  {\n-   \"body\": {\n-     \"reference\": \"020.s1-current-http-shared\",\n-     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n-     \"workItemId\": \"014dc39c-2744-4b43-9fba-73f3975ab3d6\",\n-   },\n-   \"status\": 200,\n+   \"body\": \"Internal Server Error\",\n+   \"status\": 500,\n  }\n\n- Expected  - 6\n+ Received  + 2\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-st",
+        "qualification": "Actual typed local lookup500instead of200: required capture/handoff availability, not unsafe successful admission."
+      },
+      {
+        "id": "metadata-handoff",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-metadata-handoff-v1.receipt.json",
+          "sha256": "dde0ee280591d82d913ad3565f1e87de4663450590b43143ac26a391a5d76265",
+          "bytes": 1481,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-metadata-handoff-v1.log",
+          "sha256": "fd38ef9fbb684ea6dbc49300a643d2fd8d964f6dcdd58310caf7c636a6dd8509",
+          "bytes": 2136,
+          "mode": 384
+        },
+        "assertion": "ms({ reference, revision: currentRevision }).toString(),\n183 |           );\n184 |         expect(await resolve('020.current-http-shared')).toMatchObject({\n                                                               ^\nerror: expect(received).toMatchObject(expected)\n\n  {\n-   \"body\": {\n-     \"reference\": \"020.s1-current-http-shared\",\n-     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n-     \"workItemId\": \"897fb619-d653-43ee-9cbf-f18e59abd53b\",\n-   },\n-   \"status\": 200,\n+   \"body\": \"Internal Server Error\",\n+   \"status\": 500,\n  }\n\n- Expected  - 6\n+ Received  + 2\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-st",
+        "qualification": "Actual typed local lookup500instead of200: required capture/handoff availability, not unsafe successful admission."
+      },
+      {
+        "id": "digest-omission",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-digest-omission-v1.receipt.json",
+          "sha256": "f7ab07a2e6b74cefe88ddf2ae408da035597ac3a7b5aa7e6a3e8aa9df33a6a36",
+          "bytes": 1479,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-digest-omission-v1.log",
+          "sha256": "75a56563f8a63cf478f0522ae56b7c4cea6bcd9bcb653d1e32dd45f9d4783e4c",
+          "bytes": 1345,
+          "mode": 384
+        },
+        "assertion": "steps).toEqual(decoded.value.steps);\n208 |         expect(fresh.value.stepNodes).toEqual([]);\n209 |         expect(fresh.value.addressRevision).not.toBe(revision);\n                                                      ^\nerror: expect(received).not.toBe(expected)\n\nExpected: not \"ar2:8e9e5f27dd296484b1d11a5b6366ff2e9809d0ae1f0b60b70edc05d653f33c1c\"\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts:209:49)\n      at async withinPackageSteps (/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/package-step-values-fixture.ts:150:11)\n      at async <anonymous> (/tmp/puni-combined-",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "digest-unused-union",
+        "title": "current address revision follows leaf applicability while ignoring unused package columns",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-digest-unused-union-v1.receipt.json",
+          "sha256": "814f01eb3572f652ac7554ae062662c30a9fb12a5e3d83d952ff80355ca4db38",
+          "bytes": 1490,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-digest-unused-union-v1.log",
+          "sha256": "2c016e1fc5178439cf384e106f413059750c22ce266431118a07be2ea42e4862",
+          "bytes": 887,
+          "mode": 384
+        },
+        "assertion": "-4000-8000-000000000007', code: 'unused', position: 0 },\n118 |       ],\n119 |     },\n120 |     digest,\n121 |   );\n122 |   expect(same.addressRevision).toBe(before.addressRevision);\n                                     ^\nerror: expect(received).toBe(expected)\n\nExpected: \"ar2:ff2e12317c8953bf37d54ccc0b4e9a5906c24f2042246a02ecf76389d878994c\"\nReceived: \"ar2:6bd75577f002bbf84ff6d5aa56ee4fb7ea6ccb6294bacf363d00fd75c1ee642a\"\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/step-addresses.test.ts:122:32)\n(fail) current address revision follows leaf applicability while ignoring unused package columns [0.81ms]\n\n 0 p",
+        "qualification": "False staleness after an unused union edit; no authority bypass claim."
+      },
+      {
+        "id": "leaf-order",
+        "title": "current addresses use each leaf own order and omit zero-step leaves",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-leaf-order-v1.receipt.json",
+          "sha256": "ccf5dfb4bc53dba684902285c9b334c57d7d1285a7af949de4e7ca101737f0b1",
+          "bytes": 1451,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-leaf-order-v1.log",
+          "sha256": "178f9a01982ed089b433bebab3c3c98acb5c48ea6078c83806125eb43d6373d6",
+          "bytes": 2318,
+          "mode": 384
+        },
+        "assertion": "essed = await readStepAddresses(\n55 |     'current',\n56 |     { workItems: currentRows, steps: currentSteps },\n57 |     digest,\n58 |   );\n59 |   expect(addressed.stepNodes).toEqual([\n                                   ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n-     \"id\": \"sn1.00000000-0000-4000-8000-000000000002.00000000-0000-4000-8000-000000000003\",\n-     \"reference\": \"010.1.s1-dev\",\n-     \"stepId\": \"00000000-0000-4000-8000-000000000003\",\n-     \"workItemId\": \"00000000-0000-4000-8000-000000000002\",\n-   },\n-   {\n      \"id\": \"sn1.00000000-0000-4000-8000-000000000002.00000000-0000-4000-8000-000000000004\",\n-     \"reference\": \"010.1.s2-qa\",\n+     \"refere",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "node-padding",
+        "title": "current reference padding uses leaf count rather than the package union count",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-node-padding-v1.receipt.json",
+          "sha256": "2b3160a2543a66c7e2d3a6182e9e83b62a63b0c2b40de61f1fed297b3cc2603c",
+          "bytes": 1465,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-node-padding-v1.log",
+          "sha256": "89091b80c1397f0a4c4a23d3b2271de59c2ceb6fad54b7fad2b31b2f999bb123",
+          "bytes": 1131,
+          "mode": 384
+        },
+        "assertion": ", code: 'dev' }] },\n180 |   ];\n181 |   const addressed = await readStepAddresses('current', { workItems: rows, steps: broad }, digest);\n182 |   expect(addressed.stepNodes).toEqual([\n                                    ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n      \"id\": \"sn1.00000000-0000-4000-8000-000000000002.00000000-0000-4000-8000-000000000003\",\n-     \"reference\": \"010.1.s1-dev\",\n+     \"reference\": \"010.1.s01-dev\",\n      \"stepId\": \"00000000-0000-4000-8000-000000000003\",\n      \"workItemId\": \"00000000-0000-4000-8000-000000000002\",\n    },\n  ]\n\n- Expected  - 1\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/appli",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "resolver-padding",
+        "title": "current reference padding uses leaf count rather than the package union count",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-padding-v1.receipt.json",
+          "sha256": "9f8b9dd5c548e61ba2be222076efd522f69fad52a83dce4ff164e0f3e86b5d3b",
+          "bytes": 1473,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-padding-v1.log",
+          "sha256": "caa34aa265dfd28f5b9ab2be8799d2cfd813f5602e9c92f2f799c96db54ac654",
+          "bytes": 1076,
+          "mode": 384
+        },
+        "assertion": ": '010.1.dev', revision: addressed.addressRevision },\n189 |       { workItems: rows, steps: broad },\n190 |       digest,\n191 |     ),\n192 |   ).toMatchObject({ kind: 'resolved', reference: '010.1.s1-dev' });\n          ^\nerror: expect(received).toMatchObject(expected)\n\n  {\n    \"kind\": \"resolved\",\n-   \"reference\": \"010.1.s1-dev\",\n+   \"reference\": \"010.1.s01-dev\",\n+   \"stepId\": \"00000000-0000-4000-8000-000000000003\",\n+   \"stepNodeId\": \"sn1.00000000-0000-4000-8000-000000000002.00000000-0000-4000-8000-000000000003\",\n+   \"workItemId\": \"00000000-0000-4000-8000-000000000002\",\n  }\n\n- Expected  - 1\n+ Received  + 4\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "legacy-bytes",
+        "title": "uniform legacy description keeps its exact ar1 representation",
+        "path": "libs/wbs/domain/domain/src/step-reference.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-legacy-bytes-v1.receipt.json",
+          "sha256": "aa73b4e9db28721d31053abd9e0e06d41d6dbc907cd305736b126ec25ba90c65",
+          "bytes": 1429,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-legacy-bytes-v1.log",
+          "sha256": "91dc7f7780bb0273866d5a67fe217c5076dc6c381d1ddf978718ad2c465cebd7",
+          "bytes": 1139,
+          "mode": 384
+        },
+        "assertion": "\",[]]]]',\n71 |   );\n72 | });\n73 | \n74 | it('uniform legacy description keeps its exact ar1 representation', () => {\n75 |   expect(describeAddressSpace('p', space)).toBe(\n                                                ^\nerror: expect(received).toBe(expected)\n\nExpected: \"[\"ar1\",\"p\",[[\"w-010\",\"010\",\"leaf\"],[\"w-020\",\"020\",\"parent\"],[\"w-020-2\",\"020.2\",\"leaf\"]],[[\"s-dev\",\"dev\",10],[\"s-qa\",\"qa\",20],[\"s-review\",\"review\",30],[\"s-old\",null,40]]]\"\nReceived: \"[\"ar1\",\"p\",[[\"w-010\",\"010\",\"leaf\"],[\"w-020\",\"020\",\"parent\"],[\"w-020-2\",\"020.2\",\"leaf\"]],[[\"s-dev\",\"dev\",10],[\"s-qa\",\"qa\",20],[\"s-review\",\"review\",30],[\"s-old\",null,40]],[]]\"\n\n      at <anonymous> (/tmp/puni-combined-p",
+        "qualification": "Selected owning runtime assertion fails."
+      },
+      {
+        "id": "resolver-uniform",
+        "title": "current tree carries each leaf own resolved steps and every matching binding isolated",
+        "path": "libs/wbs/application/core/src/module/work-item/step-addresses.ts",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-uniform-v2.receipt.json",
+          "sha256": "d8bdcde5b51f958611b439abd7c4690dab581907f456ec98f9b00e156468ef1d",
+          "bytes": 1481,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-fault-resolver-uniform-v2.log",
+          "sha256": "43dc7ea48a070ff65caf181db372a4660db5fc169c15803b013aa75ec85f7804",
+          "bytes": 1544,
+          "mode": 384
+        },
+        "assertion": "ms({ reference, revision: currentRevision }).toString(),\n183 |           );\n184 |         expect(await resolve('020.current-http-shared')).toMatchObject({\n                                                               ^\nerror: expect(received).toMatchObject(expected)\n\n  {\n    \"body\": {\n-     \"reference\": \"020.s1-current-http-shared\",\n-     \"stepId\": \"a2000000-0000-4000-8000-000000000001\",\n-     \"workItemId\": \"18e5d52b-f25f-4f0d-9f68-618a5d37a460\",\n+     \"addressRevision\": \"ar1:5902f3df4e320ed8b5a8d111bc766559bc77058f8c894835496a0cf50791759d\",\n+     \"error\": \"stale_address_revision\",\n    },\n-   \"status\": 200,\n+   \"status\": 409,\n  }\n\n- Expected  - 4\n+ Received  + ",
+        "qualification": "Actual typed current local lookup409instead of200; explicit current resolver mode is required for the ar2 tree token. Availability/false-staleness proof."
+      }
+    ],
+    "allRestored": true,
+    "emissions": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-comment-emissions-v1.json",
+      "sha256": "d9a54fe6b32c6ff8915682217f836352e78c8882e074b9a8b25bcb4121fb9b30",
+      "bytes": 439,
+      "mode": 384
+    },
+    "qualification": "Domain missing-map omission returns undefined; current default/model handoffs and union projection are independently broken. The missing-as-empty policy fault changes both refusal and required mapping to an empty fallback. Source-purpose/metadata-handoff and resolver-uniform prove availability/false-staleness failures, not unsafe successful write admission. Omitted digest fails actual unchanged-union type-edit invalidation. Unused union inclusion causes false staleness. Padding faults break enumeration and resolution separately. Legacy descriptor literal is a format regression, not genuine old-producer/history evidence."
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v7.json",
+    "sha256": "0995b15d0b6c1af63142741c75dacfe368ecaa8d37a719fa0a6551ad0ea23757",
+    "bytes": 1854595,
+    "mode": 384
+  },
+  "mixedHistoricalController": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "sha256": "d4ee9d24d9d9a747ac3ad39ee383902dab294404fd6c2da33611bbfde70948f0",
+    "bytes": 78152,
+    "mode": 436
+  },
+  "attempts": [
+    {
+      "phase": "current-leaf-address-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-red-v1.receipt.json",
+        "sha256": "bf7931e1746f314121d73442185e3cebfad37138feb5e1f04400023227f61f47",
+        "bytes": 1399,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-red-v1.log",
+        "sha256": "2f2b93e1a789e80372e93e976cedefa0ca5f75690c78882eddf42a521fe5969b",
+        "bytes": 9168,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "current-leaf-reference-route-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-reference-route-red-v1.receipt.json",
+        "sha256": "ec89759727b284b2aa0b3ba57c4a21731dead923d09b2ac7640b3b5d90fd97fa",
+        "bytes": 1334,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-reference-route-red-v1.log",
+        "sha256": "1d1fa78e7f23f5406fae5cbdc69b205c0fb2901d05015392e3574a1ab504f7cf",
+        "bytes": 3743,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "current-leaf-metadata-absence-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-metadata-absence-red-v1.receipt.json",
+        "sha256": "c3b55baf2ee012a09bf78f3e2b148715bf6a80068f311ff1027c50ed7180b193",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-metadata-absence-red-v1.log",
+        "sha256": "1cbf743e3991ed621084179d044f3f61089e880feea21f6fce44f50a7b61b46d",
+        "bytes": 1099,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "current-leaf-address-controls-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-controls-v1.receipt.json",
+        "sha256": "eb0e7da79ea81e270ed282245d149c0249a9c36a46891b3243d21739fbb8df1d",
+        "bytes": 1542,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-controls-v1.log",
+        "sha256": "51413337bffc6fe262d508282a2374e8d837a6ba89de440c7ab898167b668a74",
+        "bytes": 267882,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "current-leaf-address-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-lint-v1.receipt.json",
+        "sha256": "8364309cb0c8be7874c0b53b2a041b299b608dd6ff884b44fd21c6b6ed0dbd14",
+        "bytes": 1874,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-address-lint-v1.log",
+        "sha256": "e651983765ca62404905ef35a37aa113a033ad73beab4f9e0f474c8a6a08450b",
+        "bytes": 902,
+        "mode": 384
+      }
+    }
+  ],
+  "remaining": [
+    "Qualified address search capture/candidates/revisions must migrate from legacy local-step rows to current per-leaf metadata under their actual snapshot owner.",
+    "Attempt history nodeLabel and connected endpoint labels still format package-wide order/count. Future writes must be corrected without rewriting stored labels.",
+    "Node readings/resources and schedule slices/zero-step boundaries still need per-leaf graphs; UI/fake API rendering and current browser/visual checks remain.",
+    "Whole caller/admission/header/row/fact snapshot ownership and full current Source certification/performance/lifetime controls remain.",
+    "SC9document/input version increments, converters and SC24import reconciliation; SC13genuine historical projections and all15original historical guarantees remain.",
+    "All13fact families/native/direct/aggregate/replay/concurrency/lifetime closure and existing27core plus109oldHTTPfixture failures remain; mixed54controller is unchanged.",
+    "Complete PUNIOptique1.3.6 aliases/Bunclient inventory/embedding/installed/toolchain/exactSHAhost/integration/release work remains under all9original requirements.",
+    "Astra review remains unavailable until recordedNov22,2026 10:09AM timezone unspecified; no retry/spawn/substitute."
+  ],
+  "qualification": "Current local read/reference behavior only. No parent task or whole goal is closed; no frozen bytes, activation flag, publiccommit/push/PR/merge/deploy/install change."
+}

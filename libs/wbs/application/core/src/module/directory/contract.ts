@@ -13,7 +13,7 @@ import type { DirectoryService, DirectoryServiceOptions } from './directory.reso
  * `cleanName` moved to `@wbs/domain` under task 6.1; its `directory-usage.ts`
  * support stays in the core's `service/`, reclassified by the same task as
  * application support over the `DirectoryUsageRows` port record. Delivery's and features' side is not closed
- * either: `http/directory.routes.ts`, `http/project.routes.ts`, Plan import's
+ * either: `http/directory.routes.ts`, `http/work-package.routes.ts`, Plan import's
  * `plan-import.feature.ts` and `service/plan-commands.ts` still name
  * `DirectoryService` directly, the direct resource dependency (K2) the map
  * lists under its composition hazards. Tracked under task 7.4 of

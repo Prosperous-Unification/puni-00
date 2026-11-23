@@ -20,6 +20,13 @@ services:
       # service may atomically replace its socket inode across a restart; the
       # directory mount lets this long-lived container observe the replacement.
       - /run/user/1000/wbs-solver:/run/wbs-solver:ro
+      # Independently provisioned complete PUNI installation, never the source bind mount.
+      - type: bind
+        source: ${PUNI_INSTALLATION_DIRECTORY:?set the absolute host directory of the reviewed complete PUNI installation}
+        target: /opt/puni-dev
+        read_only: true
+        bind:
+          create_host_path: false
     env_file:
       # Provider credentials stay off-repo and are mode 600 on the dev host.
       # CI has no credential file; on dev its absence is still fatal because
@@ -47,6 +54,7 @@ services:
       NODE_ENV: 'development'
       AUTH_MODE: 'oidc'
       NX_DAEMON: 'false'
+      PUNI_EXECUTABLE: ${PUNI_CONTAINER_EXECUTABLE:?set the absolute reviewed PUNI entrypoint inside /opt/puni-dev}
       # Public QA needs a stable document. Browser Use Cloud closes Vite's HMR
       # socket after about ten seconds, and Vite reloads on the reconnect. The
       # source server still serves changed modules to a fresh request.
@@ -69,7 +77,7 @@ services:
     networks:
       - wbs-dev-net
     restart: unless-stopped
-    command: ['bun', 'run', 'dev']
+    command: ['bun', '--no-env-file', '--config=/dev/null', 'run', '--shell=bun', 'dev']
 
 networks:
   wbs-dev-net:

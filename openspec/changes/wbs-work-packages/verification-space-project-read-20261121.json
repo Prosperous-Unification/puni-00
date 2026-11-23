@@ -1,0 +1,1076 @@
+{
+  "schema": "puni-space-project-read-verification-v1",
+  "recordedAt": "2026-11-21T06:37:40.837Z",
+  "scope": "Required Source observation for project-grouped spaces; full original goal remains active",
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-before-v1.json",
+    "sha256": "60fc1233c7fb8afa52f6ece53cad712b7a2adb946baf429b6e20aa18ed0aec57",
+    "bytes": 731783,
+    "mode": 384
+  },
+  "predecessor": {
+    "path": "/tmp/puni-goal-continuation-20261121-v102.json",
+    "sha256": "4732ddaa7b1d0ac6dc86e0577bb60cc65b4bb0a1d4a0280888bb58d77d445c35",
+    "bytes": 11008,
+    "mode": 384
+  },
+  "plan": {
+    "path": "/tmp/puni-space-project-read-plan-v1.json",
+    "sha256": "62895e78f8dc2382bec0838743f3cc3253ee422c3a791e0d9fe3b96a56846346",
+    "bytes": 1319,
+    "mode": 384
+  },
+  "verification": {
+    "core": {
+      "pass": 2124,
+      "fail": 0,
+      "assertions": 13072,
+      "tests": 2124,
+      "files": 171
+    },
+    "sqliteAndApi": {
+      "pass": 87,
+      "fail": 0,
+      "assertions": 830,
+      "tests": 87,
+      "files": 4
+    },
+    "newSpaceCases": 27,
+    "existingProjectCases": 46,
+    "contentsCases": 8,
+    "membershipHttpCases": 6,
+    "compilerEntries": 331,
+    "lintFiles": 7,
+    "sourceAuditFiles": 6098,
+    "independentFaults": 13
+  },
+  "checks": [
+    {
+      "name": "space-project-owner-dependency-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "broken membership trigger"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-owner-dependency-v1.receipt.json",
+        "sha256": "8d23fba867a5ec3dba3eef514d69afc2a2c4144f4defe2a3242edaaad7e68504",
+        "bytes": 1386,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-owner-dependency-v1.log",
+        "sha256": "da4703af7592fd256706dc0c0354e5a65e6cc15e4ea561e36f9b5d6491d1783f",
+        "bytes": 283,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-consumer-audit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v45.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-consumer-audit-v1.receipt.json",
+        "sha256": "94ed873c029c756113694f305ea2b5ca829e471ee5a0261285864fe609ca8326",
+        "bytes": 1295,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-consumer-audit-v1.log",
+        "sha256": "480bf7ad274bb097083f06cc405db9bfdc1d99b8f9f32755cf2796f1a7490c46",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-core-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/application/core/src"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-core-v1.receipt.json",
+        "sha256": "f85b9d6ae5a4d9adcf4620f65ef0088190061403bd3378a4c7ccdc813913b1a0",
+        "bytes": 1276,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-core-v1.log",
+        "sha256": "672a2191ce328af982c2717c3c8e5549a06e12bee2310140531cc692849d7f73",
+        "bytes": 314284,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-core-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "./libs/wbs/application/core/src", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-core-v2.receipt.json",
+        "sha256": "f0e470c1f373e92cf637c3da362fe0a73c1aa4e670e99469f0818c513dea69bb",
+        "bytes": 1312,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-core-v2.log",
+        "sha256": "44145ee384cefa4edfa2cbd2264dc60574b68a16c089e5a9fab6b9b76af22587",
+        "bytes": 232874,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-authority-refusal-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "current membership, selected organization"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-authority-refusal-v1.receipt.json",
+        "sha256": "7572ce0a8b676b66706a706cfcabe23d988bcb8c9d5de9fa200f70bab7852c67",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-authority-refusal-v1.log",
+        "sha256": "f1532b21080d4fb16794884f43f8e8d778a32ab67a31a96de109367c02a3cae9",
+        "bytes": 1387,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-legacy-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "legacy grouped reads preserve"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-legacy-owner-v1.receipt.json",
+        "sha256": "b5bc8c74c7c68fc5dd1b4e3ea4607f2d077f74ae4c41caa3e08b1a0c560c1ec6",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-legacy-owner-v1.log",
+        "sha256": "2c78e01f3ae06ada9e2573c4a144d8a3d381baefc9292d80293ab1f67dc7ca2e",
+        "bytes": 1283,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-management-grant-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "current membership, selected organization"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-management-grant-v1.receipt.json",
+        "sha256": "6cdae709d92192317a2ab9495ba7f2de633054c34ad77e3de9fde6af8a02c192",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-management-grant-v1.log",
+        "sha256": "c1a1dc0dfa1c478a3967c40c035488fdb34870e598c1fc76a0f7c0bc676ec386",
+        "bytes": 984,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-member-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "broken membership trigger"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-member-owner-v1.receipt.json",
+        "sha256": "4ebfeba25f49d307e2647af2273291a0f77b99abdf6afc24915d96f13f6f9ed6",
+        "bytes": 1401,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-member-owner-v1.log",
+        "sha256": "2a1c59623da0fb132aa201b6326265e2b29ff5f9c31fe1f54c83e17fa2ac41e3",
+        "bytes": 1486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-package-admission-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "child projection excludes restricted"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-package-admission-v1.receipt.json",
+        "sha256": "8fe61e2d195cd590f8d236fcbac67ae09ed1a17dce99b0e550241ed953758139",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-package-admission-v1.log",
+        "sha256": "8e2e51ae577d9caac7acd77453ef93eb77b5016caf13929185250e388122c3db",
+        "bytes": 1145,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-project-admission-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "membership reveals no project"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-admission-v1.receipt.json",
+        "sha256": "dc744a39c7fbb45017f995b3315c9b887faed454a7fa3fd971b51a9b9309e070",
+        "bytes": 1415,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-admission-v1.log",
+        "sha256": "074a5ae8232f6807271f70fa6e5633f91d498895ec1e14a46d4b5df81a846074",
+        "bytes": 1333,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-project-header-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "malformed admitted project"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-header-v1.receipt.json",
+        "sha256": "3b4c05f65f9f05dc6c202d45c87da59eee72535f66aa2452c63ee7f30d6ed6fe",
+        "bytes": 1406,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-header-v1.log",
+        "sha256": "d27ae0c2d14badfac8c28085dc0e027a4aaf927d4c68ba80d1411035e8d8ef36",
+        "bytes": 1181,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-project-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "broken membership trigger"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-owner-v1.receipt.json",
+        "sha256": "f09cf47f2c14222176fc8e02cdc360742cf49667e89e9e12ac217249984e94a3",
+        "bytes": 1403,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-project-owner-v1.log",
+        "sha256": "352c14b2520232eef1c47d677e4124bd6eaf5531d41b058cc5f2d364b5b1f3a5",
+        "bytes": 3340,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-retained-caller-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "retains the complete caller"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-retained-caller-v1.receipt.json",
+        "sha256": "1f09e4d90137062bebd343334981a094a39d3bfd6b9751fbb7795a0fb780c7db",
+        "bytes": 1409,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-retained-caller-v1.log",
+        "sha256": "68f62d7d625f2bdec8a71f363b71085e30cd1dbff90713e12aa38b134e527043",
+        "bytes": 1133,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-snapshot-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "first-SQL snapshot"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-snapshot-v1.receipt.json",
+        "sha256": "02e4db68d6414be3a08b0974db3d656b08f282ebc67e0e168efc668d5e68df75",
+        "bytes": 1386,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-snapshot-v1.log",
+        "sha256": "ca146be53ee659fe3d96ea4987f012e05d1f9f3358193f7fcd9bfbf728078228",
+        "bytes": 1751,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-space-absence-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "conceal foreign and absent"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-space-absence-v1.receipt.json",
+        "sha256": "5c62dbdd7e8423b515bf6ffc2d90d5c79a50d3789ae333c340928ceb79a05b2c",
+        "bytes": 1404,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-space-absence-v1.log",
+        "sha256": "13637a30f092992502eadaabcd481fe8f0d423e2c08fda922618aa67c37b9342",
+        "bytes": 4028,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-space-members-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "actual Source groups readable"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-space-members-v1.receipt.json",
+        "sha256": "8b8a9cf874022c44934aef30a4f3c2a27dd66fec3b67ca182020b52a1a3b8af3",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-space-members-v1.log",
+        "sha256": "4009110ff2d8ec613db1a2c32e39bed98c73dc0d611b30dd499060d137e30b65",
+        "bytes": 3670,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-fault-virtual-read-only-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "All projects includes"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-virtual-read-only-v1.receipt.json",
+        "sha256": "6c49030f2996d90e96b19f960b7a5a7ced2770d1ccf197b58f0b6e5d914676cb",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-fault-virtual-read-only-v1.log",
+        "sha256": "7ad2afdb74d4aa5b982e32784a7bfb4500bf38e71639d3e3d0b246bd8daafa3f",
+        "bytes": 1035,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/index.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-fixture.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v1.receipt.json",
+        "sha256": "32ec4652d189bd8345db56dcf6d01b053ada16d76bc7409f5124a65878990fe8",
+        "bytes": 1786,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v1.log",
+        "sha256": "0194559795556795d52263da0c900d4f9fa703fa91752451165be362fbd4d75f",
+        "bytes": 539,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-format-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/index.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-fixture.ts",
+          "openspec/changes/wbs-work-packages/design.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v2.receipt.json",
+        "sha256": "231f18b21ab8299cc18cb7abfc32bdd7c5405531cc6c42be9d66339cdd8e6041",
+        "bytes": 1854,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v2.log",
+        "sha256": "ee8dbef519dcd45a76f8281ad5999ab97ad745ceaf6ad866e4e4d0e4df8cc5ed",
+        "bytes": 627,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-format-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v3.receipt.json",
+        "sha256": "f5bc7bc26fa5bf906806d9d498ecfd8a0eef3c0280430a6610069b3ac29ad314",
+        "bytes": 1362,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-format-v3.log",
+        "sha256": "9fe663b6bdafeef63ab5c2a2f957349ccd3633eb44cfa8d71a7ba3809090fe48",
+        "bytes": 83,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-green-v1.receipt.json",
+        "sha256": "c93cf3834f13de2491aa7ef4d709ebb6585f219a1e4fda07666020fecced5170",
+        "bytes": 1310,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-green-v1.log",
+        "sha256": "c18183535eafb237fc095e74d1e916858358da6ad27259803a9095f998ca2c4b",
+        "bytes": 287,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-lint-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/index.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-fixture.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v1.receipt.json",
+        "sha256": "6fb2c36934acc5dfd5f05caffce8b0440b565bcbdda36155296595abf68786be",
+        "bytes": 1635,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v1.log",
+        "sha256": "74f37321ee4ea3aca928b027878ba71c9e2f8c1ead44514f9be10a92d8eb6f3e",
+        "bytes": 3999,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-lint-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/index.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-fixture.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v2.receipt.json",
+        "sha256": "62d9ef18910cb56c7c2ec37a3535cf4938dd95490f520d6faf0f1fa78f07e285",
+        "bytes": 1702,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v2.log",
+        "sha256": "98ffe0cadbed87703de1b8a7f36e1184c7df50c697257f8cfa957d6eb0783d71",
+        "bytes": 809,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-lint-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/application/core/src/index.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-fixture.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v3.receipt.json",
+        "sha256": "3419d5b2b407db2ab7e6c21e8a961c1754c7ae2279383e7792d1b015e2336cd8",
+        "bytes": 1700,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-lint-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-matrix-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v1.receipt.json",
+        "sha256": "e8ddcf3e1781f268a9097bf2bc9f198e7df3c27c198a283e999ac7645ee05f25",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v1.log",
+        "sha256": "f82c83eb472ad6448ca9438b3d04d1a0eb1908fcd7b815f2306aa90f1f274ee1",
+        "bytes": 6232,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-matrix-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v2.receipt.json",
+        "sha256": "743904034a90fcc7ba8f46717c48272f2c146391e62e0101c75da72e3a88b56b",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v2.log",
+        "sha256": "cc134651f6b6a61f5eb651036f65a58ff641c9af16f1909b2d20ecdae1beb5e9",
+        "bytes": 1869,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-matrix-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v3.receipt.json",
+        "sha256": "aa29f10777d4bd0b402ad2b52385286db46a97150b5f9a5be62aeceb9b5be749",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v3.log",
+        "sha256": "9a1760409966f3aea8a7f3b5be5e0411a0eb2c68de7aeda7c1451578a9f19faf",
+        "bytes": 2311,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-matrix-v4",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v4.receipt.json",
+        "sha256": "36f4137e5e93b2bd2ab63faa3d2fa35fffb95f2d33248c6f69aa2b2de86f5c90",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-matrix-v4.log",
+        "sha256": "4b8743ff1ce6d604bab378517439dd315a052c343da9d4685da2fc3c1daade47",
+        "bytes": 4825,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-openspec-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bunx", "--no-install", "openspec", "validate", "--all", "--json"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-openspec-v1.receipt.json",
+        "sha256": "974f2161e6ce6da5b519708c5662cb4c43aba956ffdb6cea958eb7c41298350c",
+        "bytes": 1321,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-openspec-v1.log",
+        "sha256": "720828510c09a2f7bb47f11ea925ff688e97a3d548f250374a4b612f28b36780",
+        "bytes": 349106,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-red-v1.receipt.json",
+        "sha256": "b7ec8bd30a1da1c4ac786812c5bfc74fb3ed456be412d7d1ebdafcdf73e42767",
+        "bytes": 1306,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-red-v1.log",
+        "sha256": "620f6c349be0fd4a74dcc475cfaffe100a5744d3945c038a054a70772b89cfdf",
+        "bytes": 835,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-sql-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v1.receipt.json",
+        "sha256": "4bcacbbda6dd0c3591d26d225c594cfbfaf98257ac7b7e71058a14ac52012a7a",
+        "bytes": 1455,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v1.log",
+        "sha256": "b4fcde7bf754974ff46d06b3f18a76fee7531f8d49fd7b304f58f55dfc35e9f9",
+        "bytes": 246760,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-sql-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v2.receipt.json",
+        "sha256": "449aef18507fd023a9425e533632778cc56388700a1796b8d28ac6a85c0d14ec",
+        "bytes": 1460,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v2.log",
+        "sha256": "a967a0fc0e5657dac5c2e69c7d107bcb3ffb29328c0521ad311a91218cf48605",
+        "bytes": 15661,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-sql-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/project-read.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-contents.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-membership.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v3.receipt.json",
+        "sha256": "ae567164c00eb24c5f5bd5f8553b9d837b48019f4656a7367c68f562d9452218",
+        "bytes": 1540,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-sql-v3.log",
+        "sha256": "31d422ca74dbe63a075656fc25e1b4ce74910abe92848f861fb241b7cc051db4",
+        "bytes": 17781,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-types-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-read-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v1.receipt.json",
+        "sha256": "17d42c9381320255129a492e882254ad4e43c2c88fb797a1cb9175b7c7924cad",
+        "bytes": 1335,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v1.log",
+        "sha256": "2a249eba541c38cfa5a896ae080dcb11abbeeb33687f1e72bc967c9300245c23",
+        "bytes": 316,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-read-types-v2.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v2.receipt.json",
+        "sha256": "8faa827e25e485c628a1e2309aa063eb541b451ff20bf1729a79f861db88a554",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-read-types-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-project-read-types-v2.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v3.receipt.json",
+        "sha256": "7a6d05fc69953df67b6cfe49020b11146fc1260f521e2a7997e23a241a9902a6",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-types-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-project-virtual-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-read.db.test.ts",
+          "--test-name-pattern",
+          "All projects includes|legacy grouped reads preserve"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-virtual-red-v1.receipt.json",
+        "sha256": "e3b29d8bf2c280a41ad177d386c0acbce9991f260da9a04d51d79ecb54bffd01",
+        "bytes": 1403,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-project-virtual-red-v1.log",
+        "sha256": "2451560c1a7f5688866e7b8a744b75473ff6d41b66775a707dadd958af6dee2d",
+        "bytes": 6111,
+        "mode": 384
+      }
+    }
+  ],
+  "proof": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-faults-v2.state.json",
+    "sha256": "a2cbea8a3f69b2e5e40ff65bf1a988b90a5a338e48f9aef0b000c54b2ad0631e",
+    "bytes": 12476,
+    "mode": 384
+  },
+  "faultPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-faults-v2.plan.json",
+    "sha256": "762ad21bfe99b5a53e7f0e3ad5aef82b8cdd13e5b80f4bde1201bb5f92da1691",
+    "bytes": 3982,
+    "mode": 384
+  },
+  "faultRunner": {
+    "path": "/tmp/puni-space-project-read-faults-v2.ts",
+    "sha256": "fffeb1ce555bb15adfc8c9285ddd54879709afbbd37f233f6fe86357806eb5a3",
+    "bytes": 7087,
+    "mode": 384
+  },
+  "retainedCases": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-read-retained-cases-v1.json",
+    "sha256": "b7cc3996b40d20949ea28176103de3eb61e6ea9007900da179335e3cd81e9e7c",
+    "bytes": 3663,
+    "mode": 384
+  },
+  "runtimeAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v45.json",
+    "sha256": "8c1a734feba11e49b6d13c60ec135a30f776ebebc2a7a74bb7d3de4c295f4868",
+    "bytes": 1878221,
+    "mode": 384
+  },
+  "guardBridge": {
+    "guardEpoch": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read.ts",
+      "sha256": "9f015179653802626aa91f5a4648597f9af80cb91d4bdc126c2b0b75131b238c",
+      "bytes": 6933,
+      "mode": 436
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-read.ts",
+      "sha256": "8e4f4ab158179299d66c8a4e88349130ccb734fb10166aca8b53a16b2ea3f812",
+      "bytes": 9010,
+      "mode": 436
+    }
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": [
+    "Actual SqliteSource.createSpaceRead returns detached grouped projects/readable children, visible empty projects, project-name shells, exact readable counts and current named-space management permission from one committed authority/membership snapshot. Both public Source modes expose the factory.",
+    "Named membership determines project position/id order; All projects includes permitted empty and organization-level projects in binary name/id order, with no foreign rows or virtual write authority. Children sort by binary name/id. Membership grants no read authority.",
+    "Current credentials, membership and selected organization are resolved from complete retained evidence. Actual rival-commit, staged writer/commit/rollback, closed Source/new loan, active loan and released snapshot controls pass. Actual machine/consent rows use credential grants and reject current revocation.",
+    "All30 pre-existing project-reader test definitions/callbacks remain AST-identical except adding spaceId and spacePosition to the exact full ProjectView key list. Existing fixture setup now uses the current empty catalogue migration owner. The46 resulting runtime cases pass.",
+    "The new27 Source grouped-reader cases plus46 project-reader,8 contents and6 existing membership HTTP cases pass. The deliberate HTTP native-failure case logs its expected endpoint error; the run is not log-free.",
+    "Thirteen independent omission faults were observed and restored exactly at their guard epoch. Refusal forwarding and foreign-member omission prove modeled-refusal/availability behavior only; no unreached assertions receive credit. Final mechanical changes are adjacent Proof comments, formatting, modeled nullish owner/virtual-position syntax and test type/lint repairs; no historical guard was relaxed.",
+    "Initial diagnostics are retained: missing Source factory; incorrect single-project expectation; a legacy fixture incorrectly attempted reversing permanent activation; a corrupt foreign child reached the existing settings guard before the isolated empty foreign-member control was corrected; readonly test writes/lint issues; old project-reader fixtures stopped before space_id; an overbroad Bun filter also collected compiled dist tests. Corrected explicit-source core2124/0 and SQL/API87/0 are authoritative.",
+    "The Source factory is implemented, but existing HTTP readSpace, work-package roll-up query and browser table still use their prior flat shape. They must consume this grouped reader and per-project folded roll-ups; no alternate flat final state or compatibility route is accepted. Tasks4.6,4.6.4 and4.6.5 remain open.",
+    "Formal Astra review remains required and unavailable until the recorded2026-11-22 10:09AM timezone unspecified. No retry, substitute or new agent. No browser/build/secrets/migration/full host gate, dependency installation, protected PAX execution, public commit/push/PR/merge/deploy/activation this slice.",
+    "Broader Directory/Source lifetime, committed ownership, all13 fact families, all15 historical guarantees, document leaf-step projection, imports/converters/current HTTP uncoded fixture, CLI/script inventory/installation and release remain open. The older empty whole-Source SQL certificate custody is unresolved; no whole-Source actor was restarted."
+  ]
+}

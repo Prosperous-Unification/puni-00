@@ -1,10 +1,8 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
-import type { EditAdmission } from '../../ports/edit-admission';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
 import type { StepStore } from '../../ports/step-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { STEP_LABEL } from './contract';
 import { StepService, type StepServiceOptions } from './step.resource';
 
@@ -15,7 +13,7 @@ import { StepService, type StepServiceOptions } from './step.resource';
  * so a host cannot name it — resolving it answers
  * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.step/stepOptions` rather than against an
- * anonymous binding. The two stores are required as `projectStore` and
+ * anonymous binding. The two stores are required as `workPackageStore` and
  * `stepStore` because the host graph's `steps` key is this module's export.
  *
  * The module registers no disposer: `StepService` holds the borrowed stores of
@@ -25,25 +23,26 @@ export const stepModule = DiBag.createBuilder()
   .withServices({
     stepOptions: DiBag.createProvider(
       ({
-        projectStore,
+        workPackageStore,
+        accessDecisions,
         stepStore,
         broadcast,
         clock,
-        recoveryAdmission,
         dependencyContext,
         beforeRemove,
         beforeWrite,
       }: {
-        projectStore: ProjectStore;
+        workPackageStore: StepServiceOptions['workPackages'];
+        accessDecisions: StepServiceOptions['accessDecisions'];
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
-        recoveryAdmission: EditAdmission | undefined;
         dependencyContext: StepServiceOptions['dependencyContext'];
         beforeRemove: StepServiceOptions['beforeRemove'];
         beforeWrite: StepServiceOptions['beforeWrite'];
       }): StepServiceOptions => ({
-        projects: projectStore,
+        workPackages: workPackageStore,
+        accessDecisions,
         steps: stepStore,
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied
@@ -51,7 +50,6 @@ export const stepModule = DiBag.createBuilder()
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         clock,
-        recoveryAdmission,
         dependencyContext,
         beforeRemove,
         beforeWrite,

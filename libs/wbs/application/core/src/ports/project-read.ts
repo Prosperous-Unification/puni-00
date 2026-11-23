@@ -1,35 +1,62 @@
-import type { ResourceAccess } from './organization-access';
-import type { ProjectList } from './project-list';
-import type { Project } from './project-values';
-import type { Step } from './step-store';
+import type { RefusedOrganizationAccess } from './organization-access';
+import type { ProjectCaller } from './project-administration';
+import type { Project, WorkPackageEntry } from './project-store';
 
-export interface ProjectWithSteps {
-  project: Project;
-  steps: Step[];
+/** Full project metadata; count includes only currently readable actual children. */
+export interface ProjectView extends Project {
+  readonly workPackageCount: number;
+}
+
+/** A package-only reader receives no project facts beyond its actual identity/name. */
+export interface ProjectShellView {
+  readonly id: string;
+  readonly name: string;
+  readonly organizationId?: never;
+  readonly spaceId?: never;
+  readonly spacePosition?: never;
+  readonly revision?: never;
+  readonly createdAt?: never;
+  readonly updatedAt?: never;
+  readonly createdBy?: never;
+  readonly workPackageCount?: never;
+  readonly workPackages?: never;
+}
+
+/** LIST-only shell or full project metadata; create/rename replies remain full. */
+export type ProjectListView = ProjectView | ProjectShellView;
+
+/** A shell is visible in LIST but cannot disclose full project detail. */
+export interface ProjectReadForbidden {
+  readonly ok: false;
+  readonly error: 'forbidden';
+  readonly permission: 'project.read';
+}
+
+/** Entries and count share one committed authority/data snapshot and are detached from storage. */
+export interface ProjectDetailView extends ProjectView {
+  readonly workPackages: readonly WorkPackageEntry[];
 }
 
 /**
- * A project as its read and its PATCH publish it: the stored settings and the
- * IANA zone every day derived from an instant is read in (`step-node-attempts`
- * D3), stored beside them and read through {@link import('./project-store').ProjectStore.timezoneOf}.
+ * Reads engagement projects through complete retained authenticated evidence.
+ * Project readers see full metadata; package-only readers see id/name shells in LIST
+ * and receive project.read refusal for detail. No reaching read makes a project absent.
+ * Child grants/P5/cap and project authority share the observation. No legacy success or body scope.
+ * The first SQL read pins one committed snapshot; acquisition promises no arrival-time freshness.
+ * @throws on unreadable/malformed trusted state or observation acquisition/settlement failure.
  */
-export type ZonedProject = Project & { timezone: string };
-
-/** {@link ProjectWithSteps} with its project {@link ZonedProject zoned}. */
-export interface ZonedProjectWithSteps {
-  project: ZonedProject;
-  steps: Step[];
-}
-
-/**
- * Project reads through the caller's resolved access, independent of the resource.
- *
- * Proof: restoring the concrete resource Pick directly or through a neutral-looking
- * port re-export made the committed K6 boundary oracle fail with
- * `concrete project resource edge remains`; watched 2026-10-16. Commands and
- * candidate patches: `openspec/changes/space-project-port-boundary/verify.md`.
- */
-export interface ProjectRead extends ProjectList {
-  /** The readable project's settings and ordered steps, or null when inaccessible. */
-  readWithin(id: string, access: ResourceAccess): Promise<ZonedProjectWithSteps | null>;
+export interface ProjectRead {
+  list(
+    caller: ProjectCaller,
+  ): Promise<
+    { readonly ok: true; readonly value: readonly ProjectListView[] } | RefusedOrganizationAccess
+  >;
+  read(
+    caller: ProjectCaller,
+    projectId: string,
+  ): Promise<
+    | { readonly ok: true; readonly value: ProjectDetailView | null }
+    | RefusedOrganizationAccess
+    | ProjectReadForbidden
+  >;
 }

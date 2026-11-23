@@ -1,0 +1,1009 @@
+{
+  "recordedAt": "2026-11-19T13:25:23.001Z",
+  "goalStatus": "active",
+  "scope": "Shared current Source unit-of-work catalogue writes and complete rollback observations",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/unit-of-work-conformance.ts",
+      "sha256": "30dafad833c1ee63f17543c6da80ef25eabe51070467b798e13a62c7261cec45",
+      "bytes": 11561,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+      "sha256": "3ccbb8311c32a217f98b7cf48c439963d1ccb84ea795c7e9b7eb35b8571d22cc",
+      "bytes": 1214,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+      "sha256": "3b21a4b34a9faf15fdff30001cb7a6eadab1153bb9da3a4f9d5dd007ce03d9b1",
+      "bytes": 938,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "c83947d405ed93f8185f69a6abee5ff176ed3a8d1a9c809b66114d0a81f23111",
+      "bytes": 63373,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "All six legacy step-authoring calls in the shared unit-of-work cases use actual defineAndBindStep on the borrowed ordinary/repair owner, addressing its actual package chain through settings.readTarget with explicit internal/null addressing. No permission grant is inferred.",
+    "Both adapters use actual current Source fixture owners, explicit close cleanup and detached actual evidence. SQLite uses the existing real116/private atomic117/additive118/119 fixture preparation; the ordinary migrator guard is unchanged.",
+    "Refused and thrown batches compare complete logical/physical catalogue Source evidence before named reads, covering unused definitions and explicit package rows as well as visible headers."
+  ],
+  "controls": [
+    {
+      "name": "uow-current-memory-first-red-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-first-red-v1.receipt.json",
+        "sha256": "a5a193588318117bd1df0d1d18e50286fddf12decac3c473ce1362fec0b85c7f",
+        "bytes": 1359,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:13:37.868Z",
+        "endedAt": "2026-11-19T13:13:40.707Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-first-red-v1.log",
+          "sha256": "394110b98b94d9c8d25b3989402ada24b0679e9d7f647db6869b16a35b598015",
+          "bytes": 2447
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-first-red-v1.log",
+        "sha256": "394110b98b94d9c8d25b3989402ada24b0679e9d7f647db6869b16a35b598015",
+        "bytes": 2447,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-first-red-v1.validation.json",
+        "sha256": "3df41ed3c75d0aed4b077a744c37f028a34c7e8c26b20d9c01d78de38984250f",
+        "bytes": 495,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-sqlite-first-red-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-first-red-v1.receipt.json",
+        "sha256": "4b0a2b1b66d161f8a2b3fc188c0363b297be09841f172cd59672db95b72d32bb",
+        "bytes": 1363,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:13:37.848Z",
+        "endedAt": "2026-11-19T13:13:40.756Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-first-red-v1.log",
+          "sha256": "c4a650f39d96183d1a5ee7312c0c2c8bbfd67e2f22a635386755d0db8d072818",
+          "bytes": 7235
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-first-red-v1.log",
+        "sha256": "c4a650f39d96183d1a5ee7312c0c2c8bbfd67e2f22a635386755d0db8d072818",
+        "bytes": 7235,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-first-red-v1.validation.json",
+        "sha256": "3f4845c595a2ebb5c6598ace8151808951a950bf17f15ad96627ae5ebbaba32f",
+        "bytes": 495,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-memory-after-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-after-v1.receipt.json",
+        "sha256": "0cd03bcc17a922159451c577dcf82e336edbd361f0fff3b76350123b0cd46ad3",
+        "bytes": 1350,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:16:57.492Z",
+        "endedAt": "2026-11-19T13:17:00.375Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-after-v1.log",
+          "sha256": "91fd75b92b527636bfcda49349da91969fcc7df6505c19d7b585cbc4b19549b0",
+          "bytes": 902
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-after-v1.log",
+        "sha256": "91fd75b92b527636bfcda49349da91969fcc7df6505c19d7b585cbc4b19549b0",
+        "bytes": 902,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-memory-after-v1.validation.json",
+        "sha256": "70afdaa55a085d2045ab331ccfc24254077be8581f436ad6b83ee028d0ee510c",
+        "bytes": 486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-sqlite-after-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-after-v1.receipt.json",
+        "sha256": "22061fd60b33c6e3580d91e69119b2d17c6747468f5d8255724d31187df32fc2",
+        "bytes": 1354,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:16:57.493Z",
+        "endedAt": "2026-11-19T13:17:04.993Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-after-v1.log",
+          "sha256": "ff4826edf4936396857133616ed99758c4c2a6236b9b70f84b61f23a30678757",
+          "bytes": 898
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-after-v1.log",
+        "sha256": "ff4826edf4936396857133616ed99758c4c2a6236b9b70f84b61f23a30678757",
+        "bytes": 898,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-sqlite-after-v1.validation.json",
+        "sha256": "68b3e51f1d7ced98ed6c25c11c1ddc27140b9fb2d0b29edf92b6eb645ec958df",
+        "bytes": 486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-complete-state-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-complete-state-v1.receipt.json",
+        "sha256": "6fef8c7073274b4afc9bc71d3c5fb144ca4264141763344c8af8b1475719c8e3",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-complete-state-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:19:53.613Z",
+        "endedAt": "2026-11-19T13:20:01.052Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-complete-state-v1.log",
+          "sha256": "86b0de8fbd951e7618e93fc3935de7db0aca1fd35aee45124349860fc35520e4",
+          "bytes": 1704
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-complete-state-v1.log",
+        "sha256": "86b0de8fbd951e7618e93fc3935de7db0aca1fd35aee45124349860fc35520e4",
+        "bytes": 1704,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-complete-state-v1.validation.json",
+        "sha256": "15a3e32134acc20073ded5ee76a63b3fe5ad3a116ca852138efd99a379b7f4df",
+        "bytes": 491,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-catalogue-effects-root-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-catalogue-effects-root-v1.receipt.json",
+        "sha256": "b1eb08a68d435c4b2bb27ad7e3f491b76463c479af16cdba1ba7707776fa2eef",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-catalogue-effects-root-v1",
+        "command": {
+          "argv": ["/home/df/.bun/bin/bun", "/tmp/puni-uow-catalogue-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:20:53.491Z",
+        "endedAt": "2026-11-19T13:20:58.813Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-catalogue-effects-root-v1.log",
+          "sha256": "5e084fdd192fbcd9b88193343290399e772f9ecb38805bb6be8f07bb25d751b5",
+          "bytes": 111
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-catalogue-effects-root-v1.log",
+        "sha256": "5e084fdd192fbcd9b88193343290399e772f9ecb38805bb6be8f07bb25d751b5",
+        "bytes": 111,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-catalogue-effects-root-v1.validation.json",
+        "sha256": "b1aa6b4db53896bdf9eb94c354f1bc1aca19ffdc4c77816dc228669def05afda",
+        "bytes": 490,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-final-tests-v2",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-tests-v2.receipt.json",
+        "sha256": "89d1161a8717a319a21c12e4d3fa43cfaaeab1ce96f262e76cae5b8e16f85fb5",
+        "bytes": 1802,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-final-tests-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:23:46.828Z",
+        "endedAt": "2026-11-19T13:23:59.786Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-tests-v2.log",
+          "sha256": "d4e9b6d542922d7ae9df557d54b6f8f4b585cb26322538e065786dddd505b1c6",
+          "bytes": 13380
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-tests-v2.log",
+        "sha256": "d4e9b6d542922d7ae9df557d54b6f8f4b585cb26322538e065786dddd505b1c6",
+        "bytes": 13380,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-tests-v2.validation.json",
+        "sha256": "561e9b856bb257f7a13f309318a25bec53953fded0076d20ae2a9dfbaf008a6c",
+        "bytes": 486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-final-types-v2",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-types-v2.receipt.json",
+        "sha256": "73055ec90c5a80db8e7691c3a1d4749b3960362741c24aed5f0ffe2c0100caaa",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-final-types-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:23:46.828Z",
+        "endedAt": "2026-11-19T13:24:00.138Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-types-v2.validation.json",
+        "sha256": "362317114ce6be952c13460781ac0f9ed026eab6509afea345f911e4e9e8b8e3",
+        "bytes": 482,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-final-lint-v2",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v2.receipt.json",
+        "sha256": "b8692f0ff64beee69edad81c0ba06af7916a494568b2bd92134f8a9e3bc7f003",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/conformance/src/unit-of-work-conformance.ts",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:23:46.827Z",
+        "endedAt": "2026-11-19T13:23:54.938Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v2.validation.json",
+        "sha256": "624089d396e0e0238d1d7e73927ce2dee17b7f397e3b69a23f68b9d3222f88a8",
+        "bytes": 480,
+        "mode": 384
+      }
+    },
+    {
+      "name": "uow-current-final-format-v2",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-format-v2.receipt.json",
+        "sha256": "e6ae8d681a8662c584a14b9d7e2c91a54e5d1cef4d4b8c92f94478c1423f333b",
+        "bytes": 1585,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-final-format-v2",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/application/conformance/src/unit-of-work-conformance.ts",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:23:46.828Z",
+        "endedAt": "2026-11-19T13:23:47.623Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-format-v2.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-format-v2.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-format-v2.validation.json",
+        "sha256": "161d8e1d30cd50b610cd3cc9bc5df6891f8a8755ab0a63b923d4fba99c319eb0",
+        "bytes": 485,
+        "mode": 384
+      }
+    }
+  ],
+  "effects": [
+    {
+      "name": "complete-state",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-complete-state-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "-t",
+            "\\([ab]\\) makes none",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 45000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:20:53.526Z",
+        "endedAt": "2026-11-19T13:20:56.148Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-complete-state-v1.log",
+          "sha256": "67495b1233450b7de1f4d9f25b3cc77c8ac894941ffe53192410e87058e9d3b6",
+          "bytes": 3336
+        },
+        "settled": true
+      },
+      "healthyMemorySha256": "79481b808e5993cddc5f126d1443c061d291e6c6209fe8e3958f4bd53f701aad",
+      "faultMemorySha256": "53da231c0c771fa3a961d8221f542273362fb6af3d52754db6c20f73a93b2d39",
+      "healthyChecksSha256": "03c80242442617a069f6d0bedb1c79036454cd06fa5d4aa21491700f8f32de6e",
+      "faultChecksSha256": "03c80242442617a069f6d0bedb1c79036454cd06fa5d4aa21491700f8f32de6e",
+      "restored": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-complete-state-v1.receipt.json",
+        "sha256": "04aad9bbe08c2267370d8f3e01ccfb8857a257ce36e98458bf6554938ba991d3",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-complete-state-v1.log",
+        "sha256": "67495b1233450b7de1f4d9f25b3cc77c8ac894941ffe53192410e87058e9d3b6",
+        "bytes": 3336,
+        "mode": 384
+      }
+    },
+    {
+      "name": "old-oracles",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-old-oracles-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "-t",
+            "\\([ab]\\) makes none",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 45000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:20:56.148Z",
+        "endedAt": "2026-11-19T13:20:58.809Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-old-oracles-v1.log",
+          "sha256": "29e763a4b5aca1bbe53115745870f0e9a39cc4d7e7f1974de25c1e383ebd0e5f",
+          "bytes": 377
+        },
+        "settled": true
+      },
+      "healthyMemorySha256": "79481b808e5993cddc5f126d1443c061d291e6c6209fe8e3958f4bd53f701aad",
+      "faultMemorySha256": "53da231c0c771fa3a961d8221f542273362fb6af3d52754db6c20f73a93b2d39",
+      "healthyChecksSha256": "03c80242442617a069f6d0bedb1c79036454cd06fa5d4aa21491700f8f32de6e",
+      "faultChecksSha256": "35f3139cfed8e2d98bebc426eeed944e2a7e49efc79a4d02102f27044d952060",
+      "restored": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-old-oracles-v1.receipt.json",
+        "sha256": "c400f808aa2a7f5bce444c2011538d4706578d93dc29904b7cea1763ece6e636",
+        "bytes": 1410,
+        "mode": 384
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-definitions-alias-old-oracles-v1.log",
+        "sha256": "29e763a4b5aca1bbe53115745870f0e9a39cc4d7e7f1974de25c1e383ebd0e5f",
+        "bytes": 377,
+        "mode": 384
+      }
+    }
+  ],
+  "progress": {
+    "memoryBefore": {
+      "passed": 4,
+      "failed": 3
+    },
+    "sqliteBefore": {
+      "passed": 0,
+      "failed": 7,
+      "stoppedAt": "required explicit atomic117 setup"
+    },
+    "bothCurrentSources": {
+      "passed": 14,
+      "failed": 0,
+      "assertions": 293
+    }
+  },
+  "final": {
+    "passed": 148,
+    "failed": 0,
+    "assertions": 3421,
+    "files": 7,
+    "memoryAndSqliteCompilerRoots": "passed in one serial compiler invocation",
+    "changedFileLint": "passed",
+    "changedFileFormat": "passed"
+  },
+  "uncredited": [
+    {
+      "name": "uow-current-final-lint-v1",
+      "qualified": false,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v1.receipt.json",
+        "sha256": "b18251badcbcb4432da9cac8fa0f3e35a126252328214e2804cd12b71ee892f2",
+        "bytes": 1561,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/conformance/src/unit-of-work-conformance.ts",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:22:37.287Z",
+        "endedAt": "2026-11-19T13:22:45.460Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v1.log",
+          "sha256": "e98eefdb53bd43925d610198529c59426b1c1d160afc383a964844691f39c996",
+          "bytes": 1874
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/uow-current-final-lint-v1.log",
+        "sha256": "e98eefdb53bd43925d610198529c59426b1c1d160afc383a964844691f39c996",
+        "bytes": 1874,
+        "mode": 384
+      }
+    }
+  ],
+  "observations": [
+    "The first attempted multi-file patch was rejected for duplicate delete/add operations and changed no file. Fresh state was inspected before update operations.",
+    "The current complete-state control passes14cases. Aliasing only the actual Memory clone definition map then fails both refused/thrown full-state comparisons with the unused Wiring definition. Keeping the identical actual alias but omitting only those two new comparisons passes both old named-read cases. Both code files restore byte-exactly before final after-controls.",
+    "Necessity credit is limited to these two shared complete-state assertions reached through actual Memory Source persistence. SQLite independently passes its complete-state rollback positives; no separate SQLite omission necessity is claimed.",
+    "The first final lint correctly refused unbound fixture methods. Explicitly bound provider methods and a precise function property in UnitOfWorkFixture preserve receiver ownership; all final tests/types/lint/format rerun after correction.",
+    "The SQLite initializer is reused only to construct an empty current Source and its real close/evidence owner; its catalogue case label does not execute an unbinding test or supply test outcomes."
+  ],
+  "limits": [
+    "The seven transaction scenarios per adapter are current, but this is not all adapter tests, full SQLite Source conformance, or a new whole-memory adapter count.",
+    "The older complete SQLite Source180-second run remains its own incomplete/reaped epoch; it was not restarted. This selected SQLite transaction owner completes normally.",
+    "Current broad Source84pass/2fail remains its earlier recorded regression, including obsolete StepStore authoring, creation assertion/fault owner and custom-measure ownership. No total is inferred from earlier broad adapter488pass/91fail/34errors.",
+    "Original SC13/SC17/SC22/SC25/API/UI/import/scheduler/rollout, unified PUNI/script/installed-client and full quality/host-gate requirements remain unfinished.",
+    "No new runtime implementation changes apart from adjacent proof comments. Astra review remains unavailable at the recorded account limit; protected PAX Source2 remains rejected/unapplied. No public push, PR update, merge or deploy."
+  ]
+}

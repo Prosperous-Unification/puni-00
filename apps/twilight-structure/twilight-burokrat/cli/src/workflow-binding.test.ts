@@ -1,8 +1,10 @@
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -13,6 +15,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
+import { UsageRefusal } from './cli-parser';
 import { digestOf } from './contracts/canonical';
 import { selectWorkflowActivity } from './contracts/validate-workflow-binding';
 import { WorkflowBindingError } from './contracts/workflow-binding';
@@ -272,18 +275,37 @@ test('loads the complete illustrative parent YAML with its exact five project co
 });
 
 function spawnBinding(args: readonly string[], cwd = root) {
-  const child = Bun.spawnSync({
-    cmd: [process.execPath, join(import.meta.dir, 'cli.ts'), ...args],
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const capture = mkdtempSync(join(root, 'cli-capture-'));
+  const stdoutPath = join(capture, 'stdout'),
+    stderrPath = join(capture, 'stderr');
+  const stdout = openSync(stdoutPath, 'wx', 0o600);
+  let child: ReturnType<typeof Bun.spawnSync>;
+  try {
+    const stderr = openSync(stderrPath, 'wx', 0o600);
+    try {
+      child = Bun.spawnSync({
+        cmd: [process.execPath, join(import.meta.dir, 'cli.ts'), ...args],
+        cwd,
+        stdin: 'ignore',
+        stdout,
+        stderr,
+        timeout: 30000,
+      });
+    } finally {
+      closeSync(stderr);
+    }
+  } finally {
+    closeSync(stdout);
+  }
+  if (child.signalCode !== undefined)
+    throw Error('binding CLI terminated by signal: ' + child.signalCode);
   return {
     exitCode: child.exitCode,
-    stdout: child.stdout.toString(),
-    stderr: child.stderr.toString(),
+    stdout: readFileSync(stdoutPath, 'utf8'),
+    stderr: readFileSync(stderrPath, 'utf8'),
   };
 }
+
 function expectCliRefusal(
   invocation: { exitCode: number | null; stdout: string; stderr: string },
   code: string,
@@ -295,7 +317,7 @@ function expectCliRefusal(
 
 test('routes an incomplete binding command before generic record validation', async () => {
   const invocation = await invokeCli(['validate', 'workflow-binding', '/never-read.yaml']);
-  expectCliRefusal(invocation, 'invalid_arguments');
+  expectCliRefusal(invocation, 'usage: twilight-burokrat validate');
   expect(invocation.stderr).not.toContain('binding_missing');
 });
 test('prints only the accepted digest with real cwd and exit status', () => {
@@ -330,10 +352,16 @@ test.each([
   const args = operands.map((operand) =>
     operand === '.twilight/workflows.yaml' ? binding : operand,
   );
-  expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+  expectCliRefusal(
+    spawnBinding(['validate', 'workflow-binding', ...args]),
+    'usage: twilight-burokrat validate',
+  );
   if (name !== 'no operands') {
     rmSync(binding);
-    expectCliRefusal(spawnBinding(['validate', 'workflow-binding', ...args]), 'invalid_arguments');
+    expectCliRefusal(
+      spawnBinding(['validate', 'workflow-binding', ...args]),
+      'usage: twilight-burokrat validate',
+    );
   }
 });
 // Proof: bypassing only production checkWorkflowBinding step membership made this spawned
@@ -429,7 +457,7 @@ test.each([
     ['validate', 'candidate-entry', '.twilight/workflows.yaml', '--steps', 'approve'],
   ],
 ])('refuses helper %s before filesystem access', (_name, args) => {
-  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
+  expect(() => runWorkflowBindingCommand(args, root)).toThrow(UsageRefusal);
   rmSync(binding);
-  expectRefusal(() => runWorkflowBindingCommand(args, root), 'invalid_arguments', 'arguments');
+  expect(() => runWorkflowBindingCommand(args, root)).toThrow(UsageRefusal);
 });

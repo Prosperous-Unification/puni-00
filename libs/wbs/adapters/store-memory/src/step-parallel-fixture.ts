@@ -24,16 +24,21 @@ export function inMemoryStepParallels(
     const step = await steps.findById(parallel.stepId);
     // Proof: step guard removed; corrupt-step read negative failed, 2026-10-15.
     if (step === null) throw new Error('step parallelism has an invalid step reference');
-    // Proof: project guard removed; corrupt-project read negative failed, 2026-10-15.
-    if (step.projectId !== owner.projectId) throw new Error('step parallelism project mismatch');
+    // Proof: work package guard removed; corrupt-work-package read negative failed, 2026-10-15.
+    if (step.workPackageId !== owner.workPackageId)
+      throw new Error('step parallelism work package mismatch');
     // Proof: leaf guard removed; corrupt-leaf read negative failed, 2026-10-15.
-    if ((await workItems.listByProject(owner.projectId)).some((row) => row.parentId === owner.id))
+    if (
+      (await workItems.listByWorkPackage(owner.workPackageId)).some(
+        (row) => row.parentId === owner.id,
+      )
+    )
       throw new Error('step parallelism owner is not a leaf');
-    return { projectId: owner.projectId, position: step.position };
+    return { workPackageId: owner.workPackageId, position: step.position };
   };
   const compareIds = (left: string, right: string): number =>
     left < right ? -1 : left > right ? 1 : 0;
-  const readParallels = async (projectId: string, ids?: readonly string[]) => {
+  const readParallels = async (workPackageId: string, ids?: readonly string[]) => {
     const selected: { parallel: StoredStepParallel; position: number }[] = [];
     const seen = new Set<string>();
     for (const parallel of table.rows) {
@@ -41,7 +46,7 @@ export function inMemoryStepParallels(
       const owner = await workItems.findById(parallel.workItemId);
       // Proof: read-owner guard removed; missing-owner read received TypeError, failing its trusted-reference assertion, 2026-10-15.
       if (owner === null) throw new Error('step parallelism has an invalid work-item reference');
-      if (owner.projectId !== projectId) continue;
+      if (owner.workPackageId !== workPackageId) continue;
       const { position } = await validateNode(parallel);
       const key = JSON.stringify([parallel.workItemId, parallel.stepId]);
       // Proof: duplicate guard removed; duplicate retained-pair read negative failed, 2026-10-15.
@@ -59,8 +64,8 @@ export function inMemoryStepParallels(
       .map(({ parallel }) => ({ ...parallel }));
   };
   return {
-    listByProject: (projectId) => readParallels(projectId),
-    listByWorkItems: (projectId, ids) => readParallels(projectId, ids),
+    listByWorkPackage: (workPackageId) => readParallels(workPackageId),
+    listByWorkItems: (workPackageId, ids) => readParallels(workPackageId, ids),
     async set(parallel, _stamp) {
       await validateNode(parallel);
       const kept = table.rows.filter(

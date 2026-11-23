@@ -7,22 +7,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ATTEMPTS = '20261012120000_add_step_node_attempts';
 /** The migration below this one, where every rollback here stops. */
-const BASELINE = readMigrationFolders(FOLDER)
-  .map(({ name }) => name)
-  .filter((name) => name < ATTEMPTS)
-  .at(-1);
+const BASELINE = '20261012090200_widen_organization_audit';
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-node-attempt-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, ATTEMPTS);
+  runMigrations(path, migrations);
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -43,7 +42,7 @@ function seed(sqlite: Database): void {
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
   sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
   );
   sqlite.run(
     "INSERT INTO step (id, project_id, name, position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
@@ -90,7 +89,7 @@ const columnsOfProject = (sqlite: Database) =>
     .map(({ name }) => name);
 
 describe(ATTEMPTS, () => {
-  it('applies the table and an old-writer project insert reads UTC', () => {
+  it('applies the table and an old-writer work package insert reads UTC', () => {
     withDatabase((sqlite) => {
       seed(sqlite);
       expect(tableNames(sqlite)).toContain('step_node_attempt');
@@ -156,13 +155,12 @@ describe(ATTEMPTS, () => {
 
   it('rolls back and reapplies over no attempts', () => {
     withDatabase(seed);
-    if (BASELINE === undefined) throw new Error('no migration below the attempts');
-    expect(rollbackTo(path, FOLDER, BASELINE)).toContain(ATTEMPTS);
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([ATTEMPTS]);
     withDatabase((sqlite) => {
       expect(tableNames(sqlite)).not.toContain('step_node_attempt');
       expect(columnsOfProject(sqlite)).not.toContain('timezone');
     });
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     withDatabase((sqlite) => {
       expect(tableNames(sqlite)).toContain('step_node_attempt');
       expect(columnsOfProject(sqlite)).toContain('timezone');
@@ -179,11 +177,10 @@ describe(ATTEMPTS, () => {
       seed(sqlite);
       insertAttempt(sqlite, { number: 1, endedAt: 200, outcome: 'succeeded' });
     });
-    if (BASELINE === undefined) throw new Error('no migration below the attempts');
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'CHECK constraint failed: step node attempts exist: save and remove them with step-node-attempt-rollback-cli.ts',
     );
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'docs/runbook-prod-deploy.md#step-node-attempt-rollback',
     );
     withDatabase((sqlite) => {

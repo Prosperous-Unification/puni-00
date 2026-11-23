@@ -6,7 +6,7 @@ import { openMemorySourceWithLateWriteSeam } from '../source';
 export type { MemoryLateWritePoint } from '../late-write-seam';
 
 export interface MemoryFaultSource extends Source<TransactionalStores> {
-  journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+  journalHistoryFor(workPackageId: string): Promise<PlanEvent[]>;
 }
 
 export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
@@ -65,19 +65,24 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
   };
 }
 
-/** Opens the real staged source with this run's late-write barrier attached. */
-export function openMemorySourceWithFault(
-  control: MemoryLateWriteControl<MemoryLateWritePoint>,
-): MemoryFaultSource {
-  const fixture = openMemorySourceWithLateWriteSeam({
+/** Opens the actual Source fixture so current contract setup uses its real parent/catalogue state. */
+export function openMemoryFixtureWithFault(control: MemoryLateWriteControl<MemoryLateWritePoint>) {
+  return openMemorySourceWithLateWriteSeam({
     isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachStagedWrite(phase, evidence))
         throw new Error(`injected memory fault at ${phase}`);
     },
   });
+}
+
+/** Opens the real staged source with this run's late-write barrier attached. */
+export function openMemorySourceWithFault(
+  control: MemoryLateWriteControl<MemoryLateWritePoint>,
+): MemoryFaultSource {
+  const fixture = openMemoryFixtureWithFault(control);
   return {
     ...fixture.source,
-    journalHistoryFor: (projectId) => fixture.journalHistoryFor(projectId),
+    journalHistoryFor: (workPackageId) => fixture.journalHistoryFor(workPackageId),
   };
 }

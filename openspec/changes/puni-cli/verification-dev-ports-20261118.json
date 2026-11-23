@@ -1,0 +1,1904 @@
+{
+  "schema": "development-port-observed-v1",
+  "sourceBasis": {
+    "path": "/tmp/puni-cli-dev-ports-adapter-live-v1/formatted-source-pins.json",
+    "sha256": "0f4017ec2ed5a1c3c5c2a8454f456a512700640532e06aadfd4376146f56c2ac",
+    "bytes": 247021,
+    "mode": 384
+  },
+  "testedPortSource": {
+    "path": "/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/ports.ts",
+    "sha256": "813e068d9f8730714ba09e7c906e411b7c1df540b2913f840e48febd5acd8f6c",
+    "bytes": 12278,
+    "mode": 436
+  },
+  "review": {
+    "path": "/tmp/puni-cli-dev-ports-unreadable-observed-astra-v1.md",
+    "sha256": "7f9dc197f47f4ac6af1fca098ad5d9f97afed7b401401949b8a50065a3420c7d",
+    "bytes": 2544,
+    "mode": 384
+  },
+  "D07": [
+    {
+      "phase": "before",
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-source-quality-v2/unreadable/native.log",
+        "sha256": "076aa1773887e5c359e8c23723d42e54da913f7810f4fb9b8ffc0030ca9d0d77",
+        "bytes": 276,
+        "mode": 384
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/ports.test.ts:\n(pass) development check refuses an unreadable environment before connecting to a real frontend listener [34.71ms]\n\n 1 pass\n 6 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [76.00ms]\n",
+      "receipt": {
+        "path": "/tmp/puni-cli-dev-ports-source-quality-v2/unreadable/native.receipt.json",
+        "sha256": "87259978786de7c018126ed9692b3dd4a6294baea3a3d7985cb80eef86646bc3",
+        "bytes": 1461,
+        "mode": 384
+      },
+      "native": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-dev-ports-source-quality-v2/unreadable/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/puni/cli/src/development/ports.test.ts",
+            "--test-name-pattern",
+            "^development check refuses an unreadable environment before connecting to a real frontend listener$",
+            "--timeout=25000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T00:35:21.602Z",
+        "endedAt": "2026-11-18T00:35:21.703Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-dev-ports-source-quality-v2/unreadable/native.log",
+          "sha256": "076aa1773887e5c359e8c23723d42e54da913f7810f4fb9b8ffc0030ca9d0d77",
+          "bytes": 276
+        },
+        "settled": true
+      },
+      "validation": {
+        "path": "/tmp/puni-cli-dev-ports-source-quality-v2/unreadable/native.validation.json",
+        "sha256": "0bcdb1a9d4919fc45f38354d4fbcd905653f25156bc28e3c0cb957ca43d049f0",
+        "bytes": 1358,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "fault",
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/fault/native.log",
+        "sha256": "7235f3c5e5a15cbc1cd1246b0a49970f53e953fc9ecc1dd3d2a269afb16c6886",
+        "bytes": 731,
+        "mode": 384
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/ports.test.ts:\n299 |     const status = await runPorts(createRequest(root, 'check'), {\n300 |       ...output.context,\n301 |       environment: { PORT: String(address.port) },\n302 |     });\n303 |     await Bun.sleep(20);\n304 |     expect(connections).toBe(1);\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 2\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/ports.test.ts:304:25)\n(fail) development check refuses an unreadable environment before connecting to a real frontend listener [95.77ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [139.00ms]\n",
+      "receipt": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/fault/native.receipt.json",
+        "sha256": "fcbc4e225d3092d61dfe04edbc281fa7b76460ecc05dabbd9c23422b984f3b01",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "native": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/fault/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/puni/cli/src/development/ports.test.ts",
+            "--test-name-pattern",
+            "^development check refuses an unreadable environment before connecting to a real frontend listener$",
+            "--timeout=25000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T00:37:30.626Z",
+        "endedAt": "2026-11-18T00:37:30.797Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/fault/native.log",
+          "sha256": "7235f3c5e5a15cbc1cd1246b0a49970f53e953fc9ecc1dd3d2a269afb16c6886",
+          "bytes": 731
+        },
+        "settled": true
+      },
+      "validation": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/fault/native.validation.json",
+        "sha256": "d89c37e52893b091b514779de96fa32f1836c3799ad5c5e56282308a065271b4",
+        "bytes": 1775,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "after",
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/after/native.log",
+        "sha256": "ece7ebba4e9d514bf0cb9037ce999b026b45bc1dbfcccf1feef7675b1cead007",
+        "bytes": 276,
+        "mode": 384
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/ports.test.ts:\n(pass) development check refuses an unreadable environment before connecting to a real frontend listener [34.57ms]\n\n 1 pass\n 6 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [77.00ms]\n",
+      "receipt": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/after/native.receipt.json",
+        "sha256": "c190ceae086384c3a5336a9792180200d1bb2bd59cf9c796c478edb66c2c0eff",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "native": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/after/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "./apps/puni/cli/src/development/ports.test.ts",
+            "--test-name-pattern",
+            "^development check refuses an unreadable environment before connecting to a real frontend listener$",
+            "--timeout=25000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T00:37:55.043Z",
+        "endedAt": "2026-11-18T00:37:55.148Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/after/native.log",
+          "sha256": "ece7ebba4e9d514bf0cb9037ce999b026b45bc1dbfcccf1feef7675b1cead007",
+          "bytes": 276
+        },
+        "settled": true
+      },
+      "validation": {
+        "path": "/tmp/puni-cli-dev-ports-unreadable-fault-v1/after/native.validation.json",
+        "sha256": "11be8972280ce0b4b0f58644ff80b1bc69aa4f6dca2806bd44e5edca4efd0f79",
+        "bytes": 1775,
+        "mode": 384
+      }
+    }
+  ],
+  "limits": [
+    "Before outer bound180s; fault/after60s; selected native argv identical.",
+    "Only the actual unreadable file before subsequent frontend probe is proven.",
+    "No other file errors, PID/cwd/IPv4/cancellation/installed/default or adapter guard necessity is proven."
+  ],
+  "ordinary": [
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-source-quality-v2/full/native.log",
+        "sha256": "b6e5221bac4522b7349abb9ec85725b76180fd520aa0e7426ebc406deb4e1dc4",
+        "bytes": 34057,
+        "mode": 384
+      },
+      "outcome": "242 pass/956expects atCLI964d9db"
+    },
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-source-quality-v2/owning/native.log",
+        "sha256": "4215b8c120a4a6d9b9377a3382768fb55953a32c8fb4a2d2ca6f6b59fd301080",
+        "bytes": 833,
+        "mode": 384
+      },
+      "outcome": "7 pass/48expects atCLI964d9db"
+    },
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-adapter-live-v1/callers/native.log",
+        "sha256": "fc333d438e61c2f7fc7dc1ee4e5e1174ea2ef346921866e935c41be713d687aa",
+        "bytes": 369,
+        "mode": 384
+      },
+      "outcome": "2 pass/34expects atpreformatCLI967684471"
+    },
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-adapter-live-v1/adapter/native.log",
+        "sha256": "68170bf53d66fc2a58fc69b1ab97322f887a7eba7028239c11eb317de279e0a0",
+        "bytes": 1344,
+        "mode": 384
+      },
+      "outcome": "12 pass/49expects atpreformatCLI967684471; controlled ABI, not installed certification"
+    },
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-adapter-live-v1/types/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "outcome": "Normal PUNI+Dash types0empty atformattedCLI9670f4017"
+    },
+    {
+      "log": {
+        "path": "/tmp/puni-cli-dev-ports-adapter-live-v1/binTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "outcome": "Standalone bin --project types0empty atformattedCLI9670f4017"
+    }
+  ],
+  "adapterEffects": {
+    "sourceBasis": {
+      "path": "/tmp/puni-cli-dev-ports-adapter-quality-v2/formatted-source-pins.json",
+      "sha256": "f0c08f9d499c88a7a543215aea88fdc538f5c00d11abdf5cac0317cd81f55815",
+      "bytes": 247265,
+      "mode": 384
+    },
+    "testedAdapter": {
+      "path": "/home/df/.codex/worktrees/6ce4/puni-00/bin/dev-ports.ts",
+      "sha256": "f837d1f13cca314e6f5b05e8da03a0f054312c5e33db069d7178bc3887493a7c",
+      "bytes": 4940,
+      "mode": 436
+    },
+    "review": {
+      "path": "/tmp/puni-cli-dev-ports-adapter-effects-observed-astra-v1.md",
+      "sha256": "023f4e51b6e0f366b06f1e55a116be608700f05350d8be7bbc2232fc9a9b1d18",
+      "bytes": 3834,
+      "mode": 384
+    },
+    "flights": [
+      {
+        "id": "A01",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/before/native.log",
+              "sha256": "d59294f1445ab605a9ca1ccc56c1d6cc8074d6a95d240a576919f1ce92c01894",
+              "bytes": 264,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable honors exit completion with a retained module timer [33.70ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [67.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/before/native.receipt.json",
+              "sha256": "b6e9012a9c09e5776289618571e25115d2dfbeebd8a1ed224bd552445e548070",
+              "bytes": 1480,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ honors\\ exit\\ completion\\ with\\ a\\ retained\\ module\\ timer$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:16:22.348Z",
+              "endedAt": "2026-11-18T01:16:22.433Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/before/native.log",
+                "sha256": "d59294f1445ab605a9ca1ccc56c1d6cc8074d6a95d240a576919f1ce92c01894",
+                "bytes": 264
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/before/native.validation.json",
+              "sha256": "358c11a69a6c993678fb1175277d3f4366ef2ca9ab751f16dbb888b6dcd7482b",
+              "bytes": 2037,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/fault/native.log",
+              "sha256": "44d83fda6db3a84b26debaae70b4b5543adc3b7cad5d9f64fdeb99e1f2032c6d",
+              "bytes": 869,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n 96 | it('repository dev-port executable honors exit completion with a retained module timer', () => {\n 97 |   const fixture = createFixture(\n 98 |     'export function main(){setInterval(()=>{},1000);return {kind:\"exit\",status:37}}',\n 99 |   );\n100 |   const child = executeAdapter(fixture);\n101 |   expect(child.signalCode, child.stderr.toString()).toBeUndefined();\n                                                          ^\nerror: expect(received).toBeUndefined()\n\nReceived: \"SIGKILL\"\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:101:53)\n(fail) repository dev-port executable honors exit completion with a retained module timer [5038.20ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [5.07s]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/fault/native.receipt.json",
+              "sha256": "5baedc0eab151c8edd797c1f2d20a4eb1e61c598480454e6bd108499fb3dc670",
+              "bytes": 1478,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ honors\\ exit\\ completion\\ with\\ a\\ retained\\ module\\ timer$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:16:40.879Z",
+              "endedAt": "2026-11-18T01:16:45.974Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/fault/native.log",
+                "sha256": "44d83fda6db3a84b26debaae70b4b5543adc3b7cad5d9f64fdeb99e1f2032c6d",
+                "bytes": 869
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/fault/native.validation.json",
+              "sha256": "e9c4943ad81d891a8d2f628f4a2a1138479b96c7b13d13d671994afd6a9130e8",
+              "bytes": 2034,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/after/native.log",
+              "sha256": "9f3f3b649021bf1748419a9ca319aaef53977b4174c7e689693052947f6e7f28",
+              "bytes": 264,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable honors exit completion with a retained module timer [35.86ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [68.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/after/native.receipt.json",
+              "sha256": "d55d7473c5bcb34761e68d4fe23971085661c4233003c97730d43a1c7bd8096e",
+              "bytes": 1478,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ honors\\ exit\\ completion\\ with\\ a\\ retained\\ module\\ timer$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:17:30.027Z",
+              "endedAt": "2026-11-18T01:17:30.114Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/after/native.log",
+                "sha256": "9f3f3b649021bf1748419a9ca319aaef53977b4174c7e689693052947f6e7f28",
+                "bytes": 264
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A01/after/native.validation.json",
+              "sha256": "9d0667be3a9cd1139cf73d77a56da7b9a3cba512d970b2d857808f6c92c23452",
+              "bytes": 2034,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A02",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/before/native.log",
+              "sha256": "1756c78ef55988c85158e362110a1cfe17c71c8f90dd9cc2e63de68e650632fc",
+              "bytes": 260,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable terminates retained timer after import failure [38.79ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [322.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/before/native.receipt.json",
+              "sha256": "8319c1accb61132ced26f300a4c4e5fb3c35aa5e47b9e2ffc59496b207dade8a",
+              "bytes": 1471,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ import\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:05:04.002Z",
+              "endedAt": "2026-11-18T01:05:04.341Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/before/native.log",
+                "sha256": "1756c78ef55988c85158e362110a1cfe17c71c8f90dd9cc2e63de68e650632fc",
+                "bytes": 260
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/before/native.validation.json",
+              "sha256": "ab9482b1f53079f60866b2061ea219fc649581d44fcae2426f34b67873125c76",
+              "bytes": 2106,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/fault/native.log",
+              "sha256": "2c77c9e545ea3170de9beec357fc8e45620fddeff2baa280ac6bc250eb79dd4b",
+              "bytes": 825,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n168 |             ? retain + 'throw new Error(\"fixture import failure\");'\n169 |             : 'export function main(){' + retain + 'return {kind:\"wrong\",status:0}}'),\n170 |       );\n171 |       const child = executeAdapter(fixture);\n172 |       expect(readFileSync(ready, 'utf8')).toBe('ready');\n173 |       expect(child.signalCode).toBeUndefined();\n                                     ^\nerror: expect(received).toBeUndefined()\n\nReceived: \"SIGKILL\"\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:173:32)\n(fail) repository dev-port executable terminates retained timer after import failure [5026.98ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [5.06s]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/fault/native.receipt.json",
+              "sha256": "bcc1ded775e5e8fc7dfe9cc030dc8babaebd103780cbfb8e19dfa4378649524f",
+              "bytes": 1469,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ import\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:05:36.796Z",
+              "endedAt": "2026-11-18T01:05:41.884Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/fault/native.log",
+                "sha256": "2c77c9e545ea3170de9beec357fc8e45620fddeff2baa280ac6bc250eb79dd4b",
+                "bytes": 825
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/fault/native.validation.json",
+              "sha256": "d194239c83f62ab194833e185cf67dbc38e03377c8bafc46e16944695a379ded",
+              "bytes": 2103,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/after/native.log",
+              "sha256": "ad928b5042b51bce444dfd2e0057930105185f144687adb1452353ca4f051870",
+              "bytes": 259,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable terminates retained timer after import failure [37.46ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [69.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/after/native.receipt.json",
+              "sha256": "70adee4002f3dcef0096437b7f3f5319f5c117ee543ab56f8693a632eedaf5c1",
+              "bytes": 1469,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ import\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:06:15.270Z",
+              "endedAt": "2026-11-18T01:06:15.356Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/after/native.log",
+                "sha256": "ad928b5042b51bce444dfd2e0057930105185f144687adb1452353ca4f051870",
+                "bytes": 259
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A02/after/native.validation.json",
+              "sha256": "64498f896fea400879e27ae9461b94ea9a5230200d33faf8c20bc1b1d64f0f38",
+              "bytes": 2103,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A03",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/before/native.log",
+              "sha256": "76e037853ecb7d51126fbea5bb1968ad26a951bd31f132a9dcc9ca0d8cfb8fa5",
+              "bytes": 263,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable terminates retained timer after completion failure [35.61ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [67.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/before/native.receipt.json",
+              "sha256": "c30b6cd0490c1520fefae1bf29cc9969ca55c6b81dc690c8d5c8a35189bce5b9",
+              "bytes": 1475,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ completion\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:06:24.644Z",
+              "endedAt": "2026-11-18T01:06:24.728Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/before/native.log",
+                "sha256": "76e037853ecb7d51126fbea5bb1968ad26a951bd31f132a9dcc9ca0d8cfb8fa5",
+                "bytes": 263
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/before/native.validation.json",
+              "sha256": "107d155784260c110d92067a7512cfa0ec76eaddc5c603d58e4983c0cbf577a6",
+              "bytes": 2106,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/fault/native.log",
+              "sha256": "d6ae7971b144f7c77abd7283dc9071384c1bc9a80215c62c74bb89a97e8ecaf8",
+              "bytes": 829,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n168 |             ? retain + 'throw new Error(\"fixture import failure\");'\n169 |             : 'export function main(){' + retain + 'return {kind:\"wrong\",status:0}}'),\n170 |       );\n171 |       const child = executeAdapter(fixture);\n172 |       expect(readFileSync(ready, 'utf8')).toBe('ready');\n173 |       expect(child.signalCode).toBeUndefined();\n                                     ^\nerror: expect(received).toBeUndefined()\n\nReceived: \"SIGKILL\"\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:173:32)\n(fail) repository dev-port executable terminates retained timer after completion failure [5032.00ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [5.07s]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/fault/native.receipt.json",
+              "sha256": "53ff10d9bdb5bc6cdbdb1e9dc627061d54399e6d02fe8f27f74b2ccd653d10ef",
+              "bytes": 1473,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ completion\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:06:48.434Z",
+              "endedAt": "2026-11-18T01:06:53.525Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/fault/native.log",
+                "sha256": "d6ae7971b144f7c77abd7283dc9071384c1bc9a80215c62c74bb89a97e8ecaf8",
+                "bytes": 829
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/fault/native.validation.json",
+              "sha256": "528e10d4aefdae739720920f90359744d32591047306dfcdd76191fa1435128e",
+              "bytes": 2103,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/after/native.log",
+              "sha256": "488428a93d1639bcda3cbd9b6d282089864623217cac918ad822d98488522b77",
+              "bytes": 263,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable terminates retained timer after completion failure [35.00ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [68.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/after/native.receipt.json",
+              "sha256": "a6078fcbb7d66daa7d37da9d33d25f94627d1604b4627e2539388a52b730f353",
+              "bytes": 1473,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ terminates\\ retained\\ timer\\ after\\ completion\\ failure$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:07:57.436Z",
+              "endedAt": "2026-11-18T01:07:57.520Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/after/native.log",
+                "sha256": "488428a93d1639bcda3cbd9b6d282089864623217cac918ad822d98488522b77",
+                "bytes": 263
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A03/after/native.validation.json",
+              "sha256": "780adecdbee3463ffd75da1141c4e8040ee8d1c5af269a11ffea9edc10bb0478",
+              "bytes": 2103,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A04",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/before/native.log",
+              "sha256": "ab7fba77161fdd27ecb41af3ea2dffa4effab33f6b1c46030c835369efca93a6",
+              "bytes": 277,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after import output replacement [37.58ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [70.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/before/native.receipt.json",
+              "sha256": "c6142b69459fad0a8d1634e2ab553139be6e3bcfc52e156d3ae17679b10da410",
+              "bytes": 1493,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ import\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:08:27.026Z",
+              "endedAt": "2026-11-18T01:08:27.114Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/before/native.log",
+                "sha256": "ab7fba77161fdd27ecb41af3ea2dffa4effab33f6b1c46030c835369efca93a6",
+                "bytes": 277
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/before/native.validation.json",
+              "sha256": "d0a724300e75382a8111abef87bb7abefb24bfe111e02978f0131c456d03284b",
+              "bytes": 2128,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/fault/native.log",
+              "sha256": "ca4ca1f739d032900615a66c5811801f9f317c69864bc09db1e8be0f2cbf4acf",
+              "bytes": 2376,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n206 |       expect(child.exitCode).toBe(1);\n207 |       expect({\n208 |         stdout: [...child.stdout],\n209 |         stderr: [...child.stderr],\n210 |         replacement: existsSync(replacement) ? readFileSync(replacement, 'utf8') : null,\n211 |       }).toEqual({\n               ^\nerror: expect(received).toEqual(expected)\n\n  {\n-   \"replacement\": null,\n-   \"stderr\": [\n-     100,\n-     101,\n-     118,\n-     101,\n-     108,\n-     111,\n-     112,\n-     109,\n-     101,\n-     110,\n-     116,\n-     32,\n-     112,\n-     111,\n-     114,\n-     116,\n-     115,\n-     58,\n-     32,\n-     115,\n-     101,\n-     108,\n-     101,\n-     99,\n-     116,\n-     101,\n-     100,\n-     32,\n-     105,\n-     110,\n-     115,\n-     116,\n-     97,\n-     108,\n-     108,\n-     101,\n-     100,\n-     32,\n-     80,\n-     85,\n-     78,\n-     73,\n-     32,\n-     99,\n-     111,\n-     117,\n-     108,\n-     100,\n-     32,\n-     110,\n-     111,\n-     116,\n-     32,\n-     99,\n-     111,\n-     109,\n-     112,\n-     108,\n-     101,\n-     116,\n-     101,\n-     59,\n-     32,\n-     118,\n-     101,\n-     114,\n-     105,\n-     102,\n-     121,\n-     32,\n-     105,\n-     116,\n-     115,\n-     32,\n-     114,\n-     101,\n-     118,\n-     105,\n-     101,\n-     119,\n-     101,\n-     100,\n-     32,\n-     112,\n-     114,\n-     111,\n-     118,\n-     105,\n-     115,\n-     105,\n-     111,\n-     110,\n-     105,\n-     110,\n-     103,\n-     32,\n-     97,\n-     110,\n-     100,\n-     32,\n-     80,\n-     85,\n-     78,\n-     73,\n-     95,\n-     69,\n-     88,\n-     69,\n-     67,\n-     85,\n-     84,\n-     65,\n-     66,\n-     76,\n-     69,\n-     10,\n-   ],\n+   \"replacement\": \n+ \"stderr writer\n+ stderr write 646576656c6f706d656e7420706f7274733a2073656c656374656420696e7374616c6c65642050554e4920636f756c64206e6f7420636f6d706c6574653b20766572696679206974732072657669657765642070726f766973696f6e696e6720616e642050554e495f45584543555441424c450a\n+ \"\n+ ,\n+   \"stderr\": [],\n    \"stdout\": [],\n  }\n\n- Expected  - 119\n+ Received  + 6\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:211:10)\n(fail) repository dev-port executable retains native diagnostic stderr after import output replacement [40.88ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [71.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/fault/native.receipt.json",
+              "sha256": "967c539f4c900d7ca30a0d96205d4db3221d93ceb92f8aadaaeebb928c666652",
+              "bytes": 1492,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ import\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:09:05.643Z",
+              "endedAt": "2026-11-18T01:09:05.732Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/fault/native.log",
+                "sha256": "ca4ca1f739d032900615a66c5811801f9f317c69864bc09db1e8be0f2cbf4acf",
+                "bytes": 2376
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/fault/native.validation.json",
+              "sha256": "86fe1302ea7acb871731770301b76848f71ae80a59b3fc7a26163bc45b85124b",
+              "bytes": 2126,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/after/native.log",
+              "sha256": "9965d30d5898ff09a243a39956ecc4fc0b301daed96590856e348f6f9015d15c",
+              "bytes": 277,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after import output replacement [36.07ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [69.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/after/native.receipt.json",
+              "sha256": "a2e96987e6b8c1d05149324ea1976f129ba8d74e14aaab3811ace185369c2bf7",
+              "bytes": 1491,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ import\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:09:36.542Z",
+              "endedAt": "2026-11-18T01:09:36.629Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/after/native.log",
+                "sha256": "9965d30d5898ff09a243a39956ecc4fc0b301daed96590856e348f6f9015d15c",
+                "bytes": 277
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A04/after/native.validation.json",
+              "sha256": "611e784aef78da70ed90b46b9a75326d0a8b0de425d82347591576000b892d94",
+              "bytes": 2125,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A05",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/before/native.log",
+              "sha256": "988681922669da1b4953f10e27f05f4acf0a8c8e8f0630864ab6403932c9f108",
+              "bytes": 281,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after completion output replacement [38.09ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [70.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/before/native.receipt.json",
+              "sha256": "7710fb5c1841e0f440950d2d4cf16dd9f15a31e30942f9599d0f90c0484b9400",
+              "bytes": 1497,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:09:57.948Z",
+              "endedAt": "2026-11-18T01:09:58.035Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/before/native.log",
+                "sha256": "988681922669da1b4953f10e27f05f4acf0a8c8e8f0630864ab6403932c9f108",
+                "bytes": 281
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/before/native.validation.json",
+              "sha256": "52ab4fe444669170f93df5df9a66a710d98c6dfb5febce5ff51a6262c52e60c4",
+              "bytes": 2128,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/fault/native.log",
+              "sha256": "24cc49ead0012b75d32e72c7b780a4a547964176dcdd687589fd4b0e026b6c18",
+              "bytes": 2310,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n206 |       expect(child.exitCode).toBe(1);\n207 |       expect({\n208 |         stdout: [...child.stdout],\n209 |         stderr: [...child.stderr],\n210 |         replacement: existsSync(replacement) ? readFileSync(replacement, 'utf8') : null,\n211 |       }).toEqual({\n               ^\nerror: expect(received).toEqual(expected)\n\n  {\n-   \"replacement\": null,\n-   \"stderr\": [\n-     100,\n-     101,\n-     118,\n-     101,\n-     108,\n-     111,\n-     112,\n-     109,\n-     101,\n-     110,\n-     116,\n-     32,\n-     112,\n-     111,\n-     114,\n-     116,\n-     115,\n-     58,\n-     32,\n-     115,\n-     101,\n-     108,\n-     101,\n-     99,\n-     116,\n-     101,\n-     100,\n-     32,\n-     80,\n-     85,\n-     78,\n-     73,\n-     32,\n-     114,\n-     101,\n-     116,\n-     117,\n-     114,\n-     110,\n-     101,\n-     100,\n-     32,\n-     97,\n-     110,\n-     32,\n-     105,\n-     110,\n-     118,\n-     97,\n-     108,\n-     105,\n-     100,\n-     32,\n-     99,\n-     111,\n-     109,\n-     112,\n-     108,\n-     101,\n-     116,\n-     105,\n-     111,\n-     110,\n-     59,\n-     32,\n-     112,\n-     114,\n-     111,\n-     118,\n-     105,\n-     115,\n-     105,\n-     111,\n-     110,\n-     32,\n-     116,\n-     104,\n-     101,\n-     32,\n-     114,\n-     101,\n-     118,\n-     105,\n-     101,\n-     119,\n-     101,\n-     100,\n-     32,\n-     99,\n-     117,\n-     114,\n-     114,\n-     101,\n-     110,\n-     116,\n-     32,\n-     80,\n-     85,\n-     78,\n-     73,\n-     32,\n-     97,\n-     114,\n-     116,\n-     105,\n-     102,\n-     97,\n-     99,\n-     116,\n-     10,\n-   ],\n+   \"replacement\": \n+ \"stderr writer\n+ stderr write 646576656c6f706d656e7420706f7274733a2073656c65637465642050554e492072657475726e656420616e20696e76616c696420636f6d706c6574696f6e3b2070726f766973696f6e207468652072657669657765642063757272656e742050554e492061727469666163740a\n+ \"\n+ ,\n+   \"stderr\": [],\n    \"stdout\": [],\n  }\n\n- Expected  - 113\n+ Received  + 6\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:211:10)\n(fail) repository dev-port executable retains native diagnostic stderr after completion output replacement [36.32ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [68.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/fault/native.receipt.json",
+              "sha256": "9e1943974564bdfeb5f3a40ee694064a3958df36ad7d0065b3b03e54182ed68e",
+              "bytes": 1496,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:11:24.529Z",
+              "endedAt": "2026-11-18T01:11:24.614Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/fault/native.log",
+                "sha256": "24cc49ead0012b75d32e72c7b780a4a547964176dcdd687589fd4b0e026b6c18",
+                "bytes": 2310
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/fault/native.validation.json",
+              "sha256": "93e17ee662105df3e2268598e38959f264f437b7857e94322861470b34db6439",
+              "bytes": 2126,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/after/native.log",
+              "sha256": "aec8b743367b8a51b445c4e362bbeb54e861fec30767e16e5e57c70780f5e497",
+              "bytes": 281,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after completion output replacement [42.47ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [76.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/after/native.receipt.json",
+              "sha256": "457bbac700a59535734d0743cda15eec47369a0a6917b9d166d2d2539dc6a573",
+              "bytes": 1495,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:12:47.823Z",
+              "endedAt": "2026-11-18T01:12:47.916Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/after/native.log",
+                "sha256": "aec8b743367b8a51b445c4e362bbeb54e861fec30767e16e5e57c70780f5e497",
+                "bytes": 281
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A05/after/native.validation.json",
+              "sha256": "146c08e7f47f6c699b503683205f229f6775028cfcf1060c2f2a6e1aa18cb4cb",
+              "bytes": 2125,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A06",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/before/native.log",
+              "sha256": "c594cedee43230c8bcb8afe8b287db437a30767445ab57098d698659798bba72",
+              "bytes": 281,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after completion output replacement [36.87ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [70.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/before/native.receipt.json",
+              "sha256": "63ff53cc5d70a044ada4ef673d8f635238b529db348b9d5b897af2dffb11f70a",
+              "bytes": 1497,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:13:03.850Z",
+              "endedAt": "2026-11-18T01:13:03.938Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/before/native.log",
+                "sha256": "c594cedee43230c8bcb8afe8b287db437a30767445ab57098d698659798bba72",
+                "bytes": 281
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/before/native.validation.json",
+              "sha256": "c6e893947836dde277dded2f5277a489da29c9ded00660faa9679b3421c51892",
+              "bytes": 2126,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/fault/native.log",
+              "sha256": "73e4854b6eb217137bd181146a4fb2651fc95ea2b2ef587485192258be852a06",
+              "bytes": 833,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n201 |             : 'export function main(){' + witness + 'return {kind:\"drain\",status:256}}'),\n202 |       );\n203 |       const child = executeAdapter(fixture);\n204 |       expect(readFileSync(ready, 'utf8')).toBe('actually replaced');\n205 |       expect(child.signalCode).toBeUndefined();\n206 |       expect(child.exitCode).toBe(1);\n                                   ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:206:30)\n(fail) repository dev-port executable retains native diagnostic stderr after completion output replacement [35.37ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [71.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/fault/native.receipt.json",
+              "sha256": "28d5de9234cadc73f60794b1b4467018e056fa0df181bb3ac9197ae62287914e",
+              "bytes": 1495,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:13:21.086Z",
+              "endedAt": "2026-11-18T01:13:21.176Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/fault/native.log",
+                "sha256": "73e4854b6eb217137bd181146a4fb2651fc95ea2b2ef587485192258be852a06",
+                "bytes": 833
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/fault/native.validation.json",
+              "sha256": "df2dbfbae95f72d598fd0d24ba0ba52c4fe252b8f38c4c2490298e64701667b4",
+              "bytes": 2123,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/after/native.log",
+              "sha256": "6998bb7e6f3e5478cb9e9c8d5c81ea448acd3ee408ffb38bcb0e5167f0d14d4b",
+              "bytes": 281,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port executable retains native diagnostic stderr after completion output replacement [37.04ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [70.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/after/native.receipt.json",
+              "sha256": "b302e75e88a91d72e0c7c457ef2ed33bbc2705e6b2fd9e75b4a14512d724fe6d",
+              "bytes": 1495,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ executable\\ retains\\ native\\ diagnostic\\ stderr\\ after\\ completion\\ output\\ replacement$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:14:18.577Z",
+              "endedAt": "2026-11-18T01:14:18.665Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/after/native.log",
+                "sha256": "6998bb7e6f3e5478cb9e9c8d5c81ea448acd3ee408ffb38bcb0e5167f0d14d4b",
+                "bytes": 281
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A06/after/native.validation.json",
+              "sha256": "3b5dbe6151d7b9b7345c22d0ea85ef06e48c3ed879ae14b03c110cde8c445e35",
+              "bytes": 2123,
+              "mode": 384
+            }
+          }
+        ]
+      },
+      {
+        "id": "A07",
+        "phases": [
+          {
+            "phase": "before",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/before/native.log",
+              "sha256": "202c0c3a5dc5e1cb4af382abb26e1b19bb3dd4f7236ade25980a1f428dc46184",
+              "bytes": 252,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port adapter refuses a noncallable selected main export [43.77ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 3 expect() calls\nRan 1 test across 1 file. [80.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/before/native.receipt.json",
+              "sha256": "260ba8f6624683dac2ba8f809ca253d7fdaf495671079782259787df7e6cae93",
+              "bytes": 1464,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/before/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ adapter\\ refuses\\ a\\ noncallable\\ selected\\ main\\ export$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:14:50.097Z",
+              "endedAt": "2026-11-18T01:14:50.195Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/before/native.log",
+                "sha256": "202c0c3a5dc5e1cb4af382abb26e1b19bb3dd4f7236ade25980a1f428dc46184",
+                "bytes": 252
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/before/native.validation.json",
+              "sha256": "f470322f785aed6df233e52e477ee61d1b52774e4e67ac0bdc9c2503356f1062",
+              "bytes": 2073,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "fault",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/fault/native.log",
+              "sha256": "9db60d66da10686247ed01b8ced8dc6dc2a4c83ee35d46fb22e6dedf1bcddc0f",
+              "bytes": 1051,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n146 | it('repository dev-port adapter refuses a noncallable selected main export', () => {\n147 |   const fixture = createFixture('export const main=7;');\n148 |   const child = executeAdapter(fixture);\n149 |   expect(child.signalCode).toBeUndefined();\n150 |   expect(child.exitCode).toBe(1);\n151 |   expect(child.stderr.toString()).toBe(\n                                        ^\nerror: expect(received).toBe(expected)\n\n- \"development ports: selected PUNI must export callable main; provision the reviewed current PUNI artifact\n+ \"development ports: selected installed PUNI could not complete; verify its reviewed provisioning and PUNI_EXECUTABLE\n  \"\n\n- Expected  - 1\n+ Received  + 1\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/development/adapter.test.ts:151:35)\n(fail) repository dev-port adapter refuses a noncallable selected main export [35.09ms]\n\n 0 pass\n 11 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [66.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/fault/native.receipt.json",
+              "sha256": "e73d756be0b7e6faba96cc977853df3e5aee4248a80393379c8a7be03702ec62",
+              "bytes": 1463,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/fault/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ adapter\\ refuses\\ a\\ noncallable\\ selected\\ main\\ export$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:15:26.366Z",
+              "endedAt": "2026-11-18T01:15:26.450Z",
+              "exitCode": 1,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/fault/native.log",
+                "sha256": "9db60d66da10686247ed01b8ced8dc6dc2a4c83ee35d46fb22e6dedf1bcddc0f",
+                "bytes": 1051
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/fault/native.validation.json",
+              "sha256": "b7170aa98bfaae69eaebf323d4b73bea646eb1bf2f6bf9ce96dce2302048fb61",
+              "bytes": 2071,
+              "mode": 384
+            }
+          },
+          {
+            "phase": "after",
+            "log": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/after/native.log",
+              "sha256": "ae6aaa8bd8252a5f7e0c82020baa1286d788382f377f229ed49d8099b92ac4ee",
+              "bytes": 252,
+              "mode": 384
+            },
+            "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/development/adapter.test.ts:\n(pass) repository dev-port adapter refuses a noncallable selected main export [32.59ms]\n\n 1 pass\n 11 filtered out\n 0 fail\n 3 expect() calls\nRan 1 test across 1 file. [65.00ms]\n",
+            "receipt": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/after/native.receipt.json",
+              "sha256": "e26deb4b540b348633d034ae1baab616a5c05728adc01e003a5ec10032270aa8",
+              "bytes": 1462,
+              "mode": 384
+            },
+            "native": {
+              "schema": "activation-protected-native-v1",
+              "prefix": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/after/native",
+              "command": {
+                "argv": [
+                  "/home/df/.bun/bin/bun",
+                  "test",
+                  "apps/puni/cli/src/development/adapter.test.ts",
+                  "--timeout=10000",
+                  "--test-name-pattern",
+                  "^repository\\ dev\\-port\\ adapter\\ refuses\\ a\\ noncallable\\ selected\\ main\\ export$"
+                ],
+                "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+                "deadlineMs": 180000
+              },
+              "environment": {
+                "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "HOME": "/home/df",
+                "TMPDIR": "/tmp",
+                "TZ": "UTC",
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "NODE_ENV": "test",
+                "NO_COLOR": "1",
+                "NX_DAEMON": "false",
+                "NX_ISOLATE_PLUGINS": "false"
+              },
+              "startedAt": "2026-11-18T01:15:51.928Z",
+              "endedAt": "2026-11-18T01:15:52.011Z",
+              "exitCode": 0,
+              "signal": null,
+              "originalObserved": true,
+              "launched": true,
+              "primary": null,
+              "cleanup": [],
+              "ownerState": "stopped-and-reaped",
+              "descriptorState": "closed",
+              "output": {
+                "state": "acquired",
+                "stdoutFd": 5,
+                "stderrFd": 5,
+                "sameNumericFd": true
+              },
+              "transcript": {
+                "state": "owned",
+                "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/after/native.log",
+                "sha256": "ae6aaa8bd8252a5f7e0c82020baa1286d788382f377f229ed49d8099b92ac4ee",
+                "bytes": 252
+              },
+              "settled": true
+            },
+            "validation": {
+              "path": "/tmp/puni-cli-dev-ports-adapter-effects-live-v1/A07/after/native.validation.json",
+              "sha256": "3f126bed4660369e321480d359989f2ed1f475b204305600ea45644f4015b651",
+              "bytes": 2070,
+              "mode": 384
+            }
+          }
+        ]
+      }
+    ],
+    "limits": [
+      "Seven selectors exercise five source effects.",
+      "A01 has no ready-file witness; status/output tails were unreached in its fault.",
+      "A02/A03 share one terminal effect; actual ready witnesses passed, later status/output tails were unreached.",
+      "A04/A05 share one native-stderr retention effect; independent stdout necessity/flush/cleanup is unproved.",
+      "A06 proves whole-condition status256 acceptance; other conjuncts unproved and combined output tail unreached.",
+      "A07 classification only: downstream Reflect.apply still refuses main7.",
+      "A06/A07 are native-only typed mutants, not passing compiler revisions.",
+      "All original outer processes exited normally, settled/reaped/closed; inner fixture deadline SIGKILL is separate.",
+      "No installed/default/full development-start or other guard closure."
+    ]
+  }
+}

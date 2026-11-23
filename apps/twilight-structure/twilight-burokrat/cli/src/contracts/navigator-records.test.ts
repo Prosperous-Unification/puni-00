@@ -120,13 +120,13 @@ describe('Navigator record kinds', () => {
       /planDocumentVersion/,
     );
     expect(() =>
-      decodeRecord('plan-reference', planReference({ planDocumentVersion: 12 })),
+      decodeRecord('plan-reference', planReference({ planDocumentVersion: 17 })),
     ).toThrow(/planDocumentVersion/);
   });
 
   // Proof: with 11 dropped from `planDocumentVersion`, the version-11 case threw on
   // `planDocumentVersion`; watched 2026-10-24.
-  test.each([6, 7, 8, 9, 10, 11])(
+  test.each([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])(
     'decodes a version-%s plan reference without rewriting its digest',
     (version) => {
       const record = planReference({ planDocumentVersion: version });
@@ -168,6 +168,7 @@ describe('Navigator record kinds', () => {
   test('the production validate command accepts both kinds', () => {
     const scratch = mkdtempSync(join(tmpdir(), 'navigator-records-'));
     try {
+      const childDiagnostics: string[] = [];
       const outputs = (['plan-reference', 'progress-receipt'] as const).map((kind) => {
         const path = join(scratch, `${kind}.json`);
         const record = kind === 'plan-reference' ? planReference() : progressReceipt();
@@ -184,9 +185,10 @@ describe('Navigator record kinds', () => {
           stdout: 'pipe',
           stderr: 'pipe',
         });
+        childDiagnostics.push(child.stderr.toString());
         return [child.exitCode, child.stdout.toString()];
       });
-      expect(outputs).toEqual([
+      expect(outputs, childDiagnostics.join('\n')).toEqual([
         [0, 'valid plan-reference\n'],
         [0, 'valid progress-receipt\n'],
       ]);

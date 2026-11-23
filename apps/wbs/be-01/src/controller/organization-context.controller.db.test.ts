@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
+import { dirname } from 'node:path';
 
 import { httpShapes } from '@wbs/contracts';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
@@ -9,14 +11,42 @@ import { ORGANIZATION_ROUTE_INVENTORY } from '../testing/organization-route-inve
 import { REQUEST_BODIES, REQUEST_QUERIES } from '../testing/route-requests';
 
 let harness: OrganizationHarness;
-afterEach(() => harness.closeComposed());
+let closeAcquired: (() => Promise<void>) | undefined;
+afterEach(async () => {
+  const close = closeAcquired;
+  closeAcquired = undefined;
+  if (close !== undefined) await close();
+});
 
+/** Current empty catalogue bootstrap; an acquisition failure retains its namespace and has no acquired harness to close. */
 async function open(activate = true) {
-  harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+  const custody = { hasUnknownOwner: false };
+  let namespace: string | undefined;
+  let acquired: OrganizationHarness;
+  try {
+    acquired = OrganizationHarness.openComposedWith({
+      sessionBinding: true,
+      migrate: (path) => {
+        namespace = dirname(path);
+        migrateEmptyCatalogueFixture({ path, directory: namespace, reportedAt: 100 }, custody);
+      },
+    });
+  } catch (cause: unknown) {
+    throw new Error(
+      'organization context fixture acquisition failed; retain ' +
+        String(namespace) +
+        '; lower owner unknown=' +
+        String(custody.hasUnknownOwner),
+      { cause },
+    );
+  }
+  harness = acquired;
+  let closing: Promise<void> | undefined;
+  closeAcquired = () => (closing ??= acquired.closeComposed());
   await harness.register('ada');
   for (const organizationId of ['org-a', 'org-b']) {
     harness.organization(organizationId);
-    harness.member(organizationId, 'ada', 'super_admin');
+    harness.member(organizationId, 'ada', 'super_admin', ['org-super-admin']);
   }
   if (activate) harness.activate();
 }
@@ -287,7 +317,8 @@ test('discovery keeps zero and one membership unselected', async () => {
   await open();
   await harness.register('grace');
   for (const hasMembership of [false, true]) {
-    if (hasMembership) harness.member('org-a', 'grace', 'member');
+    if (hasMembership)
+      harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     const response = await discover(undefined, harness.token('grace'));
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: 'no_active_organization' });

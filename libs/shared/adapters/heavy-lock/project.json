@@ -1,0 +1,44 @@
+{
+  "name": "shared-heavy-lock",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/adapters/heavy-lock/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:adapter", "runtime:bun", "ring:adapter", "product:shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/heavy-lock/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/out-tsc"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/heavy-lock/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/heavy-lock/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+        "cwd": "libs/shared/adapters/heavy-lock"
+      },
+      "inputs": ["default", "^production", "{workspaceRoot}/bin/heavy-lock-lib.sh"]
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+        "cwd": "libs/shared/adapters/heavy-lock"
+      },
+      "inputs": ["default", "^production", "{workspaceRoot}/bin/heavy-lock-lib.sh"]
+    }
+  }
+}

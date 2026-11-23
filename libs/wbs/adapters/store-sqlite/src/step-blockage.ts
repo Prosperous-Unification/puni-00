@@ -4,16 +4,17 @@ import type {
   StoredStepBlockage,
   WriteStamp,
 } from '@wbs/core';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { step, stepBlockage, workItem } from './schema';
+import { stepBlockage } from './schema';
+import { readSqliteBlockagesIn } from './sparse-step-reads';
 import { translateStepBlockageFailure } from './step-blockage-activation';
-import { writingStep } from './step-reference';
+import { readSqliteStepWriteIn } from './step-write';
 
 /** Validates the external storage timestamp without coercion or rounding. */
 function assertBlockedAt(blockedAt: number): void {
@@ -23,9 +24,9 @@ function assertBlockedAt(blockedAt: number): void {
 }
 
 /**
- * Pair-keyed audited blockage, ordered by owner and project step position.
+ * Pair-keyed audited blockage, ordered by each actual leaf's current SC18 steps.
  * Left joins preserve malformed references for validation. A fact with no owner
- * cannot be safely scoped, so every full project read refuses that orphan.
+ * cannot be safely scoped, so every full work package read refuses that orphan.
  * Original blocked time survives moves; audit/revisions move with the write.
  *
  * @throws for invalid stored references, parent ownership or timestamps, and
@@ -37,71 +38,56 @@ export class StepBlockageRepository implements StepBlockageStore {
     private readonly gate: Gate,
   ) {}
 
-  listByProject(projectId: string): Promise<StoredStepBlockage[]> {
-    return this.read(projectId);
+  listByWorkPackage(workPackageId: string): Promise<StoredStepBlockage[]> {
+    return this.read(workPackageId);
   }
 
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredStepBlockage[]> {
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredStepBlockage[]> {
     if (ids.length === 0) return Promise.resolve([]);
-    return this.read(projectId, ids);
+    return this.read(workPackageId, ids);
   }
 
-  private async read(projectId: string, ids?: readonly string[]): Promise<StoredStepBlockage[]> {
-    const rows = await this.db
-      .select({
-        workItemId: stepBlockage.workItemId,
-        stepId: stepBlockage.stepId,
-        blockedAt: stepBlockage.blockedAt,
-        ownerProject: workItem.projectId,
-        stepProject: step.projectId,
-        hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepBlockage.workItemId})`,
-      })
-      .from(stepBlockage)
-      .leftJoin(workItem, eq(workItem.id, stepBlockage.workItemId))
-      .leftJoin(step, eq(step.id, stepBlockage.stepId))
-      .where(
-        and(
-          or(eq(workItem.projectId, projectId), isNull(workItem.id)),
-          ids === undefined ? undefined : inArray(stepBlockage.workItemId, [...ids]),
-        ),
-      )
-      .orderBy(stepBlockage.workItemId, step.position, stepBlockage.stepId);
-    for (const row of rows) {
-      // Proof: owner check removed; missing trusted owner read negative failed; watched 2026-10-13.
-      if (row.ownerProject === null)
-        throw new Error('step blockage has an invalid work-item reference');
-      // Proof: step check removed; corrupted/missing step read negatives failed; watched 2026-10-13.
-      if (row.stepProject !== projectId)
-        throw new Error('step blockage has an invalid step reference');
-      // Proof: leaf check removed; corrupted parent-owner read negative failed; watched 2026-10-13.
-      if (row.hasChildren !== 0) throw new Error('step blockage owner is not a leaf');
-      // Proof: read validation call removed; malformed stored timestamp negative failed; watched 2026-10-13.
-      assertBlockedAt(row.blockedAt);
-    }
-    return rows.map(({ workItemId, stepId, blockedAt }) => ({ workItemId, stepId, blockedAt }));
+  /** Current fact and metadata queries share one actual supplied native transaction. */
+  private async read(
+    workPackageId: string,
+    ids?: readonly string[],
+  ): Promise<StoredStepBlockage[]> {
+    const retained = ids === undefined ? null : [...ids];
+    if (retained !== null && retained.length === 0) return [];
+    return Promise.resolve(
+      this.db.transaction((snapshot) => readSqliteBlockagesIn(snapshot, workPackageId, retained)),
+    );
   }
 
   async set(blockage: StoredStepBlockage, stamp: WriteStamp): Promise<StepWriteOutcome> {
+    const kept = { ...blockage };
+    const act = { ...stamp };
     // Proof: write validation call removed; fractional write negative failed; watched 2026-10-13.
-    assertBlockedAt(blockage.blockedAt);
-    return writingStep(this.db, blockage.stepId, () =>
-      this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((transaction) => {
-          transaction
-            .insert(stepBlockage)
-            .values({ ...blockage, ...auditOnCreate(stamp) })
-            .onConflictDoUpdate({
-              target: [stepBlockage.workItemId, stepBlockage.stepId],
-              set: { blockedAt: blockage.blockedAt, ...auditOnUpdate(stamp) },
-            })
-            .run();
-          bumpWorkItems(transaction, [blockage.workItemId], stamp);
-        });
-      }),
-    ).catch((cause: unknown) => {
+    assertBlockedAt(kept.blockedAt);
+    try {
+      return await this.gate.enter(() =>
+        Promise.resolve(
+          this.db.transaction((transaction): StepWriteOutcome => {
+            const decision = readSqliteStepWriteIn(transaction, kept.workItemId, kept.stepId);
+            // Proof: bypassing the decision made the Source refusal test throw the
+            // native work package mismatch instead of returning unknown_step.
+            if (decision.kind !== 'resolved') return decision.kind;
+            transaction
+              .insert(stepBlockage)
+              .values({ ...kept, ...auditOnCreate(act) })
+              .onConflictDoUpdate({
+                target: [stepBlockage.workItemId, stepBlockage.stepId],
+                set: { blockedAt: kept.blockedAt, ...auditOnUpdate(act) },
+              })
+              .run();
+            bumpWorkItems(transaction, [kept.workItemId], act);
+            return 'written';
+          }),
+        ),
+      );
+    } catch (cause: unknown) {
       throw translateStepBlockageFailure(cause);
-    });
+    }
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {

@@ -1,5 +1,6 @@
 import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
 
+import type { OrganizationPrincipal } from './organization-access';
 import type { AuditedAct } from './organization-audit';
 
 /** How coarse `last_used_at` is (`wbs-machine-credentials` A13): one write per credential per minute. */
@@ -162,7 +163,7 @@ export interface MachineCredentialAdministration {
    */
   list(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     filter: { readonly personId?: string; readonly includeRevoked: boolean },
     at: number,
   ): Promise<readonly MachineCredentialSummary[] | MachineCredentialActorRefusal>;
@@ -176,7 +177,7 @@ export interface MachineCredentialAdministration {
    */
   createApiKey(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     draft: ApiKeyDraft,
     act: AuditedAct,
   ): Promise<
@@ -201,7 +202,7 @@ export interface MachineCredentialAdministration {
    */
   createOidc(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     draft: OidcCredentialDraft,
     act: AuditedAct,
   ): Promise<
@@ -226,7 +227,7 @@ export interface MachineCredentialAdministration {
    */
   rotateApiKey(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     credentialId: string,
     successor: { readonly secretId: string; readonly digest: string },
     act: AuditedAct,
@@ -246,10 +247,10 @@ export interface MachineCredentialAdministration {
    */
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: OrganizationPrincipal,
     credentialId: string,
     act: AuditedAct,
-  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found'>;
+  ): Promise<'revoked' | MachineCredentialActorRefusal | 'not_found' | 'last_super_admin'>;
 }
 
 /**
@@ -290,7 +291,7 @@ export type ConsentMintRefusal = 'inactive' | 'not_a_member' | 'person_not_bound
  * now, already `revoked` before, or `absent` (never minted, or removed with
  * its person). Every outcome lets mcp-01 forget the report.
  */
-export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent';
+export type ConsentEndOutcome = 'revoked' | 'already_revoked' | 'absent' | 'last_super_admin';
 
 /**
  * The `mcp_consent` source (`wbs-machine-credentials` A8, A20): what be-01's

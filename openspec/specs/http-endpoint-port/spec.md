@@ -47,8 +47,8 @@ The Elysia adapter SHALL apply each endpoint's policies in order before body par
 
 #### Scenario: Cookie origin cannot authorize a foreign write
 
-- **WHEN** an unsafe project request carries a session cookie from a disallowed origin
-- **THEN** it is refused before any project write
+- **WHEN** an unsafe work package request carries a session cookie from a disallowed origin
+- **THEN** it is refused before any work package write
 
 #### Scenario: Store failure is not an invalid token
 
@@ -156,12 +156,12 @@ The callback SHALL preserve arrived method and raw query cardinality. It MUST re
 
 ### Requirement: Marker endpoints preserve annotation identity
 
-Calendar marker shapes SHALL retain separate project-scoped endpoints, markerId wire identity, field-specific validation/refusals and exact-one-field PATCH semantics. They MUST preserve marker-only refresh, absolute date text and total ordering without adding markers to work-item scheduling, saved-plan bodies, revisions or command history.
+Calendar marker shapes SHALL retain separate endpoints scoped to work packages, markerId wire identity, field-specific validation/refusals and exact-one-field PATCH semantics. They MUST preserve marker-only refresh, absolute date text and total ordering without adding markers to work-item scheduling, saved-plan bodies, revisions or command history.
 
-#### Scenario: Marker body remains distinct from project path
+#### Scenario: Marker body remains distinct from work package path
 
 - **WHEN** MCP derives a marker create tool
-- **THEN** project id and optional markerId remain separate inputs without a flattened-name collision
+- **THEN** work package id and optional markerId remain separate inputs without a flattened-name collision
 
 #### Scenario: Strict PATCH preserves semantic validation
 

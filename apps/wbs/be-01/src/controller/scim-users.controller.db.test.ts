@@ -91,7 +91,7 @@ describe('POST /scim/v2/Users', () => {
         .query('SELECT * FROM organization_membership WHERE user_id = ?')
         .all(h.userId('carol')),
     ).toEqual([]);
-    expect(await h.call('carol', 'GET', '/api/projects')).toEqual({
+    expect(await h.call('carol', 'GET', '/api/work-packages')).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });

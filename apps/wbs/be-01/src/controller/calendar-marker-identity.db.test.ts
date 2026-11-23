@@ -1,14 +1,22 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { readFileSync } from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -16,6 +24,7 @@ import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -31,13 +40,12 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
@@ -45,6 +53,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -62,15 +71,15 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** The day the seeded plan starts on — a Monday, so the span opens on a workday. */
 const START_DATE = '2026-08-17';
@@ -95,7 +104,7 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
  * **A marker moves nothing in the canonical schedule projection** — task 5.1.
  *
  * The projection compared here is the **whole** `GET
- * /api/projects/:id/work-items` body, not an enumerated list of
+ * /api/work-packages/:id/work-items` body, not an enumerated list of
  * schedule-bearing fields. Rounds 3 and 4 of the review each named such a list
  * and each list was short: the round-4 answer carried every
  * `workItems[].schedule` and the slices and still omitted `workItems[].dates`
@@ -104,13 +113,13 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
  * moved only the calendar would have passed — and still omitted the scheduling
  * inputs the same read returns (`teamCapacities`, `priorityBands`,
  * `estimateMethod`, `pertWeights`, `estimateRounding`, `depReach`, `startDate`
- * and `projectRevision`). A list maintained against a growing payload is short
+ * and `workPackageRevision`). A list maintained against a growing payload is short
  * again at the next field. So: deep-equal the entire body.
  *
  * **The comparison excludes nothing, and that is a correction to the task.**
  * Task 5.1 specifies the body *minus* `seq`, justified by "a marker mutation
  * advances it by design". It does not, today: `CalendarMarkerService` is
- * constructed from `{ projects, markers, clock }` and holds no `Broadcaster`
+ * constructed from `{ workPackages, markers, clock }` and holds no `Broadcaster`
  * at all, so no marker write reaches `broadcast.latestSeq` and `seq` cannot
  * move across the two captures. Deleting it now would therefore delete a
  * **stationary** field — which is strictly weaker than comparing it, and is the
@@ -154,48 +163,61 @@ describe('the schedule identity guarantee', () => {
       }),
     );
 
-  beforeEach(() => {
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-marker-identity-'));
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     statements.length = 0;
     const db = openDrizzle(dbPath, {
       logQuery(query) {
         statements.push(query);
       },
     });
+    const users = new UserRepository(db, OPEN);
+    const author = await users.create(
+      { id: 'calendar-author', username: 'calendar-author', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'calendar-author' },
+    );
+    if (author === null) throw new Error('calendar catalogue author already exists');
+    await bindDevQaFixture(
+      new StepCatalogueRepository(db, OPEN, 'owned'),
+      'http-fixture-legacy',
+      PROJECT_ID,
+      { at: 1, by: author.id },
+    );
     const broadcast = recordingBroadcaster();
 
-    const projects = new ProjectRepository(db, OPEN);
+    const workPackages = new WorkPackageRepository(db, OPEN);
 
     const writing = {
-      projects: new ProjectService({
-        dependencyContext: sqliteDependencyContext(db, projects),
+      workPackages: new WorkPackageService({
+        dependencyContext: sqliteDependencyContext(db, workPackages),
         clock: testClock,
-        projects,
+        workPackages,
         broadcast,
       }),
       steps: new StepService({
-        dependencyContext: sqliteDependencyContext(db, projects),
+        dependencyContext: sqliteDependencyContext(db, workPackages),
         clock: testClock,
-        projects,
+        workPackages,
         steps: new StepRepository(db, OPEN),
         broadcast,
       }),
       workItems: new WorkItemService({
         dependencyContext: createLocalDependencyContext({
-          projects: projects,
+          workPackages: workPackages,
           workItems: new WorkItemRepository(db, OPEN),
           estimates: new EstimateRepository(db, OPEN),
           dependencies: new DependencyRepository(db, OPEN),
           typedDependencies: new TypedDependencyRepository(db, OPEN),
         }),
         externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),
-        projects,
+        workPackages,
         estimates: new EstimateRepository(db, OPEN),
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
@@ -225,13 +247,21 @@ describe('the schedule identity guarantee', () => {
       // reason.
       stepParallels: testStepParallels(),
       calendarMarkers: new CalendarMarkerService({
-        projects,
+        workPackages,
         markers: new CalendarMarkerRepository(db, OPEN),
         clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
       }),
     };
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: new SqliteWorkPackageObservation({
+        currentCapture: refusingSavedCurrentCapture,
+        openConnection: () => openPackageObservationConnection(dbPath),
+        activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+        now: () => testClock.now(),
+      }),
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -241,7 +271,8 @@ describe('the schedule identity guarantee', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -250,7 +281,7 @@ describe('the schedule identity guarantee', () => {
       appOrigin: 'http://localhost',
       auth: new AuthService({
         clock: testClock,
-        users: new UserRepository(db, OPEN),
+        users,
         tokens: joseTokenCodec(TEST_JWT_KEY),
         passwords: bunPasswordHasher,
       }),
@@ -281,8 +312,8 @@ describe('the schedule identity guarantee', () => {
   }
 
   /** One plan-command batch of one, the only way to write to a plan. */
-  async function command(token: string, projectId: string, step: object): Promise<string> {
-    const res = await as(`/api/projects/${projectId}/commands`, token, {
+  async function command(token: string, workPackageId: string, step: object): Promise<string> {
+    const res = await as(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({ commands: [step] }),
     });
@@ -293,59 +324,73 @@ describe('the schedule identity guarantee', () => {
   }
 
   /** The whole projection, as the route answers it. */
-  async function projection(token: string, projectId: string): Promise<Record<string, unknown>> {
-    const res = await as(`/api/projects/${projectId}/work-items`, token);
+  async function projection(
+    token: string,
+    workPackageId: string,
+  ): Promise<Record<string, unknown>> {
+    const res = await as(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(res.status).toBe(200);
     return (await res.json()) as Record<string, unknown>;
   }
 
   /**
-   * A project on the calendar with two estimated, dependent rows — so the
+   * A work package on the calendar with two estimated, dependent rows — so the
    * projection under comparison carries real spans, real dates and a real
    * critical path rather than the degenerate `UNSCHEDULED` shape an
    * unestimated plan returns.
    */
   async function seed(token: string): Promise<string> {
-    const created = await as('/api/projects', token, {
+    const created = await as('/api/work-packages', token, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Rewire the shed' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
     });
-    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    const workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage
+      .id;
 
-    const dated = await as(`/api/projects/${projectId}`, token, {
+    const dated = await as(`/api/work-packages/${workPackageId}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ startDate: START_DATE }),
     });
     expect(dated.status).toBe(200);
 
-    // The step ids are the project's own, read off the payload the route
+    // The step ids are the work package's own, read off the payload the route
     // already answers rather than invented — `setEstimate` refuses an
     // `unknown_step`, so a guessed id would fail the seed rather than the test.
-    const before = await projection(token, projectId);
+    const before = await projection(token, workPackageId);
     const stepId = (before['steps'] as { id: string }[])[0]?.id ?? '';
     expect(stepId).not.toBe('');
 
-    const strip = await command(token, projectId, {
+    const strip = await command(token, workPackageId, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
       name: 'Strip',
     });
-    const sand = await command(token, projectId, {
+    const sand = await command(token, workPackageId, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
       name: 'Sand',
     });
-    await command(token, projectId, { kind: 'setEstimate', workItemId: strip, stepId, days: DAYS });
-    await command(token, projectId, { kind: 'setEstimate', workItemId: sand, stepId, days: DAYS });
-    await command(token, projectId, {
+    await command(token, workPackageId, {
+      kind: 'setEstimate',
+      workItemId: strip,
+      stepId,
+      days: DAYS,
+    });
+    await command(token, workPackageId, {
+      kind: 'setEstimate',
+      workItemId: sand,
+      stepId,
+      days: DAYS,
+    });
+    await command(token, workPackageId, {
       kind: 'addDependency',
       workItemId: sand,
       predecessorId: strip,
     });
 
-    return projectId;
+    return workPackageId;
   }
 
   /**
@@ -443,9 +488,9 @@ describe('the schedule identity guarantee', () => {
    */
   it('five markers move nothing in the whole work-items projection', async () => {
     const token = await register('owner');
-    const projectId = await seed(token);
+    const workPackageId = await seed(token);
 
-    const before = await projection(token, projectId);
+    const before = await projection(token, workPackageId);
     // The fixture is only a fixture if the plan it captures is scheduled: an
     // all-`UNSCHEDULED` payload is one a marker fold could leave alone for
     // free, so the precondition is asserted rather than assumed.
@@ -453,7 +498,7 @@ describe('the schedule identity guarantee', () => {
     expect(before['slices'] as unknown[]).not.toHaveLength(0);
 
     for (const [index, date] of MARKER_DATES.entries()) {
-      const res = await as(`/api/projects/${projectId}/calendar-markers`, token, {
+      const res = await as(`/api/work-packages/${workPackageId}/calendar-markers`, token, {
         method: 'POST',
         body: JSON.stringify({ name: `Marker ${String(index)}`, date }),
       });
@@ -461,13 +506,13 @@ describe('the schedule identity guarantee', () => {
     }
 
     // The markers really are in the store — otherwise "nothing moved" is a
-    // claim about a project with no markers on it.
-    const listed = await as(`/api/projects/${projectId}/calendar-markers`, token);
+    // claim about a work package with no markers on it.
+    const listed = await as(`/api/work-packages/${workPackageId}/calendar-markers`, token);
     expect(((await listed.json()) as { markers: unknown[] }).markers).toHaveLength(
       MARKER_DATES.length,
     );
 
-    const after = await projection(token, projectId);
+    const after = await projection(token, workPackageId);
 
     expect(after).toEqual(before);
   });
@@ -476,20 +521,14 @@ describe('the schedule identity guarantee', () => {
    * **The scheduler seam is free of markers, at the inputs** — task 5.1a(c),
    * the runtime half, and the one that closes the hole (a) and (b) leave open.
    *
-   * The oracle is the SQL log, not the payload: the case above compares two
-   * captures, and two equal captures cannot prove a path is absent, because a
-   * fold that happens to be a no-op on this fixture passes it. This one asserts
-   * the read never happened at all.
-   *
-   * The plan's own table is asserted **present** before the marker table is
-   * asserted absent. Without that half, an app that answered nothing — a broken
-   * route, an empty project, a connection this file is not watching — would
-   * pass an assertion whose whole content is "the log named no marker".
+   * The SQL log must include work-item rows and the single settings snapshot
+   * query that captures scoped markers. Any further marker lookup fails here,
+   * even if it leaves the resulting schedule unchanged on this fixture.
    *
    * `Proof:` both injections read the table through `WorkItemRepository` — the
    * one repository `tree()` already holds — and both were caught by the same
    * logged statement,
-   * `select "date" from "calendar_marker" where "calendar_marker"."project_id" = ?`.
+   * `select "date" from "calendar_marker" where "calendar_marker"."work_package_id" = ?`.
    * (iii) is the **ordering** input: the latest marker date written as a
    * `notBefore` floor on the seeded `Sand` row, which moved its `latestStart`
    * 0 → 2. (iv) is the **resource** input: the same read folded into `slotsOf`
@@ -499,12 +538,12 @@ describe('the schedule identity guarantee', () => {
    * two injections and not one. Each ran 1 pass / 2 fail with the case above,
    * baseline 3 / 0 restored after both; watched 2026-09-05.
    */
-  it('reads no calendar_marker row while answering the work-items projection', async () => {
+  it('reads markers only through the settings snapshot in the work-items projection', async () => {
     const token = await register('owner');
-    const projectId = await seed(token);
+    const workPackageId = await seed(token);
 
     for (const [index, date] of MARKER_DATES.entries()) {
-      const res = await as(`/api/projects/${projectId}/calendar-markers`, token, {
+      const res = await as(`/api/work-packages/${workPackageId}/calendar-markers`, token, {
         method: 'POST',
         body: JSON.stringify({ name: `Marker ${String(index)}`, date }),
       });
@@ -515,10 +554,14 @@ describe('the schedule identity guarantee', () => {
     // to `calendar_marker` by design, so what the log holds at the assertion
     // has to be exactly what the projection read issued and nothing earlier.
     statements.length = 0;
-    const body = await projection(token, projectId);
+    const body = await projection(token, workPackageId);
     expect((body['workItems'] as unknown[]).length).toBe(2);
 
     expect(statements.some((each) => each.includes('work_item'))).toBe(true);
-    expect(statements.filter((each) => each.includes('calendar_marker'))).toEqual([]);
+    const markerReads = statements.filter((statement) => statement.includes('calendar_marker'));
+    expect(markerReads).toHaveLength(1);
+    expect(markerReads.at(0)).toMatch(
+      /FROM calendar_marker marker\s+JOIN json_each\(\?\) selected/,
+    );
   });
 });

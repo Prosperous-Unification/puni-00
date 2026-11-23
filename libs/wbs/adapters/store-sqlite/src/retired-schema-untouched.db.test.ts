@@ -7,6 +7,9 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 /**
  * R2-6's non-destructive compatibility stage, watched red.
@@ -33,15 +36,16 @@ import { rollbackTo } from './migrate-down';
  * and the five-rule version-overlap protocol this file enforces.
  */
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const HISTORICAL_RELEASE = '20261103110000_add_initial_access_offers';
 
 /** The migration immediately before the service split — the baseline the
  * "down then up" case rolls back to. */
 const BEFORE_SERVICE = '20260819120000_add_tag';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb(): { directory: string; path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-retired-schema-'));
   return {
+    directory: dir,
     path: join(dir, 'test.db'),
     cleanup: (): void => {
       rmSync(dir, { recursive: true, force: true });
@@ -103,22 +107,25 @@ function scalarOf(dbPath: string, sql: string): unknown {
 
 /** Seed the rows every case here needs: a work item carrying both a team scalar
  * and a service scalar, plus their parents. */
-function seed(dbPath: string): void {
+function seed(dbPath: string, schema: 'current' | 'historical' = 'current'): void {
+  if (schema === 'current') seedLegacyPackageParent(dbPath, 'fixture-org', 'fixture-project');
   const sqlite = openDatabase(dbPath);
   try {
     sqlite.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
     );
     sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-        " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
+      schema === 'current'
+        ? "INSERT INTO work_package (id, project_id, name, created_by, created_at) VALUES ('p','fixture-project','Shed','u',1)"
+        : "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p','Shed','u',1)",
     );
     sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
     sqlite.run("INSERT INTO service_team (id, name) VALUES ('t2', 'Mobile')");
     sqlite.run("INSERT INTO service (id, name) VALUES ('s1', 'Payments')");
+    const parentColumn = schema === 'current' ? 'work_package_id' : 'project_id';
     sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision, service_team_id, service_id)' +
-        " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0, 't1', 's1')",
+      `INSERT INTO work_item (id, ${parentColumn}, parent_id, position, name, notes, priority, max_parallel, revision, service_team_id, service_id)
+       VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0, 't1', 's1')`,
     );
   } finally {
     sqlite.close();
@@ -129,7 +136,7 @@ describe('the retired schema, across the full migration chain', () => {
   it('keeps the service_team table, its retired size column, and its name', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      migrateEmptyCatalogueFixture({ ...db, reportedAt: 1 }, { hasUnknownOwner: false });
 
       const tables = tableNames(db.path);
       expect(tables).toContain('service_team');
@@ -148,7 +155,7 @@ describe('the retired schema, across the full migration chain', () => {
   it('keeps work_item.service_id as a column that nulls, not cascades, on a service delete', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      migrateEmptyCatalogueFixture({ ...db, reportedAt: 1 }, { hasUnknownOwner: false });
       seed(db.path);
 
       expect(columnsOf(db.path, 'work_item')).toContain('service_id');
@@ -172,7 +179,7 @@ describe('the retired schema, across the full migration chain', () => {
   it('keeps work_item_team and work_item_service with cascading foreign keys', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      migrateEmptyCatalogueFixture({ ...db, reportedAt: 1 }, { hasUnknownOwner: false });
       seed(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -201,7 +208,7 @@ describe('the retired schema, across the full migration chain', () => {
       const c2 = openDatabase(db.path);
       try {
         c2.run(
-          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision, service_id)' +
+          'INSERT INTO work_item (id, work_package_id, parent_id, position, name, notes, priority, max_parallel, revision, service_id)' +
             " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0, 's1')",
         );
         c2.run("INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w1', 't1')");
@@ -234,7 +241,7 @@ describe('the retired schema, across the full migration chain', () => {
   it('round-trips a team change through the dual-write scalar and the team set', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      migrateEmptyCatalogueFixture({ ...db, reportedAt: 1 }, { hasUnknownOwner: false });
       seed(db.path);
 
       const sqlite = openDatabase(db.path);
@@ -288,8 +295,9 @@ describe('the retired schema, across the full migration chain', () => {
   it('survives rollback and restart with the legacy elements intact', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seed(db.path);
+      const migrations = copyRecoveryPrefix(db.directory, HISTORICAL_RELEASE);
+      runMigrations(db.path, migrations);
+      seed(db.path, 'historical');
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run("INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w1', 't1')");
@@ -299,14 +307,14 @@ describe('the retired schema, across the full migration chain', () => {
 
       // Down: roll back the service split and everything after it. The team
       // elements predate the split and must survive the down untouched.
-      const reversed = rollbackTo(db.path, FOLDER, BEFORE_SERVICE);
+      const reversed = rollbackTo(db.path, migrations, BEFORE_SERVICE);
       expect(reversed.length).toBeGreaterThan(0);
       expect(tableNames(db.path)).toContain('service_team');
       expect(columnsOf(db.path, 'service_team')).toContain('size');
       expect(columnsOf(db.path, 'work_item')).toContain('service_team_id');
 
-      // Up again: the full chain re-applies and the legacy elements return.
-      runMigrations(db.path, FOLDER);
+      // Up again: the historical chain re-applies and the legacy elements return.
+      runMigrations(db.path, migrations);
       expect(columnsOf(db.path, 'work_item')).toContain('service_id');
       expect(tableNames(db.path)).toContain('work_item_service');
 
@@ -321,7 +329,7 @@ describe('the retired schema, across the full migration chain', () => {
 
       // Restart: re-running on a migrated file is a no-op (idempotent).
       expect(() => {
-        runMigrations(db.path, FOLDER);
+        runMigrations(db.path, migrations);
       }).not.toThrow();
       expect(columnsOf(db.path, 'service_team')).toContain('size');
       expect(columnsOf(db.path, 'work_item')).toContain('service_id');

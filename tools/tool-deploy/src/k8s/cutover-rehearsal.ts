@@ -357,10 +357,10 @@ async function upOld(images: Record<Tier, string>): Promise<void> {
   await sh(['docker', 'exec', container('be-01'), 'bun', 'run', 'src/migrate-cli.ts']);
   await sh(['docker', 'restart', container('be-01')]);
   for (let attempt = 0; ; attempt++) {
-    const status = await edge('GET', '/api/projects').catch(() => 0);
+    const status = await edge('GET', '/api/work-packages').catch(() => 0);
     if (status === 200) break;
     if (attempt > 60)
-      throw new Error(`old edge never served /api/projects (last ${String(status)})`);
+      throw new Error(`old edge never served /api/work-packages (last ${String(status)})`);
     await Bun.sleep(1000);
   }
 }
@@ -861,7 +861,7 @@ async function main(): Promise<void> {
     await upOld({ be: be.host, gw: gw.host, fe: fe.host });
     for (const name of KNOWN) {
       assert(
-        (await edge('POST', '/api/projects', JSON.stringify({ name }))) === 200,
+        (await edge('POST', '/api/work-packages', JSON.stringify({ name }))) === 200,
         `old edge accepted ${name}`,
       );
     }
@@ -879,10 +879,10 @@ async function main(): Promise<void> {
       ),
     );
     assert(
-      (await edge('POST', '/api/projects', JSON.stringify({ name: 'f11-too-late' }))) === 503,
+      (await edge('POST', '/api/work-packages', JSON.stringify({ name: 'f11-too-late' }))) === 503,
       'fenced edge refuses a write with 503',
     );
-    assert((await edge('GET', '/api/projects')) === 200, 'fenced edge still serves reads');
+    assert((await edge('GET', '/api/work-packages')) === 200, 'fenced edge still serves reads');
     assert((await edge('GET', '/ws')) === 503, 'fenced edge refuses WebSockets');
 
     phase('drain-gateway');
@@ -918,7 +918,10 @@ async function main(): Promise<void> {
       exported.migrations.at(-1) === statusBefore.trim(),
       `newest exported migration ${String(exported.migrations.at(-1))} is what the old side's status CLI reported`,
     );
-    assert(exported.counts['project'] === KNOWN.length, 'exactly the known projects were exported');
+    assert(
+      exported.counts['work_package'] === KNOWN.length,
+      'exactly the known work packages were exported',
+    );
 
     const exportFile = join(state, 'export', 'wbs-export.sqlite');
     log('negative: restore without suspending Flux while the source already names the release');
@@ -1083,7 +1086,7 @@ async function main(): Promise<void> {
       namespaces: NAMESPACES,
       stateDir: state,
       overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local'),
-      anonymousProjectsStatus: 200 as const,
+      anonymousWorkPackagesStatus: 200 as const,
       rolloutTimeoutSeconds: 120,
       jobTimeoutSeconds: 300,
       drainTimeoutMs: 5000,
@@ -1173,8 +1176,8 @@ async function main(): Promise<void> {
       c1,
     );
     await kubectlEffects(settings).smoke('f11-cutover', identity);
-    const listed = await backendGet('/api/projects');
-    assert(listed.status === 200, `GET /api/projects with Host: ${SITE} answers 200`);
+    const listed = await backendGet('/api/work-packages');
+    assert(listed.status === 200, `GET /api/work-packages with Host: ${SITE} answers 200`);
     for (const name of KNOWN)
       assert(listed.body.includes(name), `known row ${name} is served by k3s`);
 
@@ -1276,7 +1279,7 @@ async function main(): Promise<void> {
       promoted !== null && promoted.images.backend === be2.cluster,
       'the cluster runs the F8 release',
     );
-    const afterF8 = await backendGet('/api/projects');
+    const afterF8 = await backendGet('/api/work-packages');
     for (const name of KNOWN)
       assert(afterF8.body.includes(name), `known row ${name} survived the F8 release`);
     assert(
@@ -1310,7 +1313,8 @@ async function main(): Promise<void> {
       'switch is DNS in production (plan-only, docs/infra/cutover-plan.md); here the old edge stays fenced',
     );
     assert(
-      (await edge('POST', '/api/projects', JSON.stringify({ name: 'f11-after-switch' }))) === 503,
+      (await edge('POST', '/api/work-packages', JSON.stringify({ name: 'f11-after-switch' }))) ===
+        503,
       'old edge still refuses writes after the switch',
     );
 
@@ -1320,12 +1324,17 @@ async function main(): Promise<void> {
     await sh(['docker', 'start', container('be-01')]);
     await sh(['docker', 'start', container('gw-01')]);
     await reloadEdge(normalSite());
-    for (let attempt = 0; (await edge('GET', '/api/projects').catch(() => 0)) !== 200; attempt++) {
+    for (
+      let attempt = 0;
+      (await edge('GET', '/api/work-packages').catch(() => 0)) !== 200;
+      attempt++
+    ) {
       if (attempt > 60) throw new Error('old side did not come back');
       await Bun.sleep(1000);
     }
     assert(
-      (await edge('POST', '/api/projects', JSON.stringify({ name: 'f11-rolled-back' }))) === 200,
+      (await edge('POST', '/api/work-packages', JSON.stringify({ name: 'f11-rolled-back' }))) ===
+        200,
       'unfenced old side accepts writes again',
     );
     const statusAfter = await oldMigrationStatus();

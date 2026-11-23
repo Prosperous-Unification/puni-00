@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
@@ -14,7 +14,7 @@ import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
 
-/** Give each generation and then each project sweep its own borrowed source turn. */
+/** Give each generation and then each work package sweep its own borrowed source turn. */
 export function createOptimizationReconciliation(
   db: SqliteSource['db'],
   gate: SqliteSource['gate'],
@@ -41,17 +41,19 @@ export function createOptimizationReconciliation(
         // owner refusal into an untyped property-access failure.
         if (capture?.resolveLifecycleOwner === undefined)
           throw new Error('reconciliation lacks borrowed ownership and capture');
-        const owner = await capture.resolveLifecycleOwner(target.projectId);
+        const owner = await capture.resolveLifecycleOwner(target.workPackageId);
         // Proof: omitting the old persisted capture let startup remove
         // populated A while B received no durable old-topology event.
         const before = owner.kind === 'scoped' ? await capture.capture(owner.organizationId) : null;
         const causes = new Set<string>();
-        // Proof: committing C's raw project cleanup before its later event
+        // Proof: committing C's raw work package cleanup before its later event
         // insert left C's full child graph deleted when that insert failed.
         const pass = db.transaction((tx) =>
-          reclaimExpiredSolverSlotsIn(tx, now, target, ({ projectId }) => causes.add(projectId)),
+          reclaimExpiredSolverSlotsIn(tx, now, target, ({ workPackageId }) =>
+            causes.add(workPackageId),
+          ),
         );
-        const events: CommittedProjectEvent[] = [];
+        const events: CommittedWorkPackageEvent[] = [];
         if (before !== null && owner.kind === 'scoped') {
           const after = await capture.capture(owner.organizationId);
           // Proof: omitting the recorder deleted populated A without B's
@@ -74,7 +76,7 @@ export function createOptimizationReconciliation(
       finished += settled.pass.finished;
       waiting += settled.pass.waiting;
       // Proof: dropping this await let installed stop settle while B's push
-      // stayed held after the project deletion had already committed.
+      // stayed held after the work package deletion had already committed.
       if (settled.events.length > 0) await delivery.deliverCommitted(settled.events);
     };
 
@@ -86,10 +88,12 @@ export function createOptimizationReconciliation(
       Promise.resolve(reconciliationTargets(db, 'generations')),
     );
     for (const target of generations) await sweep(target);
-    // Proof: reading projects outside this separate gate let a held writer's
-    // temporary marker clear make the project-only pass settle early.
-    const projects = await gate.enter(() => Promise.resolve(reconciliationTargets(db, 'projects')));
-    for (const target of projects) await sweep(target);
+    // Proof: reading work packages outside this separate gate let a held writer's
+    // temporary marker clear make the work-package-only pass settle early.
+    const workPackages = await gate.enter(() =>
+      Promise.resolve(reconciliationTargets(db, 'work_packages')),
+    );
+    for (const target of workPackages) await sweep(target);
     return { reclaimed, finished, waiting };
   };
 }

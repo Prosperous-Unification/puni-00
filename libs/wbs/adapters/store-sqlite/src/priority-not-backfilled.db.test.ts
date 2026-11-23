@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,12 +6,13 @@ import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 /**
  * **The check that a thing was _not_ done.**
  *
- * `priority-default-medium` gives every *newly created* work item the project's
+ * `priority-default-medium` gives every *newly created* work item the work package's
  * middle rung and deliberately ships **no migration and no backfill**: a plan
  * written before it keeps its blank priorities, because moving every row on
  * screen for a default nobody typed is the one thing the change refused
@@ -31,41 +32,18 @@ import { readMigrationFolders, rollbackTo } from './migrate-down';
  */
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
-function tempDb(): { path: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), 'wbs-priority-backfill-'));
-  return {
-    path: join(dir, 'test.db'),
-    cleanup: (): void => {
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
-
-/**
- * The migration before the newest one on disk, read rather than named.
- *
- * Read, because the point of the baseline here is "one release back, whatever
- * that is now" — a name written into this file would freeze the window and stop
- * covering the migration somebody adds tomorrow, which is the only migration
- * that could ever do the backfill.
- */
-function releaseBefore(): string {
-  const folders = readMigrationFolders(FOLDER);
-  const baseline = folders.at(-2);
-  if (baseline === undefined) {
-    throw new Error(`${FOLDER} holds fewer than two migrations, so there is no previous release`);
-  }
-  return baseline.name;
-}
+const PRIORITY_ADDITION = '20260811100000_add_priority';
+const BEFORE_RENAME = '20261103110000_add_initial_access_offers';
 
 describe('the priorities of a plan written before the default', () => {
   it('an existing plan is unchanged', () => {
-    const db = tempDb();
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-priority-backfill-'));
+    const path = join(directory, 'test.db');
+    const custody = { hasUnknownOwner: false };
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, releaseBefore());
+      runMigrations(path, copyRecoveryPrefix(directory, PRIORITY_ADDITION));
 
-      const before = openDatabase(db.path);
+      const before = openDatabase(path);
       try {
         before.run(
           "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'hash', 1)",
@@ -91,9 +69,29 @@ describe('the priorities of a plan written before the default', () => {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      try {
+        const beforeRename = join(directory, 'before-rename');
+        mkdirSync(beforeRename);
+        runMigrations(path, copyRecoveryPrefix(beforeRename, BEFORE_RENAME));
+        const legacy = openDatabase(path);
+        try {
+          legacy.run(
+            "INSERT INTO organization (id, name, legacy, created_at) VALUES ('priority-org', 'Priorities', 1, 1)",
+          );
+          legacy.run(
+            "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p', 'priority-org')",
+          );
+        } finally {
+          legacy.close();
+        }
+        applyHistoricalCatalogueFixture(path, directory, {});
+        runMigrations(path, FOLDER);
+      } catch (cause: unknown) {
+        custody.hasUnknownOwner = true;
+        throw new Error('priority fixture migration failed; retained ' + directory, { cause });
+      }
 
-      const after = openDatabase(db.path);
+      const after = openDatabase(path);
       try {
         expect(
           after
@@ -109,7 +107,7 @@ describe('the priorities of a plan written before the default', () => {
         after.close();
       }
     } finally {
-      db.cleanup();
+      if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
     }
   });
 });

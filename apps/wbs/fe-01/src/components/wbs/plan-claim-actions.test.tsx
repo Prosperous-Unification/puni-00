@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
 import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -32,15 +32,15 @@ afterEach(() => {
   widthIs(LAPTOP);
 });
 
-type Api = ReturnType<typeof fakeProjectApi>;
+type Api = ReturnType<typeof fakeWorkPackageApi>;
 
 /** Draws the plan signed in as `viewerAccountId`, or for no account at all with null. */
 function drawTable(api: Api, viewerAccountId: string | null = ACCOUNT) {
   return render(
     <AppFaultBoundary>
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         {...(viewerAccountId === null ? {} : { viewerAccountId })}
       />
     </AppFaultBoundary>,
@@ -49,7 +49,7 @@ function drawTable(api: Api, viewerAccountId: string | null = ACCOUNT) {
 
 /** Two rows, `dany` bound to the signed-in account and an agent bound to it too. */
 async function twoRows() {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const fence = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Fence' });
   const gate = await api.createWorkItem('p1', { parentId: null, afterId: fence.id, name: 'Gate' });
   const dany = await api.addPerson('dany', []);
@@ -147,7 +147,7 @@ describe('claiming from the row menu (wbs-claim-display 11.2)', () => {
       Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: {
             at: 0,
             kind: 'claimWorkItem',
@@ -241,7 +241,7 @@ describe('claiming from the row menu (wbs-claim-display 11.2)', () => {
       Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: {
             at: 0,
             kind: 'claimWorkItem',

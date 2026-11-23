@@ -17,9 +17,14 @@ interface SqliteCleanupAttempt {
   cause: unknown;
 }
 
+interface MigrationCleanupAttempt extends Omit<SqliteCleanupAttempt, 'phase'> {
+  readonly phase: 'migration';
+}
+
 const failures = new WeakMap<
   object,
-  { readonly primary: unknown; readonly attempt: SqliteCleanupAttempt }
+  | { readonly primary: unknown; readonly attempt: SqliteCleanupAttempt }
+  | { readonly operationFailures: readonly unknown[]; readonly attempt: MigrationCleanupAttempt }
 >();
 
 class SqliteCleanupFailure extends AggregateError implements SqliteCleanupUnknown {
@@ -56,4 +61,23 @@ export function isSqliteCleanupUnknown(cause: unknown): cause is SqliteCleanupUn
   // in the cleanup identity diagnostic consumer; SAME restored consumer passed (2026-11-03).
   // Cross-registry rejection only; later negative assertions were unobserved.
   return typeof cause === 'object' && cause !== null && failures.has(cause);
+}
+
+/**
+ * Retains an uncertain migration close in the existing private custody registry.
+ * Errors stay chronological; an empty preceding list has no fabricated primary/cause,
+ * while a present thrown undefined remains a real first failure. Recognition never
+ * infers native closure from mutable public diagnostics or retries the selected close.
+ */
+export function createMigrationCleanupFailure(
+  operationFailures: readonly unknown[],
+  attempt: MigrationCleanupAttempt,
+): SqliteCleanupUnknown {
+  const failure = new SqliteCleanupFailure(
+    [...operationFailures, attempt.cause],
+    'SQLite migration cleanup failed',
+    operationFailures.length === 0 ? undefined : { cause: operationFailures[0] },
+  );
+  failures.set(failure, { operationFailures: [...operationFailures], attempt });
+  return failure;
 }

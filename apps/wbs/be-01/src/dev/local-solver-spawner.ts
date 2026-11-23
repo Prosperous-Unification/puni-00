@@ -75,15 +75,15 @@ export function localSolverCapabilities(platform: NodeJS.Platform): LocalSolverC
 }
 
 /**
- * The provisioned environment's `bin`, from be-01's project directory — the
+ * The provisioned environment's `bin`, from be-01's work package directory — the
  * `cwd` both serve targets give it.
  *
  * `.venv-solver` sits at the repo root, where `tools/dev/solver-environment.ts`
- * builds it, so the depth here is the project's depth in the tree and must move
+ * builds it, so the depth here is the work package's depth in the tree and must move
  * with it.
  */
-export function solverBinDirectory(projectDirectory: string): string {
-  return join(resolve(projectDirectory, '../../..'), '.venv-solver', 'bin');
+export function solverBinDirectory(workPackageDirectory: string): string {
+  return join(resolve(workPackageDirectory, '../../..'), '.venv-solver', 'bin');
 }
 
 export interface LocalSolverOptions {

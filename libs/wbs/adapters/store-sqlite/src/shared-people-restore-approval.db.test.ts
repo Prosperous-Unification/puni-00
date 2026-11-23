@@ -6,15 +6,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
+import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { SharedPeopleRestoreApprovalRepository } from './shared-people-restore-approval';
-import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
+import { copyRecoveryPrefix } from './testing/recovery-state';
+import { openSpaceDatabase } from './testing/space-database';
 
 let directory: string;
 let path: string;
-beforeEach(async () => {
+beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-restore-approval-'));
-  path = await openSpaceDatabase(directory);
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
@@ -40,6 +41,21 @@ function approval(id = 'approval-1', org = 'org-a', op = 'restore-1') {
 const PREVIOUS = '20261012130000_add_step_estimate_unit';
 
 describe('shared people restore approval schema', () => {
+  beforeEach(async () => {
+    path = await openSpaceDatabase(directory);
+  });
+
+  function grantApprovalAuthority() {
+    expect(
+      execute(
+        "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a' AND user_id='ada' AND role='member' RETURNING user_id",
+      ),
+    ).toEqual([{ user_id: 'ada' }]);
+    execute(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('approval-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+    );
+  }
+
   it('rejects malformed operation bindings at durable storage', () => {
     for (const digest of ['a', 'A'.repeat(64), 'g'.repeat(64)])
       expect(() => {
@@ -69,14 +85,13 @@ describe('shared people restore approval schema', () => {
   });
 
   it('refuses issuance before organization activation on the writer', async () => {
-    execute(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
-    );
+    grantApprovalAuthority();
     const connection = openConnection(path);
     try {
       expect(
         await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
           'org-a',
+          { id: 'ada' },
           'restore-1',
           'a'.repeat(64),
           'approval-1',
@@ -90,16 +105,15 @@ describe('shared people restore approval schema', () => {
   });
 
   it('holds the immediate SQLite writer before reading current membership', async () => {
-    execute(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
-    );
+    grantApprovalAuthority();
     execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+
     const rival = openDatabase(path);
     rival.run('PRAGMA busy_timeout = 0');
     let observed = false;
     const connection = openConnection(path, {
       logQuery(query) {
-        if (!query.includes('from "organization_membership"')) return;
+        if (!query.includes('FROM organization_membership m')) return;
         observed = true;
         expect(() =>
           rival.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = 'ada'"),
@@ -110,6 +124,7 @@ describe('shared people restore approval schema', () => {
       expect(
         await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
           'org-a',
+          { id: 'ada' },
           'restore-1',
           'a'.repeat(64),
           'approval-1',
@@ -122,9 +137,21 @@ describe('shared people restore approval schema', () => {
       rival.close();
     }
   });
+});
+
+describe('shared people restore approval rollback', () => {
+  const receipts = '20261014130000_add_shared_people_restore_receipts';
+  let migrations: string;
+  beforeEach(() => {
+    path = join(directory, 'approval.db');
+    migrations = copyRecoveryPrefix(directory, receipts);
+    runMigrations(path, migrations);
+    execute("INSERT INTO organization(id,name,created_at) VALUES ('org-a','A',1)");
+    execute("INSERT INTO users(id,username,password_hash,created_at) VALUES ('ada','ada','x',1)");
+  });
 
   it('rolls back an empty schema', () => {
-    rollbackTo(path, MIGRATIONS_FOLDER, PREVIOUS);
+    rollbackTo(path, migrations, PREVIOUS);
     expect(
       execute("SELECT name FROM sqlite_master WHERE name LIKE 'shared_people_restore_%'"),
     ).toEqual([]);
@@ -134,11 +161,13 @@ describe('shared people restore approval schema', () => {
     it(`preserves evidence and ledger on rollback with approval=${String(withApproval)}`, () => {
       operation();
       if (withApproval) approval();
-      rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
+      expect(execute('SELECT name FROM __drizzle_migrations ORDER BY id DESC LIMIT 1')).toEqual([
+        { name: receipts },
+      ]);
       const ledger = execute('SELECT * FROM __drizzle_migrations');
       const operations = execute('SELECT * FROM shared_people_restore_operation');
       const approvals = execute('SELECT * FROM shared_people_restore_approval');
-      expect(() => rollbackTo(path, MIGRATIONS_FOLDER, PREVIOUS)).toThrow(
+      expect(() => rollbackTo(path, migrations, PREVIOUS)).toThrow(
         'shared people restore evidence is recorded',
       );
       expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(ledger);

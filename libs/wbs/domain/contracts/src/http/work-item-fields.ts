@@ -4,7 +4,7 @@
  */
 export const WORK_ITEM_OUTLINE = [
   'id',
-  'projectId',
+  'workPackageId',
   'parentId',
   'number',
   'name',
@@ -67,6 +67,9 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'priority',
     'maxParallel',
     'doesEveryStep',
+    // Proof: removing steps failed the tree-field partition and the actual
+    // requested/absent page projection in work-item-page.test.ts (2026-11-22).
+    'steps',
   ],
   labels: [
     'teamIds',

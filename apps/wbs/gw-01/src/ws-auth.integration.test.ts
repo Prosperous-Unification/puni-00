@@ -5,7 +5,7 @@ import { SignJWT } from 'jose';
 import { loadConfig } from './config';
 import { type JwtClaims, JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
@@ -53,7 +53,7 @@ beforeAll(() => {
   );
   const app = buildApp({
     beUrl: cfg.BE_URL,
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
     previousJwtKey: cfg.JWT_SIGNING_KEY_PREVIOUS,
@@ -158,7 +158,7 @@ describe('WebSocket query authentication', () => {
   it('refuses an upgrade when WebSocket authentication is not configured', async () => {
     const app = buildApp({
       beUrl: 'http://be.invalid',
-      projectAccess: GRANT_EVERY_PROJECT,
+      workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
       internalAuthSecret: INTERNAL_SECRET,
       jwtKey: JWT_KEY,
     });
@@ -206,7 +206,7 @@ describe('OIDC WebSocket authentication', () => {
       received.push(JSON.parse(event.data));
     });
     socket.send(
-      JSON.stringify({ type: 'subscribe', subscription: `project:${crypto.randomUUID()}` }),
+      JSON.stringify({ type: 'subscribe', subscription: `work-package:${crypto.randomUUID()}` }),
     );
     const deadline = Date.now() + 3_000;
     for (;;) {
@@ -236,7 +236,7 @@ describe('OIDC WebSocket authentication', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
-        projectAccess: GRANT_EVERY_PROJECT,
+        workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
       },
@@ -268,7 +268,7 @@ describe('OIDC WebSocket authentication', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
-        projectAccess: GRANT_EVERY_PROJECT,
+        workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
       },
@@ -299,7 +299,7 @@ describe('OIDC WebSocket authentication', () => {
  * trust a username it never saw. A token that expires in that window — or an
  * Elysia release that stops sharing the query object — makes the second
  * verification fail after the upgrade has already been accepted. What must not
- * happen then is that the socket stays open and serves project data under a
+ * happen then is that the socket stays open and serves work package data under a
  * fallback identity.
  */
 describe('WebSocket identity after the upgrade', () => {
@@ -337,7 +337,7 @@ describe('WebSocket identity after the upgrade', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
-        projectAccess: GRANT_EVERY_PROJECT,
+        workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
         verifier: verifierThatExpiresAfterTheUpgrade(),
@@ -385,7 +385,7 @@ describe('WebSocket identity after the upgrade', () => {
       {
         appOrigin: APP_ORIGIN,
         beUrl: 'http://be.invalid',
-        projectAccess: GRANT_EVERY_PROJECT,
+        workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
         internalAuthSecret: INTERNAL_SECRET,
         jwtKey: JWT_KEY,
         verifier: verifierThatExpiresDuringAnInFlightFrame(),
@@ -440,7 +440,7 @@ describe('WebSocket identity after the upgrade', () => {
 
       socket.send(
         JSON.stringify({
-          subscription: 'project:00000000-0000-4000-8000-000000000001',
+          subscription: 'work-package:00000000-0000-4000-8000-000000000001',
           message: { type: 'changed' },
         }),
       );

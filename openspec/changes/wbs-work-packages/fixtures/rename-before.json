@@ -1,0 +1,40 @@
+{
+  "baseline": "20261103110000_add_initial_access_offers",
+  "migration": "20261110100000_rename_project_to_work_package",
+  "beforeSql": [
+    "INSERT INTO users(id,username,created_at) VALUES('rename-owner','Owner',1)",
+    "INSERT INTO organization(id,name,created_at) VALUES('rename-org','Org',1)",
+    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('rename-org','rename-owner','viewer',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES('rename-grant','rename-org','organization','rename-org','user','rename-owner','org-super-admin','creation',1,'rename-owner')",
+    "INSERT INTO project(id,name,owner_id,restricted,created_at) VALUES('rename-p','projectId remains user text','rename-owner',1,1),('rename-q','Other','rename-owner',0,1)",
+    "INSERT INTO project_organization(resource_id,organization_id) VALUES('rename-p','rename-org'),('rename-q','rename-org')",
+    "INSERT INTO step(id,project_id,name,code) VALUES('rename-step','rename-p','Develop','DEV')",
+    "INSERT INTO work_item(id,project_id,parent_id,position,name) VALUES('rename-root','rename-p',NULL,0,'Root'),('rename-child','rename-p','rename-root',0,'Child'),('rename-remote','rename-q',NULL,0,'Remote')",
+    "INSERT INTO work_item_budget(work_item_id,measure_key,measure_id,cap,policy) VALUES('rename-child','tokens',(SELECT id FROM measure WHERE organization_id='rename-org' AND key='tokens'),100,'strict')",
+    "INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES('rename-audit','rename-org','rename-owner','access_granted','access_grant','rename-grant','{\"roleId\":\"project-contributor\",\"scope\":{\"kind\":\"project\",\"projectId\":\"future-container\"}}',1)"
+  ],
+  "tables": [
+    ["project", "work_package"],
+    ["project_abbreviation", "work_package_abbreviation"],
+    ["project_organization", "work_package_organization"],
+    ["project_rank", "work_package_rank"],
+    ["space_project", "space_work_package"],
+    ["project_access", "work_package_access"],
+    ["project_priority_band", "work_package_priority_band"],
+    ["project_resource_capacity", "work_package_resource_capacity"],
+    ["project_team_capacity", "work_package_team_capacity"],
+    ["project_solution", "work_package_solution"],
+    ["project_abbreviation_counter", "work_package_abbreviation_counter"],
+    ["cross_project_dependency_activation", "cross_work_package_dependency_activation"],
+    [
+      "cross_project_dependency_activation_receipt",
+      "cross_work_package_dependency_activation_receipt"
+    ]
+  ],
+  "beforeTreeSql": "SELECT id,parent_id,position,name FROM work_item WHERE project_id=? ORDER BY id",
+  "afterTreeSql": "SELECT id,parent_id,position,name FROM work_item WHERE work_package_id=? ORDER BY id",
+  "beforeCodeSql": "SELECT project_id AS owner,namespace,abbreviation FROM project_abbreviation ORDER BY project_id",
+  "afterCodeSql": "SELECT work_package_id AS owner,namespace,abbreviation FROM work_package_abbreviation ORDER BY work_package_id",
+  "unmappedSql": "INSERT INTO project(id,name,owner_id,created_at) VALUES('rename-unmapped','Unmapped','rename-owner',1)",
+  "allocatorSql": "INSERT INTO work_package(id,name,owner_id,created_at) VALUES('rename-next','Next','rename-owner',2)"
+}

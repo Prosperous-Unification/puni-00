@@ -16,7 +16,7 @@ spec:
   nodeSelector:
     puni.dev/capability-forge: 'true'
   restartPolicy: Always
-  terminationGracePeriodSeconds: 20
+  terminationGracePeriodSeconds: 30
   securityContext:
     # Replaced by dev-env with the worktree owner, so node_modules and .nx stay theirs.
     runAsUser: 1000
@@ -28,7 +28,29 @@ spec:
     - name: source
       image: dev-environment
       workingDir: /src
-      command: [bun, tools/tool-devsync/src/k3s/forge-supervisor.ts]
+      command:
+        [
+          '/usr/bin/env',
+          '-u',
+          'BUN_OPTIONS',
+          '-u',
+          'BUN_INSPECT_PRELOAD',
+          '-u',
+          'NODE_OPTIONS',
+          '-u',
+          'BUN_BE_BUN',
+          'bun',
+          '--no-env-file',
+          '--config=/dev/null',
+          '/opt/puni-dev/selection-required.mjs',
+          'dash',
+          'dev-env',
+          'supervise',
+          '--repository',
+          '/src',
+          '--termination-log',
+          '/dev/termination-log',
+        ]
       ports:
         - { name: web, containerPort: 4200 }
         - { name: mcp, containerPort: 3300 }
@@ -49,6 +71,10 @@ spec:
         - { name: MCP_AUTH_MODE, value: standalone }
         - { name: WBS_API_URL, value: http://127.0.0.1:3100 }
         - { name: MCP_PUBLIC_URL, value: http://dev-environment.localhost/mcp }
+        - { name: PUNI_EXECUTABLE, value: '' }
+        - { name: PUNI_INSTALLATION_DIRECTORY, value: /opt/puni-dev }
+        - { name: PUNI_SELECTION, value: '' }
+        - { name: PUNI_SELECTION_SHA256, value: '' }
         # One hop: the lab's Ingress (ingress.yaml) in front of this Pod.
         - { name: MCP_TRUSTED_PROXY_HOPS, value: '1' }
       readinessProbe:
@@ -76,7 +102,10 @@ spec:
         # The runtime directory, not supervisor.sock: the supervisor may replace its socket
         # inode, and only a directory mount lets this Pod see the replacement.
         - { name: solver-runtime, mountPath: /run/wbs-solver, readOnly: true }
+        - { name: puni-installation, mountPath: /opt/puni-dev, readOnly: true }
   volumes:
+    - name: puni-installation
+      hostPath: { path: /srv/puni/puni-installations/unbound, type: Directory }
     - name: worktree
       hostPath: { path: /srv/puni/worktrees/unbound, type: Directory }
     - name: data

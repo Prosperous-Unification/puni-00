@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { RetentionTimer } from '@wbs/core/module/bounded-replay-sweep/retention-timer';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
@@ -8,6 +8,7 @@ import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import * as stepCodes from '@wbs/store-sqlite/step-code-backfill';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
@@ -15,9 +16,9 @@ import { bootBe01 as bootBackend, type BootOptions, type RunningBe } from './boo
 import { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openDatabase, refuseToWaitForWriteLock, SQLiteError } from './repository/db';
 import * as migrationModule from './repository/migrate';
-import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
 import * as dependencyRuntime from './runtime/dependency-capability';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
@@ -64,6 +65,16 @@ function createOptions(): BootOptions {
     },
   };
 }
+function prepareCatalogue(path: string): void {
+  const directory = dirname(path);
+  // Register cleanup only after the actual catalogue owner returns; acquisition failure retains it.
+  // Proof: v252 omitted only deregistration; actual afterEach deleted the close-uncertain root/DB.
+  // Restoration retained both and the exact cause after native close returned then threw.
+  // This proves conservative namespace retention, not an actual leaked descriptor.
+  expect(directories.pop()).toBe(directory);
+  migrateOrganizationCatalogueFixture(path);
+  directories.push(directory);
+}
 function makeApp(composition: Parameters<typeof buildApp>[0]) {
   const app = buildApp(composition);
   app.stop = () => Promise.resolve(app);
@@ -71,7 +82,7 @@ function makeApp(composition: Parameters<typeof buildApp>[0]) {
 }
 test('boot audit excludes a second connection commit between marker and history reads', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   const writer = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: configured.dbPath,
@@ -84,7 +95,7 @@ test('boot audit excludes a second connection commit between marker and history 
   const commitAuthority = () => {
     writer.db.transaction((transaction) => {
       transaction.run(
-        "INSERT INTO runtime_authority (organization_id,project_id,person_id,owner_id,generation) VALUES ('org','project','person','owner',1)",
+        "INSERT INTO runtime_authority (organization_id,work_package_id,person_id,owner_id,generation) VALUES ('org','work_package','person','owner',1)",
       );
       transaction.run('UPDATE runtime_ledger SET authority_count=authority_count+1 WHERE id=1');
     });
@@ -145,7 +156,7 @@ test('boot audit excludes a second connection commit between marker and history 
     expect(
       await writer.stores.runtimeCommands.readAuthority({
         organizationId: 'org',
-        projectId: 'project',
+        workPackageId: 'work_package',
         personId: 'person',
       }),
     ).toEqual({ ownerId: 'owner', generation: 1 });
@@ -156,7 +167,7 @@ test('boot audit excludes a second connection commit between marker and history 
 
 test('holds listener, retention, claim sweep and proof workers until actual ledger inspection settles', async () => {
   const configured = createOptions();
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   const entered = Promise.withResolvers<undefined>();
   const release = Promise.withResolvers<undefined>();
   let listeners = 0;
@@ -241,7 +252,7 @@ test('holds listener, retention, claim sweep and proof workers until actual ledg
 for (const fault of ['missing', 'corrupt'] as const) {
   test(`rejects ${fault} ledger before acquiring listener or retention and closes source`, async () => {
     const configured = createOptions();
-    runMigrations(configured.dbPath, folder);
+    prepareCatalogue(configured.dbPath);
     const sqlite = openDatabase(configured.dbPath);
     sqlite.run(
       fault === 'missing'
@@ -293,13 +304,18 @@ for (const fault of ['missing', 'corrupt'] as const) {
 }
 test('explicit pending migrations create the ledger before awaited inspection', async () => {
   const configured = createOptions();
+  // The empty predecessor profile lets ordinary startup create the real runtime ledger before SC14.
+  expect(existsSync(configured.dbPath)).toBe(false);
   let inspected = false;
   running = await bootBe01(
     {
       ...configured,
       organizationDnsResolvers: undefined,
       migrateOnStartup: true,
-      migrationsFolder: folder,
+      migrationsFolder: copyRecoveryPrefix(
+        dirname(configured.dbPath),
+        '20261115120000_add_step_migration_report',
+      ),
     },
     {
       openSource: (settings) => {
@@ -335,7 +351,7 @@ test('explicit pending migrations create the ledger before awaited inspection', 
 
 test('failure after acquiring our listener releases that socket and the source', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   let port: number | undefined;
   let closes = 0;
   await expectBootFailure(
@@ -376,9 +392,11 @@ async function expectBootFailure(booting: Promise<RunningBe>): Promise<void> {
   expect(failure).toBeInstanceOf(Error);
 }
 
-test('prepares schema, dependency admission and identity once before the coherent runtime ledger barrier', async () => {
+test('prepares schema and identity once with preflight and post-migration dependency admission before the coherent runtime ledger barrier', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
+  prepareCatalogue(configured.dbPath);
   const stages: string[] = [];
+  let hasMigrated = false;
   const migrate = migrationModule.runMigrations;
   const backfill = stepCodes.backfillStepCodes;
   const admit = dependencyRuntime.assertDependencyRuntime;
@@ -388,6 +406,7 @@ test('prepares schema, dependency admission and identity once before the coheren
   const migrations = spyOn(migrationModule, 'runMigrations').mockImplementation((...args) => {
     stages.push('migration');
     migrate(...args);
+    hasMigrated = true;
   });
   const backfills = spyOn(stepCodes, 'backfillStepCodes').mockImplementation((...args) => {
     stages.push('backfill');
@@ -395,7 +414,7 @@ test('prepares schema, dependency admission and identity once before the coheren
   });
   const dependencies = spyOn(dependencyRuntime, 'assertDependencyRuntime').mockImplementation(
     (...args) => {
-      stages.push('dependency admission');
+      stages.push(hasMigrated ? 'post-migration admission' : 'preflight admission');
       admit(...args);
     },
   );
@@ -442,15 +461,16 @@ test('prepares schema, dependency admission and identity once before the coheren
       },
     );
     expect(stages).toEqual([
+      'preflight admission',
       'migration',
-      'dependency admission',
-      'backfill',
+      'post-migration admission',
       'identity',
       'ledger',
       'listener',
     ]);
+    expect(dependencies).toHaveBeenCalledTimes(2);
     expect(migrations).toHaveBeenCalledTimes(1);
-    expect(backfills).toHaveBeenCalledTimes(1);
+    expect(backfills).toHaveBeenCalledTimes(0);
     expect(identity).toHaveBeenCalledTimes(1);
   } finally {
     await running?.stop();

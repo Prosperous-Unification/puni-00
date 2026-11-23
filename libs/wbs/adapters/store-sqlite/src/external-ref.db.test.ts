@@ -2,32 +2,33 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import type { WorkItem, WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { workItemExternalRef } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 let dir: string;
 let ownerId: string;
 let repo: DirectoryRepository;
 let workItems: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let itemId: string;
 let childId: string;
 let db: ReturnType<typeof openDrizzle>;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
@@ -40,7 +41,7 @@ const newItem = (
   parentId: string | null,
 ): WorkItem => ({
   id,
-  projectId,
+  workPackageId,
   parentId,
   position,
   name,
@@ -66,7 +67,9 @@ const GITHUB_PR = 'sys-github-pr';
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-external-ref-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody.hasUnknownOwner = false;
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   db = openDrizzle(path);
   repo = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -76,23 +79,12 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
-  projectId = crypto.randomUUID();
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
-  });
-  const steps: Step[] = [
-    {
-      id: crypto.randomUUID(),
-      projectId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
+  workPackageId = crypto.randomUUID();
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
+    wrote(),
+  );
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();
@@ -101,7 +93,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('a work item\u2019s external refs', () => {
@@ -125,7 +117,9 @@ describe('a work item\u2019s external refs', () => {
         wrote(),
       );
 
-      const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+      const row = (await workItems.listByWorkPackage(workPackageId)).find(
+        (each) => each.id === itemId,
+      );
       expect(row?.externalRefs.map((each) => each.url)).toEqual([
         'https://github.com/acme/shed/pull/1',
         'https://github.com/acme/shed/pull/2',
@@ -172,7 +166,9 @@ describe('a work item\u2019s external refs', () => {
       },
     ]);
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs.map((each) => each.url)).toEqual([
       'https://acme.atlassian.net/browse/SHED-1',
       'https://acme.atlassian.net/browse/SHED-2',
@@ -193,7 +189,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs.map((each) => each.url)).toEqual([
       'https://acme.atlassian.net/browse/SHED-9',
       'https://github.com/acme/shed/pull/1',
@@ -222,7 +220,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs.map((each) => each.name)).toEqual(['SHED-9 Strip the walls']);
   });
 
@@ -242,7 +242,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs[0]?.name).toBe('');
   });
 
@@ -269,7 +271,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs.map((each) => each.url)).toEqual([
       'https://github.com/acme/shed/pull/1',
     ]);
@@ -291,7 +295,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs).toHaveLength(2);
   });
 
@@ -308,7 +314,9 @@ describe('a work item\u2019s external refs', () => {
 
     await workItems.patch(itemId, { externalRefs: [] }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs).toEqual([]);
   });
 
@@ -325,7 +333,9 @@ describe('a work item\u2019s external refs', () => {
 
     await workItems.patch(itemId, { name: 'Strip the walls' }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs).toHaveLength(1);
   });
 
@@ -345,7 +355,9 @@ describe('a work item\u2019s external refs', () => {
     );
 
     expect(outcome.ok).toBe(true);
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs).toHaveLength(1);
   });
 
@@ -368,7 +380,9 @@ describe('a work item\u2019s external refs', () => {
     expect(outcome).toEqual({ ok: false, reason: 'unknown_system' });
     // The **whole** patch, which is the half a reader loses if the refusal lands
     // after the other fields are written.
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.name).toBe('Strip');
     expect(row?.externalRefs).toEqual([]);
   });
@@ -386,7 +400,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     const minted = row?.externalRefs[0]?.id;
     expect(typeof minted).toBe('string');
     expect(minted).not.toBe(JIRA);
@@ -408,7 +424,9 @@ describe('a work item\u2019s external refs', () => {
       wrote(),
     );
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.externalRefs[0]?.systemId).toBe(JIRA);
   });
 
@@ -431,7 +449,9 @@ describe('a work item\u2019s external refs', () => {
 
     await workItems.remove([childId], [], wrote());
 
-    expect((await workItems.listByProject(projectId)).map((each) => each.id)).toEqual([itemId]);
+    expect((await workItems.listByWorkPackage(workPackageId)).map((each) => each.id)).toEqual([
+      itemId,
+    ]);
   });
 
   it('seeds every system the deriver can answer', async () => {

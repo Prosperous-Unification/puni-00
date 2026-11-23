@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from '../e2e/ordinary-test';
 import { painted, renderingGeometry, seedRenderingPlan } from '../e2e/rendering-fixture';
 
 test('[TEST-AXES-038] a 100-row folded plan stays within its mounted-cell budget', async ({

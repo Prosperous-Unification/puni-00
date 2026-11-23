@@ -325,10 +325,15 @@ export default [
   ...productPolicies,
 
   // Proof: missing anchors, broad importer globs, barrel/migrate additions, weakened options and missing needed aliases each failed real lint boundary oracles.
-  // These exact source-bundled activation leaves are deliberate product/buildable exceptions.
+  // These exact source-bundled operational leaves are deliberate product/buildable exceptions.
   // Every other edge keeps the complete Nx options and constraints. There is no forward SQL in production storage.
   ...[
     // Proof: separately removing backup or sqlite-cleanup from this exact row made the real Nx owner-path admission probe fail; each passed after exact restoration (2026-11-05).
+    // Window gate reads only the pure complete report decoder; no SQLite or migration owner edge.
+    // Proof: window-policy-closed-resolvable-aliases changes/removes this real lint refusal boundary; observed named RED: window report decoder import boundary refuses actual resolvable window decoder siblings barrels adapter and relative bypasses. Only actual resolvable aliases are used; no Nx claim about unresolved spellings.
+    // Proof: window-policy-closed-importer changes/removes this real lint refusal boundary; observed named RED: window report decoder import boundary refuses actual resolvable window decoder siblings barrels adapter and relative bypasses. Actual production-path negative; no broader host/deployment claim.
+    // Proof: window-policy-required-owner-leaf changes/removes this real lint admission boundary; observed named RED: window report decoder import boundary admits the runtime full report decoder at the exact host owner. Actual production-path negative; no broader host/deployment claim.
+    ['lib/rename-window.ts', ['@wbs/contracts/window-backup-report']],
     ['lib/edge-ownership.ts', ['@wbs/store-sqlite/backup', '@wbs/store-sqlite/sqlite-cleanup']],
     [
       'lib/dependency-activation-storage.ts',
@@ -337,7 +342,7 @@ export default [
         '@wbs/store-sqlite/db',
         '@wbs/store-sqlite/backup',
         '@wbs/store-sqlite/migration-set',
-        '@wbs/store-sqlite/cross-project-dependency-activation',
+        '@wbs/store-sqlite/cross-work-package-dependency-activation',
       ],
     ],
     ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
@@ -346,27 +351,43 @@ export default [
     ['lib/initial-handoff-graph.ts', ['@wbs/contracts/dependency-runtime']],
     [
       'lib/complete-dependency-exclusion.test.ts',
-      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-work-package-dependency-activation'],
     ],
     [
       'lib/dependency-activation-storage.test.ts',
       [
         '@wbs/store-sqlite/db',
-        '@wbs/store-sqlite/cross-project-dependency-activation',
+        '@wbs/store-sqlite/cross-work-package-dependency-activation',
         '@wbs/store-sqlite/migration-set',
       ],
     ],
-    ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+    // Proof: all four new leaves still produced actual Nx noImportOfNonBuildableLibraries
+    // refusals in owned catalogue-boundary-negative-v222.ts outside these exact importers.
+    [
+      'fixtures/dependency-complete-activation.ts',
+      ['@wbs/store-sqlite/migrate', '@wbs/store-sqlite/testing/catalogue-database'],
+    ],
+    [
+      'lib/dependency-complete-fixture.test.ts',
+      [
+        '@wbs/store-sqlite/db',
+        '@wbs/store-sqlite/migrate-down',
+        '@wbs/store-sqlite/testing/recovery-state',
+      ],
+    ],
   ].map(([file, aliases]) => ({
     files: [`tools/tool-remote-scripts/src/${file}`],
     rules: {
       '@nx/enforce-module-boundaries': [
         'error',
         {
+          // Proof: window-policy-retained-constraints changes/removes this structural effective-policy contract boundary; observed named RED: window report decoder import boundary preserves every peer Nx option except one exact window decoder allowance. Only the new row is faulted. Complete peer options must differ only by the deliberate leaf allowance.
+          // Proof: window-policy-retained-buildable changes/removes this structural effective-policy contract boundary; observed named RED: window report decoder import boundary preserves every peer Nx option except one exact window decoder allowance. Only the new row is faulted. Complete peer options must differ only by the deliberate leaf allowance.
           ...nxBoundaryOptions,
           allow: [
             '^@wbs/contracts/solver/supervisor-protocol$',
             '^@wbs/domain$',
+            // Proof: window-policy-regex-anchors changes/removes this structural effective-policy contract boundary; observed named RED: window report decoder import boundary preserves every peer Nx option except one exact window decoder allowance. Anchor loss is proved by exact effective options, not a false claim that Nx rejects unresolved suffixes.
             ...aliases.map((alias) => `^${alias}$`),
           ],
         },

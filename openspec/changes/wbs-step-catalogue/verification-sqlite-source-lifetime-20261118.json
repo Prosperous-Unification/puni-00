@@ -1,0 +1,1536 @@
+{
+  "date": "2026-11-18",
+  "scope": "Four bounded SQLite Source lifetime dependencies. Every selected baseline passed; each single omission failed its named first assertion; exact source restoration preceded the same passing after control. No all-method, nested receiver, post-await, later-tail or full entity/PUNI completion claim.",
+  "review": {
+    "path": "/tmp/puni-sqlite-lifetime-results-independent-review-v1.json",
+    "sha256": "dc4f702c4a5989f5dac380c9a13eb30608d59635580b9284710884012f0625e0",
+    "bytes": 5846,
+    "mode": 436
+  },
+  "proofs": [
+    {
+      "id": "queue",
+      "plan": {
+        "proposal": {
+          "path": "/tmp/puni-sqlite-lifetime-proofs-root-v1/plan.json",
+          "sha256": "6a15c144d1c525d9fbe856a1948184a9e234305147ce5733d762b7fdd3410689",
+          "bytes": 5605,
+          "mode": 384
+        },
+        "effect": {
+          "id": "QUEUE",
+          "target": "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "canonical": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/source.ts",
+            "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+            "bytes": 28002,
+            "mode": 384
+          },
+          "mutant": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/QUEUE.variant.ts",
+            "sha256": "68299f6b136827e1af55f274c1a76cec7fc55bb83fbe0f79c86292df0c3d9cb3",
+            "bytes": 28007,
+            "mode": 384
+          },
+          "from": "      closing = coordinator.enter(closeWriter);",
+          "to": "      closing = Promise.resolve().then(closeWriter);",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts",
+            "--timeout=30000",
+            "-t",
+            "current unit sqlite current-unit:queued-close"
+          ],
+          "expectedCases": 1,
+          "qualification": "Original held UoW rollback encounters physically closed database; writer-settlement /closed/ assertion first rejects AggregateError, before later queued-write assertions. Keep memoization and immediate pool capture unchanged."
+        },
+        "before": {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "original": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/original.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/mutant.ts",
+          "sha256": "68299f6b136827e1af55f274c1a76cec7fc55bb83fbe0f79c86292df0c3d9cb3",
+          "bytes": 28007,
+          "mode": 436
+        },
+        "inventories": [
+          {
+            "path": "/tmp/puni-catalogue-revision-import-live-v1/source-pins.json",
+            "sha256": "0dc786af694cdcf676d009bf5ab66b75679b1fb2cc0093e26e1bb045cbb46600",
+            "bytes": 5198140,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/source-pins.json",
+            "sha256": "e8daa30bd1ab86046b8039c1bb6a445b884422b57f999f0772e26a8ec1ff2f5f",
+            "bytes": 275384,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/forge-read-inputs.json",
+            "sha256": "f5a998bddc6644d43eeef37de550a8a1f5a57396755c23652cd369906bbeb554",
+            "bytes": 16254,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          }
+        ],
+        "qualification": "One reviewed SQLite Source lifetime effect. Exact selected first oracle only; no all-method, nested-receiver, later-tail or whole-goal claim."
+      },
+      "flight": {
+        "effect": "QUEUE",
+        "phases": [
+          {
+            "phase": "prepare",
+            "exitCode": 0,
+            "stdout": "{\"directory\":\"/tmp/puni-sqlite-lifetime-proof-queue-v1\",\"before\":{\"path\":\"/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts\",\"sha256\":\"5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c\",\"bytes\":28002,\"mode\":436},\"mutant\":{\"path\":\"/tmp/puni-sqlite-lifetime-proof-queue-v1/mutant.ts\",\"sha256\":\"68299f6b136827e1af55f274c1a76cec7fc55bb83fbe0f79c86292df0c3d9cb3\",\"bytes\":28007,\"mode\":436}}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "baseline",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"QUEUE\",\"phase\":\"baseline\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "install",
+            "exitCode": 0,
+            "stdout": "Exact mutant installed\n",
+            "stderr": ""
+          },
+          {
+            "phase": "fault",
+            "exitCode": 1,
+            "stdout": "{\"effectId\":\"QUEUE\",\"phase\":\"fault\",\"exitCode\":1,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "restore",
+            "exitCode": 0,
+            "stdout": "Exact original restored after known native custody\n",
+            "stderr": ""
+          },
+          {
+            "phase": "after",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"QUEUE\",\"phase\":\"after\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          }
+        ],
+        "restored": true,
+        "intended": true,
+        "qualification": "Original held UoW rollback encounters physically closed database; writer-settlement /closed/ assertion first rejects AggregateError, before later queued-write assertions. Keep memoization and immediate pool capture unchanged."
+      },
+      "phases": [
+        {
+          "phase": "baseline",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-queue-v1/baseline/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts",
+                "--timeout=30000",
+                "-t",
+                "current unit sqlite current-unit:queued-close"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:04.841Z",
+            "endedAt": "2026-11-18T21:33:08.207Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/baseline/native.log",
+              "sha256": "2ddbfa5e43877a15be94e681e6d5bef40d0d15eea0b95ba845c965d6927c8f2d",
+              "bytes": 247
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/baseline/native.receipt.json",
+              "sha256": "ebe5bbd9eacc774922fd33837a09ac677c76d947a7a97d02594b4721d68fe47a",
+              "bytes": 1465,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/baseline/native.log",
+              "sha256": "2ddbfa5e43877a15be94e681e6d5bef40d0d15eea0b95ba845c965d6927c8f2d",
+              "bytes": 247,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/baseline/native.log",
+            "sha256": "2ddbfa5e43877a15be94e681e6d5bef40d0d15eea0b95ba845c965d6927c8f2d",
+            "bytes": 247,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts:\n(pass) current unit sqlite current-unit:queued-close [743.64ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 32 expect() calls\nRan 1 test across 1 file. [3.32s]\n"
+          }
+        },
+        {
+          "phase": "fault",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-queue-v1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts",
+                "--timeout=30000",
+                "-t",
+                "current unit sqlite current-unit:queued-close"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:11.609Z",
+            "endedAt": "2026-11-18T21:33:14.952Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/fault/native.log",
+              "sha256": "6421f2889dee530f34d1cc87969421ea29f80ef598b5efb6930d4b6713e5b02e",
+              "bytes": 4029
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/fault/native.receipt.json",
+              "sha256": "2f30189fd58c961625c957f5131e043d45a19c7417a4752f8c1ed96adefe229c",
+              "bytes": 1460,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/fault/native.log",
+              "sha256": "6421f2889dee530f34d1cc87969421ea29f80ef598b5efb6930d4b6713e5b02e",
+              "bytes": 4029,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/fault/native.log",
+            "sha256": "6421f2889dee530f34d1cc87969421ea29f80ef598b5efb6930d4b6713e5b02e",
+            "bytes": 4029,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts:\n165 |     throw new AggregateError(causes,'queued unit setup and all acquired operations settled');\n166 |   }\n167 |   // Source close may permit the already-owned rollback or refuse it by name;\n168 |   // the queued new write must be refused before its own mutation turn.\n169 |   if(!settled.ok){\n170 |     try{expect(String(settled.cause)).toMatch(/closed/);}\n                                            ^\nerror: expect(received).toMatch(expected)\n\nExpected substring or pattern: /closed/\nReceived: \"AggregateError: batch and rollback failed\"\n\n      at queuedClose (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/current-unit.ts:170:39)\n      at async runCurrentUnitCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/current-unit.ts:197:13)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts:12:11)\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n                  ^\nDrizzleQueryError: Failed query: ROLLBACK\nparams: \n  query: \"ROLLBACK\",\n params: [],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:14)\n      at run (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)\n      at /tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:62:14\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n     ^\nRangeError: Cannot use a closed database\n      at prepare (unknown:1:1)\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at run (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)\n      at /tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:62:14\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n25 | \t\t} catch (e) {\n26 | \t\t\tthrow new DrizzleQueryError(query.sql, query.params, e);\n                  ^\nDrizzleQueryError: Failed query: ROLLBACK\nparams: \n  query: \"ROLLBACK\",\n params: [],\n\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:26:14)\n      at run (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)\n      at /tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:67:16\n\n19 | \t\tthis.client.exec(query);\n20 | \t}\n21 | \tprepareQuery(query, mode, _prepare, executeMethod, mapper, queryMetadata) {\n22 | \t\tlet stmt;\n23 | \t\ttry {\n24 | \t\t\tstmt = this.client.query(query.sql);\n     ^\nRangeError: Cannot use a closed database\n      at prepare (unknown:1:1)\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at run (/home/df/.codex/worktrees/af5e/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:323:33)\n      at /tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:67:16\n(fail) current unit sqlite current-unit:queued-close [737.37ms]\n\n 0 pass\n 8 filtered out\n 1 fail\n 30 expect() calls\nRan 1 test across 1 file. [3.29s]\n"
+          }
+        },
+        {
+          "phase": "after",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-queue-v1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts",
+                "--timeout=30000",
+                "-t",
+                "current unit sqlite current-unit:queued-close"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:18.305Z",
+            "endedAt": "2026-11-18T21:33:21.627Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/after/native.log",
+              "sha256": "b58f66d0701e0d848b0636e1d62e32d32e0180c6376895f9a7c6891706b39411",
+              "bytes": 247
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/after/native.receipt.json",
+              "sha256": "93f18c6a637e567b78b8c05b1bb15abc339ec7baf628ccd3a5782975dec07ad3",
+              "bytes": 1459,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/after/native.log",
+              "sha256": "b58f66d0701e0d848b0636e1d62e32d32e0180c6376895f9a7c6891706b39411",
+              "bytes": 247,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-queue-v1/after/native.log",
+            "sha256": "b58f66d0701e0d848b0636e1d62e32d32e0180c6376895f9a7c6891706b39411",
+            "bytes": 247,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts:\n(pass) current unit sqlite current-unit:queued-close [702.67ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 32 expect() calls\nRan 1 test across 1 file. [3.27s]\n"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reuse",
+      "plan": {
+        "proposal": {
+          "path": "/tmp/puni-sqlite-lifetime-proofs-root-v1/plan.json",
+          "sha256": "6a15c144d1c525d9fbe856a1948184a9e234305147ce5733d762b7fdd3410689",
+          "bytes": 5605,
+          "mode": 384
+        },
+        "effect": {
+          "id": "REUSE",
+          "target": "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "canonical": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/source.ts",
+            "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+            "bytes": 28002,
+            "mode": 384
+          },
+          "mutant": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/REUSE.variant.ts",
+            "sha256": "584fa72e524c4fdf8895942eab92456ac5a5e87164691fa001c3ab6f99c44e03",
+            "bytes": 28020,
+            "mode": 384
+          },
+          "from": "      if (closing !== undefined) return closing;",
+          "to": "      // Controlled fault: retained closing-promise reuse omitted.",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+            "--timeout=30000",
+            "-t",
+            "closes once and surfaces cleanup failure"
+          ],
+          "expectedCases": 1,
+          "qualification": "After observed first close rejection, immediate tagged repeated join acquires its actual rejection too; native close-attempt count first becomes 2 instead of 1. Promise identity and later rejection expectation remain uncredited. No primary is converted to success."
+        },
+        "before": {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "original": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/original.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/mutant.ts",
+          "sha256": "584fa72e524c4fdf8895942eab92456ac5a5e87164691fa001c3ab6f99c44e03",
+          "bytes": 28020,
+          "mode": 436
+        },
+        "inventories": [
+          {
+            "path": "/tmp/puni-catalogue-revision-import-live-v1/source-pins.json",
+            "sha256": "0dc786af694cdcf676d009bf5ab66b75679b1fb2cc0093e26e1bb045cbb46600",
+            "bytes": 5198140,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/source-pins.json",
+            "sha256": "e8daa30bd1ab86046b8039c1bb6a445b884422b57f999f0772e26a8ec1ff2f5f",
+            "bytes": 275384,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/forge-read-inputs.json",
+            "sha256": "f5a998bddc6644d43eeef37de550a8a1f5a57396755c23652cd369906bbeb554",
+            "bytes": 16254,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          }
+        ],
+        "qualification": "One reviewed SQLite Source lifetime effect. Exact selected first oracle only; no all-method, nested-receiver, later-tail or whole-goal claim."
+      },
+      "flight": {
+        "effect": "REUSE",
+        "phases": [
+          {
+            "phase": "prepare",
+            "exitCode": 0,
+            "stdout": "{\"directory\":\"/tmp/puni-sqlite-lifetime-proof-reuse-v1\",\"before\":{\"path\":\"/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts\",\"sha256\":\"5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c\",\"bytes\":28002,\"mode\":436},\"mutant\":{\"path\":\"/tmp/puni-sqlite-lifetime-proof-reuse-v1/mutant.ts\",\"sha256\":\"584fa72e524c4fdf8895942eab92456ac5a5e87164691fa001c3ab6f99c44e03\",\"bytes\":28020,\"mode\":436}}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "baseline",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"REUSE\",\"phase\":\"baseline\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "install",
+            "exitCode": 0,
+            "stdout": "Exact mutant installed\n",
+            "stderr": ""
+          },
+          {
+            "phase": "fault",
+            "exitCode": 1,
+            "stdout": "{\"effectId\":\"REUSE\",\"phase\":\"fault\",\"exitCode\":1,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "restore",
+            "exitCode": 0,
+            "stdout": "Exact original restored after known native custody\n",
+            "stderr": ""
+          },
+          {
+            "phase": "after",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"REUSE\",\"phase\":\"after\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          }
+        ],
+        "restored": true,
+        "intended": true,
+        "qualification": "After observed first close rejection, immediate tagged repeated join acquires its actual rejection too; native close-attempt count first becomes 2 instead of 1. Promise identity and later rejection expectation remain uncredited. No primary is converted to success."
+      },
+      "phases": [
+        {
+          "phase": "baseline",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/baseline/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "closes once and surfaces cleanup failure"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:24.272Z",
+            "endedAt": "2026-11-18T21:33:26.965Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/baseline/native.log",
+              "sha256": "bc692aec99661693e988103fe7de8fb98ff2059bb1c9818d4f30ec6b0421ade9",
+              "bytes": 242
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/baseline/native.receipt.json",
+              "sha256": "7e3d822c393d5a5887bd2d9ce36225fc703d512017333b7250bd5880682e5c95",
+              "bytes": 1443,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/baseline/native.log",
+              "sha256": "bc692aec99661693e988103fe7de8fb98ff2059bb1c9818d4f30ec6b0421ade9",
+              "bytes": 242,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/baseline/native.log",
+            "sha256": "bc692aec99661693e988103fe7de8fb98ff2059bb1c9818d4f30ec6b0421ade9",
+            "bytes": 242,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) openSqliteSource > closes once and surfaces cleanup failure [26.70ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [2.65s]\n"
+          }
+        },
+        {
+          "phase": "fault",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "closes once and surfaces cleanup failure"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:30.394Z",
+            "endedAt": "2026-11-18T21:33:33.053Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/fault/native.log",
+              "sha256": "e3206d2912ac27617a3a666977c968d24b618e7a763d8a63e249e84e8fc87712",
+              "bytes": 720
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/fault/native.receipt.json",
+              "sha256": "7dc04db178c7f7da781ff0a488b85651305aedb566709f11d2d79d95a9cf8ee4",
+              "bytes": 1437,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/fault/native.log",
+              "sha256": "e3206d2912ac27617a3a666977c968d24b618e7a763d8a63e249e84e8fc87712",
+              "bytes": 720,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/fault/native.log",
+            "sha256": "e3206d2912ac27617a3a666977c968d24b618e7a763d8a63e249e84e8fc87712",
+            "bytes": 720,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n238 |       const repeated = source.close();\n239 |       await repeated.then(\n240 |         () => ({ kind: 'resolved' as const }),\n241 |         (cause: unknown) => ({ kind: 'rejected' as const, cause }),\n242 |       );\n243 |       expect(closes).toBe(1);\n                           ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 2\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.test.ts:243:22)\n(fail) openSqliteSource > closes once and surfaces cleanup failure [26.51ms]\n\n 0 pass\n 8 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [2.61s]\n"
+          }
+        },
+        {
+          "phase": "after",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "closes once and surfaces cleanup failure"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:36.426Z",
+            "endedAt": "2026-11-18T21:33:39.026Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/after/native.log",
+              "sha256": "2b5c4c5c04d7b0f0c0f56fa2bcc5e1b4f40e89e1609a29bd03ac9167a0e772a0",
+              "bytes": 242
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/after/native.receipt.json",
+              "sha256": "66159e42a0def1f2d40ccb7f26a79eaec674c9854825fefb46b4c949bc685ed5",
+              "bytes": 1437,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/after/native.log",
+              "sha256": "2b5c4c5c04d7b0f0c0f56fa2bcc5e1b4f40e89e1609a29bd03ac9167a0e772a0",
+              "bytes": 242,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-reuse-v1/after/native.log",
+            "sha256": "2b5c4c5c04d7b0f0c0f56fa2bcc5e1b4f40e89e1609a29bd03ac9167a0e772a0",
+            "bytes": 242,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) openSqliteSource > closes once and surfaces cleanup failure [31.51ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 4 expect() calls\nRan 1 test across 1 file. [2.55s]\n"
+          }
+        }
+      ]
+    },
+    {
+      "id": "health",
+      "plan": {
+        "proposal": {
+          "path": "/tmp/puni-sqlite-lifetime-proofs-root-v1/plan.json",
+          "sha256": "6a15c144d1c525d9fbe856a1948184a9e234305147ce5733d762b7fdd3410689",
+          "bytes": 5605,
+          "mode": 384
+        },
+        "effect": {
+          "id": "HEALTH",
+          "target": "libs/wbs/adapters/store-sqlite/src/source.ts",
+          "canonical": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/source.ts",
+            "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+            "bytes": 28002,
+            "mode": 384
+          },
+          "mutant": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/HEALTH.variant.ts",
+            "sha256": "ca0086959160d11ae620a13c687e08efe358724c08862bec1b147c0b538af85e",
+            "bytes": 27974,
+            "mode": 384
+          },
+          "from": "    health() {\n      try {\n        assertSourceOpen();",
+          "to": "    health() {\n      try {",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+            "--timeout=30000",
+            "-t",
+            "rejects health immediately while Source writer retirement waits for its owned turn"
+          ],
+          "expectedCases": 1,
+          "qualification": "After actual pre-close readiness, health returns a resolved readiness outcome while writer retirement is held; first rejected-kind assertion fails. Later contextual/closed-cause assertions are unreached."
+        },
+        "before": {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "original": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/original.ts",
+          "sha256": "5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c",
+          "bytes": 28002,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/mutant.ts",
+          "sha256": "ca0086959160d11ae620a13c687e08efe358724c08862bec1b147c0b538af85e",
+          "bytes": 27974,
+          "mode": 436
+        },
+        "inventories": [
+          {
+            "path": "/tmp/puni-catalogue-revision-import-live-v1/source-pins.json",
+            "sha256": "0dc786af694cdcf676d009bf5ab66b75679b1fb2cc0093e26e1bb045cbb46600",
+            "bytes": 5198140,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/source-pins.json",
+            "sha256": "e8daa30bd1ab86046b8039c1bb6a445b884422b57f999f0772e26a8ec1ff2f5f",
+            "bytes": 275384,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/forge-read-inputs.json",
+            "sha256": "f5a998bddc6644d43eeef37de550a8a1f5a57396755c23652cd369906bbeb554",
+            "bytes": 16254,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          }
+        ],
+        "qualification": "One reviewed SQLite Source lifetime effect. Exact selected first oracle only; no all-method, nested-receiver, later-tail or whole-goal claim."
+      },
+      "flight": {
+        "effect": "HEALTH",
+        "phases": [
+          {
+            "phase": "prepare",
+            "exitCode": 0,
+            "stdout": "{\"directory\":\"/tmp/puni-sqlite-lifetime-proof-health-v1\",\"before\":{\"path\":\"/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts\",\"sha256\":\"5784c68c91a933b4bbf2dc87782adfc1b4568925c7c613f2402c2065241f881c\",\"bytes\":28002,\"mode\":436},\"mutant\":{\"path\":\"/tmp/puni-sqlite-lifetime-proof-health-v1/mutant.ts\",\"sha256\":\"ca0086959160d11ae620a13c687e08efe358724c08862bec1b147c0b538af85e\",\"bytes\":27974,\"mode\":436}}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "baseline",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"HEALTH\",\"phase\":\"baseline\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "install",
+            "exitCode": 0,
+            "stdout": "Exact mutant installed\n",
+            "stderr": ""
+          },
+          {
+            "phase": "fault",
+            "exitCode": 1,
+            "stdout": "{\"effectId\":\"HEALTH\",\"phase\":\"fault\",\"exitCode\":1,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "restore",
+            "exitCode": 0,
+            "stdout": "Exact original restored after known native custody\n",
+            "stderr": ""
+          },
+          {
+            "phase": "after",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"HEALTH\",\"phase\":\"after\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          }
+        ],
+        "restored": true,
+        "intended": true,
+        "qualification": "After actual pre-close readiness, health returns a resolved readiness outcome while writer retirement is held; first rejected-kind assertion fails. Later contextual/closed-cause assertions are unreached."
+      },
+      "phases": [
+        {
+          "phase": "baseline",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-health-v1/baseline/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects health immediately while Source writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:41.682Z",
+            "endedAt": "2026-11-18T21:33:44.331Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/baseline/native.log",
+              "sha256": "522d4a2a8a1c70e7ec66b91187f515d1b24c570d04906cd4317b01558841a5a3",
+              "bytes": 265
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/baseline/native.receipt.json",
+              "sha256": "49100a2b5a9844e5513c10c0b7ba6280a1165942e09ceae44dba52078e212089",
+              "bytes": 1487,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/baseline/native.log",
+              "sha256": "522d4a2a8a1c70e7ec66b91187f515d1b24c570d04906cd4317b01558841a5a3",
+              "bytes": 265,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/baseline/native.log",
+            "sha256": "522d4a2a8a1c70e7ec66b91187f515d1b24c570d04906cd4317b01558841a5a3",
+            "bytes": 265,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) rejects health immediately while Source writer retirement waits for its owned turn [22.99ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [2.60s]\n"
+          }
+        },
+        {
+          "phase": "fault",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-health-v1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects health immediately while Source writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:47.689Z",
+            "endedAt": "2026-11-18T21:33:50.370Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/fault/native.log",
+              "sha256": "953488309e44fa1a7fdc89cca9282e2f50ba13d974c504811608ff8025e8066e",
+              "bytes": 768
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/fault/native.receipt.json",
+              "sha256": "070fb30830c6a0a2b90c694f78e291210f942b877bb8a6f383b169aa0efa02c9",
+              "bytes": 1481,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/fault/native.log",
+              "sha256": "953488309e44fa1a7fdc89cca9282e2f50ba13d974c504811608ff8025e8066e",
+              "bytes": 768,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/fault/native.log",
+            "sha256": "953488309e44fa1a7fdc89cca9282e2f50ba13d974c504811608ff8025e8066e",
+            "bytes": 768,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n275 |     );\n276 |     const health = await source.health().then(\n277 |       value => ({ kind: 'resolved' as const, value }),\n278 |       (cause: unknown) => ({ kind: 'rejected' as const, cause }),\n279 |     );\n280 |     expect(health.kind).toBe('rejected');\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: \"rejected\"\nReceived: \"resolved\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.test.ts:280:25)\n(fail) rejects health immediately while Source writer retirement waits for its owned turn [40.81ms]\n\n 0 pass\n 8 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [2.63s]\n"
+          }
+        },
+        {
+          "phase": "after",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-health-v1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects health immediately while Source writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:53.730Z",
+            "endedAt": "2026-11-18T21:33:56.366Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/after/native.log",
+              "sha256": "76f8ce768900bef9a40679700adafceb9b47cec1c72872ee665f41eaf4a71026",
+              "bytes": 265
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/after/native.receipt.json",
+              "sha256": "79a30067b2ecd17dcf260ae02dfd342349825bf1d85c12446845b4b3de082e98",
+              "bytes": 1481,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/after/native.log",
+              "sha256": "76f8ce768900bef9a40679700adafceb9b47cec1c72872ee665f41eaf4a71026",
+              "bytes": 265,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-health-v1/after/native.log",
+            "sha256": "76f8ce768900bef9a40679700adafceb9b47cec1c72872ee665f41eaf4a71026",
+            "bytes": 265,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) rejects health immediately while Source writer retirement waits for its owned turn [14.23ms]\n\n 1 pass\n 8 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [2.59s]\n"
+          }
+        }
+      ]
+    },
+    {
+      "id": "public_entry",
+      "plan": {
+        "proposal": {
+          "path": "/tmp/puni-sqlite-lifetime-proofs-root-v1/plan.json",
+          "sha256": "6a15c144d1c525d9fbe856a1948184a9e234305147ce5733d762b7fdd3410689",
+          "bytes": 5605,
+          "mode": 384
+        },
+        "effect": {
+          "id": "PUBLIC_ENTRY",
+          "target": "libs/wbs/adapters/store-sqlite/src/public-store-owner.ts",
+          "canonical": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/public-store-owner.ts",
+            "sha256": "fc088b0d2d57cf95c2e5d6773f2552a04e2e40470fcfacd2ab033fc3c812bb86",
+            "bytes": 4950,
+            "mode": 384
+          },
+          "mutant": {
+            "path": "/tmp/puni-sqlite-retirement-source-v1/PUBLIC_ENTRY.variant.ts",
+            "sha256": "c50a52019292b26a3fc1bb20e051b7df6bc1d40554a094dc6ab3aa1a70c608cf",
+            "bytes": 5003,
+            "mode": 384
+          },
+          "from": "          assertOpen();",
+          "to": "          // Controlled fault: public Source method-entry assertion omitted.",
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+            "--timeout=30000",
+            "-t",
+            "rejects (plain|bound) public users reads while writer retirement waits for its owned turn"
+          ],
+          "expectedCases": 2,
+          "qualification": "Each actual seeded user read succeeds before close; with physical writer held open, users.findById resolves after logical close and first rejected-kind assertion fails. One shared barrier effect through plain/bound users only; not every method, nested incidents, receiver or continuation proof."
+        },
+        "before": {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/public-store-owner.ts",
+          "sha256": "fc088b0d2d57cf95c2e5d6773f2552a04e2e40470fcfacd2ab033fc3c812bb86",
+          "bytes": 4950,
+          "mode": 436
+        },
+        "original": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/original.ts",
+          "sha256": "fc088b0d2d57cf95c2e5d6773f2552a04e2e40470fcfacd2ab033fc3c812bb86",
+          "bytes": 4950,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/mutant.ts",
+          "sha256": "c50a52019292b26a3fc1bb20e051b7df6bc1d40554a094dc6ab3aa1a70c608cf",
+          "bytes": 5003,
+          "mode": 436
+        },
+        "inventories": [
+          {
+            "path": "/tmp/puni-catalogue-revision-import-live-v1/source-pins.json",
+            "sha256": "0dc786af694cdcf676d009bf5ab66b75679b1fb2cc0093e26e1bb045cbb46600",
+            "bytes": 5198140,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/source-pins.json",
+            "sha256": "e8daa30bd1ab86046b8039c1bb6a445b884422b57f999f0772e26a8ec1ff2f5f",
+            "bytes": 275384,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/forge-read-inputs.json",
+            "sha256": "f5a998bddc6644d43eeef37de550a8a1f5a57396755c23652cd369906bbeb554",
+            "bytes": 16254,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-working-disposition-live-v1/cli/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          }
+        ],
+        "qualification": "One reviewed SQLite Source lifetime effect. Exact selected first oracle only; no all-method, nested-receiver, later-tail or whole-goal claim."
+      },
+      "flight": {
+        "effect": "PUBLIC_ENTRY",
+        "phases": [
+          {
+            "phase": "prepare",
+            "exitCode": 0,
+            "stdout": "{\"directory\":\"/tmp/puni-sqlite-lifetime-proof-public_entry-v1\",\"before\":{\"path\":\"/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/public-store-owner.ts\",\"sha256\":\"fc088b0d2d57cf95c2e5d6773f2552a04e2e40470fcfacd2ab033fc3c812bb86\",\"bytes\":4950,\"mode\":436},\"mutant\":{\"path\":\"/tmp/puni-sqlite-lifetime-proof-public_entry-v1/mutant.ts\",\"sha256\":\"c50a52019292b26a3fc1bb20e051b7df6bc1d40554a094dc6ab3aa1a70c608cf\",\"bytes\":5003,\"mode\":436}}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "baseline",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"PUBLIC_ENTRY\",\"phase\":\"baseline\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "install",
+            "exitCode": 0,
+            "stdout": "Exact mutant installed\n",
+            "stderr": ""
+          },
+          {
+            "phase": "fault",
+            "exitCode": 1,
+            "stdout": "{\"effectId\":\"PUBLIC_ENTRY\",\"phase\":\"fault\",\"exitCode\":1,\"settled\":true}\n",
+            "stderr": ""
+          },
+          {
+            "phase": "restore",
+            "exitCode": 0,
+            "stdout": "Exact original restored after known native custody\n",
+            "stderr": ""
+          },
+          {
+            "phase": "after",
+            "exitCode": 0,
+            "stdout": "{\"effectId\":\"PUBLIC_ENTRY\",\"phase\":\"after\",\"exitCode\":0,\"settled\":true}\n",
+            "stderr": ""
+          }
+        ],
+        "restored": true,
+        "intended": true,
+        "qualification": "Each actual seeded user read succeeds before close; with physical writer held open, users.findById resolves after logical close and first rejected-kind assertion fails. One shared barrier effect through plain/bound users only; not every method, nested incidents, receiver or continuation proof."
+      },
+      "phases": [
+        {
+          "phase": "baseline",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/baseline/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects (plain|bound) public users reads while writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:33:58.999Z",
+            "endedAt": "2026-11-18T21:34:02.984Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/baseline/native.log",
+              "sha256": "e988b703485910534361736e4ae295032d14f74c53cc018a556ef531b6df3f74",
+              "bytes": 367
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/baseline/native.receipt.json",
+              "sha256": "7a4acdb6599b96d2d6e2b47f4839c115d518840eb9e4d68696b40057f60cb439",
+              "bytes": 1506,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/baseline/native.log",
+              "sha256": "e988b703485910534361736e4ae295032d14f74c53cc018a556ef531b6df3f74",
+              "bytes": 367,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/baseline/native.log",
+            "sha256": "e988b703485910534361736e4ae295032d14f74c53cc018a556ef531b6df3f74",
+            "bytes": 367,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) rejects plain public users reads while writer retirement waits for its owned turn [721.70ms]\n(pass) rejects bound public users reads while writer retirement waits for its owned turn [664.33ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 50 expect() calls\nRan 2 tests across 1 file. [3.94s]\n"
+          }
+        },
+        {
+          "phase": "fault",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects (plain|bound) public users reads while writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:34:06.378Z",
+            "endedAt": "2026-11-18T21:34:10.340Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/fault/native.log",
+              "sha256": "1d1940d5e288439b9a8879c94cd80990571a7450b2e0d871b116ca4d73480258",
+              "bytes": 1473
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/fault/native.receipt.json",
+              "sha256": "a0c831c0247814b96bdb3d824729935d7e09807985f6533123006f69e30c2066",
+              "bytes": 1501,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/fault/native.log",
+              "sha256": "1d1940d5e288439b9a8879c94cd80990571a7450b2e0d871b116ca4d73480258",
+              "bytes": 1473,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/fault/native.log",
+            "sha256": "1d1940d5e288439b9a8879c94cd80990571a7450b2e0d871b116ca4d73480258",
+            "bytes": 1473,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n335 |       );\n336 |       const read = await publicSource.stores.users.findById(fixture.seed.stamp.by).then(\n337 |         value => ({ kind: 'resolved' as const, value }),\n338 |         (cause: unknown) => ({ kind: 'rejected' as const, cause }),\n339 |       );\n340 |       expect(read.kind).toBe('rejected');\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: \"rejected\"\nReceived: \"resolved\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.test.ts:340:25)\n(fail) rejects plain public users reads while writer retirement waits for its owned turn [724.59ms]\n335 |       );\n336 |       const read = await publicSource.stores.users.findById(fixture.seed.stamp.by).then(\n337 |         value => ({ kind: 'resolved' as const, value }),\n338 |         (cause: unknown) => ({ kind: 'rejected' as const, cause }),\n339 |       );\n340 |       expect(read.kind).toBe('rejected');\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: \"rejected\"\nReceived: \"resolved\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.test.ts:340:25)\n(fail) rejects bound public users reads while writer retirement waits for its owned turn [647.44ms]\n\n 0 pass\n 7 filtered out\n 2 fail\n 46 expect() calls\nRan 2 tests across 1 file. [3.92s]\n"
+          }
+        },
+        {
+          "phase": "after",
+          "receipt": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "--no-env-file",
+                "--config=/dev/null",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/source.test.ts",
+                "--timeout=30000",
+                "-t",
+                "rejects (plain|bound) public users reads while writer retirement waits for its owned turn"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T21:34:13.710Z",
+            "endedAt": "2026-11-18T21:34:17.575Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/after/native.log",
+              "sha256": "d5761fc50941827bf87f57ba3a5c55eb7fe6017f0ef4fa82c5db30891586f987",
+              "bytes": 367
+            },
+            "settled": true
+          },
+          "validation": {
+            "receipt": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/after/native.receipt.json",
+              "sha256": "5d3e641c6a0d4bdab60a8922d7b55f5833271735b947493f911fea02fdfa3ecd",
+              "bytes": 1500,
+              "mode": 384
+            },
+            "log": {
+              "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/after/native.log",
+              "sha256": "d5761fc50941827bf87f57ba3a5c55eb7fe6017f0ef4fa82c5db30891586f987",
+              "bytes": 367,
+              "mode": 384
+            },
+            "inputsMatched": true,
+            "qualification": "Actual selected ownership/subtree effect only. Inspect expected case count and its exact first oracle after healthy premises; credit only after exact known restoration and same after control."
+          },
+          "log": {
+            "path": "/tmp/puni-sqlite-lifetime-proof-public_entry-v1/after/native.log",
+            "sha256": "d5761fc50941827bf87f57ba3a5c55eb7fe6017f0ef4fa82c5db30891586f987",
+            "bytes": 367,
+            "mode": 384,
+            "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/source.test.ts:\n(pass) rejects plain public users reads while writer retirement waits for its owned turn [720.24ms]\n(pass) rejects bound public users reads while writer retirement waits for its owned turn [567.49ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 50 expect() calls\nRan 2 tests across 1 file. [3.82s]\n"
+          }
+        }
+      ]
+    }
+  ]
+}

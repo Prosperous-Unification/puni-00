@@ -3,6 +3,16 @@ import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 const ROUTE_ID = '00000000-0000-4000-8000-000000000001';
 const ROUTE_MARKER_ID = '00000000-0000-4000-8000-000000000002';
 export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
+  bindCatalogueStep: {
+    scopeKind: 'organization',
+    scopeId: ROUTE_ID,
+    stepId: ROUTE_ID,
+    workItemTypeId: null,
+    position: 10,
+  },
+  patchStepDefinition: { name: 'Reachable catalogue step' },
+  unbindCatalogueStep: { dryRun: true },
+  reorderCatalogueBindings: { scopeKind: 'project', scopeId: 'scoped-project', ids: [] },
   acquireRuntimeAuthority: {
     schemaVersion: 1,
     commandId: 'command',
@@ -39,7 +49,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     observedAt: 1,
     reason: 'probe',
     use: {
-      projectId: 'p',
+      workPackageId: 'p',
       resourceId: 'r',
       workItemId: 'w',
       agentRun: 'run',
@@ -62,7 +72,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     observedAt: 1,
     reason: 'probe',
     use: {
-      projectId: 'p',
+      workPackageId: 'p',
       resourceId: 'r',
       workItemId: 'w',
       agentRun: 'run',
@@ -74,7 +84,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
       reservedWorkspaceUnits: 1,
     },
   },
-  postApiProjectsByIdResourceUses: {
+  postApiWorkPackagesByIdResourceUses: {
     requestId: 'probe',
     resourceId: 'probe',
     workItemId: 'probe',
@@ -83,12 +93,17 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     locator: 'probe',
     units: 1,
   },
-  postApiProjectsByIdResourceUsesByUseIdEvents: {
+  postApiWorkPackagesByIdResourceUsesByUseIdEvents: {
     eventId: 'probe',
     expectedRevision: 1,
     kind: 'cleanup_requested',
     reason: 'probe',
   },
+  // Origin/context refusals finish before this syntactically valid destination is looked up.
+  postApiWorkPackagesByIdMove: { projectId: ROUTE_ID },
+  postApiProjects: { name: 'Route project' },
+  patchApiProjectsById: { name: 'Route project' },
+  patchApiProjectsByIdSettings: { budgetFactor: 2 },
   postApiAuthContext: { organizationId: ROUTE_ID },
   postApiAuthLinkAuth0: { password: 'valid-password' },
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
@@ -129,20 +144,18 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
-  postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
-  postApiOrganizationJoinRequestsByIdApprove: { role: 'viewer' },
+  postApiOrganizationInvitations: { email: 'test@example.org', initialRoleId: null },
+  postApiOrganizationJoinRequestsByIdApprove: { initialRoleId: null },
   postApiOnboardingInvitationsAccept: { token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
-  postApiProjectsByIdSteps: { name: 'Reachable step' },
-  patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
-  patchApiOrganizationMembersByUserId: { role: 'member' },
-  postApiProjects: { name: 'Reachable plan' },
-  postApiProjectsImport: planDocumentFixture(),
-  patchApiProjectsById: {
+  patchWorkPackageStepValues: { estimateUnit: 'minutes', allowanceBps: 3000 },
+  postApiWorkPackages: { name: 'Reachable plan', projectId: ROUTE_ID },
+  postApiWorkPackagesImport: { projectId: ROUTE_ID, document: planDocumentFixture() },
+  patchApiWorkPackagesById: {
     pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
   },
-  postApiProjectsByIdOptimizationRetry: { objective: 'pri', inputHash: 'route-probe' },
-  postApiProjectsByIdCommands: {
+  postApiWorkPackagesByIdOptimizationRetry: { objective: 'pri', inputHash: 'route-probe' },
+  postApiWorkPackagesByIdCommands: {
     commands: [
       {
         kind: 'patchWorkItem',
@@ -157,18 +170,18 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiDirectoryCommands: {
     commands: [{ kind: 'createPerson', name: 'Route probe', teamIds: [] }],
   },
-  'postApiProjectsByIdCalendar-markers': {
+  'postApiWorkPackagesByIdCalendar-markers': {
     markerId: ROUTE_MARKER_ID,
     date: '2026-09-06',
     name: 'Route probe',
   },
-  'patchApiProjectsByIdCalendar-markersByMarkerId': { name: 'Renamed route probe' },
-  'postApiProjectsByIdSaved-plans': {},
+  'patchApiWorkPackagesByIdCalendar-markersByMarkerId': { name: 'Renamed route probe' },
+  'postApiWorkPackagesByIdSaved-plans': {},
   postApiSpaces: { name: 'Route probe' },
   patchApiSpacesById: { name: 'Renamed route probe' },
   postApiSpacesByIdProjects: { projectId: ROUTE_ID },
   postApiSpacesByIdProjectsByProjectIdMove: {},
-  postApiOrganizationProjectsByIdRank: {},
+  postApiOrganizationWorkPackagesByIdRank: {},
   patchApiOrganization: { sharedPeople: true },
   postApiOrganizationSharedPeopleRestoreApprovals: {
     operationId: 'restore-1',
@@ -209,14 +222,15 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
 };
 export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> =
   {
+    readProjectStepUsage: { stepId: ROUTE_ID },
     readRuntimeState: { personId: ROUTE_ID },
     lookupRuntimeReceipt: { personId: ROUTE_ID, expectedLedgerId: ROUTE_ID },
     'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },
     getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
     getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },
     getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
-    getApiProjectsByIdExport: { format: 'json' },
-    'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
-    getApiProjectsByIdAddressReferences: { reference: 'P.010', revision: 'qar1:route-probe' },
-    'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
+    getApiWorkPackagesByIdExport: { format: 'json' },
+    'getApiWorkPackagesByIdSaved-plansCompare': { left: 'current', right: 'current' },
+    getApiWorkPackagesByIdAddressReferences: { reference: 'P.010', revision: 'qar1:route-probe' },
+    'getApiWorkPackagesByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
   };

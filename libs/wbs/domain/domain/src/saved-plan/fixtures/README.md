@@ -10,7 +10,7 @@ original compact JSON bytes through formatting.
 
 `schedule-v1.txt` pins the dormant v1 builder's empty-plan output with a retired
 algorithm identity. `connected-history.txt` freezes the integrated Slice 1 codec's
-two-project fixture for the core integrity reader without importing domain test
+two-work-package fixture for the core integrity reader without importing domain test
 source across an Nx project boundary. These are test fixtures, not live captures.
 
 The Slice 1 connected fixture is **structural evidence only**. Its abstract

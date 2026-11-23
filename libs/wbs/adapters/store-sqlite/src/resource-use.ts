@@ -1,28 +1,50 @@
-import { resourceUse as useSchema, resourceUseEvent as eventSchema } from '@wbs/contracts';
+import { resourceUseEvent as eventSchema } from '@wbs/contracts';
+import { readStoredAttempt, type StepAttemptRecord } from '@wbs/core';
 import {
-  mayEditProjectWithin,
+  assertResourceUseActor,
+  authorize,
   type ResourceUseActor,
   type ResourceUseAnswer,
+  type ResourceUseDenial,
   type ResourceUsePage,
   type ResourceUses,
+  retainResourceUseActor,
 } from '@wbs/core';
 import {
+  canEditLegacyWorkPackage,
   type ResourceUse,
   type ResourceUseEventDraft,
   type ResourceUseRegistration,
   transitionResourceUse,
 } from '@wbs/domain';
-import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import {
+  AccessDecisionRepository,
+  type PackageTargetRecord,
+  readPackageOrganization,
+  readPackageTargetRow,
+} from './access-decisions';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { currentMembershipAccess } from './organization-access';
+import type { ImmediateTransaction } from './immediate-write';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
-import { resourceCleanupRequestRecord } from './schema';
+import { readStoredResourceUse } from './resource-use-history';
+import {
+  hasRemainingResourceUseClaimIn,
+  prepareResourceUseLocationIn,
+  readResourceUseLocationIn,
+  registerResourceUseLocationIn,
+  resourceUsesForAttemptIn,
+  resourceUsesForClaimIn,
+} from './resource-use-location';
+import { MACHINE_CREDENTIAL_SOURCES, PERSON_KINDS, resourceCleanupRequestRecord } from './schema';
 import { resourceUseEventRecord, resourceUseRecord } from './schema';
+import { runSecurityTransaction } from './security-transaction';
+import { readSqliteStepWriteIn } from './step-write';
 
-type Reader = Pick<SQLiteBunDatabase, 'get' | 'all' | 'select' | 'insert' | 'update'>;
+type Reader = Pick<SQLiteBunDatabase, 'get' | 'all' | 'run' | 'select' | 'insert' | 'update'>;
 const refused = (reason: 'not_found' | 'forbidden' | 'conflict' | 'invalid_body') =>
   ({ ok: false, reason }) as const;
 function fingerprint(
@@ -34,70 +56,183 @@ function fingerprint(
     Object.entries(body).sort(([a], [b]) => a.localeCompare(b)),
   ]);
 }
-/** Rechecks membership and project ownership inside the same write transaction or coordinated read. */
-export function admitResourceUseProject(
+/**
+ * Rechecks only durable credential identity on the held owner connection.
+ * Stale rows are modeled refusal; malformed/unreadable trusted storage throws.
+ * This does not reverify raw secrets, session/delegation expiry or rotation windows.
+ */
+export function readResourceUseCredentialRefusal(
+  tx: Pick<SQLiteBunDatabase, 'get'>,
+  actor: ResourceUseActor,
+): 'forbidden' | null {
+  const authentication = actor.principal.authentication;
+  if (authentication?.kind !== 'machine' && authentication?.kind !== 'consent') return null;
+  if (actor.access.kind !== 'scoped') return 'forbidden';
+  const stored = tx.get<
+    | {
+        organizationId: string;
+        personId: string;
+        source: unknown;
+        revokedAt: unknown;
+        familyId: string | null;
+        kind: unknown;
+        accountId: string | null;
+        personOrganizationId: string | null;
+      }
+    | undefined
+  >(sql`
+    SELECT c.organization_id AS organizationId,c.person_id AS personId,c.source,c.revoked_at AS revokedAt,c.mcp_family_id AS familyId,
+      p.kind,p.account_id AS accountId,o.organization_id AS personOrganizationId
+    FROM machine_credential c LEFT JOIN person p ON p.id=c.person_id
+    LEFT JOIN person_organization o ON o.resource_id=p.id AND o.organization_id=c.organization_id
+    WHERE c.id=${authentication.credentialId}`);
+  if (stored === undefined) return 'forbidden';
+  const sources: readonly string[] = MACHINE_CREDENTIAL_SOURCES;
+  // Proof: credential-source-vocabulary.
+  // The recorded fault broke `throws on manual resource register malformed source with a sufficient own grant`; restored GREEN.
+  if (typeof stored.source !== 'string' || !sources.includes(stored.source))
+    throw new Error('resource machine credential has a malformed source');
+  // Proof: credential-revocation-vocabulary.
+  // The recorded fault broke `throws on manual resource register malformed revoked_at with a sufficient own grant`; restored GREEN.
+  if (
+    stored.revokedAt !== null &&
+    (typeof stored.revokedAt !== 'number' || !Number.isSafeInteger(stored.revokedAt))
+  )
+    throw new Error('resource machine credential has malformed revoked_at');
+  // Proof: credential-family-vocabulary.
+  // The recorded fault broke `throws on a missing stored consent family before manual register despite an own grant`; restored GREEN.
+  if (stored.source === 'mcp_consent' && typeof stored.familyId !== 'string')
+    throw new Error('resource machine credential has a malformed consent family');
+  const kinds: readonly string[] = PERSON_KINDS;
+  // Proof: credential-person-vocabulary.
+  // The recorded fault broke `throws on malformed person kind before manual register despite an own grant`; restored GREEN.
+  if (stored.kind !== null && (typeof stored.kind !== 'string' || !kinds.includes(stored.kind)))
+    throw new Error('resource machine credential person has a malformed kind');
+  // Proof: credential-current-binding.
+  // The recorded fault broke `rechecks queued manual resource list current credential revoked despite a sufficient own grant`; restored GREEN.
+  if (
+    stored.revokedAt !== null ||
+    stored.organizationId !== actor.access.scope.organizationId ||
+    stored.personId !== authentication.personId ||
+    stored.kind !== 'agent' ||
+    stored.accountId !== actor.principal.id ||
+    stored.personOrganizationId !== stored.organizationId
+  )
+    return 'forbidden';
+  if (authentication.kind === 'machine')
+    // Proof: credential-machine-source-kind.
+    // The recorded fault broke `rechecks queued runtime admission replay current source mcp_consent before effects`; restored GREEN.
+    return stored.source === 'mcp_consent' ? 'forbidden' : null;
+  const context = actor.principal.delegation;
+  // Proof: credential-consent-context.
+  // The recorded fault broke `rechecks trusted consent family before manual list despite a sufficient own grant`; restored GREEN.
+  return stored.source !== 'mcp_consent' ||
+    context === undefined ||
+    context.audience === 'wbs-be-01/direct' ||
+    stored.familyId !== context.grant
+    ? 'forbidden'
+    : null;
+}
+
+/** Current grants on the caller's held connection; immutable orphan access has no invented package chain. */
+export async function admitResourceUseWorkPackage(
   tx: Reader,
-  projectId: string,
+  workPackageId: string,
   actor: ResourceUseActor,
   write: boolean,
   orphan: boolean,
-): { name: string; organizationId: string | null } | 'not_found' | 'forbidden' {
-  let access = actor.access;
+): Promise<{ name: string; organizationId: string | null } | ResourceUseDenial> {
+  const access = actor.access;
   const active = readOrganizationActivation(tx) === 'activated';
   if (access.kind === 'legacy') {
-    if (active) return 'forbidden';
+    if (active) return refused('forbidden');
   } else {
-    if (!active) return 'forbidden';
-    const member = currentMembershipAccess(tx, access.scope.organizationId, access.scope.userId);
-    if (!member.ok) return 'forbidden';
-    if (member.access.kind !== 'scoped')
-      throw new Error('membership recheck returned legacy access');
-    access = {
-      ...member.access,
-      scope: {
-        ...member.access.scope,
-        ...(access.scope.delegated ? { delegated: true as const } : {}),
-      },
-    };
+    if (!active) return refused('forbidden');
+    const member = readMembershipIn(tx, access.scope.organizationId, actor.principal.id);
+    // Proof: manual-current-member.
+    // The recorded fault broke `rechecks current membership inside resource list owner after queueing`; restored GREEN.
+    if (member === null) return refused('forbidden');
+    // Proof: manual-current-credential-dependency-first bypassed this current row read.
+    // rechecks queued manual resource register current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource append current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource list current credential revoked despite a sufficient own grant
+    // rechecks queued manual resource history current credential revoked despite a sufficient own grant
+    // throws on manual resource register missing table with a sufficient own grant
+    // Exact48 named REDs and restored GREENs retained; this is one dependency proof, not individual predicate isolation.
+    // Proof: manual-current-credential.
+    // The recorded fault broke `rechecks queued manual resource register current credential missing despite a sufficient own grant`; restored GREEN.
+    if (readResourceUseCredentialRefusal(tx, actor) !== null) return refused('forbidden');
   }
-  const project = tx.get<
-    { name: string; ownerId: string; restricted: number; organizationId: string | null } | undefined
+  const workPackage = tx.get<
+    | ({ name: string; restricted: number; organizationId: string | null } & PackageTargetRecord)
+    | undefined
   >(sql`
-    SELECT p.name,p.owner_id AS ownerId,p.restricted,o.organization_id AS organizationId
-    FROM project p LEFT JOIN project_organization o ON o.resource_id=p.id WHERE p.id=${projectId}`);
-  if (project === undefined) {
-    if (
-      !orphan ||
-      access.kind !== 'scoped' ||
-      access.scope.delegated ||
-      !['admin', 'super_admin'].includes(access.scope.role)
-    )
-      return 'not_found';
+    SELECT p.name,p.restricted,o.organization_id AS organizationId,
+      p.id AS package_id,o.organization_id,p.project_id,parent.id AS parent_id,
+      parent.organization_id AS parent_organization_id,
+      (SELECT id FROM organization WHERE id=o.organization_id) AS actual_organization_id,
+      parent.space_id AS space_id,
+      (SELECT id FROM space WHERE id=parent.space_id) AS actual_space_id,
+      (SELECT organization_id FROM space WHERE id=parent.space_id) AS space_organization_id
+    FROM work_package p LEFT JOIN work_package_organization o ON o.resource_id=p.id
+    LEFT JOIN project parent ON parent.id=p.project_id WHERE p.id=${workPackageId}`);
+  if (workPackage === undefined) {
+    // Proof: orphan-personal-nondelegation.
+    // The recorded fault broke `conceals delegated personal orphan access even with effective manage_directory`; restored GREEN.
+    if (!orphan || access.kind !== 'scoped' || actor.principal.delegation !== undefined)
+      return refused('not_found');
     const prior = tx
       .select()
       .from(resourceUseRecord)
       .where(
         and(
-          eq(resourceUseRecord.projectId, projectId),
+          eq(resourceUseRecord.workPackageId, workPackageId),
           eq(resourceUseRecord.organizationId, access.scope.organizationId),
         ),
       )
       .limit(1)
       .get();
-    if (prior === undefined) return 'not_found';
-    const snapshot = useSchema.assert(prior.snapshot);
-    return { name: snapshot.projectName, organizationId: access.scope.organizationId };
+    if (prior === undefined) return refused('not_found');
+    const decision = await authorize(
+      new AccessDecisionRepository(tx),
+      actor.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.manage_directory',
+    );
+    // Proof: orphan-current-directory-permission.
+    // The recorded fault broke `conceals personal orphan history and updates from role-only administrators`; restored GREEN.
+    if (!decision.ok) return refused('not_found');
+    const snapshot = readStoredResourceUse(prior.snapshot);
+    return { name: snapshot.workPackageName, organizationId: access.scope.organizationId };
   }
-  // Proof: disabling this tenant comparison exposed a foreign project in the composed guards test (2026-10-25).
-  if (access.kind === 'scoped' && project.organizationId !== access.scope.organizationId)
-    return 'not_found';
-  // Proof: disabling mayEditProjectWithin let a viewer write in the composed guards test (2026-10-25).
+  if (access.kind === 'legacy')
+    return write &&
+      !canEditLegacyWorkPackage({ ...workPackage, restricted: workPackage.restricted !== 0 })
+      ? refused('forbidden')
+      : { name: workPackage.name, organizationId: workPackage.organizationId };
   if (
-    write &&
-    !mayEditProjectWithin({ ...project, restricted: project.restricted !== 0 }, actor.id, access)
+    readPackageOrganization(workPackageId, workPackage.organizationId) !==
+    access.scope.organizationId
   )
-    return 'forbidden';
-  return { name: project.name, organizationId: project.organizationId };
+    return refused('not_found');
+  const target = readPackageTargetRow(workPackage);
+  const decision = await authorize(
+    new AccessDecisionRepository(tx),
+    // Proof: manual-own-credential-authority.
+    // The recorded fault broke `requires the credential own package.write for runtime fresh admission despite account authority`; restored GREEN.
+    actor.principal,
+    {
+      kind: 'work_package',
+      chain: target.chain,
+      restricted: target.restricted,
+    },
+    write ? 'package.write' : 'package.read',
+  );
+  // Proof: manual-current-package-permission.
+  // The recorded fault broke `encodes package.write for a readable resource registration denial without effects`; restored GREEN.
+  return decision.ok
+    ? { name: workPackage.name, organizationId: workPackage.organizationId }
+    : decision;
 }
 export function personIn(
   tx: Reader,
@@ -129,7 +264,7 @@ export function actorNameIn(
 /** Persists an event and its projection atomically; callers already hold their transaction. */
 export function appendResourceUseIn(
   tx: Reader,
-  projectId: string,
+  workPackageId: string,
   use: ResourceUse,
   draft: ResourceUseEventDraft,
   actorId: string,
@@ -191,7 +326,7 @@ export function appendResourceUseIn(
     .values({
       id: event.id,
       useId: use.id,
-      projectId,
+      workPackageId,
       revision: event.revision,
       snapshot: event,
       fingerprint: identity,
@@ -205,9 +340,9 @@ export function appendResourceUseIn(
   return { ok: true, value: changed };
 }
 /** Registers inside an admitted transaction; only the separately authorized runtime adapter supplies runtime identity. */
-export function registerResourceUseIn(
+export async function registerResourceUseIn(
   tx: Reader,
-  projectId: string,
+  workPackageId: string,
   actor: ResourceUseActor,
   draft: ResourceUseRegistration,
   at: number,
@@ -222,24 +357,26 @@ export function registerResourceUseIn(
     observedAt: number;
     admissionFingerprint?: string;
   },
-): ResourceUseAnswer<ResourceUse> {
-  const project = admitResourceUseProject(tx, projectId, actor, true, false);
-  if (typeof project === 'string') return refused(project);
+): Promise<ResourceUseAnswer<ResourceUse>> {
+  const workPackage = await admitResourceUseWorkPackage(tx, workPackageId, actor, true, false);
+  if ('ok' in workPackage) return workPackage;
   const identity = fingerprint(actor, draft);
   const prior = tx
     .select()
     .from(resourceUseRecord)
     .where(
       and(
-        eq(resourceUseRecord.projectId, projectId),
+        eq(resourceUseRecord.workPackageId, workPackageId),
         eq(resourceUseRecord.requestId, draft.requestId),
       ),
     )
     .get();
-  if (prior !== undefined)
-    return prior.requestFingerprint === identity
-      ? { ok: true, value: useSchema.assert(prior.registrationResponse) }
-      : refused('conflict');
+  if (prior !== undefined) {
+    if (prior.requestFingerprint !== identity) return refused('conflict');
+    const current = readStoredResourceUse(prior.snapshot);
+    if (current.state === 'active') readResourceUseLocationIn(tx, current);
+    return { ok: true, value: readStoredResourceUse(prior.registrationResponse) };
+  }
   // Proof: removing the pinned-person check let a machine register another in-scope person (2026-10-25).
   if (
     runtime === undefined &&
@@ -253,9 +390,9 @@ export function registerResourceUseIn(
     !draft.locator.trim()
   )
     return refused('invalid_body');
-  const owner = personIn(tx, draft.responsiblePersonId, project.organizationId);
-  const work = tx.get<{ name: string } | undefined>(
-    sql`SELECT name FROM work_item WHERE id=${draft.workItemId} AND project_id=${projectId}`,
+  const owner = personIn(tx, draft.responsiblePersonId, workPackage.organizationId);
+  const work = tx.get<{ name: string; hasChildren: number } | undefined>(
+    sql`SELECT name,EXISTS(SELECT 1 FROM work_item child WHERE child.parent_id=work_item.id) AS "hasChildren" FROM work_item WHERE id=${draft.workItemId} AND work_package_id=${workPackageId}`,
   );
   const resource = tx.get<
     | {
@@ -268,14 +405,23 @@ export function registerResourceUseIn(
   >(sql`
         SELECT coalesce(o.name,r.name) AS name,r.unit_label AS unitLabel,r.provider_id AS providerId,p.name AS providerName
         FROM resource r LEFT JOIN resource_organization o ON o.resource_id=r.id LEFT JOIN compute_provider p ON p.id=r.provider_id
-        WHERE r.id=${draft.resourceId} AND (${project.organizationId} IS NULL OR o.organization_id=${project.organizationId})`);
+        WHERE r.id=${draft.resourceId} AND (${workPackage.organizationId} IS NULL OR o.organization_id=${workPackage.organizationId})`);
   if (owner === undefined || work === undefined || resource === undefined)
     return refused('not_found');
   if (draft.stepId !== undefined) {
-    const attempt = tx.get<
-      { endedAt: number | null; executorPersonId: string | null } | undefined
-    >(sql`SELECT a.ended_at AS endedAt,a.executor_person_id AS executorPersonId FROM step_node_attempt a JOIN step s ON s.id=a.step_id
-          WHERE a.work_item_id=${draft.workItemId} AND a.step_id=${draft.stepId} AND a.attempt_number=${draft.attemptNumber ?? null} AND s.project_id=${projectId}`);
+    // Native EXISTS preserves the public missing-attempt outcome before the internal leaf-only reader.
+    if (work.hasChildren !== 0) return refused('not_found');
+    const target = readSqliteStepWriteIn(tx, draft.workItemId, draft.stepId);
+    if (target.kind === 'unknown_step') return refused('not_found');
+    if (target.kind !== 'resolved') return refused('conflict');
+    const stored = tx.get<StepAttemptRecord | undefined>(sql`
+      SELECT work_item_id AS "workItemId",step_id AS "stepId",attempt_number AS "attemptNumber",
+        started_at AS "startedAt",ended_at AS "endedAt",outcome,
+        executor_person_id AS "executorPersonId",reference,note
+      FROM step_node_attempt WHERE work_item_id=${draft.workItemId}
+        AND step_id=${draft.stepId} AND attempt_number=${draft.attemptNumber ?? null}
+    `);
+    const attempt = stored === undefined ? undefined : readStoredAttempt(stored);
     if (attempt === undefined) return refused('not_found');
     if (runtime === undefined && attempt.endedAt !== null) return refused('conflict');
     if (attempt.executorPersonId !== draft.responsiblePersonId) return refused('invalid_body');
@@ -283,9 +429,9 @@ export function registerResourceUseIn(
   const use: ResourceUse = {
     id: runtime?.id ?? crypto.randomUUID(),
     source: 'reported',
-    organizationId: project.organizationId,
-    projectId,
-    projectName: project.name,
+    organizationId: workPackage.organizationId,
+    workPackageId,
+    workPackageName: workPackage.name,
     resourceId: draft.resourceId,
     resourceName: resource.name,
     unitLabel: resource.unitLabel,
@@ -318,6 +464,7 @@ export function registerResourceUseIn(
           reclaimedBytes: null,
         }),
   };
+  const location = prepareResourceUseLocationIn(tx, use);
   tx.insert(resourceUseRecord)
     .values({
       ...use,
@@ -327,6 +474,7 @@ export function registerResourceUseIn(
       registrationResponse: use,
     })
     .run();
+  registerResourceUseLocationIn(tx, use, location);
   const event = {
     id: runtime?.eventId ?? crypto.randomUUID(),
     useId: use.id,
@@ -335,7 +483,7 @@ export function registerResourceUseIn(
     source: use.source,
     actorId: actor.id,
     actorPersonId: actor.personId,
-    actorName: actorNameIn(tx, actor.id, actor.personId, project.organizationId),
+    actorName: actorNameIn(tx, actor.id, actor.personId, workPackage.organizationId),
     at,
     reason: runtime?.reason ?? 'Resource use reported',
     ...(runtime === undefined ? {} : { observedAt: runtime.observedAt }),
@@ -347,7 +495,7 @@ export function registerResourceUseIn(
     .values({
       id: event.id,
       useId: use.id,
-      projectId,
+      workPackageId,
       revision: 1,
       snapshot: event,
       fingerprint: runtime?.admissionFingerprint ?? identity,
@@ -363,56 +511,84 @@ export class SqliteResourceUses implements ResourceUses {
     private readonly gate: Gate,
   ) {}
   register(
-    projectId: string,
+    workPackageId: string,
     actor: ResourceUseActor,
     draft: ResourceUseRegistration,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>> {
-    return writeImmediately(this.db, this.gate, (tx) =>
-      registerResourceUseIn(tx, projectId, actor, draft, at),
+    // Proof: entry-register-tuple.
+    // The recorded fault broke `rejects direct resource register actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-register-authority.
+    // The recorded fault broke `retains manual resource register queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-register-payload.
+    // The recorded fault broke `retains manual resource register queued payload before the writer`; restored GREEN.
+    draft = structuredClone(draft);
+    // Proof: owner-register-gate.
+    // The recorded fault broke `serializes and fences the actual resource register owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-register-transaction.
+    // The recorded fault broke `serializes and fences the actual resource register owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) =>
+      registerResourceUseIn(tx, workPackageId, actor, draft, at),
     );
   }
   append(
-    projectId: string,
+    workPackageId: string,
     useId: string,
     actor: ResourceUseActor,
     draft: ResourceUseEventDraft,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const project = admitResourceUseProject(tx, projectId, actor, true, true);
-      if (typeof project === 'string') return refused(project);
+    // Proof: entry-append-tuple.
+    // The recorded fault broke `rejects direct resource append actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-append-authority.
+    // The recorded fault broke `retains manual resource append queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-append-payload.
+    // The recorded fault broke `retains manual resource append queued payload before the writer`; restored GREEN.
+    draft = structuredClone(draft);
+    // Proof: owner-append-gate.
+    // The recorded fault broke `serializes and fences the actual resource append owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-append-transaction.
+    // The recorded fault broke `serializes and fences the actual resource append owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const workPackage = await admitResourceUseWorkPackage(tx, workPackageId, actor, true, true);
+      if ('ok' in workPackage) return workPackage;
       const stored = tx
         .select()
         .from(resourceUseRecord)
-        .where(and(eq(resourceUseRecord.id, useId), eq(resourceUseRecord.projectId, projectId)))
+        .where(
+          and(eq(resourceUseRecord.id, useId), eq(resourceUseRecord.workPackageId, workPackageId)),
+        )
         .get();
-      if (stored?.organizationId !== project.organizationId) return refused('not_found');
+      if (stored?.organizationId !== workPackage.organizationId) return refused('not_found');
       const identity = fingerprint(actor, draft);
       const prior = tx
         .select()
         .from(resourceUseEventRecord)
         .where(
           and(
-            eq(resourceUseEventRecord.projectId, projectId),
+            eq(resourceUseEventRecord.workPackageId, workPackageId),
             eq(resourceUseEventRecord.id, draft.eventId),
           ),
         )
         .get();
       if (prior !== undefined)
         return prior.useId === useId && prior.fingerprint === identity
-          ? { ok: true, value: useSchema.assert(prior.response) }
+          ? { ok: true, value: readStoredResourceUse(prior.response) }
           : refused('conflict');
       if (
         draft.kind === 'retained' &&
         draft.ownerPersonId !== undefined &&
-        personIn(tx, draft.ownerPersonId, project.organizationId) === undefined
+        personIn(tx, draft.ownerPersonId, workPackage.organizationId) === undefined
       )
         return refused('not_found');
       return appendResourceUseIn(
         tx,
-        projectId,
-        useSchema.assert(stored.snapshot),
+        workPackageId,
+        readStoredResourceUse(stored.snapshot),
         draft,
         actor.id,
         at,
@@ -421,20 +597,32 @@ export class SqliteResourceUses implements ResourceUses {
       );
     });
   }
-  list(projectId: string, actor: ResourceUseActor, page: ResourceUsePage) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const project = admitResourceUseProject(this.db, projectId, actor, false, true);
-      if (typeof project === 'string') return refused(project);
-      const rows = this.db
+  list(workPackageId: string, actor: ResourceUseActor, page: ResourceUsePage) {
+    // Proof: entry-list-tuple.
+    // The recorded fault broke `rejects direct resource list actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-list-authority.
+    // The recorded fault broke `retains manual resource list queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-list-payload.
+    // The recorded fault broke `retains manual resource list queued payload before the writer`; restored GREEN.
+    page = structuredClone(page);
+    // Proof: owner-list-gate.
+    // The recorded fault broke `serializes and fences the actual resource list owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-list-transaction.
+    // The recorded fault broke `serializes and fences the actual resource list owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const workPackage = await admitResourceUseWorkPackage(tx, workPackageId, actor, false, true);
+      if ('ok' in workPackage) return workPackage;
+      const rows = tx
         .select()
         .from(resourceUseRecord)
         .where(
           and(
-            eq(resourceUseRecord.projectId, projectId),
-            project.organizationId === null
+            eq(resourceUseRecord.workPackageId, workPackageId),
+            workPackage.organizationId === null
               ? sql`${resourceUseRecord.organizationId} IS NULL`
-              : eq(resourceUseRecord.organizationId, project.organizationId),
+              : eq(resourceUseRecord.organizationId, workPackage.organizationId),
             page.workItemId === undefined
               ? undefined
               : eq(resourceUseRecord.workItemId, page.workItemId),
@@ -445,7 +633,7 @@ export class SqliteResourceUses implements ResourceUses {
         .orderBy(asc(resourceUseRecord.id))
         .limit(page.limit + 1)
         .all();
-      const visible = rows.slice(0, page.limit).map((row) => useSchema.assert(row.snapshot));
+      const visible = rows.slice(0, page.limit).map((row) => readStoredResourceUse(row.snapshot));
       return {
         ok: true as const,
         value: {
@@ -455,19 +643,33 @@ export class SqliteResourceUses implements ResourceUses {
       };
     });
   }
-  history(projectId: string, useId: string, actor: ResourceUseActor, page: ResourceUsePage) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const project = admitResourceUseProject(this.db, projectId, actor, false, true);
-      if (typeof project === 'string') return refused(project);
-      const use = this.db
+  history(workPackageId: string, useId: string, actor: ResourceUseActor, page: ResourceUsePage) {
+    // Proof: entry-history-tuple.
+    // The recorded fault broke `rejects direct resource history actor mismatch before reads`; restored GREEN.
+    assertResourceUseActor(actor);
+    // Proof: store-history-authority.
+    // The recorded fault broke `retains manual resource history queued authentication removal before the writer`; restored GREEN.
+    actor = retainResourceUseActor(actor);
+    // Proof: store-history-payload.
+    // The recorded fault broke `retains manual resource history queued payload before the writer`; restored GREEN.
+    page = structuredClone(page);
+    // Proof: owner-history-gate.
+    // The recorded fault broke `serializes and fences the actual resource history owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-history-transaction.
+    // The recorded fault broke `serializes and fences the actual resource history owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const workPackage = await admitResourceUseWorkPackage(tx, workPackageId, actor, false, true);
+      if ('ok' in workPackage) return workPackage;
+      const use = tx
         .select()
         .from(resourceUseRecord)
-        .where(and(eq(resourceUseRecord.projectId, projectId), eq(resourceUseRecord.id, useId)))
+        .where(
+          and(eq(resourceUseRecord.workPackageId, workPackageId), eq(resourceUseRecord.id, useId)),
+        )
         .get();
-      if (use?.organizationId !== project.organizationId) return refused('not_found');
+      if (use?.organizationId !== workPackage.organizationId) return refused('not_found');
       if (page.cursor !== undefined && !/^\d+$/.test(page.cursor)) return refused('invalid_body');
-      const rows = this.db
+      const rows = tx
         .select()
         .from(resourceUseEventRecord)
         .where(
@@ -498,12 +700,14 @@ export function signalClaimResourceUses(
   actorId: string,
 ): void {
   if (claim.runId === null) return;
+  const ids = resourceUsesForClaimIn(tx, claim);
+  if (ids.length === 0) return;
   const rows = tx
     .select()
     .from(resourceUseRecord)
     .where(
       and(
-        eq(resourceUseRecord.workItemId, claim.workItemId),
+        inArray(resourceUseRecord.id, ids),
         eq(resourceUseRecord.responsiblePersonId, claim.personId),
         // Proof: dropping run identity changed another run in the last-matching-claim test (2026-10-25).
         eq(resourceUseRecord.agentRun, claim.runId),
@@ -515,13 +719,11 @@ export function signalClaimResourceUses(
     )
     .all();
   for (const row of rows) {
-    const use = useSchema.assert(row.snapshot);
+    const use = readStoredResourceUse(row.snapshot);
     if (use.pendingCleanupRequest) continue;
-    const remaining =
-      tx.get(sql`SELECT id FROM claim WHERE work_item_id=${use.workItemId} AND person_id=${use.responsiblePersonId} AND run_id=${use.agentRun}
-      AND (${use.stepId} IS NULL OR step_id IS NULL OR step_id=${use.stepId}) LIMIT 1`);
+    const remaining = hasRemainingResourceUseClaimIn(tx, use);
     // Proof: removing this check signaled cleanup while another matching claim remained (2026-10-25).
-    if (remaining !== undefined) continue;
+    if (remaining) continue;
     const draft: ResourceUseEventDraft = {
       eventId: crypto.randomUUID(),
       kind: 'cleanup_requested',
@@ -530,7 +732,7 @@ export function signalClaimResourceUses(
     };
     const changed = appendResourceUseIn(
       tx,
-      use.projectId,
+      use.workPackageId,
       use,
       draft,
       actorId,
@@ -553,12 +755,14 @@ export function signalAttemptResourceUses(
   actorId: string,
 ): void {
   if (attempt.executorPersonId === null) return;
+  const ids = resourceUsesForAttemptIn(tx, attempt);
+  if (ids.length === 0) return;
   const rows = tx
     .select()
     .from(resourceUseRecord)
     .where(
       and(
-        eq(resourceUseRecord.workItemId, attempt.workItemId),
+        inArray(resourceUseRecord.id, ids),
         // Proof: dropping step identity signaled another attempt in the exact-ended-attempt test (2026-10-25).
         eq(resourceUseRecord.stepId, attempt.stepId),
         eq(resourceUseRecord.attemptNumber, attempt.attemptNumber),
@@ -568,7 +772,7 @@ export function signalAttemptResourceUses(
     )
     .all();
   for (const row of rows) {
-    const use = useSchema.assert(row.snapshot);
+    const use = readStoredResourceUse(row.snapshot);
     if (use.pendingCleanupRequest) continue;
     const draft: ResourceUseEventDraft = {
       eventId: crypto.randomUUID(),
@@ -578,7 +782,7 @@ export function signalAttemptResourceUses(
     };
     const changed = appendResourceUseIn(
       tx,
-      use.projectId,
+      use.workPackageId,
       use,
       draft,
       actorId,

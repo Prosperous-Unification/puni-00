@@ -1,7 +1,6 @@
-import type { OrganizationScope } from '@wbs/domain';
-
 import type { DirectoryCatalog } from '../../ports/directory-values';
-import type { ProjectCrossReferenceKind } from '../../ports/project-values';
+import type { ResourceAccess } from '../../ports/organization-access';
+import type { WorkPackageCrossReferenceKind } from '../../ports/work-package-values';
 import type { PlanCommand } from '../../service/plan-command';
 import type { DirectoryRefusal, MeasureRefusalReason } from '../directory/directory.resource';
 import type { WorkItemRefusal } from '../work-item/work-item.resource';
@@ -11,7 +10,7 @@ import type { PlanCommandServices } from './plan-command-graph';
 export type PlainReason =
   | Exclude<
       WorkItemRefusal,
-      | 'deadline_before_project_start'
+      | 'deadline_before_work_package_start'
       | 'descendant_step_on_leaf'
       | 'node_on_parent'
       | 'referenced_by_external_dependency'
@@ -21,25 +20,30 @@ export type PlainReason =
   | MeasureRefusalReason
   | 'calendar_range'
   | 'too_many_commands'
-  | 'project_required'
+  | 'work_package_required'
   | 'unknown_ref'
   | 'missing_id'
   | 'person_required'
-  | 'duplicate_ref';
+  | 'duplicate_ref'
+  | 'last_super_admin';
 /**
- * Refuses a command naming a row or step outside the project, for the
- * references a command can name without leaving them in the project's final
- * state — a removed dependency's predecessor, a cleared value's step, a
- * placement's parent or sibling — which the closure check after the command
- * would never see — and a capacity's team, which a cleared capacity leaves
- * nowhere at all.
+ * Checks references under an already admitted scoped command owner. Absent and
+ * foreign identities stay opaque; owned leaf targets require current type/binding
+ * applicability. Package allowance has no work-item target, and a subtree parent
+ * remains an aggregate whose service admits the affected leaves.
+ *
+ * Cleared values, removed dependencies and old placements may leave no reference
+ * for the post-command closure to inspect, so admission precedes mutation.
+ *
+ * @throws a modeled command refusal for invalid references or applicability;
+ * unexpected Source/store failures propagate.
  */
-export async function refuseForeignReferences(
+export async function validateReferences(
   graph: PlanCommandServices,
-  projectId: string,
+  workPackageId: string,
   command: PlanCommand,
   context: CommandContext,
-  scope: OrganizationScope,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
 ): Promise<void> {
   const named = (id: unknown, ref: unknown): string | null =>
     context.id(typeof id === 'string' ? id : undefined, typeof ref === 'string' ? ref : undefined);
@@ -71,7 +75,7 @@ export async function refuseForeignReferences(
   // same mounted SQLite test accept removeDependency with a foreign predecessor
   // (200 instead of 404 not_found); restoring the extracted guard passes.
   for (const id of rows) {
-    if (id !== null && !(await graph.workItems.hasWorkItemInProject(projectId, id))) {
+    if (id !== null && !(await graph.workItems.hasWorkItemInWorkPackage(workPackageId, id))) {
       context.refuse({ reason: 'not_found' });
     }
   }
@@ -87,18 +91,13 @@ export async function refuseForeignReferences(
   for (const [catalog, ids, reason] of directoryReferencesOf(command, context)) {
     if (ids.length === 0) continue;
     const owned = new Set(
-      (await graph.directory.listWithin(catalog, { kind: 'scoped', scope })).map(
-        (entry) => entry.id,
-      ),
+      (await graph.directory.listWithin(catalog, access)).map((entry) => entry.id),
     );
     if (ids.some((id) => !owned.has(id))) context.refuse({ reason });
   }
   if (command.kind === 'setCapacity') {
     const teamId = context.required(command.teamId, command.teamRef);
-    const owned = await graph.directory.listWithin('teams', {
-      kind: 'scoped',
-      scope,
-    });
+    const owned = await graph.directory.listWithin('teams', access);
     // `not_found`, the answer the capacity service gives a team nobody holds.
     if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
   }
@@ -108,7 +107,7 @@ export async function refuseForeignReferences(
   // has nothing to see; watched 2026-10-20.
   if (command.kind === 'setResourceCapacity' || command.kind === 'setDemand') {
     const resourceId = context.required(command.resourceId, command.resourceRef);
-    const owned = await graph.directory.listWithin('resources', { kind: 'scoped', scope });
+    const owned = await graph.directory.listWithin('resources', access);
     if (!owned.some((resource) => resource.id === resourceId))
       context.refuse({ reason: 'unknown_resource' });
   }
@@ -117,9 +116,7 @@ export async function refuseForeignReferences(
   // tell B's resource from an absent one; watched 2026-10-20.
   if (command.kind === 'claimWorkItem' && command.resources !== undefined) {
     const owned = new Set(
-      (await graph.directory.listWithin('resources', { kind: 'scoped', scope })).map(
-        (resource) => resource.id,
-      ),
+      (await graph.directory.listWithin('resources', access)).map((resource) => resource.id),
     );
     if (command.resources.some(({ resourceId }) => !owned.has(resourceId)))
       context.refuse({ reason: 'unknown_resource' });
@@ -132,21 +129,40 @@ export async function refuseForeignReferences(
     command.steps !== undefined
   ) {
     for (const stepId of command.steps) {
-      if (!(await graph.workItems.hasStepInProject(projectId, stepId)))
+      if (!(await graph.workItems.hasStepInWorkPackage(workPackageId, stepId)))
         context.refuse({ reason: 'unknown_step' });
     }
   }
+  // Proof: omitting this dispatch accepted an inapplicable measure clear and
+  // persisted the preceding rename/history. Restoring the seven-kind list
+  // misclassified clearMeasure as404 instead of422. Removing the package-only
+  // exemption refused lawful allowance400 instead of200. Current point command
+  // and package controls, current-step-applicability.controller.db.test.ts, 2026-11-20.
+  if ('stepId' in command && command.kind !== 'setStepAllowance') {
+    const workItemId = context.required(command.workItemId, command.workItemRef);
+    const target = await graph.workItems.stepTarget(workPackageId, workItemId, command.stepId);
+    // Proof: identity-only refusal admitted the inapplicable clear and its
+    // preceding rename; ignoring type_conflict admitted the authored-conflict
+    // clear,200 instead of409. Actual frames/HTTP checked in the current pair
+    // rollback and conflict cases (current-step-applicability.controller.db.test.ts, 2026-11-20).
+    // Proof: refusing rolled_up blocked actual parent subtree assignment409
+    // instead of200; the healthy command writes its two observed children and
+    // leaf replacement preserves the sibling (current-step-applicability.controller.db.test.ts, 2026-11-20).
+    if (target.kind !== 'resolved' && target.kind !== 'rolled_up')
+      context.refuse({ reason: target.kind });
+  }
   if (
+    command.kind !== 'setEstimate' &&
     'stepId' in command &&
     typeof command.stepId === 'string' &&
-    !(await graph.workItems.hasStepInProject(projectId, command.stepId))
+    !(await graph.workItems.hasStepInWorkPackage(workPackageId, command.stepId))
   ) {
     context.refuse({ reason: 'unknown_step' });
   }
 }
 
 /**
- * The directory entries a project command names, refs resolved, each with the
+ * The directory entries a work package command names, refs resolved, each with the
  * refusal an entry nobody holds already earns. Checked before the command runs:
  * the services validate these globally, so a foreign id would otherwise be
  * told apart from an absent one, and a label a patch sets and then drops (a
@@ -190,8 +206,8 @@ function directoryReferencesOf(
   ];
 }
 
-/** The refusal a command earns for leaving the project referencing `kind` outside it. */
-export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
+/** The refusal a command earns for leaving the work package referencing `kind` outside it. */
+export function crossingRefusal(kind: WorkPackageCrossReferenceKind): PlainReason {
   switch (kind) {
     case 'estimate_step':
     case 'actual_step':
@@ -200,6 +216,12 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'measure_estimate_step':
     case 'step_node_attempt_step':
     case 'assignment_step':
+    case 'step_node_attempt_issued_step':
+    case 'claim_step':
+    case 'step_blockage_step':
+    case 'step_parallel_step':
+    case 'typed_dependency_step':
+    case 'external_dependency_step':
       return 'unknown_step';
     case 'assignment_person':
     case 'claim_person':
@@ -209,7 +231,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_tag';
     case 'work_item_team':
     case 'work_item_service_team':
-    case 'project_team_capacity':
+    case 'work_package_team_capacity':
       return 'unknown_team';
     case 'work_item_type':
       return 'unknown_type';
@@ -218,7 +240,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_service';
     case 'work_item_external_ref':
       return 'unknown_system';
-    case 'project_resource_capacity':
+    case 'work_package_resource_capacity':
     case 'work_item_resource_demand':
     case 'claim_occupancy_resource':
       return 'unknown_resource';

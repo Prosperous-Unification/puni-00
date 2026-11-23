@@ -1,13 +1,9 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
-import {
-  canEditProject,
-  canEditProjectInOrganization,
-  type OrganizationScope,
-  type ProjectOwnership,
-} from '@wbs/domain';
+import type { OrganizationScope } from '@wbs/domain';
 
+import type { ScopedPrincipal } from './access-decisions';
 import type { CredentialRuleRefusal } from './credential-rules';
-import type { Project, ProjectStore } from './project-store';
+import type { WorkPackage, WorkPackageStore } from './work-package-store';
 
 /**
  * How a protected request may reach organization-owned resources.
@@ -19,7 +15,12 @@ import type { Project, ProjectStore } from './project-store';
  * legacy: a caller that forgot to resolve access cannot compile.
  */
 export type ResourceAccess =
-  { readonly kind: 'legacy' } | { readonly kind: 'scoped'; readonly scope: OrganizationScope };
+  | { readonly kind: 'legacy' }
+  | {
+      readonly kind: 'scoped';
+      readonly scope: OrganizationScope;
+      readonly principal: Readonly<ScopedPrincipal>;
+    };
 
 /**
  * Why an authenticated request may not act in any organization, before any
@@ -56,7 +57,7 @@ export type OrganizationAccessResolution =
  * @throws when trusted state (the marker, membership) is absent, unreadable or
  * malformed. That is a server fault and never a reason to answer `legacy`.
  */
-export interface OrganizationAccess extends ProjectReadAccess {
+export interface OrganizationAccess {
   /**
    * The access `principal` has for this request. After activation a verified
    * delegation's organization is the one checked; otherwise the
@@ -66,58 +67,6 @@ export interface OrganizationAccess extends ProjectReadAccess {
    * never selects authority. Controls and signed delegations need no expectation.
    */
   resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution>;
-}
-
-/** Immutable identity from a project owner lookup or an organization occupancy join. */
-export interface ProjectReadOrigin {
-  readonly id: string;
-  readonly organizationId: string;
-}
-
-/** Answers one holder origin for an authenticated actor and an admitted observation. */
-export interface ProjectReadAccess {
-  mayReadProjectWithin(
-    project: ProjectReadOrigin,
-    actorId: string,
-    access: ResourceAccess,
-  ): Promise<boolean>;
-}
-
-/**
- * Current project read policy, using the observation's project store for legacy admission.
- * Permissions can replace this policy in the bound read capability without changing projections.
- *
- * @throws on inconsistent actor or ownership evidence, or when a legacy origin no longer exists.
- */
-export async function projectVisibleWithin(
-  projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
-  project: ProjectReadOrigin,
-  actorId: string,
-  access: ResourceAccess,
-): Promise<boolean> {
-  if (
-    typeof project.id !== 'string' ||
-    project.id.length === 0 ||
-    typeof project.organizationId !== 'string' ||
-    project.organizationId.length === 0 ||
-    typeof actorId !== 'string' ||
-    actorId.length === 0
-  )
-    throw new Error('malformed admitted project read');
-  switch (access.kind) {
-    case 'scoped':
-      // Proof: removing the actor comparison made the mismatch case resolve instead of rejecting.
-      if (access.scope.userId !== actorId)
-        throw new Error('project read actor differs from its admitted scope');
-      // Proof: the 4.1 viewer-edit fault rejected the real viewer's same-org holder read.
-      return access.scope.organizationId === project.organizationId;
-    case 'legacy':
-      if ((await findProjectWithin(projects, project.id, access)) === null)
-        throw new Error('admitted legacy project origin no longer exists');
-      return true;
-    default:
-      throw new Error('missing project read access');
-  }
 }
 
 /** What {@link OrganizationAccess.resolve} reads of a principal. */
@@ -130,34 +79,18 @@ export type OrganizationPrincipal = Pick<
 export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };
 
 /**
- * Finds a project through the caller's access: under scoped access a foreign
- * project is null exactly like an absent one, so every caller answers one 404.
+ * Finds a work package through the caller's access: under scoped access a foreign
+ * work package is null exactly like an absent one, so every caller answers one 404.
+ *
+ * Proof: retired-helper-mayEditWorkPackageWithin; reintroduced the retired callable.
+ * 'does not expose the retired server role helper mayEditWorkPackageWithin' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
-export function findProjectWithin(
-  projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
+export function findWorkPackageWithin(
+  workPackages: Pick<WorkPackageStore, 'findById' | 'findInOrganization'>,
   id: string,
   access: ResourceAccess,
-): Promise<Project | null> {
+): Promise<WorkPackage | null> {
   return access.kind === 'scoped'
-    ? projects.findInOrganization(id, access.scope.organizationId)
-    : projects.findById(id);
-}
-
-/**
- * Whether the caller may write `project`: the organization role and the
- * restricted-creator rule under scoped access, the creator rule alone under
- * legacy access.
- *
- * Proof: answering the legacy rule under scoped access failed `refuses a
- * viewer every step and marker write and lets the viewer list markers` in
- * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
- */
-export function mayEditProjectWithin(
-  project: ProjectOwnership,
-  actorId: string,
-  access: ResourceAccess,
-): boolean {
-  return access.kind === 'scoped'
-    ? canEditProjectInOrganization(project, access.scope)
-    : canEditProject(project, actorId);
+    ? workPackages.findInOrganization(id, access.scope.organizationId)
+    : workPackages.findById(id);
 }

@@ -3,32 +3,31 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Connection } from './db';
 import { drizzleOuterTransaction, openConnection } from './db';
 import { OPEN } from './gate';
 import { SavedPlanRepository as PublicSavedPlanRepository } from './index';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import type { SavedPlanWrite } from './saved-plan';
 import { bodyByteLength, SavedPlanRepository } from './saved-plan';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import {
   openSqliteSourceWithNonAtomicSavedPlanFault,
   sqliteLateWriteControl,
 } from './testing/faults';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from './work-package';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /** A save with both sides, whose bytes are distinguishable from each other. */
 const bothSides = (overrides: Partial<SavedPlanWrite> = {}): SavedPlanWrite => ({
   id: 'sp-1',
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: 'before the rewire',
   createdBy: 'Ada Lovelace',
   createdById: null,
@@ -52,25 +51,19 @@ describe('SavedPlanRepository', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-write-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture(
+      { path, directory: dir, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
     await new UserRepository(seed.db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(seed.db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Build',
-          position: 10,
-          code: 'build',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+      [],
       wrote,
     );
     seed.close();
@@ -229,7 +222,7 @@ describe('SavedPlanRepository', () => {
     expect(partial).toEqual({
       header: {
         id: 'late-target',
-        projectId: 'p1',
+        workPackageId: 'p1',
         name: 'before the rewire',
         createdBy: 'Ada Lovelace',
         createdById: null,
@@ -245,12 +238,13 @@ describe('SavedPlanRepository', () => {
         scheduleAbsentReason: null,
       },
       bodies: { input: '{"input":true}', schedule: null },
+      stepIdentity: { kind: 'catalogue', aliases: [] },
     });
     expect(await plans.listOf('p1')).toEqual([partial.header]);
     expect(await plans.principalsOf('late-target')).toEqual({
       savedPlanId: 'late-target',
-      projectId: 'p1',
-      projectOwnerId: 'owner',
+      workPackageId: 'p1',
+
       createdById: null,
     });
     expect(await plans.readOf('unrelated-plan')).toBeNull();
@@ -318,7 +312,7 @@ describe('SavedPlanRepository', () => {
     expect(await plans.readOf('late-target')).toEqual({
       header: {
         id: 'late-target',
-        projectId: 'p1',
+        workPackageId: 'p1',
         name: 'before the rewire',
         createdBy: 'Ada Lovelace',
         createdById: null,
@@ -334,13 +328,14 @@ describe('SavedPlanRepository', () => {
         scheduleAbsentReason: null,
       },
       bodies: { input: '{"input":true}', schedule: null },
+      stepIdentity: { kind: 'catalogue', aliases: [] },
     });
   });
 
   /**
    * The all-or-nothing check is the schema's; what this asserts is that an
    * absent schedule writes **no body row** rather than an empty one, and that a
-   * project holding it reads as holding the input's bytes rather than as
+   * work package holding it reads as holding the input's bytes rather than as
    * holding none — the `coalesce` inside the sum.
    */
   /**
@@ -390,7 +385,7 @@ describe('SavedPlanRepository', () => {
     });
   });
 
-  it('reads an empty project as holding nothing rather than as null', async () => {
+  it('reads an empty work package as holding nothing rather than as null', async () => {
     expect(await plans.holdingOf(reader.db, 'p1')).toEqual({ plans: 0, bytes: 0 });
   });
 
@@ -426,7 +421,7 @@ describe('SavedPlanRepository', () => {
    * The check reads what the transaction can see, which is the point of taking
    * it in there: a second save is handed the first one's row.
    */
-  it('hands the check what the project holds at that moment', async () => {
+  it('hands the check what the work package holds at that moment', async () => {
     await plans.write(bothSides(), admit);
     // Collected rather than assigned to a `let`: an assignment inside a
     // callback is invisible to the narrowing, so `let seen = null` stays
@@ -463,14 +458,14 @@ describe('SavedPlanRepository', () => {
     );
   });
   /**
-   * The list is what a project's saved-plan page reads, and it reads headers.
+   * The list is what a work package's saved-plan page reads, and it reads headers.
    *
    * Both halves matter and neither implies the other: the rows come back
    * newest first, and the bodies are **not** in them. A list that joined the
    * body table would be green on the ordering alone while loading every stored
    * byte to render a column of names.
    */
-  it("lists a project's headers newest first and reads no body", async () => {
+  it("lists a work package's headers newest first and reads no body", async () => {
     await plans.write(bothSides({ id: 'sp-old', createdAt: 1_756_000_000 }), admit);
     await plans.write(bothSides({ id: 'sp-new', createdAt: 1_756_000_900 }), admit);
 
@@ -496,7 +491,7 @@ describe('SavedPlanRepository', () => {
     expect((await plans.listOf('p1')).map((row) => row.id)).toEqual(['sp-a', 'sp-b']);
   });
 
-  it('lists only the asked-for project', async () => {
+  it('lists only the asked-for work package', async () => {
     await plans.write(bothSides({ id: 'sp-1' }), admit);
 
     expect(await plans.listOf('p-absent')).toEqual([]);
@@ -508,10 +503,17 @@ describe('SavedPlanRepository', () => {
    * header is compared field by field against what the save wrote.
    */
   it('renames without touching any other header column', async () => {
-    await plans.write(bothSides(), admit);
+    await plans.write(bothSides({ createdById: 'owner' }), admit);
     const before = await plans.readOf('sp-1');
 
-    expect(await plans.renameTo('sp-1', 'after the rewire')).toBe('touched');
+    expect(
+      await plans.renameTo('sp-1', 'after the rewire', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toBe('touched');
 
     const after = await plans.readOf('sp-1');
     expect(after?.header.name).toBe('after the rewire');
@@ -522,28 +524,24 @@ describe('SavedPlanRepository', () => {
   });
 
   /**
-   * The authorisation lookup answers with both ids, from one row.
-   *
-   * `owner` is the project's owner *and* the creator here only because this
-   * suite seeds one account; the next test separates them, which is the case
-   * that distinguishes a real join from a query that returned the same id twice.
+   * The header lookup retains the saved plan's author and package identity.
+   * Package creation metadata confers no saved-plan touch authority.
    */
-  it('answers who may touch a plan with both principals', async () => {
+  it('answers saved-plan authorship with its package identity', async () => {
     await plans.write(bothSides({ createdById: 'owner' }), admit);
 
     expect(await plans.principalsOf('sp-1')).toEqual({
       savedPlanId: 'sp-1',
-      projectId: 'p1',
-      projectOwnerId: 'owner',
+      workPackageId: 'p1',
+
       createdById: 'owner',
     });
   });
 
   /**
-   * A plan saved by somebody who is not the project's owner — the case the whole
-   * separation exists for, and the one a self-join or a copied column would fail.
+   * A saved plan retains its own author independently of package creation metadata.
    */
-  it('keeps the creator and the project owner apart', async () => {
+  it('keeps the saved-plan author independent of package creation', async () => {
     const seed = openConnection(path);
     await new UserRepository(seed.db, OPEN).create(
       { id: 'ada', username: 'Ada', passwordHash: 'x', createdAt: 1 },
@@ -555,8 +553,8 @@ describe('SavedPlanRepository', () => {
 
     expect(await plans.principalsOf('sp-1')).toEqual({
       savedPlanId: 'sp-1',
-      projectId: 'p1',
-      projectOwnerId: 'owner',
+      workPackageId: 'p1',
+
       createdById: 'ada',
     });
   });
@@ -564,15 +562,22 @@ describe('SavedPlanRepository', () => {
   /**
    * No live account claims it, and the answer is still an answer.
    *
-   * `null` here is what sends the rule to the project owner, so a lookup that
-   * refused to answer for such a plan would make it permanently untouchable —
-   * which is the failure this whole header-only path exists to avoid.
+   * A null historical author remains readable, but does not authorize a legacy
+   * header mutation through package creation metadata.
    */
   it('answers with a null creator rather than not answering', async () => {
     await plans.write(bothSides({ createdById: null }), admit);
 
     expect((await plans.principalsOf('sp-1'))?.createdById).toBeNull();
-    expect((await plans.principalsOf('sp-1'))?.projectOwnerId).toBe('owner');
+    expect(
+      await plans.renameTo('sp-1', 'Denied', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toBe('forbidden');
+    expect((await plans.readOf('sp-1'))?.header.name).toBe('before the rewire');
   });
 
   it('answers null for a plan that does not exist', async () => {
@@ -584,7 +589,14 @@ describe('SavedPlanRepository', () => {
   it('reports no_such_plan for a rename that matches nothing', async () => {
     await plans.write(bothSides(), admit);
 
-    expect(await plans.renameTo('sp-absent', 'whatever')).toBe('no_such_plan');
+    expect(
+      await plans.renameTo('sp-absent', 'whatever', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'rename',
+      }),
+    ).toBe('no_such_plan');
     expect((await plans.readOf('sp-1'))?.header.name).toBe('before the rewire');
   });
 
@@ -593,9 +605,16 @@ describe('SavedPlanRepository', () => {
    * cascade rather than a second statement here.
    */
   it('deletes the header and both bodies cascade', async () => {
-    await plans.write(bothSides(), admit);
+    await plans.write(bothSides({ createdById: 'owner' }), admit);
 
-    expect(await plans.deleteOf('sp-1')).toBe('touched');
+    expect(
+      await plans.deleteOf('sp-1', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toBe('touched');
 
     expect(await plans.readOf('sp-1')).toBeNull();
     expect(await plans.bodyOf(reader.db, 'sp-1', 'input')).toBeNull();
@@ -606,7 +625,14 @@ describe('SavedPlanRepository', () => {
   it('reports no_such_plan for a delete that matches nothing', async () => {
     await plans.write(bothSides(), admit);
 
-    expect(await plans.deleteOf('sp-absent')).toBe('no_such_plan');
+    expect(
+      await plans.deleteOf('sp-absent', {
+        kind: 'legacy',
+        actorId: 'owner',
+        source: 'internal',
+        operation: 'delete',
+      }),
+    ).toBe('no_such_plan');
     expect((await plans.listOf('p1')).map((row) => row.id)).toEqual(['sp-1']);
   });
 });

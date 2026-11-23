@@ -3,7 +3,7 @@ import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import { openDatabase } from '../repository/db';
-import { addAgentPerson, issueApiKey } from './machine-credential-fixture';
+import { addAgentPerson, grantCredential, issueApiKey } from './machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from './mcp-forwarded-call';
 import { OrganizationHarness } from './organization-harness';
@@ -42,34 +42,53 @@ const harness = OrganizationHarness.openComposedWith({
 if (process.env['MCP_PARITY_ACTIVE'] === 'true') seedDependencyAuthority(harness.databasePath());
 await harness.register('ada');
 harness.organization('org-a');
-harness.member('org-a', 'ada', 'super_admin');
+harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
 harness.bind('ada', 'org-a');
 harness.activate();
 const endpoints = [];
 for (const name of ['Predecessor', 'Successor']) {
-  requireOk(await harness.call('ada', 'POST', '/api/projects', { name }));
-  const project = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+  const parent = await harness.call('ada', 'POST', '/api/projects', { name: name + ' parent' });
+  if (parent.status !== 201) throw new Error('parity project creation refused', { cause: parent });
+  const projectId = (parent.body as { project: { id: string } }).project.id;
+  for (const [position, label] of ['Dev', 'QA'].entries()) {
+    const bound = await harness.call('ada', 'POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position,
+      define: {
+        name: name + ' ' + label,
+        code: name.toLowerCase() + '-' + label.toLowerCase(),
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowanceBps: 0,
+      },
+    });
+    if (bound.status !== 201) throw new Error('parity step binding refused', { cause: bound });
+  }
+  const created = await harness.call('ada', 'POST', '/api/work-packages', { name, projectId });
+  requireOk(created);
+  const { steps } = created.body as { steps: { id: string }[] };
+  if (steps.length !== 2) throw new Error('parity package did not inherit its two steps');
+  const workPackage = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
     .get(name);
-  if (project === null) throw new Error('fixture project missing');
+  if (workPackage === null) throw new Error('fixture work package missing');
   requireOk(
-    await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${workPackage.id}/commands`, {
       commands: [{ kind: 'createWorkItem', name }],
     }),
   );
   const row = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-    .get(project.id);
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+    .get(workPackage.id);
   if (row === null) throw new Error('fixture row missing');
   harness.sqlite
     .query(
-      "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+      "UPDATE work_package SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
     )
-    .run(project.id);
+    .run(workPackage.id);
   harness.sqlite.query("UPDATE work_item SET readiness='ready' WHERE id=?").run(row.id);
-  const steps = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
-    .all(project.id);
   for (const step of steps)
     harness.sqlite
       .query(
@@ -77,7 +96,7 @@ for (const name of ['Predecessor', 'Successor']) {
       )
       .run(row.id, step.id);
   endpoints.push({
-    projectId: project.id,
+    workPackageId: workPackage.id,
     workItemId: row.id,
     scope: 'whole' as const,
     steps: steps.map(({ id }) => id),
@@ -94,6 +113,14 @@ const credential = await issueApiKey(harness.sqlite, {
   issuedBy: harness.userId('ada'),
 });
 
+grantCredential(
+  harness.sqlite,
+  'org-a',
+  credential.id,
+  'project-contributor',
+  'organization',
+  'org-a',
+);
 const issued = await requestGrant(
   harness,
   { kind: 'api_key', key: credential.key },
@@ -106,7 +133,7 @@ requireOk(
   await harness.callWith(
     grant.grant,
     'GET',
-    `/api/projects/${successor.projectId}/work-items`,
+    `/api/work-packages/${successor.workPackageId}/work-items`,
     undefined,
     {
       [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
@@ -135,17 +162,39 @@ const backend = Bun.serve({
       switch (path.slice('/_parity/authority/'.length)) {
         case 'restricted-predecessor': {
           await harness.register('owner');
-          harness.member('org-a', 'owner', 'member');
-          harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
-            harness.userId('owner'),
-            predecessor.projectId,
-          ]);
-          harness.sqlite.run('UPDATE project SET owner_id=? WHERE id=?', [
-            harness.userId('owner'),
-            successor.projectId,
-          ]);
+          harness.member('org-a', 'owner', 'member', ['project-contributor']);
+          grantCredential(
+            harness.sqlite,
+            'org-a',
+            credential.id,
+            'package-viewer',
+            'work_package',
+            predecessor.workPackageId,
+          );
+          harness.sqlite.transaction(() => {
+            harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [
+              predecessor.workPackageId,
+            ]);
+            for (const endpoint of [predecessor, successor]) {
+              const changed = harness.sqlite.run(
+                "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND subject_kind='user' AND subject_id=? AND role_id='package-manager' AND origin='creation'",
+                [harness.userId('owner'), endpoint.workPackageId, harness.userId('ada')],
+              );
+              if (changed.changes !== 1) throw new Error('parity direct package grant absent');
+            }
+          })();
           break;
         }
+        case 'write-predecessor':
+          grantCredential(
+            harness.sqlite,
+            'org-a',
+            credential.id,
+            'package-contributor',
+            'work_package',
+            predecessor.workPackageId,
+          );
+          break;
         case 'hold': {
           if (heldWriter !== undefined) throw new Error('writer already held');
           let markEntered: (() => void) | undefined;
@@ -188,7 +237,19 @@ const backend = Bun.serve({
               separate.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
                 credential.id,
               ]);
-            else separate.run('UPDATE project SET restricted=1 WHERE id=?', [successor.projectId]);
+            else {
+              grantCredential(
+                separate,
+                'org-a',
+                credential.id,
+                'package-viewer',
+                'work_package',
+                successor.workPackageId,
+              );
+              separate.run('UPDATE work_package SET restricted=1 WHERE id=?', [
+                successor.workPackageId,
+              ]);
+            }
           } finally {
             separate.close();
           }
@@ -209,16 +270,30 @@ const backend = Bun.serve({
       }
       return Response.json({ prepared: true });
     }
+    if (path === '/_parity/work-package-settings') {
+      if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
+        return new Response(null, { status: 403 });
+      if (request.method !== 'POST') return new Response(null, { status: 405 });
+      const { workPackageId, patch } = (await request.json()) as {
+        workPackageId: string;
+        patch: unknown;
+      };
+      return Response.json(
+        await harness.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, patch),
+      );
+    }
     if (path === '/_parity/optimization') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
         return new Response(null, { status: 403 });
       if (request.method !== 'POST') return new Response(null, { status: 405 });
       // Model persisted required-engine settings even when this process lacks the adapter.
       harness.sqlite
-        .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
-        .run(successor.projectId);
+        .query(
+          "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?",
+        )
+        .run(successor.workPackageId);
       if (process.env['MCP_PARITY_OPTIMIZER'] === 'installed') {
-        harness.triggerOptimization(successor.projectId);
+        harness.triggerOptimization(successor.workPackageId);
         await harness.drainOptimization();
       }
       return Response.json({ prepared: true });
@@ -235,12 +310,12 @@ const backend = Bun.serve({
         relationship: sqlite.query('SELECT * FROM external_dependency').get(),
         journal: sqlite
           .query(
-            'SELECT preconditions,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+            'SELECT preconditions,payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
           )
-          .get(successor.projectId),
+          .get(successor.workPackageId),
         staged: sqlite
           .query(
-            "SELECT id,project_id AS projectId,revision FROM work_item WHERE name='Staged successor'",
+            "SELECT id,work_package_id AS workPackageId,revision FROM work_item WHERE name='Staged successor'",
           )
           .get(),
         localRelationships: sqlite.query('SELECT * FROM typed_dependency').all(),

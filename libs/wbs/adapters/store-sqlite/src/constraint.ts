@@ -11,7 +11,7 @@
  * **It does not say which key.** SQLite's message names no column, so a caller
  * that turns this into a refusal must establish *which* of the request's ids is
  * missing before it does — otherwise it reports a confident lie about the one
- * that was fine. {@link WorkItemService} does that by re-reading the project's
+ * that was fine. {@link WorkItemService} does that by re-reading the work package's
  * steps and rethrowing when the step is still there.
  */
 export function isForeignKeyViolation(err: unknown): boolean {
@@ -26,7 +26,7 @@ export function isForeignKeyViolation(err: unknown): boolean {
  * outer message alone, and that was right until drizzle 1.0.0-rc.4: a
  * statement issued through drizzle now throws `DrizzleQueryError: Failed
  * query: insert into "step" …` with SQLite's own `UNIQUE constraint failed:
- * step.project_id, step.name` one level down, as `cause`. Read the outer
+ * step.work_package_id, step.name` one level down, as `cause`. Read the outer
  * message alone and every modeled refusal in be-01 becomes an unhandled 500 —
  * 22 tests said so on 2026-09-06, the controllers' among them answering
  * `Failed query` text where a 409 was owed. The walk and its depth bound are
@@ -105,16 +105,19 @@ export type UniqueIndexColumns = readonly [string, ...string[]];
  * Kept together rather than beside each caller so the test above has one list
  * to walk; a literal written inline is a literal nothing checks.
  *
- * Proof that a stale spelling is not cosmetic: `refuses a name the project
+ * Proof that a stale spelling is not cosmetic: `refuses a name the workPackage
  * already holds, and leaves the steps as they were` and `refuses a rename onto
  * a name already in use, leaving both alone` in `step.test.ts` were watched
- * failing with `stepNameInProject` left at the pre-rename `role.project_id,
+ * failing with `stepNameInWorkPackage` left at the pre-rename `role.work_package_id,
  * role.name` against the renamed schema, on `SQLiteError: UNIQUE constraint
- * failed: step.project_id, step.name` escaping the repository instead of
+ * failed: step.work_package_id, step.name` escaping the repository instead of
  * becoming a `taken`. Observed 2026-08-31.
  */
 export const UNIQUE_INDEXES = {
-  projectAbbreviation: ['project_abbreviation.namespace', 'project_abbreviation.abbreviation'],
+  workPackageAbbreviation: [
+    'work_package_abbreviation.namespace',
+    'work_package_abbreviation.abbreviation',
+  ],
   personName: ['person.name'],
   /** One key per organization (`measure_organization_key`); test it before the next. */
   measureKeyInOrganization: ['measure.organization_id', 'measure.key'],
@@ -126,8 +129,8 @@ export const UNIQUE_INDEXES = {
   resourceName: ['resource.name'],
   provenAuth0Connection: ['organization_sso_connection.auth0_connection'],
   serviceName: ['service.name'],
-  stepNameInProject: ['step.project_id', 'step.name'],
-  stepCodeInProject: ['step.project_id', 'step.code'],
+  stepNameInWorkPackage: ['step.work_package_id', 'step.name'],
+  stepCodeInWorkPackage: ['step.work_package_id', 'step.code'],
   tagName: ['tag.name'],
   teamName: ['service_team.name'],
   username: ['users.username'],

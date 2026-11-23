@@ -20,8 +20,8 @@ import { PRIORITY_GLYPH_ROOM_PX, PriorityChevron } from './priority-chevron';
  * name was typed. `openspec/changes/priority-bands/design.md` D6.
  *
  * A label is resolved **before** the number, and the order is not arbitrary: a
- * project that renames a band to `7` would otherwise have a name nobody could
- * type. Nothing stops a project doing that, and this is the one line that decides
+ * work package that renames a band to `7` would otherwise have a name nobody could
+ * type. Nothing stops a work package doing that, and this is the one line that decides
  * which of the two it means — the label wins, because a name is what somebody
  * chose to type and a number they can still write as the band's own value.
  *

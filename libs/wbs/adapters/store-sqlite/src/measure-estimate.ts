@@ -12,9 +12,10 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { measureEstimate, projectOrganization, step, stepMeasure, workItem } from './schema';
-import { basisColumns, basisOf, measureIdFor } from './step-measure';
-import { writingStep } from './step-reference';
+import { measureEstimate, stepMeasure, workItem, workPackageOrganization } from './schema';
+import { basisColumns, measureIdFor } from './step-measure';
+import { readSqliteStepWriteIn } from './step-write';
+import { readSqliteMeasureEstimatesIn } from './tuple-reads';
 
 const LEGACY_TOKEN_ESTIMATE = 'token_estimate';
 
@@ -37,54 +38,34 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
     private readonly gate: Gate,
   ) {}
 
-  /** Every trio in the project, in work item, step position and key order. */
-  async listByProject(projectId: string): Promise<StoredMeasureEstimate[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: measureEstimate.workItemId,
-          stepId: measureEstimate.stepId,
-          key: measureEstimate.measureKey,
-          optimistic: measureEstimate.optimistic,
-          realistic: measureEstimate.realistic,
-          pessimistic: measureEstimate.pessimistic,
-          singlePoint: measureEstimate.singlePoint,
-          currency: measureEstimate.currency,
-          rateCardDigest: measureEstimate.rateCardDigest,
-        })
-        .from(measureEstimate)
-        // Inner joins: both columns are foreign keys.
-        .innerJoin(step, eq(measureEstimate.stepId, step.id))
-        .innerJoin(workItem, eq(measureEstimate.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(
-          measureEstimate.workItemId,
-          step.position,
-          measureEstimate.stepId,
-          measureEstimate.measureKey,
-        )
-        .all()
-        .map(({ currency, rateCardDigest, ...row }) => ({
-          ...row,
-          ...basisOf(currency, rateCardDigest),
-        }))
+  /** Every complete measure-keyed trio in one coherent current SC18 snapshot. */
+  async listByWorkPackage(workPackageId: string): Promise<StoredMeasureEstimate[]> {
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => readSqliteMeasureEstimatesIn(tx, workPackageId, null)),
+      ),
     );
   }
 
   /**
-   * Writes one trio, replacing any earlier one in its key.
+   * Retains the trio and stamp before admission, then checks leaf applicability and writes
+   * the trio on the same transaction. A refused step leaves both rows and revision intact.
    *
    * @throws when the key names no definition of the owning organization (or,
    * unowned, is not `tokens`), or when `singlePoint` is set on anything but an
    * equal tokens trio: the service decided both inside this unit of work.
    */
   async set(estimate: StoredMeasureEstimate, stamp: WriteStamp): Promise<StepWriteOutcome> {
-    const { workItemId, stepId, key, optimistic, realistic, pessimistic, singlePoint } = estimate;
-    return await writingStep(this.db, stepId, async () => {
-      await this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((tx) => {
+    const kept = structuredClone(estimate);
+    const act = { ...stamp };
+    const { workItemId, stepId, key, optimistic, realistic, pessimistic, singlePoint } = kept;
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx): StepWriteOutcome => {
+          const decision = readSqliteStepWriteIn(tx, workItemId, stepId);
+          // Proof: admitting step_not_resolved made the queued post-unbind write in
+          // targeted-readers.db.test.ts return written.
+          if (decision.kind !== 'resolved') return decision.kind;
           const measureId = this.referenceOf(tx, workItemId, key);
           if (singlePoint) {
             // The CHECK `measure_estimate_single_point` holds the trio's half;
@@ -107,12 +88,12 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
                 metric: LEGACY_TOKEN_ESTIMATE,
                 measureId: null,
                 value: optimistic,
-                recordedAt: stamp.at,
-                ...auditOnCreate(stamp),
+                recordedAt: act.at,
+                ...auditOnCreate(act),
               })
               .onConflictDoUpdate({
                 target: [stepMeasure.workItemId, stepMeasure.stepId, stepMeasure.metric],
-                set: { value: optimistic, recordedAt: stamp.at, ...auditOnUpdate(stamp) },
+                set: { value: optimistic, recordedAt: act.at, ...auditOnUpdate(act) },
               })
               .run();
           } else {
@@ -126,8 +107,8 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
                 realistic,
                 pessimistic,
                 singlePoint: false,
-                ...basisColumns(estimate.basis),
-                ...auditOnCreate(stamp),
+                ...basisColumns(kept.basis),
+                ...auditOnCreate(act),
               })
               .onConflictDoUpdate({
                 target: [
@@ -143,8 +124,8 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
                   // Proof: with the basis left out of this update, the SQLite
                   // certification's `measureEstimates.set:basis` read the first
                   // card after a rewrite under another (watched 2026-10-23).
-                  ...basisColumns(estimate.basis),
-                  ...auditOnUpdate(stamp),
+                  ...basisColumns(kept.basis),
+                  ...auditOnUpdate(act),
                 },
               })
               .run();
@@ -155,10 +136,11 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
             // row still in the measures; watched 2026-10-23.
             if (key === TOKEN_ESTIMATE_KEY) this.deleteLegacyRow(tx, workItemId, stepId);
           }
-          bumpWorkItems(tx, [workItemId], stamp);
-        });
-      });
-    });
+          bumpWorkItems(tx, [workItemId], act);
+          return 'written';
+        }),
+      ),
+    );
   }
 
   async remove(workItemId: string, stepId: string, key: string, stamp: WriteStamp): Promise<void> {
@@ -201,18 +183,21 @@ export class MeasureEstimateRepository implements MeasureEstimateStore {
 
   /**
    * The definition id a trio in `key` references: the owning organization's,
-   * or null for `tokens` on a project no organization owns.
+   * or null for `tokens` on a work package no organization owns.
    *
-   * @throws when an owned project's organization defines no such key, or an
-   * unowned project's trio is in anything but tokens.
+   * @throws when an owned work package's organization defines no such key, or an
+   * unowned work package's trio is in anything but tokens.
    */
   private referenceOf(tx: SQLiteBunDatabase, workItemId: string, key: string): string | null {
     const resolved = measureIdFor(tx, workItemId, key);
     if (resolved !== null) return resolved;
     const owned = tx
-      .select({ organizationId: projectOrganization.organizationId })
+      .select({ organizationId: workPackageOrganization.organizationId })
       .from(workItem)
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .where(eq(workItem.id, workItemId))
       .get();
     // Proof: with this throw removed, the SQLite certification's

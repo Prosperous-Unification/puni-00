@@ -79,15 +79,15 @@ export interface PersonInsert {
 type DirectoryWriteRefusal = 'not_found' | 'taken';
 
 /**
- * Every project a directory write touched, collected **inside the write's own
- * transaction** — the projects holding a work item that carries the renamed
+ * Every work package a directory write touched, collected **inside the write's own
+ * transaction** — the work packages holding a work item that carries the renamed
  * team or an assignment naming the renamed person.
  *
  * It rides on the outcome rather than being read again afterwards because the
  * rows it is read from are exactly the rows the write is about: a second read
  * would be answering a question about a directory that had already moved on.
  */
-export type TouchedProjects = readonly string[];
+export type TouchedWorkPackages = readonly string[];
 
 /**
  * What a team patch answered.
@@ -102,7 +102,7 @@ export type TouchedProjects = readonly string[];
  * constraint failure, and a half-applied patch is not an observable state.
  */
 export type ServiceTeamWritten =
-  | { ok: true; team: TeamWithServices; projectIds: TouchedProjects }
+  | { ok: true; team: TeamWithServices; workPackageIds: TouchedWorkPackages }
   | { ok: false; reason: DirectoryWriteRefusal | 'unknown_service' };
 
 /**
@@ -115,9 +115,9 @@ export type ServiceTeamWritten =
  * `kind` is how a person becomes an agent and back again, and patching it back
  * is the **only** undo it has: the directory journals nothing — no call to
  * `record` anywhere in `directory.service.ts` — and it cannot, because
- * `plan_event.project_id` is `NOT NULL REFERENCES project(id) ON DELETE
- * CASCADE` while the directory belongs to no project. A person's history would
- * have to be filed under an invented project and would vanish with it.
+ * `plan_event.work_package_id` is `NOT NULL REFERENCES workPackage(id) ON DELETE
+ * CASCADE` while the directory belongs to no work package. A person's history would
+ * have to be filed under an invented work package and would vanish with it.
  * `openspec/changes/token-tracking/tasks.md` 4.4 carries the whole argument.
  */
 export interface PersonPatch {
@@ -138,7 +138,7 @@ export interface PersonPatch {
  * credentials act through (`wbs-machine-credentials` A12), counted.
  */
 export type PersonWritten =
-  | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
+  | { ok: true; person: PersonWithTeams; workPackageIds: TouchedWorkPackages }
   | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' }
   | { ok: false; reason: 'in_use'; machineCredentials: number };
 
@@ -156,12 +156,12 @@ export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'u
  * The rows a refused directory removal is described from, read in one place for
  * both the fast path and the transaction that decides.
  *
- * **Whole projects, not only the touched rows.** A work item's number is
+ * **Whole work packages, not only the touched rows.** A work item's number is
  * derived from the tree it sits in, so naming `3.1` needs every sibling and
  * ancestor around it; reading only the rows that point at the entity would name
  * them by a number nobody's screen shows.
  *
- * `assignments` are every assignment in those projects rather than the ones
+ * `assignments` are every assignment in those work packages rather than the ones
  * naming the entity, for the reason {@link StepUsageRows} gives: whether a work
  * item's **assumed assignee** moves depends on what it holds for the *other*
  * steps.
@@ -173,7 +173,7 @@ export interface DirectoryUsageRows {
    * every effect the confirmation names come out empty.
    */
   workItems: readonly LabelledWorkItem[];
-  projects: readonly { id: string; name: string }[];
+  workPackages: readonly { id: string; name: string }[];
   assignments: readonly Assignment[];
   steps: readonly { id: string; name: string }[];
   /** Every person an assignment above names, so an effect can say who rather than which id. */
@@ -183,7 +183,7 @@ export interface DirectoryUsageRows {
    * being removed**. Empty for a person: their own memberships name nobody
    * else and go with them, so they force no confirmation.
    *
-   * Named rather than {@link Person}, the shape `projects` and `steps` above
+   * Named rather than {@link Person}, the shape `workPackages` and `steps` above
    * already use: the confirmation prints who loses the membership, and
    * `directory-usage.ts` narrows this to `{ id, name }` before it leaves the
    * service. Widening it to a whole person would mean reading a `kind` column
@@ -205,16 +205,16 @@ export interface DirectoryUsageRows {
    */
   machineCredentials: number;
   /**
-   * What each project in this usage has stated about the team being removed, as
-   * `projectId -> slots`. Empty when the usage is a person's.
+   * What each work package in this usage has stated about the team being removed, as
+   * `workPackageId -> slots`. Empty when the usage is a person's.
    *
-   * Carried because removing a team a project has **stated a capacity for** does
+   * Carried because removing a team a work package has **stated a capacity for** does
    * more than null a label: it takes a pool constraint away, and every row whose
    * effective team is this one moves. The reader cannot tell that from the work
    * items alone, and a confirmation that says only "the label goes" about a
    * removal that also moves every date is a confirmation of the wrong thing.
    *
-   * **Per project, and that is the change `capacity-per-project` made here.** The
+   * **Per work package, and that is the change `capacity-per-work-package` made here.** The
    * same team may be stated at four on one plan and unstated on the next, so a
    * single number for the whole confirmation would name a bound that does not
    * apply to half the rows it is printed on.
@@ -226,8 +226,8 @@ export interface DirectoryUsageRows {
 export interface DirectoryRemoval {
   /** Every work item that lost an assignment or a label, and whose revision therefore moved. */
   workItemIds: readonly string[];
-  /** Every project one of those work items sits in — who has to be told. */
-  projectIds: readonly string[];
+  /** Every work package one of those work items sits in — who has to be told. */
+  workPackageIds: readonly string[];
 }
 
 /**
@@ -248,7 +248,8 @@ export type DirectoryRemoved =
  * would remove machine credentials the caller's {@link MachineCredentialReach}
  * does not reach (`wbs-machine-credentials` A24).
  */
-export type PersonRemoved = DirectoryRemoved | { ok: false; reason: 'forbidden' };
+export type PersonRemoved =
+  DirectoryRemoved | { ok: false; reason: 'forbidden' } | { ok: false; reason: 'last_super_admin' };
 
 /**
  * Whose machine credentials a person removal may revoke (`wbs-machine-credentials`
@@ -270,19 +271,19 @@ export type ResourceAdded = { ok: true; resource: Resource } | { ok: false; reas
 
 /**
  * What setting a resource's provider reference answered (`compute-providers`
- * P3): the projects whose demands or capacities name the resource, or why it
+ * P3): the work packages whose demands or capacities name the resource, or why it
  * was refused: `unknown_provider` for an id no instance holds,
  * `provider_not_in_organization` for another organization's instance (or any
  * instance under legacy access, which has no organization).
  */
 export type ResourceProviderSet =
-  | { ok: true; projectIds: TouchedProjects }
+  | { ok: true; workPackageIds: TouchedWorkPackages }
   | { ok: false; reason: 'not_found' | 'unknown_provider' | 'provider_not_in_organization' };
 
 /**
  * What stating or clearing a resource's **Directory capacity** answered
  * (`wbs-shared-occupancy` S1, S2): the units before and after, the
- * organization the resource belongs to, and the projects whose demands or
+ * organization the resource belongs to, and the work packages whose demands or
  * capacities name it; or `not_found`, or `organization_required` for a
  * resource no organization owns.
  */
@@ -292,26 +293,26 @@ export type DirectoryCapacitySet =
       before: number | null;
       after: number | null;
       organizationId: string;
-      projectIds: TouchedProjects;
+      workPackageIds: TouchedWorkPackages;
     }
   | { ok: false; reason: 'not_found' | 'organization_required' };
 
-/** What a resource patch answered, with the projects whose demands or capacities name it. */
+/** What a resource patch answered, with the work packages whose demands or capacities name it. */
 export type ResourceWritten =
-  | { ok: true; resource: Resource; projectIds: TouchedProjects }
+  | { ok: true; resource: Resource; workPackageIds: TouchedWorkPackages }
   | { ok: false; reason: DirectoryWriteRefusal };
 
 /**
  * What points at one resource (`wbs-resources` R8): every demand on it with the
- * projects they sit in, for naming, and every stated capacity of it.
+ * work packages they sit in, for naming, and every stated capacity of it.
  * `occupancies` counts the leaves whose claims hold units of it
  * (`claim_occupancy`, task 2.2): one per leaf, however many claims share it.
  */
 export interface ResourceUsageRows {
-  /** The projects holding a demand, read as a removal's usage is, for naming the rows. */
+  /** The work packages holding a demand, read as a removal's usage is, for naming the rows. */
   rows: DirectoryUsageRows;
   demands: readonly Demand[];
-  capacities: readonly { projectId: string; units: number }[];
+  capacities: readonly { workPackageId: string; units: number }[];
   occupancies: number;
   outstandingUses?: number;
   /** The provider instance the resource names, or null (`compute-providers` P3). */
@@ -328,7 +329,7 @@ export type ResourceRemoved =
 
 /** What an organization-local rename answered; see {@link DirectoryStore.renameInOrganization}. */
 export type OrganizationRenamed =
-  { ok: true; projectIds: TouchedProjects } | { ok: false; reason: 'not_found' | 'taken' };
+  { ok: true; workPackageIds: TouchedWorkPackages } | { ok: false; reason: 'not_found' | 'taken' };
 
 /**
  * What a measure definition create answered (`wbs-measure-budgets` D1, D2):
@@ -418,6 +419,10 @@ export interface DirectoryStore {
   /**
    * Maps a root that has just been created to `organizationId` under its
    * organization-local display name. The root itself carries an opaque name.
+   * A work-item type mapping advances every actual organization project revision
+   * once on this same writer, including empty projects, using the retained stamp.
+   * Other catalog mappings preserve project revisions. A failure rolls back the
+   * mapping and all proposed revision changes; explicit package values are untouched.
    *
    * @throws when the root is already mapped or another root of the
    * organization holds the name: the ownership freeze refuses both, and the
@@ -428,16 +433,17 @@ export interface DirectoryStore {
     resourceId: string,
     organizationId: string,
     name: string,
+    stamp: WriteStamp,
   ): Promise<void>;
   /**
    * Renames one entry's organization-local display name; the root keeps its
    * opaque name. `not_found` for an entry the organization does not own, alike
    * for a foreign and an absent one; `taken` for a name another of its entries
-   * holds. Answers the projects whose rows name the entry, for the
+   * holds. Answers the work packages whose rows name the entry, for the
    * announcement.
    *
-   * @throws when a project outside the organization names the entry: corrupt
-   * trusted state, never a project to announce to.
+   * @throws when a work package outside the organization names the entry: corrupt
+   * trusted state, never a work package to announce to.
    */
   renameInOrganization(
     catalog: NamedCatalog,
@@ -448,7 +454,7 @@ export interface DirectoryStore {
   ): Promise<OrganizationRenamed>;
   /**
    * Every reference to one of the organization's entries from outside it:
-   * a work item, assignment or capacity of a project the organization does
+   * a work item, assignment or capacity of a work package the organization does
    * not own, a membership of a person or team it does not own, or a service
    * ownership by a team it does not own. Each as `relation:id`. Empty for an
    * entry only its organization reaches.
@@ -458,8 +464,8 @@ export interface DirectoryStore {
     resourceId: string,
     organizationId: string,
   ): Promise<string[]>;
-  /** Which of `projectIds` the organization does not own. */
-  projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]>;
+  /** Which of `workPackageIds` the organization does not own. */
+  workPackagesOutside(workPackageIds: readonly string[], organizationId: string): Promise<string[]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<Tag[]>;
   /**
@@ -621,7 +627,9 @@ export interface DirectoryStore {
    * machine credentials pinned to them (revoked, see
    * {@link DirectoryUsageRows.machineCredentials}), their memberships and the
    * person — all in **one** transaction, moving the revision of every work item
-   * that lost an assignment or a claim.
+   * that lost an assignment or a claim. Its named-space memberships are removed
+   * in the same owner and each affected surviving space advances once; a refused
+   * or rolled-back removal preserves the memberships and their revisions.
    *
    * The count lives inside the transaction because it *is* the decision: a
    * caller that asked without `cascade` consented to nothing, so an assignment
@@ -640,6 +648,8 @@ export interface DirectoryStore {
    * action, so deleting the team row while any work item still names it is
    * refused outright by SQLite. The join rows in `work_item_team` go the other
    * way and need no statement at all — they cascade.
+   * Its named-space memberships also disappear and revise each affected surviving
+   * space once, within the same removal owner.
    */
   /**
    * Stamped, unlike its four sibling removals, because this one **updates**
@@ -703,8 +713,8 @@ export interface DirectoryStore {
    * revision of every work item that lost a demand.
    */
   removeResource(resourceId: string, cascade: boolean, stamp: WriteStamp): Promise<ResourceRemoved>;
-  /** Assignments and their current person names, read together within one project. */
-  assignmentsInProject(projectId: string): Promise<{
+  /** Assignments and their current person names, read together within one work package. */
+  assignmentsInWorkPackage(workPackageId: string): Promise<{
     assignments: Assignment[];
     people: { id: string; name: string }[];
   }>;
@@ -712,7 +722,7 @@ export interface DirectoryStore {
    * The root names of exactly these people or teams, one primary-key read
    * each, in no promised order; an id the directory does not hold is absent.
    * For reads that must not materialize the whole directory (spec
-   * `project-assignment-reads`), such as the startable read's claim holders.
+   * `work-package-assignment-reads`), such as the startable read's claim holders.
    */
   namesOf(
     catalog: 'people' | 'teams',

@@ -15,13 +15,16 @@ import type { StoredStepBlockage } from '../ports/step-blockage-store';
 import type { IssuedAttemptNumber, StoredAttempt } from '../ports/step-node-attempt-store';
 import type { EstimateKey } from '../ports/subtree-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
+import type { Repositioned } from '../ports/work-item-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
+import type { FirstChildRecord } from '../step-catalogue/first-child';
 // Documentation targets remain in the journal decoder; these aliases preserve their displayed names.
 import type {
   Preconditions as _Preconditions,
   referencesOf as _referencesOf,
   stepRevisionKey as _stepRevisionKey,
 } from './compensating';
+import type { ReplayAuthorization } from './replay-authorization';
 
 /**
  * One command, expressed so that it can be applied without knowing what it is
@@ -189,7 +192,7 @@ export type CompensatingCommand =
   /** Exact derived incident mapping compensated in its structural owner's single entry. */
   | {
       do: 'transition_incident_nodes';
-      projectId: string;
+      workPackageId: string;
       fromWorkItemId: string;
       toWorkItemId: string;
       structural: CompensatingCommand;
@@ -226,7 +229,7 @@ export type CompensatingCommand =
   | { do: 'set_positions'; placements: Reparented[]; moved: string[] }
   | { do: 'set_frozen'; updates: FrozenNumber[] }
   /**
-   * A project step's allowance, set to `allowancePercent`.
+   * A work package step's allowance, set to `allowancePercent`.
    *
    * Its precondition is the step's **allowance revision**, held in
    * {@link _Preconditions | Preconditions} under {@link _stepRevisionKey | stepRevisionKey}: an undo after
@@ -234,6 +237,7 @@ export type CompensatingCommand =
    * step's removal is refused as stale rather than overwriting newer work.
    */
   | { do: 'set_step_allowance'; stepId: string; allowancePercent: AllowancePercent }
+  | FirstChildTransition
   | DeleteSubtree
   | RestoreSubtree
   | Batch;
@@ -405,7 +409,7 @@ export interface RestoreSubtree {
    * highest shows in no attempt above. Each names a restored row; one on a
    * step removed since is dropped with that step. Not in
    * {@link _referencesOf | referencesOf}: the rows are the branch's own and the steps are
-   * checked against the project when it is applied. Absent from journals
+   * checked against the work package when it is applied. Absent from journals
    * written before marks existed, whose restores raise each node to its
    * attempts' highest number only.
    */
@@ -432,7 +436,7 @@ export interface RestoreSubtree {
    * against the plan as it stands when the restore runs. Refusing the whole
    * restore for any of them would strand the branch for a reason that has
    * nothing to do with it; putting the edge back regardless would hand the
-   * project a schedule nobody can compute. So the branch returns without that
+   * work package a schedule nobody can compute. So the branch returns without that
    * edge, and the answer says how many and why.
    */
   externalDependencies: StoredDependency[];
@@ -488,6 +492,7 @@ export interface AttemptKey {
 
 /** What a journalled command did, in the words an undo says back. */
 export interface JournalPayload {
+  readonly authorization: ReplayAuthorization | null;
   /** `rename “Strip”` — the sentence, already built, so it never re-derives a number that has moved. */
   label: string;
   /** What a redo re-applies. */
@@ -498,4 +503,18 @@ export interface JournalPayload {
 export interface CommandSubject {
   workItemId: string | null;
   stepId: string | null;
+}
+
+/**
+ * Current atomic live-fact transfer. This distinct discriminator makes older
+ * journal readers refuse before mutation rather than treat omitted legacy
+ * satellite arrays as authority. Always nested in transition_incident_nodes;
+ * replay retains actual incident authorization and current claim lease state.
+ */
+export interface FirstChildTransition {
+  readonly do: 'transition_first_child';
+  readonly direction: 'down' | 'up';
+  readonly record: FirstChildRecord;
+  readonly respaced: readonly Repositioned[];
+  readonly localDependencies: readonly StoredTypedDependency[];
 }

@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { openWorkPackageActions, selectOrdinaryProject } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * A name's markdown, in a browser.
@@ -74,7 +75,33 @@ async function seedRows(page: Page, rows: number): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await page.getByRole('banner').getByRole('button', { name: 'Create new project' }).click();
+  await selectOrdinaryProject(page);
+  await openWorkPackageActions(page);
+  const [created] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/api/work-packages',
+    ),
+    page.getByRole('banner').getByRole('button', { name: 'Create new work package' }).click(),
+  ]);
+  expect(created.ok()).toBe(true);
+  const body: unknown = await created.json();
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('workPackage' in body) ||
+    typeof body.workPackage !== 'object' ||
+    body.workPackage === null ||
+    !('id' in body.workPackage) ||
+    typeof body.workPackage.id !== 'string'
+  )
+    throw new Error('Create work package response has no package identity');
+  // The hosted dark case wrote into the outgoing package before the new editor loaded.
+  await expect(page.locator('[data-work-package-id]')).toHaveAttribute(
+    'data-work-package-id',
+    body.workPackage.id,
+  );
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (let made = 1; made <= rows; made += 1) {
     await addRow.click();

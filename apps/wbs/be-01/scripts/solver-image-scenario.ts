@@ -25,7 +25,7 @@ export function sharedPersonRequest(): ImageSolverRequest {
     // Proof: replacing the fixed interval with [] made both scenario tests fail: the wire lost
     // [0, 49] and the overlapping feasible answer was no longer rejected.
     elsewhere: new Map([
-      ['ana', [{ start: 0, end: 1.01, projectId: 'higher', workItemId: 'held' }]],
+      ['ana', [{ start: 0, end: 1.01, workPackageId: 'higher', workItemId: 'held' }]],
     ]),
   };
   const baselineOffsets = quantisedFastBaseline(

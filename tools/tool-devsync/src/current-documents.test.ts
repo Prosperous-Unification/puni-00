@@ -11,6 +11,7 @@ const EXEMPTIONS = 'docs/findings/current-document-check-exemptions.json';
 
 function runGit(repository: string, args: string[]): void {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -83,6 +84,7 @@ async function createRepository(): Promise<string> {
 async function invokeDocuments(args: string[]): Promise<{ code: number; output: string }> {
   const invocation = Bun.spawn([process.execPath, CLI, ...args], {
     cwd: CHECKOUT,
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
     stdout: 'pipe',
     stderr: 'pipe',
   });

@@ -29,15 +29,15 @@ const edge: CompensatingCommand = { do: 'add_dependency', successorId: 'w2', pre
 it('normalizes legacy local typed history and preserves touched identities', () => {
   const dependency = {
     id: 'd',
-    projectId: 'p',
+    workPackageId: 'p',
     predecessor: { scope: 'whole', workItemId: 'a' },
     successor: { scope: 'node', workItemId: 'b', stepId: 's' },
     type: 'FS',
   } as const;
   const scopedDependency = {
     ...dependency,
-    predecessor: { ...dependency.predecessor, projectId: 'p' },
-    successor: { ...dependency.successor, projectId: 'p' },
+    predecessor: { ...dependency.predecessor, workPackageId: 'p' },
+    successor: { ...dependency.successor, workPackageId: 'p' },
   };
   const command = readCommand({ do: 'add_typed_dependency', dependency });
   expect(command).toEqual({ do: 'add_typed_dependency', dependency: scopedDependency });
@@ -56,32 +56,32 @@ it('normalizes legacy local typed history and preserves touched identities', () 
 it('refuses partial scoped history and malformed new scoped history', () => {
   const dependency = {
     id: 'd',
-    projectId: 'p',
+    workPackageId: 'p',
     predecessor: { scope: 'whole', workItemId: 'a' },
     successor: { scope: 'whole', workItemId: 'b' },
     type: 'FS',
   };
   for (const changed of [
-    { ...dependency, predecessor: { ...dependency.predecessor, projectId: 'remote' } },
+    { ...dependency, predecessor: { ...dependency.predecessor, workPackageId: 'remote' } },
     {
       ...dependency,
-      predecessor: { ...dependency.predecessor, projectId: 'remote' },
-      successor: { ...dependency.successor, projectId: 42 },
+      predecessor: { ...dependency.predecessor, workPackageId: 'remote' },
+      successor: { ...dependency.successor, workPackageId: 42 },
     },
     {
       ...dependency,
-      predecessor: { ...dependency.predecessor, projectId: 42 },
-      successor: { ...dependency.successor, projectId: 'p' },
+      predecessor: { ...dependency.predecessor, workPackageId: 42 },
+      successor: { ...dependency.successor, workPackageId: 'p' },
     },
     {
       ...dependency,
-      predecessor: { ...dependency.predecessor, projectId: 'remote' },
-      successor: { ...dependency.successor, projectId: 'wrong' },
+      predecessor: { ...dependency.predecessor, workPackageId: 'remote' },
+      successor: { ...dependency.successor, workPackageId: 'wrong' },
     },
     { ...dependency, predecessor: { scope: 'node', workItemId: 'a' } },
     { ...dependency, type: 'SF' },
     { ...dependency, id: 3 },
-    { ...dependency, projectId: 3 },
+    { ...dependency, workPackageId: 3 },
     { ...dependency, predecessor: { scope: 'unknown', workItemId: 'a' } },
     { ...dependency, predecessor: { scope: 'whole', workItemId: 3 } },
     { ...dependency, predecessor: { scope: 'whole', workItemId: 'a', stepId: 's' } },
@@ -637,7 +637,9 @@ describe('demand replay vocabulary', () => {
 
   const restore: CompensatingCommand = {
     do: 'restore_subtree',
-    rows: [workItemRow({ id: 'w1', projectId: 'p', parentId: null, position: 1, name: 'Build' })],
+    rows: [
+      workItemRow({ id: 'w1', workPackageId: 'p', parentId: null, position: 1, name: 'Build' }),
+    ],
     rootPosition: 1,
     reparented: [],
     estimates: [],
@@ -677,9 +679,9 @@ it('requires exact external revision coverage across both nested journal directi
   const { externalAddressesOf, requireExternalRevisions } = await import('./compensating');
   const dependency = {
     id: 'd',
-    projectId: 'owner',
-    predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'a' },
-    successor: { projectId: 'owner', scope: 'whole' as const, workItemId: 'b' },
+    workPackageId: 'owner',
+    predecessor: { workPackageId: 'remote', scope: 'whole' as const, workItemId: 'a' },
+    successor: { workPackageId: 'owner', scope: 'whole' as const, workItemId: 'b' },
     type: 'FS' as const,
   };
   const commands: CompensatingCommand[] = [
@@ -693,11 +695,11 @@ it('requires exact external revision coverage across both nested journal directi
     { do: 'remove_typed_dependency', dependency },
   ];
   expect(externalAddressesOf(commands, 'owner')).toEqual([
-    { projectId: 'remote', workItemId: 'a' },
+    { workPackageId: 'remote', workItemId: 'a' },
   ]);
   const metadata = {
-    expected: [{ projectId: 'remote', workItemId: 'a', revision: 4 }],
-    from: [{ projectId: 'remote', workItemId: 'a', revision: 3 }],
+    expected: [{ workPackageId: 'remote', workItemId: 'a', revision: 4 }],
+    from: [{ workPackageId: 'remote', workItemId: 'a', revision: 3 }],
   };
   expect(
     requireExternalRevisions(
@@ -713,7 +715,7 @@ it('requires exact external revision coverage across both nested journal directi
     null,
     { expected: [], from: [] },
     { expected: [...metadata.expected, ...metadata.expected], from: metadata.from },
-    { expected: [{ projectId: 'owner', workItemId: 'b', revision: 4 }], from: metadata.from },
+    { expected: [{ workPackageId: 'owner', workItemId: 'b', revision: 4 }], from: metadata.from },
     { expected: metadata.expected, from: [] },
     { expected: [{ ...metadata.expected[0], revision: -1 }], from: metadata.from },
   ]) {
@@ -730,9 +732,9 @@ it('requires exact external revision coverage across both nested journal directi
   expect(references.scopedEndpoints).toEqual([dependency.predecessor, dependency.successor]);
 });
 
-const restoreForTypedReplay = (projectId: string, workItemId: string): CompensatingCommand => ({
+const restoreForTypedReplay = (workPackageId: string, workItemId: string): CompensatingCommand => ({
   do: 'restore_subtree',
-  rows: [workItemRow({ id: workItemId, projectId })],
+  rows: [workItemRow({ id: workItemId, workPackageId })],
   rootPosition: 1,
   reparented: [],
   estimates: [],
@@ -749,11 +751,11 @@ const restoreForTypedReplay = (projectId: string, workItemId: string): Compensat
 });
 
 it('predicts only earlier owner-local restores before nested typed adds and updates in application order', () => {
-  const local = { projectId: 'owner', scope: 'whole' as const, workItemId: 'restored' };
-  const remote = { ...local, projectId: 'remote' };
+  const local = { workPackageId: 'owner', scope: 'whole' as const, workItemId: 'restored' };
+  const remote = { ...local, workPackageId: 'remote' };
   const dependency = {
     id: 'link',
-    projectId: 'owner',
+    workPackageId: 'owner',
     predecessor: local,
     successor: { ...local, workItemId: 'successor' },
     type: 'FS' as const,
@@ -806,4 +808,90 @@ it('predicts only earlier owner-local restores before nested typed adds and upda
       'owner',
     ),
   ]).toEqual([]);
+});
+
+it('predicts only the selected first-child down node destination for local relationship replay', () => {
+  const parentId = 'first-parent',
+    childId = 'first-child';
+  const child = { ...workItemRow({ id: childId, parentId, workPackageId: 'owner' }), parentId };
+  const localNode = {
+    workPackageId: 'owner',
+    scope: 'node' as const,
+    workItemId: parentId,
+    stepId: 'dev',
+  };
+  const peer = { ...localNode, workItemId: 'peer' };
+  const relationship = {
+    id: 'first-link',
+    workPackageId: 'owner',
+    type: 'FS' as const,
+    predecessor: localNode,
+    successor: peer,
+  };
+  const down: Extract<CompensatingCommand, { do: 'transition_first_child' }> = {
+    do: 'transition_first_child',
+    direction: 'down',
+    record: {
+      version: 1,
+      child,
+      parentStatements: { readiness: null, hold: null },
+      stepIds: ['dev'],
+    },
+    respaced: [],
+    localDependencies: [relationship],
+  };
+  const wrapped = (structural: typeof down): CompensatingCommand => ({
+    do: 'transition_incident_nodes',
+    workPackageId: structural.record.child.workPackageId,
+    fromWorkItemId: structural.direction === 'down' ? parentId : childId,
+    toWorkItemId: structural.direction === 'down' ? childId : parentId,
+    structural,
+    receipts: [],
+  });
+  expect([...restoredTypedAddressesOf(wrapped(down), 'owner')]).toEqual([
+    '["owner","first-child"]',
+  ]);
+  expect([
+    ...restoredTypedAddressesOf(
+      wrapped({
+        ...down,
+        localDependencies: [{ ...relationship, predecessor: peer, successor: localNode }],
+      }),
+      'owner',
+    ),
+  ]).toEqual(['["owner","first-child"]']);
+  for (const selected of [
+    { ...down, direction: 'up' as const },
+    { ...down, localDependencies: [] },
+    {
+      ...down,
+      localDependencies: [
+        { ...relationship, predecessor: { ...localNode, workItemId: 'different' } },
+      ],
+    },
+    {
+      ...down,
+      localDependencies: [
+        {
+          ...relationship,
+          predecessor: { workPackageId: 'owner', scope: 'whole' as const, workItemId: parentId },
+        },
+      ],
+    },
+    {
+      ...down,
+      localDependencies: [
+        { ...relationship, predecessor: { ...localNode, scope: 'descendant-step' as const } },
+      ],
+    },
+    { ...down, record: { ...down.record, child: { ...child, workPackageId: 'foreign' } } },
+    { ...down, localDependencies: [{ ...relationship, workPackageId: 'foreign' }] },
+    {
+      ...down,
+      localDependencies: [
+        { ...relationship, predecessor: { ...localNode, workPackageId: 'foreign' } },
+      ],
+    },
+  ])
+    expect([...restoredTypedAddressesOf(wrapped(selected), 'owner')]).toEqual([]);
 });

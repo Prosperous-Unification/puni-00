@@ -81,7 +81,7 @@ export function instantOf(raw: string): number | null {
  * instant (a row written before the audit columns) never passes.
  *
  * Proof, observed 2026-09-29: with `>=` made `>`, `updatedSince is inclusive
- * and never matches null` in `project-page.test.ts` lost the project stamped
+ * and never matches null` in `work-package-page.test.ts` lost the work package stamped
  * exactly at the bound.
  */
 export function isUpdatedSince(updatedAt: number | null, since: number | null): boolean {

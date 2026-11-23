@@ -21,7 +21,7 @@ describe('the Plan event module', () => {
     const events = inMemoryPlanEvents([
       {
         id: 'old',
-        projectId: 'project-1',
+        workPackageId: 'work-package-1',
         userId: 'owner',
         kind: 'edit',
         label: 'old',
@@ -33,7 +33,7 @@ describe('the Plan event module', () => {
       },
       {
         id: 'recent',
-        projectId: 'project-1',
+        workPackageId: 'work-package-1',
         userId: 'owner',
         kind: 'edit',
         label: 'recent',
@@ -45,7 +45,7 @@ describe('the Plan event module', () => {
       },
       {
         id: 'new',
-        projectId: 'project-1',
+        workPackageId: 'work-package-1',
         userId: 'owner',
         kind: 'edit',
         label: 'new',
@@ -57,13 +57,13 @@ describe('the Plan event module', () => {
       },
     ]);
     const { planEvents } = installPlanEvent({ events });
-    expect((await planEvents.readHistory('project-1', {})).map((event) => event.id)).toEqual([
+    expect((await planEvents.readHistory('work-package-1', {})).map((event) => event.id)).toEqual([
       'new',
       'recent',
       'old',
     ]);
     expect(await planEvents.pruneHistory(2 * 24 * 60 * 60 * 1_000, 1)).toBe(1);
-    expect((await planEvents.readHistory('project-1', {})).map((event) => event.id)).toEqual([
+    expect((await planEvents.readHistory('work-package-1', {})).map((event) => event.id)).toEqual([
       'new',
       'recent',
     ]);

@@ -44,8 +44,8 @@ describe('connected schedule body builder', () => {
     const { history, evidence } = connectedHistoryFixture();
     const dependencyHistory = readSavedDependencyHistory({
       ...history,
-      projects: history.projects.map((project) => ({
-        ...project,
+      workPackages: history.workPackages.map((workPackage) => ({
+        ...workPackage,
         startDate: null,
         workItems: [],
         steps: [],
@@ -70,17 +70,17 @@ describe('connected schedule body builder', () => {
       baseline: placement,
       composite: placement,
       stages: [],
-      idleProjects: ['A', 'B'],
+      idleWorkPackages: ['A', 'B'],
     });
     const forward = buildConnectedScheduleBody(planned, null, dependencyHistory, connection);
     const reverse = buildConnectedScheduleBody(planned, null, dependencyHistory, {
       ...connection,
-      idleProjects: ['B', 'A'],
+      idleWorkPackages: ['B', 'A'],
     });
     expect(serializeSavedConnectedScheduleBody(reverse)).toBe(
       serializeSavedConnectedScheduleBody(forward),
     );
-    expect(reverse.connection.idleProjects).toEqual(['B', 'A']);
+    expect(reverse.connection.idleWorkPackages).toEqual(['B', 'A']);
 
     const active = buildTargetFixture();
     const body = buildConnectedScheduleBody(
@@ -98,8 +98,8 @@ describe('connected schedule body builder', () => {
         }),
       ),
     );
-    expect(reordered.connection.stages.map((stage) => stage.projectId)).toEqual(
-      stages.map((stage) => stage.projectId),
+    expect(reordered.connection.stages.map((stage) => stage.workPackageId)).toEqual(
+      stages.map((stage) => stage.workPackageId),
     );
   });
 
@@ -119,11 +119,11 @@ describe('connected schedule body builder', () => {
     expect(Object.keys(readSavedConnectedScheduleBody(JSON.parse(bytes)).slices)).toHaveLength(2);
   });
 
-  test('dates the selected target and validates retained connection evidence before returning v2', () => {
+  test('dates the selected target and validates retained connection evidence before returning v4', () => {
     const { planned, dependencyHistory, connection } = buildTargetFixture();
     const body = buildConnectedScheduleBody(planned, '2026-10-01', dependencyHistory, connection);
     expect(CONNECTED_SCHEDULE_ALGORITHM_ID).toBe(`connected-selection-v1:${SCHEDULE_ALGORITHM_ID}`);
-    expect(body.version).toBe(2);
+    expect(body.version).toBe(4);
     expect(body.algorithmId).toBe(CONNECTED_SCHEDULE_ALGORITHM_ID);
     expect(body.workItems['a'].startsOn).toBe('2026-10-01');
     expect(body.slices['a\u0000design'].startsOn).toBe('2026-10-02');

@@ -113,8 +113,8 @@ function claimPublications(opened: Opened, from: number, target: ClaimTarget) {
   // Proof: the first warmup rejected a real commit when it expected the lease-only claims_changed.
   if (
     !publications.some(
-      ({ projectId, event }) =>
-        projectId === target.projectId &&
+      ({ workPackageId, event }) =>
+        workPackageId === target.workPackageId &&
         event.type === 'tree_replaced' &&
         event.workItems.some(({ id }) => id === target.workItemId),
     )
@@ -122,7 +122,7 @@ function claimPublications(opened: Opened, from: number, target: ClaimTarget) {
     throw new Error(
       `Claim on ${target.workItemId} did not publish its updated tree before replying`,
     );
-  return publications.map(({ projectId, event }) => ({ projectId, type: event.type }));
+  return publications.map(({ workPackageId, event }) => ({ workPackageId, type: event.type }));
 }
 
 async function controls(folder: string, scratch: string, fault: boolean): Promise<void> {
@@ -137,8 +137,8 @@ async function controls(folder: string, scratch: string, fault: boolean): Promis
     if (target === undefined) throw new Error('Missing disposable claim target');
     const baseline = snapshot(opened.read, fixture);
     const command = commandOf(target);
-    const claim = () => opened.run(target.projectId, [command]);
-    const journal = journalCount(opened.read, target.projectId);
+    const claim = () => opened.run(target.workPackageId, [command]);
+    const journal = journalCount(opened.read, target.workPackageId);
     await setCapacity(opened, OCCUPIED);
     const refusal = await claim();
     // Proof: the staged aggregate omission made this real scoped claim commit both steps.
@@ -153,7 +153,7 @@ async function controls(folder: string, scratch: string, fault: boolean): Promis
         (resource) => 'scope' in resource && resource.scope === 'organization',
       ) ||
       claimRows(opened.read, target.workItemId).length !== 0 ||
-      journalCount(opened.read, target.projectId) !== journal
+      journalCount(opened.read, target.workPackageId) !== journal
     ) {
       record('aggregate-refusal-failure', {
         answer: refusal,
@@ -198,7 +198,7 @@ async function controls(folder: string, scratch: string, fault: boolean): Promis
       )
       .at(0);
     if (membership === undefined) throw new Error('Missing control membership');
-    const beforeMembership = journalCount(opened.read, target.projectId);
+    const beforeMembership = journalCount(opened.read, target.workPackageId);
     opened.source.db.run(sql`
       DELETE FROM organization_membership WHERE organization_id = ${membership.organizationId}
       AND user_id = ${membership.userId}
@@ -207,7 +207,7 @@ async function controls(folder: string, scratch: string, fault: boolean): Promis
     if (
       !same(removed, { ok: false, refusal: 'not_a_member' }) ||
       claimRows(opened.read, target.workItemId).length !== 0 ||
-      journalCount(opened.read, target.projectId) !== beforeMembership
+      journalCount(opened.read, target.workPackageId) !== beforeMembership
     )
       throw new Error(
         `Current membership removal did not refuse atomically: ${JSON.stringify(removed)}`,
@@ -243,17 +243,17 @@ async function sample(
   arm: Arm,
 ): Promise<MeasurementRow> {
   const commands = [commandOf(target)];
-  const before = readJournalHead(opened.read, target.projectId);
+  const before = readJournalHead(opened.read, target.workPackageId);
   if (claimRows(opened.read, target.workItemId).length !== 0)
     throw new Error(`Target ${target.workItemId} is already occupied before pair ${String(pair)}`);
   const announced = opened.broadcast.published.length;
   const started = performance.now();
-  const reply = await opened.run(target.projectId, commands);
+  const reply = await opened.run(target.workPackageId, commands);
   const ended = performance.now();
   const durationMs = ended - started;
   try {
     const claim = readClaim(opened.read, target, reply);
-    const journal = readJournalHead(opened.read, target.projectId);
+    const journal = readJournalHead(opened.read, target.workPackageId);
     if (
       !Number.isFinite(durationMs) ||
       durationMs <= 0 ||
@@ -265,7 +265,7 @@ async function sample(
       );
     const publications = claimPublications(opened, announced, target);
     await releaseClaim(opened, target);
-    const afterRelease = readJournalHead(opened.read, target.projectId);
+    const afterRelease = readJournalHead(opened.read, target.workPackageId);
     if (afterRelease.seq !== journal.seq + 1 || afterRelease.id === journal.id)
       throw new Error(
         `Expected a durable release journal write for pair ${String(pair)} arm ${arm}`,
@@ -320,7 +320,7 @@ async function measure(folder: string, scratch: string) {
         U: u,
         seed: fixture.sha256,
         minted: fixture.minted,
-        projects: cohort.projects,
+        workPackages: cohort.workPackages,
         standingStepClaims: 2 * OCCUPIED,
         occupiedUnits: OCCUPIED,
         sparePersons: fixture.spares.length,
@@ -378,7 +378,7 @@ async function diagnose(folder: string, scratch: string): Promise<void> {
     const target = fixture.spares.at(0);
     if (target === undefined) throw new Error('Missing diagnostic claim target');
     await setCapacity(opened, STATED);
-    readClaim(opened.read, target, await opened.run(target.projectId, [commandOf(target)]));
+    readClaim(opened.read, target, await opened.run(target.workPackageId, [commandOf(target)]));
     await releaseClaim(opened, target);
     const statement = observed.queries.at(0);
     if (

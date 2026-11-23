@@ -1,12 +1,19 @@
-import { join } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
+import { createLaunch } from '@shared/bun-startup';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-const PROBE = join(import.meta.dir, '../../../bin/dev-be-probe.sh');
+const PROBE = join(import.meta.dir, '../../../bin/dev-be-probe.ts');
+const root = resolve(import.meta.dir, '../../..');
 const servers: Bun.Server<undefined>[] = [];
+const directories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(async (server) => server.stop(true)));
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true });
 });
 
 function authServer(body: unknown, status = 200): Bun.Server<undefined> {
@@ -24,7 +31,17 @@ function authServer(body: unknown, status = 200): Bun.Server<undefined> {
 }
 
 async function runProbe(origin: string): Promise<{ exitCode: number; output: string }> {
-  const child = Bun.spawn(['bash', PROBE, origin], {
+  const directory = mkdtempSync(join(tmpdir(), 'backend probe selected PUNI '));
+  directories.push(directory);
+  const selected = join(directory, 'selected PUNI.mjs');
+  writeFileSync(
+    selected,
+    'export {main} from ' +
+      JSON.stringify(pathToFileURL(join(root, 'apps/puni/cli/src/entrypoint.ts')).href) +
+      ';\n',
+  );
+  const child = Bun.spawn([...createLaunch(process.execPath, PROBE), origin], {
+    env: { ...process.env, PUNI_EXECUTABLE: selected },
     stdout: 'pipe',
     stderr: 'pipe',
   });

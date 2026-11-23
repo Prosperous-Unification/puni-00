@@ -7,14 +7,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let folder: string;
 let directory: string;
 let path: string;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-unit-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  folder = copyRecoveryPrefix(directory, '20261103110000_add_initial_access_offers');
+  runMigrations(path, folder);
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
@@ -24,7 +26,7 @@ function seed() {
   sqlite.run(
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
-  sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Project','u',1)");
+  sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','WorkPackage','u',1)");
   sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('s','p','Dev',10)");
   return sqlite;
 }
@@ -51,7 +53,7 @@ describe('step estimate unit migration', () => {
     const sqlite = seed();
     try {
       sqlite.run("UPDATE step SET estimate_unit='minutes'");
-      expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
+      expect(() => rollbackTo(path, folder, '20261012120000_add_step_node_attempts')).toThrow(
         'estimate-unit-rollback-cli.ts',
       );
       expect(sqlite.query('SELECT estimate_unit FROM step').get()).toEqual({
@@ -64,7 +66,7 @@ describe('step estimate unit migration', () => {
   it('rolls back and reapplies over workday steps', () => {
     const sqlite = seed();
     sqlite.close();
-    rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts');
+    rollbackTo(path, folder, '20261012120000_add_step_node_attempts');
     const older = openDatabase(path);
     try {
       expect(
@@ -76,7 +78,7 @@ describe('step estimate unit migration', () => {
     } finally {
       older.close();
     }
-    runMigrations(path, FOLDER);
+    runMigrations(path, folder);
     const newer = openDatabase(path);
     try {
       expect(newer.query('SELECT estimate_unit FROM step').get()).toEqual({
@@ -97,7 +99,7 @@ it('refuses rollback over minute-bound undo and redo history after clearing and 
         `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'batch','{"forward":{"do":"batch","steps":[{"do":"clear_estimate","workItemId":"w","stepId":"s"}]}}','{"do":"batch","steps":[{"do":"set_estimate","workItemId":"w","stepId":"s","days":{"optimistic":240,"realistic":240,"pessimistic":240}}]}','{"expected":{},"from":{},"estimateUnits":{"s":"minutes"}}',?,1)`,
         [undone],
       );
-      expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
+      expect(() => rollbackTo(path, folder, '20261012120000_add_step_node_attempts')).toThrow(
         'minute journal',
       );
       expect(sqlite.query('SELECT estimate_unit FROM step').get()).toEqual({
@@ -108,7 +110,7 @@ it('refuses rollback over minute-bound undo and redo history after clearing and 
       });
     }
     sqlite.run('DELETE FROM step');
-    expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
+    expect(() => rollbackTo(path, folder, '20261012120000_add_step_node_attempts')).toThrow(
       'minute journal',
     );
   } finally {
@@ -131,7 +133,9 @@ it.each([
     // Scope the snapshot to this migration: newer downs commit independently before its refusal.
     // Proof: removing the damaged-journal CASE guard failed all eight cases on a missing throw;
     // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
-    expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+    expect(rollbackTo(path, folder, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -192,7 +196,7 @@ it.each([
       const before = read();
       // Proof: removing the SQL root-object guard made the null-preconditions
       // case stop throwing at this pinned unit boundary (2026-10-14).
-      expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow();
+      expect(() => rollbackTo(path, folder, '20261012120000_add_step_node_attempts')).toThrow();
       expect(read()).toEqual(before);
     } finally {
       sqlite.close();
@@ -215,7 +219,7 @@ it('allows a legacy object journal without a unit map through direct down', () =
         )
         .all();
     const history = journal();
-    rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts');
+    rollbackTo(path, folder, '20261012120000_add_step_node_attempts');
     expect(
       sqlite
         .query<{ name: string }, []>('PRAGMA table_info(step)')

@@ -45,14 +45,14 @@ describe('treeOrder', () => {
     // Proof: the `id` comparison in `siblingGroupsOf` deleted, leaving
     // `Array#sort`'s stability to inherit the caller's order — watched failing
     // on `Expected: [ "abe", "zed" ] · Received: [ "zed", "abe" ]`, the two
-    // argument orders giving two different projects. `falls to the id when two
+    // argument orders giving two different work packages. `falls to the id when two
     // siblings share a position` went red beside it; restored 2026-09-11.
     const tied = [place('zed', null, 10), place('abe', null, 10)];
 
     expect(walked(tied)).toEqual(walked([...tied].reverse()));
   });
 
-  it('refuses a work item whose parent is not in the project', () => {
+  it('refuses a work item whose parent is not in the work package', () => {
     expect(() => treeOrder([place('a', null, 10), place('orphan', 'gone', 10)])).toThrow(/orphan/);
   });
 
@@ -88,7 +88,7 @@ describe('siblingGroupsOf', () => {
 });
 
 describe('byTreeOrder', () => {
-  it('sorts rows into the order the project is drawn in', () => {
+  it('sorts rows into the order the work package is drawn in', () => {
     const rows = [place('b', null, 20), place('a1', 'a', 10), place('a', null, 10)];
     const sorted = [...rows].sort(byTreeOrder(treeOrder(rows)));
 

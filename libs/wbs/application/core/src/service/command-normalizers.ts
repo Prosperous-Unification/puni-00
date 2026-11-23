@@ -324,9 +324,11 @@ export const commandNormalizers = {
   arrangeBySchedule: (_raw: CommandInput<'arrangeBySchedule'>) => ({
     kind: 'arrangeBySchedule' as const,
   }),
-  freezeProject: (_raw: CommandInput<'freezeProject'>) => ({ kind: 'freezeProject' as const }),
-  unfreezeProject: (_raw: CommandInput<'unfreezeProject'>) => ({
-    kind: 'unfreezeProject' as const,
+  freezeWorkPackage: (_raw: CommandInput<'freezeWorkPackage'>) => ({
+    kind: 'freezeWorkPackage' as const,
+  }),
+  unfreezeWorkPackage: (_raw: CommandInput<'unfreezeWorkPackage'>) => ({
+    kind: 'unfreezeWorkPackage' as const,
   }),
   unfreezeWorkItem: (raw: CommandInput<'unfreezeWorkItem'>) => ({
     kind: 'unfreezeWorkItem' as const,

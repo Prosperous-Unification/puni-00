@@ -92,7 +92,7 @@ describe('organization limits panel', () => {
     ).toEqual(['Refresh organization limits']);
   });
 
-  it('labels directory and project usage while keeping an older row readable', async () => {
+  it('labels directory and work package usage while keeping an older row readable', async () => {
     stubServer({
       'GET /api/organization/active': [role('admin')],
       'GET /api/organization/limits': [
@@ -128,10 +128,10 @@ describe('organization limits panel', () => {
     mountSlot();
     await within(await region()).findByText('0 of 64 GB');
     expect(within(rowOf('RAM')).getByText('Directory capacity')).toBeDefined();
-    expect(within(rowOf('Disk')).getByText('Project capacities')).toBeDefined();
+    expect(within(rowOf('Disk')).getByText('Work package capacities')).toBeDefined();
     expect(within(rowOf('Legacy')).getByText('4 of 64')).toBeDefined();
     expect(
-      within(rowOf('Legacy')).queryByText(/directory capacity|project capacities/i),
+      within(rowOf('Legacy')).queryByText(/directory capacity|work package capacities/i),
     ).toBeNull();
   });
 
@@ -221,7 +221,9 @@ describe('organization limits panel', () => {
   it('renders no panel when the read answers forbidden', async () => {
     const sent = stubServer({
       'GET /api/organization/active': [role('admin')],
-      'GET /api/organization/limits': [() => answer(403, { error: 'forbidden' })],
+      'GET /api/organization/limits': [
+        () => answer(403, { error: 'forbidden', permission: 'organization.read' }),
+      ],
     });
     mountSlot();
     await waitFor(() => {

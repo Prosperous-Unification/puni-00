@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Step, WorkItem, WriteStamp } from '../repository';
@@ -11,16 +12,18 @@ import { CapacityRepository } from '../repository/capacity';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { teamService } from '../repository/schema';
 import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { directoryWith } from '../testing/directory-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 
 /**
@@ -32,19 +35,18 @@ import { workItemRow } from '../testing/work-item-fixture';
  * `unknown_team` — and an in-memory store answering them would be a second
  * implementation of the rules under test.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let db: ReturnType<typeof openDrizzle>;
 let directory: DirectoryService;
 let store: DirectoryRepository;
-/** Where a pool size is stated since `capacity-per-project`: per project, not per team. */
+/** Where a pool size is stated since `capacity-per-work-package`: per work package, not per team. */
 let capacity: CapacityRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let workItems: WorkItemRepository;
 let stepStore: StepRepository;
 let broadcast: RecordingBroadcaster;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let devId: string;
 let qaId: string;
@@ -59,16 +61,23 @@ let qaId: string;
  */
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
-const newItem = (id: string, position: number, name: string, inProject = projectId): WorkItem =>
+const newItem = (
+  id: string,
+  position: number,
+  name: string,
+  inWorkPackage = workPackageId,
+): WorkItem =>
   workItemRow({
     id,
-    projectId: inProject,
+    workPackageId: inWorkPackage,
     position,
     name,
   });
 
-const stepNamed = async (name: string, inProject = projectId): Promise<Step> => {
-  const found = (await stepStore.listByProject(inProject)).find((each) => each.name === name);
+const stepNamed = async (name: string, inWorkPackage = workPackageId): Promise<Step> => {
+  const found = (await stepStore.listByWorkPackage(inWorkPackage)).find(
+    (each) => each.name === name,
+  );
   if (found === undefined) throw new Error(`no step called ${name}`);
   return found;
 };
@@ -80,18 +89,19 @@ const added = async (name: string, teamIds: readonly string[]): Promise<Person> 
   return outcome.value;
 };
 
-/** A second project with one work item, so a team can be held in two at once. */
-async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
-  const created = await new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projects),
+/** A second work package with one work item, so a team can be held in two at once. */
+async function roofWorkPackage(): Promise<{ workPackageOf: string; workItemOf: string }> {
+  const created = await new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackages),
     clock: testClock,
-    projects,
+    workPackages,
     broadcast: recordingBroadcaster(),
-  }).create('Roof', ownerId);
-  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
+  }).create('Roof', 'service-parent', ownerId);
+  if (typeof created === 'string')
+    throw new Error(`fixture work package creation refused: ${created}`);
   const workItemOf = crypto.randomUUID();
-  await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), [], wrote());
-  return { projectOf: created.project.id, workItemOf };
+  await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.workPackage.id), [], wrote());
+  return { workPackageOf: created.workPackage.id, workItemOf };
 }
 
 /** The person by that name, or a throw, for the same reason. */
@@ -104,10 +114,11 @@ const personNamed = async (name: string): Promise<string> => {
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-directory-service-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'service-legacy', 'service-parent');
   db = openDrizzle(path);
 
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   store = new DirectoryRepository(db, OPEN);
   capacity = new CapacityRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -128,14 +139,22 @@ beforeEach(async () => {
     { at: 1, by: ownerId },
   );
 
-  const created = await new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projects),
+  await bindDevQaFixture(
+    new StepCatalogueRepository(db, OPEN, 'owned'),
+    'service-legacy',
+    'service-parent',
+    wrote(),
+  );
+
+  const created = await new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackages),
     clock: testClock,
-    projects,
+    workPackages,
     broadcast: recordingBroadcaster(),
-  }).create('Rollout', ownerId);
-  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
-  projectId = created.project.id;
+  }).create('Rollout', 'service-parent', ownerId);
+  if (typeof created === 'string')
+    throw new Error(`fixture work package creation refused: ${created}`);
+  workPackageId = created.workPackage.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
 
@@ -155,7 +174,7 @@ describe('DirectoryService.patchTeam', () => {
     const outcome = await directory.patchTeam(platform.id, ownerId, { name: '  Payments  ' });
 
     // An id and a name, and nothing else on the row: a team carries no size
-    // since `capacity-per-project`, and this is where a rename answering with
+    // since `capacity-per-work-package`, and this is where a rename answering with
     // the retired column would show up.
     expect(outcome).toEqual({
       ok: true,
@@ -278,7 +297,7 @@ describe('DirectoryService.patchTeam', () => {
     if (platform === null) throw new Error('the fixture team was refused');
     const payments = await directory.addService(ownerId, 'Payments');
     if (payments === null) throw new Error('the fixture service was refused');
-    // The team is on a row of a real project, so there is something to announce
+    // The team is on a row of a real work package, so there is something to announce
     // to — without this the silence below would be silence about nothing.
     await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
     broadcast.published.length = 0;
@@ -293,7 +312,7 @@ describe('DirectoryService.patchTeam', () => {
     // The control, so this is not a test that events never fire: the same
     // method with a name on it does announce.
     await directory.patchTeam(platform.id, ownerId, { name: 'Platform Team' });
-    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+    expect(broadcast.published).toEqual([{ workPackageId, event: { type: 'directory_changed' } }]);
   });
 });
 
@@ -449,14 +468,14 @@ describe('DirectoryService.patchPerson', () => {
 });
 
 describe('directory events', () => {
-  it('tells every project an assignment reaches into that a person was renamed', async () => {
-    const roof = await roofProject();
+  it('tells every work package an assignment reaches into that a person was renamed', async () => {
+    const roof = await roofWorkPackage();
     const kat = await added('Kat', []);
     const unreferenced = await added('Nobody', []);
     await store.assign('design', devId, kat.id, wrote());
     await store.assign(
       roof.workItemOf,
-      (await stepNamed('Dev', roof.projectOf)).id,
+      (await stepNamed('Dev', roof.workPackageOf)).id,
       kat.id,
       wrote(),
     );
@@ -464,17 +483,19 @@ describe('directory events', () => {
 
     await directory.patchPerson(kat.id, ownerId, { name: 'Katrin' });
 
-    expect([...broadcast.published].sort((a, b) => a.projectId.localeCompare(b.projectId))).toEqual(
+    expect(
+      [...broadcast.published].sort((a, b) => a.workPackageId.localeCompare(b.workPackageId)),
+    ).toEqual(
       [
-        { projectId: projectId, event: { type: 'directory_changed' } } as const,
-        { projectId: roof.projectOf, event: { type: 'directory_changed' } } as const,
-      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+        { workPackageId: workPackageId, event: { type: 'directory_changed' } } as const,
+        { workPackageId: roof.workPackageOf, event: { type: 'directory_changed' } } as const,
+      ].sort((a, b) => a.workPackageId.localeCompare(b.workPackageId)),
     );
 
     broadcast.published.length = 0;
     await directory.patchPerson(unreferenced.id, ownerId, { name: 'Still nobody' });
 
-    // No project references them, so there is nothing anywhere to reread.
+    // No work package references them, so there is nothing anywhere to reread.
     expect(broadcast.published).toEqual([]);
   });
 
@@ -484,12 +505,12 @@ describe('directory events', () => {
     // directory payload and the directory card, and both read the directory.
     // The day a badge appears beside an assignee in a tree, this test is the
     // one that has to change first.
-    const roof = await roofProject();
+    const roof = await roofWorkPackage();
     const kat = await added('Kat', []);
     await store.assign('design', devId, kat.id, wrote());
     await store.assign(
       roof.workItemOf,
-      (await stepNamed('Dev', roof.projectOf)).id,
+      (await stepNamed('Dev', roof.workPackageOf)).id,
       kat.id,
       wrote(),
     );
@@ -502,12 +523,12 @@ describe('directory events', () => {
     // And a rename in the same patch still announces — the silence belongs to
     // the field, not to the request.
     await directory.patchPerson(kat.id, ownerId, { name: 'Katrin', kind: 'person' });
-    expect(broadcast.published.map((each) => each.projectId).sort()).toEqual(
-      [projectId, roof.projectOf].sort(),
+    expect(broadcast.published.map((each) => each.workPackageId).sort()).toEqual(
+      [workPackageId, roof.workPackageOf].sort(),
     );
   });
 
-  it('tells the projects a removed team was labelled in, and nobody else', async () => {
+  it('tells the work packages a removed team was labelled in, and nobody else', async () => {
     const platform = await directory.addTeam(ownerId, 'Platform');
     const unused = await directory.addTeam(ownerId, 'Unused');
     if (platform === null || unused === null) throw new Error('a fixture team was refused');
@@ -515,11 +536,11 @@ describe('directory events', () => {
     broadcast.published.length = 0;
 
     await directory.patchTeam(platform.id, ownerId, { name: 'Payments' });
-    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+    expect(broadcast.published).toEqual([{ workPackageId, event: { type: 'directory_changed' } }]);
 
     broadcast.published.length = 0;
     await directory.removeTeam(platform.id, ownerId, true);
-    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+    expect(broadcast.published).toEqual([{ workPackageId, event: { type: 'directory_changed' } }]);
 
     broadcast.published.length = 0;
     await directory.patchTeam(unused.id, ownerId, { name: 'Still unused' });
@@ -530,7 +551,7 @@ describe('directory events', () => {
   it('records the event after the write, never before it', async () => {
     // The sequence-consistency rule, asserted where it is decided rather than
     // reasoned about: a reader that acts on the event — a client rereading the
-    // project, the replay log recording it — must never see the directory as it
+    // work package, the replay log recording it — must never see the directory as it
     // was before the change. Reading the directory from inside `publish` is the
     // only moment that can tell the two orders apart.
     //
@@ -571,7 +592,7 @@ function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
 }
 
 describe('the directory usage a removal is refused with', () => {
-  it('names the project, the number and the work item an assignment holds', async () => {
+  it('names the work package, the number and the work item an assignment holds', async () => {
     const kat = await added('Kat', []);
     await store.assign('design', devId, kat.id, wrote());
 
@@ -581,9 +602,9 @@ describe('the directory usage a removal is refused with', () => {
       ok: false,
       reason: 'in_use',
       usage: {
-        projects: [
+        workPackages: [
           {
-            id: projectId,
+            id: workPackageId,
             name: 'Rollout',
             workItems: [
               {
@@ -619,16 +640,16 @@ describe('the directory usage a removal is refused with', () => {
     const outcome = await directory.removePerson(kat.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
-    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([
+    expect(outcome.usage.workPackages[0]?.workItems[0]?.effects).toEqual([
       { kind: 'assignment_dropped', step: { id: devId, name: 'Dev' } },
       { kind: 'assumed_assignee_changed', assumedNow: null, assumedAfter: 'Ada' },
     ]);
   });
 
-  it('names both projects a team is labelled in', async () => {
+  it('names both work packages a team is labelled in', async () => {
     const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const roof = await roofProject();
+    const roof = await roofWorkPackage();
     await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
     await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id }, wrote());
 
@@ -642,21 +663,21 @@ describe('the directory usage a removal is refused with', () => {
         // decides. Sorted at all so that the same impact reads the same way
         // twice; a confirmation that reorders itself reads as a different
         // answer.
-        projects: [
+        workPackages: [
           {
-            id: projectId,
+            id: workPackageId,
             name: 'Rollout',
             workItems: [
               { id: 'design', number: '010', name: 'Design', effects: [{ kind: 'label_nulled' }] },
             ],
           },
           {
-            id: roof.projectOf,
+            id: roof.workPackageOf,
             name: 'Roof',
             workItems: [
               {
                 id: roof.workItemOf,
-                // `010`, not `020`: each project is numbered as its own tree.
+                // `010`, not `020`: each work package is numbered as its own tree.
                 number: '010',
                 name: 'Shingle',
                 effects: [{ kind: 'label_nulled' }],
@@ -681,17 +702,17 @@ describe('the directory usage a removal is refused with', () => {
     if (team === null) throw new Error('the fixture team was refused');
     await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, [], wrote());
     await workItems.patch('design', { serviceTeamId: team.id }, wrote());
-    // Stated **for this project** since `capacity-per-project`: the number the
+    // Stated **for this work package** since `capacity-per-work-package`: the number the
     // confirmation prints is the number the plan the row is in was bounded by.
-    await capacity.set(projectId, team.id, 2, wrote());
+    await capacity.set(workPackageId, team.id, 2, wrote());
 
     const outcome = await directory.removeTeam(team.id, ownerId, false);
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
-    expect(outcome.usage.projects).toEqual([
+    expect(outcome.usage.workPackages).toEqual([
       {
-        id: projectId,
+        id: workPackageId,
         name: 'Rollout',
         workItems: [
           {
@@ -720,20 +741,20 @@ describe('the directory usage a removal is refused with', () => {
     ]);
   });
 
-  it('names each project’s own capacity, and says nothing where a project stated none', async () => {
-    // The multi-project case, which is the whole of what `capacity-per-project`
+  it('names each work package’s own capacity, and says nothing where a work package stated none', async () => {
+    // The multi-work-package case, which is the whole of what `capacity-per-work-package`
     // changed about this confirmation: the same team is stated at four on one
     // plan and unstated on the next, so the number printed beside a row has to
-    // be that row's project's. One number for the confirmation would name a
+    // be that row's work package's. One number for the confirmation would name a
     // bound half the rows it printed on were never under.
     //
-    // The two-project fixture this needs is the one `tells both projects the
+    // The two-work-package fixture this needs is the one `tells both workPackages the
     // team labels work in, and not a third` used before that test went with
-    // `resizeTeam`; nothing on the usage side replaced it, and the single-project
+    // `resizeTeam`; nothing on the usage side replaced it, and the single-work-package
     // fixtures the other three capacity tests use cannot tell the two answers
     // apart.
     //
-    // Proof: `directoryUsageOfTeam`'s per-project lookup replaced by "any project
+    // Proof: `directoryUsageOfTeam`'s per-work-package lookup replaced by "any work package
     // stated something" (`[...rows.capacityOf.values()].at(0)`), which is the
     // fault R5 row 9 names and which left **693 pass, 0 fail** before this test
     // existed. The same injection is now **695 pass, 1 fail**, and the one is
@@ -743,19 +764,19 @@ describe('the directory usage a removal is refused with', () => {
     // else's rows. Watched 2026-08-13.
     const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const roof = await roofProject();
+    const roof = await roofWorkPackage();
     await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
     await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id }, wrote());
     // Stated on `Rollout` and deliberately nowhere else.
-    await capacity.set(projectId, platform.id, 4, wrote());
+    await capacity.set(workPackageId, platform.id, 4, wrote());
 
     const outcome = await directory.removeTeam(platform.id, ownerId, false);
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
-    expect(outcome.usage.projects).toEqual([
+    expect(outcome.usage.workPackages).toEqual([
       {
-        id: projectId,
+        id: workPackageId,
         name: 'Rollout',
         workItems: [
           {
@@ -770,7 +791,7 @@ describe('the directory usage a removal is refused with', () => {
         ],
       },
       {
-        id: roof.projectOf,
+        id: roof.workPackageOf,
         name: 'Roof',
         workItems: [
           {
@@ -802,7 +823,7 @@ describe('the directory usage a removal is refused with', () => {
 
     if (outcome.ok) throw new Error('expected the removal to be refused');
     if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
-    expect(outcome.usage.projects.flatMap((each) => each.workItems)).toEqual([
+    expect(outcome.usage.workPackages.flatMap((each) => each.workItems)).toEqual([
       { id: 'design', number: '010', name: 'Design', effects: [{ kind: 'label_nulled' }] },
     ]);
   });
@@ -818,13 +839,13 @@ describe('the directory usage a removal is refused with', () => {
 
     const first = await directory.removeTeam(team.id, ownerId, false);
     if (first.ok || first.reason !== 'in_use') throw new Error('expected an in-use refusal');
-    expect(first.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_nulled' }]);
+    expect(first.usage.workPackages[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_nulled' }]);
 
-    await capacity.set(projectId, team.id, 3, wrote());
+    await capacity.set(workPackageId, team.id, 3, wrote());
 
     const second = await directory.removeTeam(team.id, ownerId, false);
     if (second.ok || second.reason !== 'in_use') throw new Error('expected an in-use refusal');
-    expect(second.usage.projects[0]?.workItems[0]?.effects).toEqual([
+    expect(second.usage.workPackages[0]?.workItems[0]?.effects).toEqual([
       { kind: 'label_nulled' },
       { kind: 'capacity_released', size: 3, fromId: 'design' },
     ]);
@@ -844,7 +865,7 @@ describe('the directory usage a removal is refused with', () => {
       ok: false,
       reason: 'in_use',
       usage: {
-        projects: [],
+        workPackages: [],
         members: [
           { id: ada.id, name: 'Ada' },
           { id: kat.id, name: 'Kat' },
@@ -899,7 +920,7 @@ describe('the directory usage a removal is refused with', () => {
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     // Named, not merely refused: the whole point of the second call is that the
     // person confirming has seen what it takes.
-    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toContainEqual({
+    expect(outcome.usage.workPackages[0]?.workItems[0]?.effects).toContainEqual({
       kind: 'assignment_dropped',
       step: { id: devId, name: 'Dev' },
     });
@@ -941,7 +962,7 @@ describe('the directory usage a removal is refused with', () => {
   it("a cascade nulls every label and moves those work items' revisions", async () => {
     const platform = await directory.addTeam(ownerId, 'Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const roof = await roofProject();
+    const roof = await roofWorkPackage();
     // A member as well as two labels, so the cascade has both kinds to take.
     await added('Kat', [platform.id]);
     await workItems.patch('design', { serviceTeamId: platform.id }, wrote());
@@ -982,7 +1003,7 @@ describe('the directory usage a removal is refused with', () => {
     const label = await labelled.removeTeam(platform.id, ownerId, false);
 
     if (label.ok || label.reason !== 'in_use') throw new Error('the label removal was not refused');
-    expect(label.usage.projects[0]?.workItems[0]).toMatchObject({
+    expect(label.usage.workPackages[0]?.workItems[0]).toMatchObject({
       id: 'design',
       effects: [{ kind: 'label_nulled' }],
     });
@@ -1064,9 +1085,9 @@ describe('removing a tag: what it names, and what it cannot move', () => {
       ok: false,
       reason: 'in_use',
       usage: {
-        projects: [
+        workPackages: [
           {
-            id: projectId,
+            id: workPackageId,
             name: 'Rollout',
             workItems: [
               { id: 'design', number: '010', name: 'Design', effects: [{ kind: 'label_removed' }] },
@@ -1091,7 +1112,9 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     const outcome = await directory.removeTag(techDebt.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
-    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_removed' }]);
+    expect(outcome.usage.workPackages[0]?.workItems[0]?.effects).toEqual([
+      { kind: 'label_removed' },
+    ]);
   });
 
   it('does not name a row that only inherits the tag, because nothing of its moves', async () => {
@@ -1113,7 +1136,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     const outcome = await directory.removeTag(regulatory.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
-    expect(outcome.usage.projects[0]?.workItems.map((each) => each.id)).toEqual(['design']);
+    expect(outcome.usage.workPackages[0]?.workItems.map((each) => each.id)).toEqual(['design']);
   });
 
   it('takes the labelling with the tag on ?cascade=1, and moves every row’s revision', async () => {
@@ -1124,11 +1147,15 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // repo has already shipped once for people.
     const regulatory = await tagged('regulatory');
     await workItems.patch('design', { tagIds: [regulatory.id] }, wrote());
-    const before = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+    const before = (await workItems.listByWorkPackage(workPackageId)).find(
+      (row) => row.id === 'design',
+    );
 
     expect(await directory.removeTag(regulatory.id, ownerId, true)).toEqual({ ok: true });
 
-    const after = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+    const after = (await workItems.listByWorkPackage(workPackageId)).find(
+      (row) => row.id === 'design',
+    );
     expect(after?.tagIds).toEqual([]);
     expect(after?.revision).toBeGreaterThan(before?.revision ?? 0);
     expect(await store.listTags()).toEqual([]);
@@ -1181,7 +1208,7 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     const outcome = await directory.removeService(payments.id, ownerId, false);
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
-    expect(outcome.usage.projects[0]?.workItems.map((each) => each.id)).toEqual(['design']);
+    expect(outcome.usage.workPackages[0]?.workItems.map((each) => each.id)).toEqual(['design']);
   });
 
   it('empties the set on ?cascade and moves every row’s revision', async () => {
@@ -1196,11 +1223,15 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     // `directoryUsageOfService` reports `label_removed` for the same reason.
     const payments = await serviceNamed('Payments');
     await workItems.patch('design', { serviceIds: [payments.id] }, wrote());
-    const before = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+    const before = (await workItems.listByWorkPackage(workPackageId)).find(
+      (row) => row.id === 'design',
+    );
 
     expect(await directory.removeService(payments.id, ownerId, true)).toEqual({ ok: true });
 
-    const after = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+    const after = (await workItems.listByWorkPackage(workPackageId)).find(
+      (row) => row.id === 'design',
+    );
     expect(after?.serviceIds).toEqual([]);
     expect(after?.revision).toBeGreaterThan(before?.revision ?? 0);
     expect(await store.listServices()).toEqual([]);
@@ -1225,9 +1256,9 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     if (refused.ok || refused.reason !== 'in_use') throw new Error('the removal was not refused');
     // One work item, one effect, and nothing about Platform anywhere in it.
     expect(refused.usage).toEqual({
-      projects: [
+      workPackages: [
         {
-          id: projectId,
+          id: workPackageId,
           name: 'Rollout',
           workItems: [
             // `label_removed`, task 10.5's word: the removal takes a
@@ -1261,8 +1292,8 @@ describe('removing a service: what it names, what it takes, and what it cannot m
     expect((await store.listServices()).map((each) => each.name)).toEqual(['Auth', 'Payments']);
   });
 
-  it('tells every project holding a labelled row that its directory changed', async () => {
-    // The rename's `projectIds` are read inside its own transaction, so what is
+  it('tells every work package holding a labelled row that its directory changed', async () => {
+    // The rename's `workPackageIds` are read inside its own transaction, so what is
     // announced is the set of plans that named the service when it happened.
     // `capacity_changed` is never among them: no date moves.
     const payments = await serviceNamed('Payments');
@@ -1271,6 +1302,6 @@ describe('removing a service: what it names, what it takes, and what it cannot m
 
     await directory.renameService(payments.id, ownerId, 'Billing');
 
-    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+    expect(broadcast.published).toEqual([{ workPackageId, event: { type: 'directory_changed' } }]);
   });
 });

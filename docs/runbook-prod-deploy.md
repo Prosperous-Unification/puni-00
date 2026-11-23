@@ -85,8 +85,18 @@ be reinstalled after this change or `assertBundleInstalled` will (correctly) ref
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
 
-**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before alias/routing exposure and `commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
-step an older release inserted without a code. If it fails, candidate boot has already established possible exposure: the executor retains the candidate and current writes, keeps the outgoing backend stopped, preserves interruption markers, and does not commit. The error names the manual command,
+**Predecessor step-code backfill.** Current catalogue boot and newly generated `be` swap
+plans omit this historical effect. Formerly uncoded steps require explicit SC23
+confirmation during guarded catalogue report/apply; current definitions have required
+codes. Writer fencing, migration capture/backups, runtime admission and post-stop
+vocabulary checks retain their existing responsibilities.
+
+An explicit historical `backfill-step-codes` executor step still runs
+`bun run src/backfill-step-codes-cli.ts` in the incoming colour, coding every step an
+older release inserted without a code. It requires the predecessor store layout;
+it is not a current catalogue inspection or an automatic fallback. If it fails,
+the executor retains the candidate and current writes, keeps the outgoing backend
+stopped, preserves interruption markers, and does not commit. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
 run it until it prints `step codes backfilled: <n>`, then follow the backend interruption recovery procedure before another deploy
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
@@ -181,12 +191,12 @@ Before forward migration, swap captures the complete applied set in an attempt-s
 An explicitly authorized disaster recovery must first account for every write since the proposed snapshot, prove all writers stopped, and review schema, captured ledger and fact/replay compatibility for the chosen immutable image. Restoring a snapshot, changing Caddy routing, restarting older containers or clearing interruption markers requires that separate reviewed recovery decision. The `--to=<baseline>` commands below belong to explicit data-removal workflows; they are not swap abort recovery.
 
 **Smoke.** After the swap, smoke also checks the read paths. `/api/auth/me` without a credential
-must answer `{"user":null}`, and `/api/projects` without one must be 401. For signed-in reads,
+must answer `{"user":null}`, and `/api/work-packages` without one must be 401. For signed-in reads,
 put `SMOKE_READ_USER_ID` and `SMOKE_READ_USERNAME` in `/home/puni1/wbs/smoke-read.env`
 (mode 600). They must name a dedicated, low-value account that owns nothing anyone needs. Smoke
 then mints a one-minute session with the deployed signing key and reads `/api/auth/me` and
-`/api/projects`. Without the file, those two checks print `SKIPPED`. Failures print the status
-and response keys, never the account or project values. Writes stay a manual smoke.
+`/api/work-packages`. Without the file, those two checks print `SKIPPED`. Failures print the status
+and response keys, never the account or work-package values. Writes stay a manual smoke.
 
 The minted session is a password session. It passes only while `AUTH_PASSWORD_LOGIN` is not
 `false`: in OIDC mode, a token the OIDC verifier rejects falls through to the password check only
@@ -533,13 +543,13 @@ holds rows, and a container-local CLI saves, removes and later restores those ro
 The table names each feature's migration, CLI, save file and refusal; the rules after it carry
 what differs.
 
-| Feature                                                            | Migration                                   | CLI (`src/…`)                            | Save file                                  | Down refusal                                           | Code-rollback guard                           |
-| ------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------- | ------------------------------------------ | ------------------------------------------------------ | --------------------------------------------- |
-| <a id="typed-dependency-rollback"></a>Typed dependency             | `20260927213000_add_typed_dependency`       | `typed-dependency-rollback-cli.ts`       | `/data/typed-dependency-<date>.json`       | `CHECK constraint failed: typed dependencies exist: …` | `relationship-types-cli.ts`                   |
-| <a id="work-item-status-facts-rollback"></a>Work item status facts | `20260928200000_add_work_item_status_facts` | `work-item-status-facts-rollback-cli.ts` | `/data/work-item-status-facts-<date>.json` | `CHECK constraint failed: work item holds exist: …`    | `readiness-kinds-cli.ts`, `hold-kinds-cli.ts` |
-| <a id="space-rollback"></a>Space                                   | `20260929100000_add_spaces`                 | `space-rollback-cli.ts`                  | `/data/spaces-<date>.json`                 | `CHECK constraint failed: spaces exist: …`             | none needed                                   |
-| <a id="project-rank-rollback"></a>Project rank                     | `20260929180000_add_project_rank`           | `project-rank-rollback-cli.ts`           | `/data/project-ranks-<date>.json`          | `CHECK constraint failed: project ranks exist: …`      | none needed                                   |
-| <a id="step-node-attempt-rollback"></a>Step node attempt           | `20261012120000_add_step_node_attempts`     | `step-node-attempt-rollback-cli.ts`      | `/data/step-node-attempts-<date>.json`     | `CHECK constraint failed: step node attempts exist: …` | `attempt-outcomes-cli.ts`                     |
+| Feature                                                                                    | Migration                                   | CLI (`src/…`)                            | Save file                                  | Down refusal                                           | Code-rollback guard                           |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------- | ------------------------------------------ | ------------------------------------------------------ | --------------------------------------------- |
+| <a id="typed-dependency-rollback"></a>Typed dependency                                     | `20260927213000_add_typed_dependency`       | `typed-dependency-rollback-cli.ts`       | `/data/typed-dependency-<date>.json`       | `CHECK constraint failed: typed dependencies exist: …` | `relationship-types-cli.ts`                   |
+| <a id="work-item-status-facts-rollback"></a>Work item status facts                         | `20260928200000_add_work_item_status_facts` | `work-item-status-facts-rollback-cli.ts` | `/data/work-item-status-facts-<date>.json` | `CHECK constraint failed: work item holds exist: …`    | `readiness-kinds-cli.ts`, `hold-kinds-cli.ts` |
+| <a id="space-rollback"></a>Space                                                           | `20260929100000_add_spaces`                 | `space-rollback-cli.ts`                  | `/data/spaces-<date>.json`                 | `CHECK constraint failed: spaces exist: …`             | none needed                                   |
+| <a id="project-rank-rollback"></a><a id="work-package-rank-rollback"></a>Work package rank | `20260929180000_add_project_rank`           | `work-package-rank-rollback-cli.ts`      | `/data/work-package-ranks-<date>.json`     | `CHECK constraint failed: project ranks exist: …`      | none needed                                   |
+| <a id="step-node-attempt-rollback"></a>Step node attempt                                   | `20261012120000_add_step_node_attempts`     | `step-node-attempt-rollback-cli.ts`      | `/data/step-node-attempts-<date>.json`     | `CHECK constraint failed: step node attempts exist: …` | `attempt-outcomes-cli.ts`                     |
 
 **Code rollback.** Where the table names a guard CLI, the `be` swap's `stored-vocabularies` step
 compares the values the incoming binary reads through that CLI with the values stored, before
@@ -750,17 +760,21 @@ audit rows.
 ## Shared people restore approvals
 
 The approval preparation endpoint is available at
-`POST /api/organization/shared-people/restore-approvals`. A personally authenticated super-admin
-submits `{operationId, backupDigest}` in their active organization. `backupDigest` is the lowercase
+`POST /api/organization/shared-people/restore-approvals`. A personally authenticated current member
+holding `organization.manage_security` submits `{operationId, backupDigest}` in their active organization. `backupDigest` is the lowercase
 SHA-256 of the canonical shared-people backup, printed offline with:
 
 ```sh
 bun run apps/wbs/be-01/src/shared-people-rollback-cli.ts digest <backup-file>
 ```
 
-This command needs no `DB_PATH` and opens no database. It validates the complete v1 backup and
-normalizes field/array ordering before hashing; whitespace and presentation order do not change
-the digest. Keep the backup unchanged after approval. The installed host owner fences containers
+This command needs no `DB_PATH` and opens no database. It strictly validates the declared v1 or v2
+backup and canonicalizes field/array ordering before hashing; whitespace and presentation order
+do not change the digest. Published v1 retains `projectId` and its original digest. New saves emit
+v2 with `workPackageId`; the same logical facts in v2 have a different digest and need a fresh
+operation and approvals. Historical operation, approval, receipt and consumption rows are never
+retargeted. Keep the original versioned backup unchanged after approval; the host reads it once
+and retains it through fencing and diagnostics. The installed host owner fences containers
 and installs audited receipt/consumption recovery, while shared physical acceptance and activation
 remain open in tasks 10.3b–10.4. Preparing approval does not activate shared capacity or permit
 this release to restore a shared backup.
@@ -807,7 +821,16 @@ sign-in; WBS has no operator path around it. Then roll back code
 only: with no organization shared, the swap's capacity-modes guard admits an
 older image, and the extra column and table are inert to it.
 
-The procedure below applies only while no capacity-mode switch, restore operation or restore
+**After `20261110100000_rename_project_to_work_package`, schema rollback requires the verified
+window database snapshot.** The historical downgrade commands below apply only to a pre-rename
+prefix; migration111 refuses them even after all modes/ranks are cleared. Never clear recovery
+state to force that closed downgrade. Current save/remove/restore tools still validate both
+backup generations and operate on current work-package storage under their existing guards.
+Standalone rank files admit only historical `project-rank-save`/1 with `projectId`, or current
+`work-package-rank-save`/2 with `workPackageId`; the unshipped current-name/1 pair is refused.
+The old migration name and its `project ranks exist` diagnostic remain immutable.
+
+The historical procedure below applies only while no capacity-mode switch, restore operation or restore
 approval is recorded. Check `shared_people_audit`, `shared_people_restore_operation` and
 `shared_people_restore_approval` before preparing a schema rollback. Any row closes that rollback;
 `shared-people-rollback-cli.ts remove` refuses inside its immediate transaction before changing
@@ -1121,7 +1144,7 @@ Missing/unreadable or ambiguous mount metadata, special/symlink aliases, malform
 
 The exclusive private interruption files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-maintenance.json`, `be-writer-migration.json` and `be-writer-exposure.json`. Preflight freezes two mode0600, hash-pinned Compose snapshots from one validated resolved application configuration and immutable image. Both retain the exact environment, working directory, database/solver mounts and init prerequisite. Stop intent records both snapshot identities and exact outgoing/idle IDs before either writer stops. Stopped identities and the complete inventory are revalidated, then independent read-only fact/replay one-offs admit the digest against the stopped SQLite family.
 
-**Maintenance precedes application startup.** The maintenance snapshot explicitly replaces entrypoint with `bun -e 'setInterval(() => {}, 60000)'`, clears command, disables healthcheck and sets restart=no. It starts with forced recreation, no dependencies and pull=never. The executor records its exact ID, image ID and snapshot hashes, and inspects running/unpaused/not-restarting identity plus inert entrypoint/command/health/restart, environment, mounts and working directory before database CLI execution. Backup, migration-set capture and forward migration target that exact ID, never the reusable colour name. Capture bytes are published, read back and digested; durable migration intent precedes the forward CLI. After successful migration the exact maintenance ID stops and is independently proved stopped. Only then is application exposure durably recorded and the original application snapshot force-recreated. Actual app boot retains `migrateOnStartup=false` and the StepBlockage admission check; an authentic predecessor cannot boot until its admission migration has run. Health, compatibility readback, backfill and alias/Caddy routing follow. Only recorded commit clears interruption files.
+**Maintenance precedes application startup.** The maintenance snapshot explicitly replaces entrypoint with `bun -e 'setInterval(() => {}, 60000)'`, clears command, disables healthcheck and sets restart=no. It starts with forced recreation, no dependencies and pull=never. The executor records its exact ID, image ID and snapshot hashes, and inspects running/unpaused/not-restarting identity plus inert entrypoint/command/health/restart, environment, mounts and working directory before database CLI execution. Backup, migration-set capture and forward migration target that exact ID, never the reusable colour name. Capture bytes are published, read back and digested; durable migration intent precedes the forward CLI. After successful migration the exact maintenance ID stops and is independently proved stopped. Only then is application exposure durably recorded and the original application snapshot force-recreated. Actual app boot retains `migrateOnStartup=false` and the StepBlockage admission check; an authentic predecessor cannot boot until its admission migration has run. Health, compatibility readback and alias/Caddy routing follow. Only recorded commit clears interruption files.
 
 Each stored read-only probe copies the quiescent main file and retained WAL/journal into private writable scratch; source SHM is excluded and SQLite creates scratch SHM. Absence of optional sidecars is explicit; unreadability refuses. Source files must remain quiescent. Phase writes never replace interruption evidence, and ordinary retry refuses every retained, malformed or unreadable marker.
 

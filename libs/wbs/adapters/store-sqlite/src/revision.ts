@@ -3,7 +3,7 @@ import { eq, inArray, type SQL, sql } from 'drizzle-orm';
 
 import { auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
-import { project, workItem } from './schema';
+import { workItem, workPackage } from './schema';
 
 /**
  * Whatever can issue an `UPDATE` — the process connection or a transaction
@@ -28,8 +28,8 @@ export type RevisionWriter = Pick<Drizzle, 'update'>;
  */
 export const bumpedWorkItem = sql`${workItem.revision} + 1`;
 
-/** The same expression for a project row. */
-export const bumpedProject = sql`${project.revision} + 1`;
+/** The same expression for a work package row. */
+export const bumpedWorkPackage = sql`${workPackage.revision} + 1`;
 
 /**
  * `revision + 1`, but only for a row whose parent this write actually changes.
@@ -87,18 +87,18 @@ export function bumpWorkItems(
 }
 
 /**
- * The same, for one project — its own fields and its steps. Takes only the
- * instant, like {@link auditOnUpdate}, because the project row records when it
+ * The same, for one work package — its own fields and its steps. Takes only the
+ * instant, like {@link auditOnUpdate}, because the work package row records when it
  * changed, not who changed it.
  */
-export function bumpProject(
+export function bumpWorkPackage(
   writer: RevisionWriter,
   id: string,
   stamp: Pick<WriteStamp, 'at'>,
 ): void {
   writer
-    .update(project)
-    .set({ revision: bumpedProject, ...auditOnUpdate(stamp) })
-    .where(eq(project.id, id))
+    .update(workPackage)
+    .set({ revision: bumpedWorkPackage, ...auditOnUpdate(stamp) })
+    .where(eq(workPackage.id, id))
     .run();
 }

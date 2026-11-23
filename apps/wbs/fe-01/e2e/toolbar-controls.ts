@@ -8,7 +8,7 @@ import type { Page } from '@playwright/test';
  * `Schedule`, F-094) are groups too, and counting them would pad the floor the
  * budgets hold with two things that are not controls. Proof, watched
  * 2026-10-16 with the named groups in place and Redo taken off the bar: this
- * count failed `project-settings.spec.ts`' premise on `Expected: >= 17 ·
+ * count failed `work-package-settings.spec.ts`' premise on `Expected: >= 17 ·
  * Received: 16`; the old count (the `group` role summed) passed it at 18.
  */
 const CONTROL_ROLES = ['button', 'combobox', 'textbox'] as const;

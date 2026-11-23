@@ -8,7 +8,8 @@ test('context route stays inert before activation and production binding', async
   try {
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
     expect(
       await harness.call('ada', 'POST', '/api/auth/context', { organizationId: 'org-a' }),
     ).toEqual({
@@ -48,8 +49,10 @@ test('issues a native direct context only for its own current membership', async
     await harness.register('bob');
     harness.organization('org-a');
     harness.organization('org-b');
-    harness.member('org-a', 'ada', 'member');
-    harness.member('org-b', 'bob', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
+    harness.member('org-b', 'bob', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-b', 'bob', ['organization.create_project']);
     harness.activate();
     expect(
       await harness.callWith('other', 'POST', '/api/auth/context', { organizationId: 'org-a' }),
@@ -140,29 +143,44 @@ test('issues a native direct context only for its own current membership', async
       typeof answer.body.token !== 'string'
     )
       throw new Error('context token missing');
-    const aProject = await harness.callWith(answer.body.token, 'POST', '/api/projects', {
-      name: 'A project',
+    const parent = await harness.callWith(answer.body.token, 'POST', '/api/projects', {
+      name: 'Context project',
     });
-    expect(aProject.status).toBe(200);
+    expect(parent.status).toBe(201);
+    const aWorkPackage = await harness.callWith(answer.body.token, 'POST', '/api/work-packages', {
+      name: 'A work package',
+      projectId: (parent.body as { project: { id: string } }).project.id,
+    });
+    expect(aWorkPackage.status).toBe(200);
     for (const cookie of [
       `__Host-wbs_access=${harness.token('ada')}; __Host-wbs_access=%E0%A4%A`,
       '__Host-wbs_access=%E0%A4%A',
     ]) {
       expect(
-        await harness.callWith(answer.body.token, 'GET', '/api/projects', undefined, { cookie }),
+        await harness.callWith(answer.body.token, 'GET', '/api/work-packages', undefined, {
+          cookie,
+        }),
       ).toEqual({ status: 401, body: { error: 'unauthenticated' } });
     }
-    const listed = await harness.callWith(answer.body.token, 'GET', '/api/projects', undefined, {
-      'x-wbs-organization': 'org-b',
-    });
+    const listed = await harness.callWith(
+      answer.body.token,
+      'GET',
+      '/api/work-packages',
+      undefined,
+      {
+        'x-wbs-organization': 'org-b',
+      },
+    );
     expect(listed.status).toBe(200);
-    expect(JSON.stringify(listed.body)).toContain('A project');
+    expect(JSON.stringify(listed.body)).toContain('A work package');
     const userId = harness.userId('ada');
     harness.sqlite.run(
       'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
       ['org-a', userId],
     );
-    expect((await harness.callWith(answer.body.token, 'GET', '/api/projects')).status).toBe(403);
+    expect((await harness.callWith(answer.body.token, 'GET', '/api/work-packages')).status).toBe(
+      403,
+    );
     harness.sqlite.run('DROP TABLE organization_activation');
     expect(
       (await harness.call('ada', 'POST', '/api/auth/context', { organizationId: 'org-a' })).status,
@@ -181,7 +199,8 @@ test('enabled context issuance reports inactive before activation', async () => 
   try {
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
     expect(
       await harness.call('ada', 'POST', '/api/auth/context', {
         organizationId: 'org-a',

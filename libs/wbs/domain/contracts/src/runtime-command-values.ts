@@ -1,3 +1,8 @@
+import type { Permission } from '@wbs/domain/access-role';
+
+import type { RuntimeReceipt1 } from './runtime-history1';
+export type { RuntimeReceipt1, RuntimeScope1, RuntimeState1 } from './runtime-history1';
+
 import type {
   CommandContext,
   CommandRefusalCode,
@@ -5,10 +10,10 @@ import type {
   RefusalCode,
 } from './http/refusal';
 
-/** Server-derived organization/project/person address of one runtime observation. */
+/** Server-derived organization/work-package/person address of one runtime observation. */
 export type RuntimeScope = Readonly<{
   organizationId: string;
-  projectId: string;
+  workPackageId: string;
   personId: string;
 }>;
 
@@ -18,7 +23,7 @@ export type RuntimeBasis = string;
 /** Detached local facts captured together; no ledger or runtime authority is asserted. */
 export interface RuntimeObservation {
   readonly scope: RuntimeScope;
-  readonly projectRevision: number;
+  readonly workPackageRevision: number;
   readonly workItems: readonly {
     readonly id: string;
     readonly parentId: string | null;
@@ -37,17 +42,18 @@ export interface RuntimeObservation {
   }[];
 }
 
-/** Expected current project/person refusal of the internal raw observation. */
-export type RuntimeReadRefusal = Readonly<{
-  ok: false;
-  reason:
-    | 'runtime_scope_unavailable'
-    | 'not_found'
-    | 'forbidden'
-    | 'unknown_person'
-    | 'person_not_bound'
-    | 'credential_not_for_person';
-}>;
+/** Expected current work-package/person refusal of the internal raw observation. */
+export type RuntimeReadRefusal =
+  | Readonly<{
+      ok: false;
+      reason:
+        | 'runtime_scope_unavailable'
+        | 'not_found'
+        | 'unknown_person'
+        | 'person_not_bound'
+        | 'credential_not_for_person';
+    }>
+  | Readonly<{ ok: false; reason: 'forbidden'; permission?: Permission }>;
 
 /** Receiver-owned grant; generations are positive safe integers within one scope. */
 export type RuntimeAuthority = Readonly<{ ownerId: string; generation: number }>;
@@ -70,8 +76,8 @@ export type RuntimeClaim = Readonly<{
 }>;
 
 /** Immutable success body stored atomically with its accepted command. */
-export type RuntimeReceipt = Readonly<{
-  schemaVersion: 1;
+export type RuntimeReceipt2 = Readonly<{
+  schemaVersion: 2;
   ledgerId: string;
   scope: RuntimeScope;
   commandId: string;
@@ -97,6 +103,9 @@ export type RuntimeReceipt = Readonly<{
       }>;
 }>;
 
+/** Original receipts stay raw version1; only newly accepted receipts use version2. */
+export type RuntimeReceipt = RuntimeReceipt1 | RuntimeReceipt2;
+
 /** Explicit ordinary inventory; immutable runtime bindings never silently adopt ordinary claims. */
 export type RuntimeClaimInventory = Readonly<{
   kind: 'ordinary' | 'runtime';
@@ -114,7 +123,7 @@ export type RuntimeClaimInventory = Readonly<{
 
 /** One coherent pinned observation, current grant and requested person's live claim inventory. */
 export type RuntimeState = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   ledgerId: string;
   scope: RuntimeScope;
   basis: RuntimeBasis;

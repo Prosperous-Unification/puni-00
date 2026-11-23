@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OrganizationLimitGauge, PlanCommand, ResourceAccess, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -16,11 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -31,8 +31,9 @@ const PERSONS = ['claire', 'codex', 'worker'] as const;
 const SEED = 20261022;
 
 const accessOf = (userId: string): ResourceAccess => ({
+  principal: { id: userId },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId },
 });
 
 /**
@@ -55,7 +56,10 @@ let source: SqliteSource;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-limit-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -77,15 +81,40 @@ function boundClaims(): number {
 
 /**
  * Organization A with both accounts as admins, a claims cap of `cap`, its
- * persons, and one project of A with `leafCount` root leaves.
+ * persons, and one work package of A with `leafCount` root leaves.
  */
 async function seeded(cap: number, leafCount: number, counting: { source: CountSource }) {
   for (const id of ACCOUNTS)
     source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES (${id}, ${id}, 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
+  const definition = await source.stores.stepCatalogue.defineAndBindStep(
+    'org-a',
+    {
+      id: 'race-dev',
+      code: 'dev',
+      name: 'Development',
+      position: 10,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowancePercent: 0,
+    },
+    {
+      bindingId: 'race-dev-binding',
+      scopeKind: 'project',
+      scopeId: 'fixture-project',
+      workItemTypeId: null,
+      position: 10,
+    },
+    { by: 'dany', at: 1 },
+  );
+  expect(definition.ok).toBe(true);
   for (const id of ACCOUNTS)
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ${id}, 'admin', 1)`,
+    );
+  for (const id of ACCOUNTS)
+    source.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(${'race-' + id},'org-a','organization','org-a','user',${id},'org-admin','route',1)`,
     );
   source.db.run(
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 50, ${cap}, 10000, 1)`,
@@ -98,20 +127,27 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   }
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = expectCreated(await graph.projects.create('Race', 'dany'));
-  const projectId = created.project.id;
-  const firstStep = created.steps.at(0);
-  if (firstStep === undefined) throw new Error('the claim fixture has no first step');
-  source.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
+  const created = expectCreated(
+    await seedOrganizationPackage(
+      source.stores.workPackages,
+      options.clock,
+      'org-a',
+      'fixture-project',
+      'dany',
+      'Race',
+    ),
   );
+  const workPackageId = created.workPackage.id;
+  const firstStep = (await source.stores.workPackages.stepsOf(workPackageId)).at(0);
+  if (firstStep === undefined) throw new Error('the claim fixture has no first step');
+
   const hold: Hold = { reached: () => undefined, release: Promise.resolve(), armed: false };
   /** What the stale count answers: the count before the batch was asked for. */
   let staleCount = 0;
@@ -130,8 +166,8 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
       },
       readDirectoryCapacityLimit: (organizationId, resourceId) =>
         gauge.readDirectoryCapacityLimit(organizationId, resourceId),
-      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
-        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
+      readCapacityCap: (organizationId, resourceId, exceptWorkPackageId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptWorkPackageId),
     };
   };
   const runner = createPlanCommandRunner({
@@ -152,7 +188,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   });
   const run = (userId: string, commands: PlanCommand[]) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       { id: userId, username: userId, scopes: ['write'] },
       // Claims target the first workflow node so prerequisite checks admit them to the cap.
       commands.map((command) =>
@@ -191,7 +227,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   const readCountBeforeQueueing = () => {
     staleCount = boundClaims();
   };
-  return { run, leafIds, holdNextRead, readCountBeforeQueueing, projectId, runner };
+  return { run, leafIds, holdNextRead, readCountBeforeQueueing, workPackageId, runner };
 }
 
 const claim = (workItemId: string, personId: string, runId: string): PlanCommand => ({
@@ -298,7 +334,10 @@ describe('the claim cap as a model invariant', () => {
         rmSync(directory, { recursive: true, force: true });
         directory = mkdtempSync(join(tmpdir(), 'claim-limit-model-'));
         const dbPath = join(directory, 'plan.db');
-        runMigrations(dbPath, folder);
+        migrateEmptyCatalogueFixture(
+          { path: dbPath, directory, reportedAt: 1 },
+          { hasUnknownOwner: false },
+        );
         source = openSqliteSource({
           dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
           dbPath,

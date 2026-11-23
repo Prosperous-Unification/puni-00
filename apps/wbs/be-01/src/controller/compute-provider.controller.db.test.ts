@@ -1,12 +1,15 @@
-import { readProjectResources, validateSchema } from '@wbs/contracts';
+import { readWorkPackageResources, validateSchema } from '@wbs/contracts';
 import { computeProvidersOver } from '@wbs/store-sqlite';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
 } from '../testing/machine-credential-fixture';
@@ -35,7 +38,7 @@ const PATH = '/api/organization/compute-providers';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectA: string;
+let workPackageA: string;
 let leaf: string;
 let ram: string;
 let staging: string;
@@ -58,9 +61,10 @@ async function setUp(): Promise<void> {
   for (const username of ['dany', 'mem', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
@@ -75,10 +79,14 @@ async function setUp(): Promise<void> {
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('dany-p', 'org-a', 'dany-p')",
   );
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
+  const projectId = await createProject('dany', 'org-a');
+  const created = await h.call('dany', 'POST', '/api/work-packages', {
+    name: 'Plan of A',
+    projectId,
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectA = (created.body as { project: { id: string } }).project.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+  workPackageA = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -86,6 +94,20 @@ async function setUp(): Promise<void> {
   ram = await declare('dany', 'h4claw ram');
   staging = await declare('dany', 'staging');
   ramOfB = await declare('bob', 'h4claw ram');
+}
+
+async function createProject(username: string, organizationId: string): Promise<string> {
+  const parent = await h.call(username, 'POST', '/api/projects', { name: 'Provider planning' });
+  if (parent.status !== 201) throw new Error('Provider project refused: ' + JSON.stringify(parent));
+  const projectId = (parent.body as { project: { id: string } }).project.id;
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, organizationId, projectId, {
+      by: h.userId(username),
+      at: 1,
+    });
+    return { commit: true, value: undefined };
+  });
+  return projectId;
 }
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
@@ -170,11 +192,11 @@ async function storeRefusal(resourceIds: string[]): Promise<string> {
   }
 }
 
-/** The project resources read, through its own contract. */
+/** The work package resources read, through its own contract. */
 async function readResources(username: string) {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectA}/resources`);
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageA}/resources`);
   expect(answer.status).toBe(200);
-  const [success] = readProjectResources.responses;
+  const [success] = readWorkPackageResources.responses;
   const parsed = await validateSchema(success.schema, answer.body);
   if (parsed.issues !== undefined)
     throw new Error(`the resources read failed its contract: ${JSON.stringify(parsed.issues)}`);
@@ -198,6 +220,7 @@ async function keys() {
     personId: 'dash-b',
     issuedBy: h.userId('bob'),
   });
+  grantCredential(h.sqlite, 'org-a', agent.id, 'project-contributor', 'organization', 'org-a');
   return { agent: agent.key, human: human.key, stranger: stranger.key };
 }
 
@@ -262,7 +285,7 @@ describe('provider instance administration', () => {
     ] as const)
       expect(await h.call('mem', method, path, body)).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
     expect(rows('SELECT id FROM compute_provider')).toHaveLength(1);
     expect(auditRows()).toHaveLength(1);
@@ -291,7 +314,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     const own = await registered('dany', 'h4claw');
@@ -325,7 +348,7 @@ describe('provider instance administration', () => {
     h = OrganizationHarness.openComposedWith({ machineGrants });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
@@ -458,7 +481,8 @@ describe("a resource's provider reference", () => {
   // and the two report reads below found no providerId; watched 2026-10-22.
   it('sets, reads and clears the reference, and the schedule input does not move', async () => {
     const h4claw = await registered('dany', 'h4claw');
-    const before = await h.optimizationHash(projectA);
+    const before = await h.optimizationHash(workPackageA);
+    h.grantPermissions('org-a', 'mem', ['organization.manage_directory']);
     expect((await reference('mem', ram, { providerId: h4claw })).status).toBe(200);
     expect(providerOf(ram)).toBe(h4claw);
     const read = await readResources('dany');
@@ -488,14 +512,14 @@ describe("a resource's provider reference", () => {
       computeProviders: { resources: number }[];
     };
     expect(listed.computeProviders[0]?.resources).toBe(1);
-    expect(await h.optimizationHash(projectA)).toBe(before);
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
     expect((await reference('dany', ram, { providerId: null })).status).toBe(200);
     expect(providerOf(ram)).toBeNull();
   });
 
   it('names the instance to a viewer too, never its locator', async () => {
     await h.register('vic');
-    h.member('org-a', 'vic', 'viewer');
+    h.member('org-a', 'vic', 'viewer', ['org-viewer']);
     h.bind('vic', 'org-a');
     const h4claw = await registered('dany', 'h4claw');
     expect((await reference('dany', ram, { providerId: h4claw })).status).toBe(200);
@@ -511,7 +535,7 @@ describe("a resource's provider reference", () => {
     h.sqlite.run('DELETE FROM compute_provider');
     h.sqlite.run('PRAGMA foreign_keys = ON');
     expect(await storeRefusal([ram])).toMatch(/is not registered/);
-    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    const answer = await h.call('mem', 'GET', `/api/work-packages/${workPackageA}/resources`);
     expect(answer.status).toBe(500);
   });
 
@@ -523,7 +547,7 @@ describe("a resource's provider reference", () => {
     h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
     // The store itself, since the route's response contract would also refuse `vm`.
     expect(await storeRefusal([ram])).toMatch(/malformed kind/);
-    const answer = await h.call('mem', 'GET', `/api/projects/${projectA}/resources`);
+    const answer = await h.call('mem', 'GET', `/api/work-packages/${workPackageA}/resources`);
     expect(answer.status).toBe(500);
   });
 
@@ -564,7 +588,7 @@ describe("a resource's provider reference", () => {
   it("names the resource's instance when its removal is refused in_use", async () => {
     const h4claw = await registered('dany', 'h4claw');
     await reference('dany', ram, { providerId: h4claw });
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
@@ -593,12 +617,18 @@ describe("a resource's provider reference", () => {
     const command = { kind: 'deleteResource', resourceId: staging, cascade: true };
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', { commands: [command] }),
-    ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await callForwarded(h, agent, 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: staging, patch: { unitLabel: 'env' } }],
       }),
-    ).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(
       await h.call('dany', 'POST', '/api/directory/commands', { commands: [command] }),
     ).toMatchObject({ status: 200 });
@@ -629,8 +659,110 @@ describe('a capacity report', () => {
     ({ agent, human, stranger } = await keys());
   });
 
+  for (const changed of ['person', 'authentication'] as const) {
+    it(
+      'retains the mounted capacity reporter before resolver substitution: ' + changed,
+      async () => {
+        const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+        const resolve = observer.getMockImplementation();
+        if (resolve === undefined) throw new Error('resolver implementation absent');
+        let substitutions = 0;
+        observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+          const resolved = await resolve.call(this, principal);
+          if (changed === 'person') {
+            if (principal.authentication?.kind !== 'machine')
+              throw new Error('machine report did not reach resolver');
+            Object.assign(principal.authentication, { personId: 'dash-b' });
+          } else delete principal.authentication;
+          substitutions += 1;
+          return resolved;
+        });
+        try {
+          const answered = await report(agent, h4claw, ram, measured(Date.now() - 1000));
+          expect(answered.status).toBe(200);
+          expect(answered.body).toMatchObject({ reportedBy: 'dash-a' });
+          expect(substitutions).toBe(1);
+          expect(rows('SELECT reported_by_person_id FROM resource_capacity_report')).toEqual([
+            { reported_by_person_id: 'dash-a' },
+          ]);
+        } finally {
+          observer.mockRestore();
+        }
+      },
+    );
+  }
+  for (const origin of ['session', 'delegation'] as const) {
+    it(
+      'keeps mounted capacity ' + origin + ' refusal despite substituted machine authentication',
+      async () => {
+        let token: string | undefined;
+        let providerId = h4claw;
+        let resourceId = ram;
+        if (origin === 'delegation') {
+          h.close();
+          const signing = await generateKeyPair('RS256');
+          h = OrganizationHarness.open({ delegationKey: signing.publicKey });
+          await h.register('dany');
+          h.organization('org-a');
+          h.member('org-a', 'dany', 'viewer');
+          h.bind('dany', 'org-a');
+          h.activate();
+          mapUpstream(h, 'dany', 'sub-dany');
+          token = await delegationFor(h, signing.privateKey, 'dany', 'org-a', 'sub-dany');
+          addAgentPerson(h.sqlite, 'dash-a', 'org-a', h.userId('dany'));
+          providerId = 'report-provider';
+          resourceId = 'report-resource';
+          h.sqlite.run(
+            "INSERT INTO compute_provider(id,organization_id,kind,name,locator,created_at) VALUES ('report-provider','org-a','ssh_host','Report host','host',1)",
+          );
+          h.sqlite.run(
+            "INSERT INTO resource(id,name,kind,unit_label,provider_id) VALUES ('report-resource','RAM','divisible','GB','report-provider')",
+          );
+          h.sqlite.run(
+            "INSERT INTO resource_organization(resource_id,organization_id,name) VALUES ('report-resource','org-a','RAM')",
+          );
+        }
+        const observer = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+        const resolve = observer.getMockImplementation();
+        if (resolve === undefined) throw new Error('resolver implementation absent');
+        let substitutions = 0;
+        observer.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+          const resolved = await resolve.call(this, principal);
+          Object.assign(principal, {
+            authentication: {
+              kind: 'machine',
+              credentialId: 'substituted-key',
+              personId: 'dash-a',
+            },
+          });
+          substitutions += 1;
+          return resolved;
+        });
+        try {
+          const answered =
+            token === undefined
+              ? await h.call(
+                  'dany',
+                  'PUT',
+                  reportPath(providerId, resourceId),
+                  measured(Date.now() - 1000),
+                )
+              : await reportBearing(token, providerId, resourceId, measured(Date.now() - 1000));
+          expect(answered).toEqual({
+            status: 403,
+            body: { error: 'not_an_agent_principal', authentication: origin },
+          });
+          expect(substitutions).toBe(1);
+          expect(reportCount()).toBe(0);
+        } finally {
+          observer.mockRestore();
+        }
+      },
+    );
+  }
+
   it('adopts a stored report on the directory and compensates outside plan Undo', async () => {
-    const plan = `/api/projects/${projectA}`;
+    const plan = `/api/work-packages/${workPackageA}`;
     const send = (units: number) =>
       h.call('dany', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'setDirectoryCapacity', resourceId: ram, units }],
@@ -695,7 +827,7 @@ describe('a capacity report', () => {
   });
 
   it('stores h4claw at 15 GB with 8 in use, idempotently, beside the declared 32', async () => {
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }],
     });
     expect(
@@ -894,7 +1026,7 @@ describe('a capacity report', () => {
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     mapUpstream(h, 'dany', 'sub-dany');
@@ -970,11 +1102,11 @@ describe('a capacity report', () => {
   // 2026-10-22.
   it('changes no schedule and no claim: 15 GB declared, 8 measured, a 12 GB leaf claims', async () => {
     const steps = (
-      (await h.call('dany', 'GET', `/api/projects/${projectA}`)).body as {
+      (await h.call('dany', 'GET', `/api/work-packages/${workPackageA}`)).body as {
         steps: { id: string }[];
       }
     ).steps;
-    const setUpPlan = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    const setUpPlan = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setDemand', workItemId: leaf, resourceId: ram, units: 12 },
@@ -987,10 +1119,14 @@ describe('a capacity report', () => {
       ],
     });
     expect(setUpPlan.status).toBe(200);
-    const before = await h.optimizationHash(projectA);
-    const startableBefore = await h.call('dany', 'GET', `/api/projects/${projectA}/startable`);
+    const before = await h.optimizationHash(workPackageA);
+    const startableBefore = await h.call(
+      'dany',
+      'GET',
+      `/api/work-packages/${workPackageA}/startable`,
+    );
     expect((await report(agent, h4claw, ram, measured(Date.now() - 2000, 8, 8))).status).toBe(200);
-    expect(await h.optimizationHash(projectA)).toBe(before);
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
     // Reserved units are no planning input either (`dash-host-jobs` 5.1): all 15 reserved.
     expect(
       (
@@ -1006,24 +1142,30 @@ describe('a capacity report', () => {
         })
       ).status,
     ).toBe(200);
-    expect(await h.optimizationHash(projectA)).toBe(before);
-    expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
+    expect(await h.optimizationHash(workPackageA)).toBe(before);
+    expect(await h.call('dany', 'GET', `/api/work-packages/${workPackageA}/startable`)).toEqual(
       startableBefore,
     );
     const readyStep = steps.at(0)?.id;
-    if (readyStep === undefined) throw new Error('project has no first step');
-    const claimed = await callForwarded(h, agent, 'POST', `/api/projects/${projectA}/commands`, {
-      commands: [
-        {
-          kind: 'claimWorkItem',
-          workItemId: leaf,
-          personId: 'dash-a',
-          // A whole-leaf claim also asks for blocked later workflow steps.
-          steps: [readyStep],
-          resources: [{ resourceId: ram, units: 12 }],
-        },
-      ],
-    });
+    if (readyStep === undefined) throw new Error('work package has no first step');
+    const claimed = await callForwarded(
+      h,
+      agent,
+      'POST',
+      `/api/work-packages/${workPackageA}/commands`,
+      {
+        commands: [
+          {
+            kind: 'claimWorkItem',
+            workItemId: leaf,
+            personId: 'dash-a',
+            // A whole-leaf claim also asks for blocked later workflow steps.
+            steps: [readyStep],
+            resources: [{ resourceId: ram, units: 12 }],
+          },
+        ],
+      },
+    );
     expect(claimed.status).toBe(200);
   });
 });
@@ -1031,11 +1173,15 @@ describe('a capacity report', () => {
 describe('the plan export', () => {
   /**
    * The JSON export of A's plan without its export instant and its realtime
-   * sequence: setting a reference announces to the projects naming the
+   * sequence: setting a reference announces to the work packages naming the
    * resource, which moves `seq` and nothing of the plan.
    */
   async function exported(): Promise<string> {
-    const answer = await h.call('dany', 'GET', `/api/projects/${projectA}/export?format=json`);
+    const answer = await h.call(
+      'dany',
+      'GET',
+      `/api/work-packages/${workPackageA}/export?format=json`,
+    );
     expect(answer.status).toBe(200);
     const {
       seq: _seq,
@@ -1053,7 +1199,7 @@ describe('the plan export', () => {
   // the document's resource rows spread whole, the export after the reference
   // differed from the one before; watched 2026-10-22.
   it('is byte-identical with and without a reference and a report, and imports unreferenced', async () => {
-    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
         { kind: 'setDemand', workItemId: leaf, resourceId: ram, units: 4 },
@@ -1068,10 +1214,15 @@ describe('the plan export', () => {
     expect(after).toBe(before);
     expect(after).not.toContain(h4claw);
     expect(after).not.toContain('providerId');
-    const document = (await h.call('dany', 'GET', `/api/projects/${projectA}/export?format=json`))
-      .body as object;
-    const imported = await h.call('bob', 'POST', '/api/projects/import', document);
-    expect(imported.status).toBe(201);
+    const document = (
+      await h.call('dany', 'GET', `/api/work-packages/${workPackageA}/export?format=json`)
+    ).body;
+    const projectId = await createProject('bob', 'org-b');
+    const imported = await h.call('bob', 'POST', '/api/work-packages/import', {
+      projectId,
+      document,
+    });
+    expect(imported).toMatchObject({ status: 201 });
     expect(
       rows<{ n: number }>(
         "SELECT count(*) AS n FROM resource r JOIN resource_organization o ON o.resource_id = r.id WHERE o.organization_id = 'org-b' AND r.provider_id IS NOT NULL",

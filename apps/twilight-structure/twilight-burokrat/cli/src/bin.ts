@@ -8,8 +8,8 @@ import {
 } from './cli-parser';
 import { readInstalledToolkit } from './packaging/installed';
 import { packageVersion } from './packaging/manifest';
-import { prepareToolkitActivation } from './policy/prepare-activation-cli';
-import { prepareRelocationActivation } from './policy/prepare-relocation-activation-cli';
+import { prepareToolkit } from './policy/prepare-activation-cli';
+import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
 
 function runLint(
   command: Extract<InstalledCommand, { command: 'lint' }>,
@@ -83,12 +83,12 @@ async function main(argv: readonly string[]): Promise<void> {
   }
   if (command.command === 'prepare-activation') {
     process.stdout.write(
-      `${prepareToolkitActivation(command.argv, toolkit.directory, toolkit.digest).join('\n')}\n`,
+      `${prepareToolkit(command, toolkit.directory, toolkit.digest).join('\n')}\n`,
     );
     return;
   }
   if (command.command === 'prepare-relocation-activation') {
-    process.stdout.write(`${(await prepareRelocationActivation(command.argv)).join('\n')}\n`);
+    process.stdout.write(`${(await prepareRelocation(command)).join('\n')}\n`);
     return;
   }
   runValidator(argv, toolkit.directory);

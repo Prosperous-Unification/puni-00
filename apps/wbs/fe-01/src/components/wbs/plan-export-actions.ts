@@ -23,7 +23,7 @@ import { type TreeRow } from './wbs-rows';
  * hand somebody a plan with rows missing and nothing saying so.
  */
 export function usePlanExportActions({
-  projectName,
+  workPackageName,
   estimateMethod,
   startDate,
   scheduleError,
@@ -38,7 +38,7 @@ export function usePlanExportActions({
   pushToast,
   mermaidSectionMode,
 }: {
-  projectName: string | undefined;
+  workPackageName: string | undefined;
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
   scheduleError: PlanRead['scheduleError'];
@@ -68,7 +68,7 @@ export function usePlanExportActions({
    */
   const planForExport = useCallback(
     (): PlanExport => ({
-      projectName: projectName ?? UNNAMED_PROJECT,
+      workPackageName: workPackageName ?? UNNAMED_WORK_PACKAGE,
       generatedAt: new Date().toISOString(),
       method: estimateMethod,
       startDate,
@@ -99,7 +99,7 @@ export function usePlanExportActions({
       slices: chartRead.slices,
     }),
     [
-      projectName,
+      workPackageName,
       estimateMethod,
       startDate,
       scheduleError,
@@ -357,13 +357,13 @@ export function usePlanOnScreenExport({
 }
 
 /**
- * What an export calls a project it was not told the name of.
+ * What an export calls a work package it was not told the name of.
  *
  * The picker always supplies one, so this is what a caller that has no picker
  * produces — a document that says it does not know, rather than one carrying a
  * uuid nobody can read or none at all.
  */
-export const UNNAMED_PROJECT = 'Untitled plan';
+export const UNNAMED_WORK_PACKAGE = 'Untitled plan';
 
 /** The copy actions on the Export menu, each of which has a download that saves the same content. */
 export type CopyKind = 'markdown' | 'mermaid';

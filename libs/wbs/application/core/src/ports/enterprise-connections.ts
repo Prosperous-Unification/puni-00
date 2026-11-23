@@ -1,6 +1,7 @@
 import { isCanonicalDomain } from '@wbs/domain';
 
 import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 import type { SessionPolicy } from './session-policies';
 
 /** The Auth0 strategies an enterprise connection may use. */
@@ -21,14 +22,14 @@ export interface EnterpriseConnection {
   readonly strategy: EnterpriseStrategy;
   readonly loginSlug: string;
   readonly enforced: boolean;
-  /** When a super-admin's routed link proved the prefix; null while unproven. */
+  /** When a security-authorized personal routed link proved the prefix; null while unproven. */
   readonly provenAt: number | null;
   readonly provenBy: string | null;
   /** When a routed link last returned a subject without the prefix. */
   readonly lastPrefixMismatchAt: number | null;
 }
 
-/** What a super-admin submits to record a connection. */
+/** What a security administrator submits to record a connection. */
 export interface EnterpriseConnectionDraft {
   readonly domainClaimId: string;
   readonly auth0Connection: string;
@@ -43,7 +44,7 @@ export interface EnterpriseConnectionChange {
   readonly loginSlug?: string;
 }
 
-/** Refusals every super-admin connection write shares. */
+/** Refusals every connection administration write shares. */
 export type ConnectionAuthorityRefusal = 'inactive' | 'forbidden' | 'not_found';
 
 /** Where login routing sends a browser. */
@@ -158,20 +159,20 @@ export type RoutedLink =
 
 /**
  * Enterprise connection records. Every write rechecks activation and the
- * actor's current super-admin role inside its own immediate transaction, and
+ * authenticated actor's current organization.manage_security grant in its own immediate transaction, and
  * writes its one audit row there, so a refused or failed audit leaves nothing.
  *
- * @throws when trusted state (the marker, a membership role, a stored record)
+ * @throws when trusted state (the marker, current grant rows, a stored record)
  * is missing, unreadable or malformed.
  */
 export interface EnterpriseConnections {
   list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly EnterpriseConnection[] | 'inactive' | 'forbidden'>;
   create(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: EnterpriseConnectionDraft,
     id: string,
     act: AuditedAct,
@@ -191,7 +192,7 @@ export interface EnterpriseConnections {
    */
   update(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     change: EnterpriseConnectionChange,
     act: AuditedAct,
@@ -206,7 +207,7 @@ export interface EnterpriseConnections {
    */
   setEnforced(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     enforced: boolean,
     actorSubject: string | null,
@@ -223,7 +224,7 @@ export interface EnterpriseConnections {
   /** Refused while the organization has a live provisioning token at `act.stamp.at`. */
   remove(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     act: AuditedAct,
   ): Promise<'deleted' | ConnectionAuthorityRefusal | 'provisioning_active'>;
@@ -244,14 +245,14 @@ export interface EnterpriseConnections {
    * Completes a link routed through `connectionId` for `userId`, in one
    * immediate transaction (D5). A subject without the connection's whole
    * prefix records the mismatch time and links nothing. Otherwise the pair is
-   * linked, and, when the email is on the connection's domain and `userId` is
-   * a current super-admin of its organization, the connection is proven with
+   * linked, and, when the email is on the connection's domain and the verified personal
+   * account currently holds organization.manage_security in its organization, the connection is proven with
    * one audit row. The email is verified only when attested afterwards
    * ({@link isAttestedEmail}). A second organization's proof of an already
    * proven Auth0 connection is `sso_connection_taken` and links nothing.
    */
   linkThroughConnection(
-    userId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     identity: RoutedIdentity,
     act: AuditedAct,

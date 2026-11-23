@@ -59,7 +59,7 @@ export function currentDependencyToken(typed: string): { prefix: string; token: 
   return { prefix: typed.slice(0, start), token: typed.slice(start) };
 }
 
-/** Replaces only the active token when project discovery advances into endpoint lookup. */
+/** Replaces only the active token when work package discovery advances into endpoint lookup. */
 export function replaceDependencyToken(typed: string, replacement: string): string {
   return currentDependencyToken(typed).prefix + replacement;
 }

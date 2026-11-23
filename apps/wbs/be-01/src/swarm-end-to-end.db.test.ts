@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { readWorkPackage } from '@wbs/contracts';
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 import {
@@ -9,11 +10,12 @@ import {
   type ToolAnswer,
 } from './testing/mcp-agent-stack';
 import { OrganizationHarness } from './testing/organization-harness';
+import { createFixturePackage } from './testing/space-rollup';
 
 /**
  * A swarm end to end over be-01's production composition and real SQLite, through public
  * routes only: an organization capped by its operator (`wbs-organization-limits`), agent
- * persons each holding an API key (`wbs-machine-credentials`), resources with project
+ * persons each holding an API key (`wbs-machine-credentials`), resources with work package
  * capacities and a compute provider's report beside them (`wbs-resources`, `compute-providers`),
  * and four agents claiming at once with `assign: true` (`wbs-team-claims`, `assignee-management`).
  * Store access is limited to setup no route offers: the organization row, its admin and its
@@ -54,8 +56,8 @@ let stack: McpAgentStack;
 let h: OrganizationHarness;
 
 const ids = {
-  project: '',
-  opsProject: '',
+  workPackage: '',
+  opsWorkPackage: '',
   opsStep: '',
   opsLeaf: '',
   team: '',
@@ -89,7 +91,7 @@ beforeAll(async () => {
   h = stack.h;
   await h.register('dany');
   h.organization(ORGANIZATION);
-  h.member(ORGANIZATION, 'dany', 'super_admin');
+  h.member(ORGANIZATION, 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', ORGANIZATION);
   h.activate();
 });
@@ -133,6 +135,16 @@ async function asAdmin(method: string, path: string, body?: unknown): Promise<Re
   });
   answered.push(reply);
   return reply;
+}
+
+async function createPlan(name: string) {
+  const id = await createFixturePackage(h, 'dany', name, asAdmin);
+  const read = await asAdmin('GET', `/api/work-packages/${id}`);
+  if (read.status !== 200) throw new Error('swarm work package read refused: ' + read.text);
+  const plan = await readWorkPackage.responses[0].schema.validator['~standard'].validate(read.body);
+  if (plan.issues !== undefined)
+    throw new Error('swarm work package reply malformed', { cause: plan.issues });
+  return plan.value;
 }
 
 /** One agent's tool call on its own MCP session. */
@@ -209,12 +221,12 @@ function minted(reply: Reply): string[] {
   });
 }
 
-function adminCommands(projectId: string, list: unknown[]) {
-  return asAdmin('POST', `/api/projects/${projectId}/commands`, { commands: list });
+function adminCommands(workPackageId: string, list: unknown[]) {
+  return asAdmin('POST', `/api/work-packages/${workPackageId}/commands`, { commands: list });
 }
 
-function agentCommands(agent: Agent, list: unknown[], projectId = ids.project) {
-  return asAgent(agent, 'postApiProjectsByIdCommands', { id: projectId, commands: list });
+function agentCommands(agent: Agent, list: unknown[], workPackageId = ids.workPackage) {
+  return asAgent(agent, 'postApiWorkPackagesByIdCommands', { id: workPackageId, commands: list });
 }
 
 const claim = (agent: Agent, key: LeafKey) => ({
@@ -258,7 +270,7 @@ interface Startable {
 }
 
 async function startable(): Promise<Startable> {
-  const reply = await asAdmin('GET', `/api/projects/${ids.project}/startable`);
+  const reply = await asAdmin('GET', `/api/work-packages/${ids.workPackage}/startable`);
   if (reply.status !== 200) throw new Error(`startable refused: ${reply.text}`);
   return reply.body as Startable;
 }
@@ -274,14 +286,14 @@ async function freeUnits(): Promise<Record<string, { capacity: number; occupied:
   );
 }
 
-/** The RAM units claims hold in the project, as the startable read answers them. */
+/** The RAM units claims hold in the work package, as the startable read answers them. */
 async function ramOccupied(): Promise<number> {
   const found = Object.entries(await freeUnits()).find(([id]) => id === ids.resources.ram);
   if (found === undefined) throw new Error('the startable read states no RAM capacity');
   return found[1].occupied;
 }
 
-/** The step holders of the project by leaf key, as the startable read lists them. */
+/** The step holders of the work package by leaf key, as the startable read lists them. */
 async function holders(): Promise<Map<LeafKey, Agent>> {
   const held = new Map<LeafKey, Agent>();
   for (const step of (await startable()).claimed)
@@ -290,7 +302,10 @@ async function holders(): Promise<Map<LeafKey, Agent>> {
 }
 
 async function assigneesOf(key: LeafKey): Promise<Record<string, string>> {
-  const reply = await asAdmin('GET', `/api/projects/${ids.project}/work-items/${leafOf(key)}`);
+  const reply = await asAdmin(
+    'GET',
+    `/api/work-packages/${ids.workPackage}/work-items/${leafOf(key)}`,
+  );
   if (reply.status !== 200) throw new Error(`work item read refused: ${reply.text}`);
   return (reply.body as { workItem: { assignees: Record<string, string> } }).workItem.assignees;
 }
@@ -458,8 +473,12 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       const { id, key } = created.body as { id: string; key: string };
       expect(key.startsWith(`wbs_mk_${id}.`)).toBe(true);
       keys.push(key);
+      h.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'machine_credential',?,'project-contributor','route',1)",
+        ['fleet-' + id, ORGANIZATION, ORGANIZATION, id],
+      );
       ids.credentials.set(agent, { id, key, session: await sessionOf(key) });
-      expect(isOk(await asAgent(agent, 'getApiProjects'))).toBe(true);
+      expect(isOk(await asAgent(agent, 'getApiWorkPackages'))).toBe(true);
     }
     // A spare key of agent-1, revoked at once: its very next request is refused.
     const spare = await send(
@@ -474,7 +493,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     keys.push(spareKey);
     const spareSession = await sessionOf(spareKey);
     const spareCall = async () => {
-      const reply = await spareSession.call('getApiProjects', {});
+      const reply = await spareSession.call('getApiWorkPackages', {});
       answered.push(reply);
       return reply;
     };
@@ -529,23 +548,20 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       }),
     );
     ids.resources = { ram: declared[0] ?? '', disk: declared[1] ?? '', slots: declared[2] ?? '' };
-    const project = await asAdmin('POST', '/api/projects', { name: 'Swarm' });
-    expect(project.status).toBe(200);
-    ids.project = (project.body as { project: { id: string } }).project.id;
-    const steps = (project.body as { steps: { id: string; name: string }[] }).steps;
+    const swarm = await createPlan('Swarm');
+    ids.workPackage = swarm.workPackage.id;
     ids.steps = {
-      dev: steps.find((each) => each.name === 'Dev')?.id ?? '',
-      qa: steps.find((each) => each.name === 'QA')?.id ?? '',
+      dev: swarm.steps.find((step) => step.name === 'Dev')?.id ?? '',
+      qa: swarm.steps.find((step) => step.name === 'QA')?.id ?? '',
     };
     expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
-    const ops = await asAdmin('POST', '/api/projects', { name: 'Ops' });
-    expect(ops.status).toBe(200);
-    ids.opsProject = (ops.body as { project: { id: string } }).project.id;
-    ids.opsStep = (ops.body as { steps: { id: string }[] }).steps[0]?.id ?? '';
+    const ops = await createPlan('Ops');
+    ids.opsWorkPackage = ops.workPackage.id;
+    ids.opsStep = ops.steps[0]?.id ?? '';
     expect(ids.opsStep).not.toBe('');
 
     // `organization-limits`: capacities within the per-resource cap of 64 are applied.
-    const capacities = await adminCommands(ids.project, [
+    const capacities = await adminCommands(ids.workPackage, [
       { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units: RAM },
       { kind: 'setResourceCapacity', resourceId: ids.resources.slots, units: SLOTS },
       { kind: 'setResourceCapacity', resourceId: ids.resources.disk, units: DISK },
@@ -553,7 +569,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     expect(capacities.status).toBe(200);
     // "Stating more capacity units of a resource than the cap allows is refused": 32 + 40 > 64.
     expect(
-      await adminCommands(ids.opsProject, [
+      await adminCommands(ids.opsWorkPackage, [
         { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units: 40 },
       ]),
     ).toMatchObject({
@@ -577,9 +593,9 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     );
 
     // The plan: two batches of three leaves, every step estimated, a RAM, disk and slot demand on
-    // each leaf, no deadline; and one demand-free leaf in the Ops project.
+    // each leaf, no deadline; and one demand-free leaf in the Ops work package.
     const tree = minted(
-      await adminCommands(ids.project, [
+      await adminCommands(ids.workPackage, [
         { kind: 'createWorkItem', ref: 'A', parentId: null, name: 'Batch A' },
         { kind: 'createWorkItem', ref: 'B', parentId: null, name: 'Batch B' },
         ...LEAVES.map((leaf) => ({
@@ -592,7 +608,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     );
     ids.batches = { A: tree[0] ?? '', B: tree[1] ?? '' };
     for (const [index, leaf] of LEAVES.entries()) ids.leaves.set(leaf.key, tree[index + 2] ?? '');
-    const planned = await adminCommands(ids.project, [
+    const planned = await adminCommands(ids.workPackage, [
       ...LEAVES.flatMap((leaf) => [
         ...Object.values(ids.steps).map((stepId) => ({
           kind: 'setEstimate',
@@ -623,17 +639,19 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     expect(planned.status).toBe(200);
     ids.opsLeaf =
       minted(
-        await adminCommands(ids.opsProject, [
+        await adminCommands(ids.opsWorkPackage, [
           { kind: 'createWorkItem', ref: 'ops', parentId: null, name: 'Rotate logs' },
         ]),
       )[0] ?? '';
     const opsSteps = (
-      (await asAdmin('GET', `/api/projects/${ids.opsProject}`)).body as { steps: { id: string }[] }
+      (await asAdmin('GET', `/api/work-packages/${ids.opsWorkPackage}`)).body as {
+        steps: { id: string }[];
+      }
     ).steps;
     expect(
       (
         await adminCommands(
-          ids.opsProject,
+          ids.opsWorkPackage,
           opsSteps.map((step) => ({
             kind: 'setEstimate',
             workItemId: ids.opsLeaf,
@@ -673,7 +691,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
         LEAVES.map(async (leaf) => {
           const read = await asAdmin(
             'GET',
-            `/api/projects/${ids.project}/work-items/${leafOf(leaf.key)}`,
+            `/api/work-packages/${ids.workPackage}/work-items/${leafOf(leaf.key)}`,
           );
           return (read.body as { workItem: { schedule: unknown } }).workItem.schedule;
         }),
@@ -697,7 +715,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       ok: true,
       body: { reportedBy: personOf('agent-1') },
     });
-    const resources = await asAdmin('GET', `/api/projects/${ids.project}/resources`);
+    const resources = await asAdmin('GET', `/api/work-packages/${ids.workPackage}/resources`);
     expect(resources.status).toBe(200);
     const ram = (
       resources.body as {
@@ -721,7 +739,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     // `setResourceCapacity` the spec names, and it moves both the schedules and the startable
     // read; restating 32 moves them back.
     const adopt = (units: number) =>
-      adminCommands(ids.project, [
+      adminCommands(ids.workPackage, [
         { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units },
       ]);
     expect((await adopt(30)).status).toBe(200);
@@ -800,8 +818,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       expect(await assigneesOf(contender.key)).toEqual({
         [ids.steps.dev]: person,
       });
-      const work = await asAgent(contender.agent, 'getApiProjectsByIdPeopleByPersonIdWork', {
-        id: ids.project,
+      const work = await asAgent(contender.agent, 'getApiWorkPackagesByIdPeopleByPersonIdWork', {
+        id: ids.workPackage,
         personId: person,
       });
       expect(isOk(work)).toBe(true);
@@ -837,7 +855,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       body: { error: 'credential_not_for_person', at: 0, kind: 'claimWorkItem' },
     });
     // `organization-limits`: three bound claims are held org-wide, so the loser's claim of a
-    // demand-free leaf in another project is refused last, by the claim cap.
+    // demand-free leaf in another work package is refused last, by the claim cap.
     expect(
       await agentCommands(
         loser().agent,
@@ -851,7 +869,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
             assign: true,
           },
         ],
-        ids.opsProject,
+        ids.opsWorkPackage,
       ),
     ).toMatchObject({
       via: 'be-01',
@@ -948,7 +966,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       });
     }
     expect(expected.map(({ workItemId }) => keyOf(workItemId))).toContain(heldKey);
-    const assigned = await adminCommands(ids.project, [
+    const assigned = await adminCommands(ids.workPackage, [
       {
         kind: 'assignSubtree',
         workItemId: ids.batches[batch],
@@ -1001,7 +1019,10 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
         via: 'mcp-01',
         code: 'machine_credential_refused',
       });
-      expect(await asAgent(agent, 'getApiProjects')).toMatchObject({ via: 'http', status: 401 });
+      expect(await asAgent(agent, 'getApiWorkPackages')).toMatchObject({
+        via: 'http',
+        status: 401,
+      });
       expect(await tokenFor(credentialOf(agent).key)).toMatchObject({
         status: 401,
         body: { error: 'invalid_client' },
@@ -1014,14 +1035,14 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       );
       expect((await limits()).usage.concurrentClaims).toBe(claimsBefore - held.length);
       // L10: the reap is history under the claim's writing account, naming its reason.
-      const history = await asAdmin('GET', `/api/projects/${ids.project}/history`);
+      const history = await asAdmin('GET', `/api/work-packages/${ids.workPackage}/history`);
       expect(history.status).toBe(200);
       expect(history.text).toContain('(credential revoked)');
       // Every other agent's key still works, and their claims stand.
       for (const other of AGENTS.filter((each) => each !== agent))
-        expect(isOk(await asAgent(other, 'getApiProjectsByIdStartable', { id: ids.project }))).toBe(
-          true,
-        );
+        expect(
+          isOk(await asAgent(other, 'getApiWorkPackagesByIdStartable', { id: ids.workPackage })),
+        ).toBe(true);
       expect([...after.values()]).not.toContain(agent);
       expect(after.size).toBeGreaterThan(0);
     } finally {

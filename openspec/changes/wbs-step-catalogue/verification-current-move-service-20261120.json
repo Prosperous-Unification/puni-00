@@ -1,0 +1,1533 @@
+{
+  "recordedAt": "2026-11-19T22:27:55.194Z",
+  "goalStatus": "active",
+  "scope": "Ordinary and compensating application moves now consume the actual owned transition. New current journals have no pre-move destination clears, undo uses writer nonpoint before-images, replay retains watched revisions/protected-conflict entries, and undo/redo HTTP contracts carry count/pairs. Preview/raw Source retirement, historical producer/admission, full all13/authority/lifetime/cleanup/review scope remain open.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/move-write.ts",
+      "sha256": "894a5bec5f56ca15d843aadeed72b131d38a89db013f743deb334ce364a79b27",
+      "bytes": 34693,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/move-write.test.ts",
+      "sha256": "606bcab1d369eb5afb2cee11384599f969f42be3efdcea08c038e6e736e685bb",
+      "bytes": 4677,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/move-write.db.test.ts",
+      "sha256": "8bb141ff1f81c60ef10899b4666c9d4092d4385ddd0ff8fae360b3cd7989cc09",
+      "bytes": 4664,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "f8900805c358bf9768a0ea09787bf9775b5c8684e68157bb5c0ac6b17d465321",
+      "bytes": 576531,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/work-item.routes.ts",
+      "sha256": "c436692c6fdb3cb840149ee41c6343ba7f3e0164c04c95a3782df5b802530c0f",
+      "bytes": 46486,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/work-item.routes.test.ts",
+      "sha256": "0b87b556c51530822a11e2b3d0149b1e58936acb5e785dc1aa537e4fadae121e",
+      "bytes": 5847,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "sha256": "2ffd92ed452d10c544bda5c01321f2fe651cc5a44b4e5d9e4aa47716a57bdeb7",
+      "bytes": 31437,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/undo-step-usage.test.ts",
+      "sha256": "476084b2dc6008b845c8c1abb1838c8d794d37f2627468b68ed7988fdb60033b",
+      "bytes": 1518,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "sha256": "e129c8b80b07d1411e4af51e6de4274bfabb27636db867faa03ef2ab77e4286b",
+      "bytes": 22096,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+      "sha256": "4af44d612d2f5dc022bcaa4b5bee751e3a39cb46e640f96e893369feb276aaf1",
+      "bytes": 37173,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "sha256": "33f105803de34fd203ea025f8bd44bf4c474b7aca669f47e5f4583bb6315c6b9",
+      "bytes": 134092,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+      "sha256": "4d9d342edbbd36f4cf4b48469221accf82a7d49c7c45eea311b27333160a291e",
+      "bytes": 30645,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-core-source-only-v8",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v8.receipt.json",
+        "sha256": "473ed9d92bd940800a90cb57f6183c49eadbef1e169dfda98fc33175bd3260e7",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v8.log",
+        "sha256": "7991e1987c5e625d94ef02044c385352a83bf0c0a32325ffbd0d1272be37a05f",
+        "bytes": 271357,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-source-only-v9",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v9.receipt.json",
+        "sha256": "27f883d783f68caed99969edd109c13c819d5ee9ce1cb611b84cd0d1061c93c0",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v9.log",
+        "sha256": "26754307a543c75354ffa614d5d94b3b1c2481a61503053972d3b7184eef7733",
+        "bytes": 266981,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-replay-boundary-red-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-boundary-red-v1.receipt.json",
+        "sha256": "f4e811033abb78b634ecb6ed07098fc59373417248688c6cc6e6f2388428172c",
+        "bytes": 1453,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-boundary-red-v1.log",
+        "sha256": "57b78addb173e5a315f44e2460f329b48fe601b2df682619b7d256169a1c3c9b",
+        "bytes": 3313,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-replay-boundary-tests-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-boundary-tests-v1.receipt.json",
+        "sha256": "f731213121baf28cb2e9464eae05aca8cdbc9fde0a1ca3584eb9f2089f865ae7",
+        "bytes": 1292,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-boundary-tests-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-replay-count-positive-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-count-positive-v1.receipt.json",
+        "sha256": "9e30d25fc47e3291b28cbb23affdb734f02d5fdbc9b882879c5d2d9f000b2d85",
+        "bytes": 1326,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-count-positive-v1.log",
+        "sha256": "025d2f019a0d5665804ba6b4b7d00719880c1411cdc9e9e66b54f446e2f57da7",
+        "bytes": 385,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-replay-prewrite-test-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-prewrite-test-v1.receipt.json",
+        "sha256": "5989a31ee528daf3f6144aaee392a7dfa7f9ed9e523476bef45a27f82b947e39",
+        "bytes": 1289,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-prewrite-test-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-replay-watch-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-watch-v1.receipt.json",
+        "sha256": "a01fc361eb6fe52d7f5a55d80b7eb0499fe2e51687055674020be260432cdf7b",
+        "bytes": 1265,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-replay-watch-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-current-fixtures-green-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-green-v1.receipt.json",
+        "sha256": "8b6646cf7993f48dc623fafcb8a8a0906251f100058b73c1cb228e872af8b368",
+        "bytes": 1728,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-green-v1.log",
+        "sha256": "c167c3321192ae568642a21acd4ded41b320ec59d01ab37327687f88a093c675",
+        "bytes": 1336,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-current-fixtures-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-v1.receipt.json",
+        "sha256": "cd12eea1990f9c3b952b7ff99c6474c65a17f5e64701d20276a42b35b62c5b9b",
+        "bytes": 1301,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-atomic-forward-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-atomic-forward-v1.receipt.json",
+        "sha256": "bbc52ce3df395ce2fa2bae1c1652d873d2182b3a198b93760f9cb4a2568502a9",
+        "bytes": 1541,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-atomic-forward-v1.log",
+        "sha256": "aa132f42ec83cafb012a95c6e47a7e69ec081c8a51c52cb1d1241f87570b935f",
+        "bytes": 2303,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-demand-beforeimage-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-demand-beforeimage-v1.receipt.json",
+        "sha256": "3ca087abc20b3558b636ef8e25d0f413c26788c75d268e5af15f96f87ac99c3f",
+        "bytes": 1528,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-demand-beforeimage-v1.log",
+        "sha256": "0d4f312d31815f1b9d11596f08d7a52e8279b2462a34fe3f6f62c8a3c47373d9",
+        "bytes": 1899,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-http-count-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-count-v1.receipt.json",
+        "sha256": "27c31f29d202b6a32a17ea2f3b2ca1e9d37b8554c09b907e178cf7a843bea31c",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-count-v1.log",
+        "sha256": "9f10162e9249ba16bcd381bebf1704ec0ff692e70572e922426905e95d77a705",
+        "bytes": 1066,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-http-detach-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-detach-v1.receipt.json",
+        "sha256": "46ed6b9caa713a37be0e7d582346d26095d47af65d2d54c294925342b23df112",
+        "bytes": 1421,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-detach-v1.log",
+        "sha256": "cc472804542060f1ba4c306d8b5365a51bbe3e2e7522d5b8b4cfecb6025dc5dd",
+        "bytes": 1069,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-ordinary-refusal-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-ordinary-refusal-v1.receipt.json",
+        "sha256": "3829891685dc27e03ec1854944f8ffa5db8f1f0a8f5bf8555ece89b7b5f4a296",
+        "bytes": 1528,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-ordinary-refusal-v1.log",
+        "sha256": "df613a71ac05725a4efa051e422f29d7598dacccdb87157b1d7a69e448b8a2b9",
+        "bytes": 2055,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-replay-owner-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-owner-v1.receipt.json",
+        "sha256": "f88820e0e4585dd02de5ba33aa8e86810c25cca8591e0584819817fbd1f4f9b0",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-owner-v1.log",
+        "sha256": "a5e4da71aa5296fd70016b477c3b699f181398498c7d732cc343bdd87c254f28",
+        "bytes": 2187,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-replay-result-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-result-v1.receipt.json",
+        "sha256": "06c45bc75b072317b86189de7288f6f81c81a1722961b34c106280c20678c232",
+        "bytes": 1539,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-result-v1.log",
+        "sha256": "7a3dab20660fb623c7feb5f71fc694b91d4aceb85a11c758d4fe8e5979573e45",
+        "bytes": 2735,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-replay-retain-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-retain-v1.receipt.json",
+        "sha256": "3c6bbc8c7a58b24c71f0e4943b9fb4cb25ec1dc5536fed50474f2ae12d7caaa0",
+        "bytes": 1539,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-retain-v1.log",
+        "sha256": "7c0fb236038cb7feac3a8cb95654c1205aa94548b3a369403dc5e5b2e39b0454",
+        "bytes": 5477,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-replay-watch-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-watch-v1.receipt.json",
+        "sha256": "e04b03831a9c3138f7ce15efd97377cfcc1d784d9debb840f3f5251c04e8228b",
+        "bytes": 1523,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-watch-v1.log",
+        "sha256": "f01cc3fa96438b5d3704749653a2036244569d8df1cb5241a20c2a6de327c987",
+        "bytes": 2087,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-schema-count-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-count-v1.receipt.json",
+        "sha256": "1789b54d5caac62772ebafbd897bb4b9f665b1e663d23df609b40ad6eac5a8c4",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-count-v1.log",
+        "sha256": "5fb29fc8df1471cdfe5be55aa6819856a6420fabec4134b65fa2cd0adaa85291",
+        "bytes": 1374,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-schema-integer-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-integer-v1.receipt.json",
+        "sha256": "34a883439d154817444302f0e1ccaa00fa632fedf9bcd4375965e549333f3ed4",
+        "bytes": 1342,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-integer-v1.log",
+        "sha256": "c0fc247671c5785c18cd9a1e528b964383fb1881ebad1950edc5cf6ce69eddaa",
+        "bytes": 1374,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-statement-beforeimage-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-statement-beforeimage-v1.receipt.json",
+        "sha256": "a60becbf741497ed4182010a01f1818e416a5e1dac6cc7f9ffeef7c80398681c",
+        "bytes": 1534,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-statement-beforeimage-v1.log",
+        "sha256": "8a3b1c856e344beac4cba8496a6a81d7728cfde001f098eafd79c95a0ecfa6aa",
+        "bytes": 2731,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effect-undo-schema-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-undo-schema-v1.receipt.json",
+        "sha256": "90dec766e7ab4f5e0fcb75913d1b1d37453a85a4f1269c16d04cf4b5d7e47e02",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-undo-schema-v1.log",
+        "sha256": "ef6c0d70195256bcc4d43532c0d5976eba40f7752d7ba352f4f81d097df3dd43",
+        "bytes": 1666,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-effects-root-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effects-root-v1.receipt.json",
+        "sha256": "7d1e7385752ac0293a67920824e3414442d0b3e659ba2f208679fabf5959da16",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-effects-root-v1.log",
+        "sha256": "0aa5d47ca9622443b4135cda8102544fa437684a6cdce75d2fabc40d7786e449",
+        "bytes": 607,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-eslint-fix-native-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-eslint-fix-native-v1.receipt.json",
+        "sha256": "058ba5ba2e876348f5f1fa79cd4a47090e0fde06749a7c06089f4e73eb3375c0",
+        "bytes": 1944,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-eslint-fix-native-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-eslint-root-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-eslint-root-v1.receipt.json",
+        "sha256": "2dc933e97baafc6fd936a8a4069a7e00937a5b670ad5a8bc66ca91e29bbca4b5",
+        "bytes": 1283,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-eslint-root-v1.log",
+        "sha256": "7c3ae3608e7e6012342cb8132eabe28be5c7f84c5c50541cbac1ba97e7fe053c",
+        "bytes": 114,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-final-eslint-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-eslint-v1.receipt.json",
+        "sha256": "ef050ae339bb5058078372bed38413620814e2a12e4811fe5b4dfe96ccd24267",
+        "bytes": 1919,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-eslint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-final-eslint-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-eslint-v2.receipt.json",
+        "sha256": "062dc177b0c3c767562d82f16ad2bdcd335599bc45d2a2663a91d75d26793365",
+        "bytes": 2164,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-eslint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-final-prettier-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-prettier-v1.receipt.json",
+        "sha256": "8a213ff1381c66b210467471b138586457d13299671544c6d29f7e155869c0fb",
+        "bytes": 1946,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-prettier-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-final-prettier-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-prettier-v2.receipt.json",
+        "sha256": "d3e4a2c9bbb5799c3c8f508b09611cc3d79a663398bc44a656972dd8d8bb527a",
+        "bytes": 2191,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-prettier-v2.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-final-regressions-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-regressions-v1.receipt.json",
+        "sha256": "131a6ac57c0d850cb9a19d9d40bbadfb5919ce91573a671877554f0938062f4f",
+        "bytes": 1909,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-regressions-v1.log",
+        "sha256": "11c3337652de9b75abe8429c3871dc50f5b3b177be3444be1b0b428616b2df55",
+        "bytes": 16607,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-format-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-format-v1.receipt.json",
+        "sha256": "040eda89136e02596e2e3392d14370e70d996bf720f90613ad0a4a7bad320401",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-format-v1.log",
+        "sha256": "51964df341c880f60962567d1f3c1a80b6c0e0634b8aae13d8625c1b1cc85c95",
+        "bytes": 16,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-green-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-green-v1.receipt.json",
+        "sha256": "50f414a2fee9edad5e47a1363233b3ebb29e1a71582020def123607a3ba22664",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-green-v1.log",
+        "sha256": "273684e42c292423189ab06e264549f5bb866818a050fdbc760be8ea56337e92",
+        "bytes": 1703,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-implement-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-implement-v1.receipt.json",
+        "sha256": "d573f1b2dcc6c810b4db09a176e98873f0b7180633719c9e8346499b80e38ea2",
+        "bytes": 1280,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-implement-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-integer-effect-root-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-integer-effect-root-v1.receipt.json",
+        "sha256": "b0cc5be0b36fa0a7cf68efd378d86a568f144fb4b3875fcb2a425cc196e7f3d9",
+        "bytes": 1306,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-integer-effect-root-v1.log",
+        "sha256": "99953f60320b785e8c73787f6aff9b6b9b9f65b1ce0cdd955e7ec68fbd9736e7",
+        "bytes": 25,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-prior-sparse-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-prior-sparse-v1.receipt.json",
+        "sha256": "fedf439614e07e73249fbadb9c6e5830fd24eb906878184f12ea2b9776e32afb",
+        "bytes": 1365,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-prior-sparse-v1.log",
+        "sha256": "f6b9afc83d4c1d5eea92edace0ea91aa47e7afbefbd6b4a35d1a99c46f4a9a18",
+        "bytes": 4002,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-proofs-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-proofs-v1.receipt.json",
+        "sha256": "97bb947b01d3ad1713ba610a6a43b4bbdf214a40c2323ca592d8cc22f99c133c",
+        "bytes": 1271,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-proofs-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-readiness-fixture-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-readiness-fixture-v1.receipt.json",
+        "sha256": "85ee3fb7a0be396445e05734572fd54efcc84c4d62da309c9ceb37fde7af593d",
+        "bytes": 1304,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-readiness-fixture-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-red-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-red-v1.receipt.json",
+        "sha256": "10ae47027b858bbbd0ad7b35638778b1987c77b01387aa1195e3041c892bf95e",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-red-v1.log",
+        "sha256": "caad18f3646d5a02d7bbd4d441c7b53c83a4b30f98f93183bae0596a6c7c9eef",
+        "bytes": 22188,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-reformat-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v1.receipt.json",
+        "sha256": "5188ee9c9b2753f62b695d12c2b74cb03740a75e8aef8b0a685e24dd20b58645",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-reformat-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v2.receipt.json",
+        "sha256": "aeefa6f19c58d7e4e5e61444bcc39346a0fffc633f6d6fdd547ee2303becfbb8",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-reformat-v3",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v3.receipt.json",
+        "sha256": "e9afbc32566fe3b67a1f9978f8bcc6847103af4791048c39d33340e189605657",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-reformat-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-replay-green-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-green-v1.receipt.json",
+        "sha256": "b15c8190f6e95fe8299ada603cf620f0a3d3c82dcf55a0c3d2685ba3870de469",
+        "bytes": 1570,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-green-v1.log",
+        "sha256": "820f504714a73477224b7bd2c631480a58c63afa857e327546546b81813b23ee",
+        "bytes": 9730,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-replay-implement-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-implement-v1.receipt.json",
+        "sha256": "20ea9b72b14e869d0fc733749b632fdec67bac99bedd050a04b27f07e7c2bb6a",
+        "bytes": 1301,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-implement-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-replay-red-v1",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-red-v1.receipt.json",
+        "sha256": "3bf043bd6ab3e36c99f422d6d6ebbee5f928d470154942220551b1093db3b21c",
+        "bytes": 1506,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-red-v1.log",
+        "sha256": "c35a6fbfd04bbcee65cc33a77141c763f3631d2eab12c4a308c46f377b9af9a7",
+        "bytes": 11078,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-replay-red-v2",
+      "nativeExitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-red-v2.receipt.json",
+        "sha256": "f2e6daec8636e66f32ce44ff2dc8db3610733717c4c7e89e0cfbefce6442933e",
+        "bytes": 1505,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-red-v2.log",
+        "sha256": "ed684a6f17e082c7db8ad3cb59431046e23e6ffe9df69b60dce079e1a1e906a1",
+        "bytes": 7282,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-replay-tests-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-tests-v1.receipt.json",
+        "sha256": "0fada3d5e486c2ecac16fd0641b1c4fef751e7401007bef9c05bf96715e41dba",
+        "bytes": 1289,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-replay-tests-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-selected-final-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-selected-final-v1.receipt.json",
+        "sha256": "ca4ed9bd2ab36425c4636b2372658bf0ee9f8236940b3a4e0e057377626f004b",
+        "bytes": 1736,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-selected-final-v1.log",
+        "sha256": "a2d0dcd35fe49283952c11a47b1abff9da81f38dce95a1d557e8555f8d2fecde",
+        "bytes": 9217,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-selected-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-selected-v1.receipt.json",
+        "sha256": "1ed03cf256692c287af66a27cccb8e02bc19ba0991ced83da93875a51cebf751",
+        "bytes": 1724,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-selected-v1.log",
+        "sha256": "794cf3142e2f9fec3fb7dc7f3b94377b7244f9a130d910ea6916b02b964af901",
+        "bytes": 9219,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-sparse-cases-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-sparse-cases-v1.receipt.json",
+        "sha256": "f977e73f07330f47927ebc87d41f2c8ae263f76b8b8b3cb51196b43e8c562d03",
+        "bytes": 1289,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-sparse-cases-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-sparse-green-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-sparse-green-v1.receipt.json",
+        "sha256": "effe4876e6a4889b52003d66f482532d5cc627d0da9d8e32368699707860e75d",
+        "bytes": 1365,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-sparse-green-v1.log",
+        "sha256": "0541f1aa518c52cf8a797f953882b2e653a03770288b085147526bfa8efcaba4",
+        "bytes": 2155,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-static-final-root-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-static-final-root-v1.receipt.json",
+        "sha256": "9a1f0101653ae9a7990de8da715bfa9c83c892adfb281e74650771245a041dfc",
+        "bytes": 1300,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-static-final-root-v1.log",
+        "sha256": "6c781ebf2123003405846bf76a1da9845e586a182c2b88a4b1c1a6ffd118c0fa",
+        "bytes": 84,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-static-final-root-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-static-final-root-v2.receipt.json",
+        "sha256": "d27f4460e97c49cb95b423a4d57c7de70ea6263fc5411a2a53cf4f666a431593",
+        "bytes": 1300,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-static-final-root-v2.log",
+        "sha256": "85a0bd7b51e1884ca96e48a019e8ecbcca2aafcbf13ced6680762959bce5c19e",
+        "bytes": 86,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-tests-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-tests-v1.receipt.json",
+        "sha256": "1316fe42bfca3bfcbdd9f55bd8c28b83c9d838353af0e82102bd7c3ccb079417",
+        "bytes": 1268,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-tests-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-type-and-count-tests-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-type-and-count-tests-v1.receipt.json",
+        "sha256": "eb7da683ec21abe2f7a001e5127d2f2f1f397b62260349355ef1ac21034f99ae",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-type-and-count-tests-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-types-final-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-final-v1.receipt.json",
+        "sha256": "4c575312ddbec4a76139906d8a3fad3368cf9e4e2812ecdbe5588cfa53395475",
+        "bytes": 1570,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-types-final-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-final-v2.receipt.json",
+        "sha256": "8d521c204cd16549b55aab5a7529481b7e9192743eac56adf5f97462c80c27b5",
+        "bytes": 1570,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-types-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v1.receipt.json",
+        "sha256": "90639fddeffad5631d307914eeb5349a01724321d60052e70313723727664ed2",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-types-v2",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v2.receipt.json",
+        "sha256": "a1ef917ef1a92f2080cce9b3f7d283337d1da96516a60313a4b24a1372dd9bfb",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-types-v3",
+      "nativeExitCode": 2,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v3.receipt.json",
+        "sha256": "44fdce80bd0d57879f03b422df6cbd1b07871065f56c02b13c72882c78d5da5f",
+        "bytes": 1561,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-types-v3.log",
+        "sha256": "020774bb965f01c1b7015fd8c435742b1b2a9dd20e75de3c3de73af0586dd08d",
+        "bytes": 5009,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-move-service-watch-green-v1",
+      "nativeExitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-watch-green-v1.receipt.json",
+        "sha256": "c097897e2ef0422c56142f09747ca7e50b9f54fbaf53a881a4452c8b8da2af60",
+        "bytes": 1669,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-watch-green-v1.log",
+        "sha256": "2082072a4f0f133c371c835d5d5fc088580a1960eb0ea938b2d2ec932bd21f3e",
+        "bytes": 1353,
+        "mode": 384
+      }
+    }
+  ],
+  "final": {
+    "selected": {
+      "name": "current-move-service-final-regressions-v1",
+      "passed": 148,
+      "failed": 0,
+      "assertions": 2057,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-regressions-v1.receipt.json",
+        "sha256": "131a6ac57c0d850cb9a19d9d40bbadfb5919ce91573a671877554f0938062f4f",
+        "bytes": 1909,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-final-regressions-v1.log",
+        "sha256": "11c3337652de9b75abe8429c3871dc50f5b3b177be3444be1b0b428616b2df55",
+        "bytes": 16607,
+        "mode": 384
+      }
+    },
+    "currentPolicy": {
+      "name": "current-move-service-current-fixtures-green-v1",
+      "passed": 7,
+      "failed": 0,
+      "assertions": 38,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-green-v1.receipt.json",
+        "sha256": "8b6646cf7993f48dc623fafcb8a8a0906251f100058b73c1cb228e872af8b368",
+        "bytes": 1728,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-move-service-current-fixtures-green-v1.log",
+        "sha256": "c167c3321192ae568642a21acd4ded41b320ec59d01ab37327687f88a093c675",
+        "bytes": 1336,
+        "mode": 384
+      }
+    },
+    "selectedFiles": 8,
+    "currentPolicyFiles": 3,
+    "cohortOverlap": "The7focused cases include4cases also present in the148-test cohort; the other3are current WorkItemService destination-policy cases. Do not sum these cohorts as155unique tests.",
+    "fullSource": {
+      "name": "current-core-source-only-v9",
+      "passed": 2060,
+      "failed": 31,
+      "assertions": 9448,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v9.receipt.json",
+        "sha256": "27f883d783f68caed99969edd109c13c819d5ee9ce1cb611b84cd0d1061c93c0",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v9.log",
+        "sha256": "26754307a543c75354ffa614d5d94b3b1c2481a61503053972d3b7184eef7733",
+        "bytes": 266981,
+        "mode": 384
+      }
+    },
+    "earlierFullSource": {
+      "name": "current-core-source-only-v8",
+      "passed": 2054,
+      "failed": 37,
+      "assertions": 9492,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v8.receipt.json",
+        "sha256": "473ed9d92bd940800a90cb57f6183c49eadbef1e169dfda98fc33175bd3260e7",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v8.log",
+        "sha256": "7991e1987c5e625d94ef02044c385352a83bf0c0a32325ffbd0d1272be37a05f",
+        "bytes": 271357,
+        "mode": 384
+      }
+    },
+    "sourceFiles": 168,
+    "totalCoreTests": 2091,
+    "roster": {
+      "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v9.json",
+      "sha256": "53878145142249e28fb53243fc119001e93618ebdd1ad789a36f9fb35d6d4740",
+      "bytes": 43277,
+      "mode": 384
+    },
+    "failedByFile": [
+      {
+        "path": "libs/wbs/application/core/src/http/project.routes.test.ts",
+        "failures": [
+          "(fail) dispatches the complete returned variant and independently maps modeled package allocation refusals [0.44ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/solution.routes.test.ts",
+        "failures": [
+          "(fail) direct solution binding reads the exact slug and complete work package with ordered steps [2.36ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/step.routes.test.ts",
+        "failures": [
+          "(fail) a patched allowance runs as the one journalled setStepAllowance command [1.89ms]",
+          "(fail) a rename sent with an allowance is the batch prelude, and its refusal runs no command [1.65ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+        "failures": [
+          "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans [169.50ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+        "failures": [
+          "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress [3.27ms]",
+          "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner [1.78ms]",
+          "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner [1.48ms]",
+          "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner [1.49ms]",
+          "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner [1.44ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it [3.71ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it [3.67ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it [3.27ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay [6.14ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay [4.79ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+        "failures": [
+          "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed [2.08ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+        "failures": [
+          "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it [7.57ms]",
+          "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed [3.60ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+        "failures": [
+          "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes [1.32ms]",
+          "(fail) the Plan import module > admits a small document over the graph installPlanImport wires [5.95ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+        "failures": [
+          "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.21ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+        "failures": [
+          "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo [5.35ms]",
+          "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo [4.02ms]",
+          "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent [5.14ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "failures": [
+          "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows [0.27ms]",
+          "(fail) rejects a required work package read returning another work package identity [0.15ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/dependency-graph.test.ts",
+        "failures": ["(fail) refuses a typed node endpoint absent from the full tree [0.12ms]"]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+        "failures": [
+          "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule [0.97ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+        "failures": [
+          "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor [0.26ms]",
+          "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor [0.04ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+        "failures": [
+          "(fail) counting unit of work rejects unexpected store access and records rollback [3.42ms]"
+        ]
+      }
+    ],
+    "newFailures": [
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts (fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress"
+    ],
+    "removedFailures": [
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts (fail) copies exact node references and allows move after clearing the final fact",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts (fail) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts (fail) preserves empty-policy move undo and redo while unrelated facts survive",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts (fail) retains moving subtree and sibling policy while moving under an empty destination"
+    ],
+    "libraryRoots": ["core", "conformance", "store-memory", "store-sqlite"],
+    "backendTypecheck": "passed",
+    "lintFiles": 12,
+    "formattedCodeFiles": 12,
+    "ordinaryMoveCutover": true,
+    "replayMoveCutover": true,
+    "currentJournalPreclearsRemoved": true,
+    "rawSourceMoveBypassClosed": false,
+    "previewComplete": false,
+    "historicalProducerAdmitted": false,
+    "qualification": "Selected148/0/2057 plus focused7/0/38 pass, with stated overlap. Core2060pass31fail9448assertions2091tests168files remains failed. Four original sparse move failures are replaced by protected refusal and separately seeded lawful empty-destination cases. Six old command cases still require their genuine legacy producer/admission; they are not recast as passing current writes. This is not full step-catalogue/entity/client/API-authority/host/release or goal completion."
+  },
+  "finiteEffects": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/move-service-effects-v1.json",
+      "sha256": "f158797ac212d331ca681b7f2978f6d8a54140a2c13bc36228739a6f1f3b1478",
+      "bytes": 9610,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "name": "ordinary-refusal",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory move service refuses protected estimate",
+          "sqlite move service refuses protected estimate"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 46,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-ordinary-refusal-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-ordinary-refusal-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "statement-beforeimage",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory move service restores the actual writer nonpoint before-image",
+          "sqlite move service restores the actual writer nonpoint before-image"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 52,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-statement-beforeimage-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-statement-beforeimage-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "demand-beforeimage",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory move service restores the actual writer nonpoint before-image",
+          "sqlite move service restores the actual writer nonpoint before-image"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 54,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-demand-beforeimage-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-demand-beforeimage-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "atomic-forward",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory atomic move replay retains the journal and precise pairs",
+          "sqlite atomic move replay retains the journal and precise pairs"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 50,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-atomic-forward-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-atomic-forward-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "replay-watch",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory atomic move replay watches the destination",
+          "sqlite atomic move replay watches the destination"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 54,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-watch-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-watch-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "replay-result",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory atomic move replay retains the journal and precise pairs",
+          "sqlite atomic move replay retains the journal and precise pairs"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 54,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-result-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-result-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "replay-retain",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory atomic move replay retains the journal and precise pairs",
+          "sqlite atomic move replay retains the journal and precise pairs"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 58,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-retain-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-retain-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "replay-owner",
+        "source": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "oracles": [
+          "memory move service journals an atomic move",
+          "sqlite move service journals an atomic move"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 60,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-owner-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-replay-owner-v1.log",
+        "canonicalSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+        "restoredSha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03"
+      },
+      {
+        "name": "http-count",
+        "source": "libs/wbs/application/core/src/http/work-item.routes.ts",
+        "oracles": ["undo and redo expose detached step usage conflicts"],
+        "passed": 0,
+        "failed": 1,
+        "assertions": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-count-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-count-v1.log",
+        "canonicalSha256": "0872946790fb296bf1c2cadd80eac0f3a4c54055bf2fa69f5bd05834fef6e619",
+        "restoredSha256": "0872946790fb296bf1c2cadd80eac0f3a4c54055bf2fa69f5bd05834fef6e619"
+      },
+      {
+        "name": "http-detach",
+        "source": "libs/wbs/application/core/src/http/work-item.routes.ts",
+        "oracles": ["undo and redo expose detached step usage conflicts"],
+        "passed": 0,
+        "failed": 1,
+        "assertions": 2,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-detach-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-http-detach-v1.log",
+        "canonicalSha256": "0872946790fb296bf1c2cadd80eac0f3a4c54055bf2fa69f5bd05834fef6e619",
+        "restoredSha256": "0872946790fb296bf1c2cadd80eac0f3a4c54055bf2fa69f5bd05834fef6e619"
+      },
+      {
+        "name": "undo-schema",
+        "source": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+        "oracles": [
+          "postApiWorkPackagesByIdUndo admits precise step usage conflicts",
+          "postApiWorkPackagesByIdRedo admits precise step usage conflicts"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 2,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-undo-schema-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-undo-schema-v1.log",
+        "canonicalSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149",
+        "restoredSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149"
+      },
+      {
+        "name": "schema-count",
+        "source": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+        "oracles": [
+          "postApiWorkPackagesByIdUndo admits precise step usage conflicts",
+          "postApiWorkPackagesByIdRedo admits precise step usage conflicts"
+        ],
+        "passed": 0,
+        "failed": 2,
+        "assertions": 4,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-count-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-count-v1.log",
+        "canonicalSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149",
+        "restoredSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149"
+      }
+    ],
+    "restoredExactly": true,
+    "qualification": "Actual service/Source operations establish protected outcomes, writer before-images, replay ownership/watch/entry retention and absence of early demand clears. Public route faults cover direct handler projection/detachment only; contract faults cover the actual declared schema validators. No mounted organization authority, full all13/history/cleanup/preview/raw Source closure/Astra or full-goal certificate is inferred.",
+    "additionalInteger": {
+      "path": "/tmp/puni-combined-proposal-v1/control/move-service-integer-effect-v1.json",
+      "sha256": "66359a8191bbd1611a3d247c5a972f3bf8a3ddf5fa8c8158fb2a84b001f6e4c1",
+      "bytes": 759,
+      "mode": 384
+    },
+    "integer": {
+      "name": "schema-integer",
+      "source": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-integer-v1.receipt.json",
+      "logPath": "/tmp/puni-combined-proposal-v1/control/current-move-service-effect-schema-integer-v1.log",
+      "canonicalSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149",
+      "restoredSha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149",
+      "restoredExactly": true,
+      "qualification": "Actual declared undo/redo response validators, with positive whole counts and separate fractional-count negatives. This is a contract-path proof, not mounted authorization or Source-count production coverage."
+    },
+    "postProofEmission": [
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "sha256": "f8900805c358bf9768a0ea09787bf9775b5c8684e68157bb5c0ac6b17d465321",
+          "bytes": 576531,
+          "mode": 436
+        },
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/control/move-service-canonical-0-v1.ts",
+          "sha256": "e20f52d2882c04575c7d7d0357729e055cf19920877d24b78a58fafbcca7fc03",
+          "bytes": 575194,
+          "mode": 384
+        },
+        "equalCommentFreeEmission": true
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/work-item.routes.ts",
+          "sha256": "c436692c6fdb3cb840149ee41c6343ba7f3e0164c04c95a3782df5b802530c0f",
+          "bytes": 46486,
+          "mode": 436
+        },
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/control/move-service-canonical-1-v1.ts",
+          "sha256": "0872946790fb296bf1c2cadd80eac0f3a4c54055bf2fa69f5bd05834fef6e619",
+          "bytes": 46298,
+          "mode": 384
+        },
+        "equalCommentFreeEmission": true
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+          "sha256": "2ffd92ed452d10c544bda5c01321f2fe651cc5a44b4e5d9e4aa47716a57bdeb7",
+          "bytes": 31437,
+          "mode": 436
+        },
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/control/move-service-canonical-2-v1.ts",
+          "sha256": "576417a6b903fc556b6d1dcd78f44f7a86e9edb01badcdb553b773ca92b75149",
+          "bytes": 31152,
+          "mode": 384
+        },
+        "equalCommentFreeEmission": true
+      }
+    ],
+    "total": 13,
+    "credit": "Eight actual service/Source faults independently cover protected response selection, statement/demand writer before-images, no early demand clear in replay, retained watched revisions, precise conflict projection/entry retention and the actual replay writer. Two direct-handler faults cover count and deep facts detachment. Three schema faults cover declaration, positive count and integer count. Mapper/schema proofs do not certify mounted organization permission; all13/current-historical/cleanup/preview/raw Source closure remain open."
+  },
+  "rejectedAndCorrected": [
+    "Initial14actual service cases all failed: old clears lost progress/blockage, estimate/actual/measure later appeared on a parent, the owned callback was not used, and the stored forward recipe still contained nonpoint preludes. Initial atomic cutover passes14/0/368.",
+    "The first6case replay cohort failed6; two setup cases used nonexistent readiness not_ready. Correcting that fixture to actual draft yields2pass4fail. Two genuine failures expose a dropped destination watch after undo; two expose imprecise/stale-discard late-fact handling.",
+    "The first boundary run failed3tests: both undo/redo schemas lacked step_nodes_in_use and the direct handler had no projection. Explicit typed outcome, mapper and schema implementation corrected these; the first63case run still had2watch failures. Retaining the prior watched identities fixes both actual Source peer-change cases.",
+    "First new sparse run12pass4fail83assertions confirms old estimated/blocked-destination success assumptions contradict SC17. Each original arrangement now covers protected refusal and a separately seeded empty destination;20/0/108. No estimate is removed to conceal the guard.",
+    "A compiler epoch exited2 only because the shared expected refusal widened literal types; an as-const expected value fixes it. The final four-library/backend compiler exits0. No runtime guard or test value is weakened.",
+    "First full core2091tests records2054pass37fail9492assertions. Six exposed current-policy/old-observer cases are corrected: claim release retains progress until an explicit clear; ordinary protected progress/blockage refuses unchanged; observation hooks target actual writeMove. Native focused7/0/38 and selected148/0/2057 pass. Final whole core still has31failures."
+  ],
+  "decisions": [
+    "Ordinary moves preserve existing auth/missing/cycle/relationship/sparse/claim admission, then invoke SubtreeStore.writeMove before any destination clear. Current point facts never transfer to existing incoming work. Expected protected outcomes preserve exact current count/pairs and never append or announce.",
+    "Current forward history contains the atomic move, without independent destination statement/progress/blockage/demand clear commands. Inverse nonpoint restores come from the actual writer before-image, including a legitimate admission between preflight and the owned write. The transient MoveRecord is not parsed as historical authority.",
+    "Compensating move uses the same actual writer. Live protected-node refusals carry StepNodesInUse through ApplyOutcome/UndoOutcome, retain the journal entry and expose count/pairs through direct undo/redo HTTP shapes. Existing genuinely revision-stale entries retain their discard policy. Command scopes own whole-service rollback/publication; standalone compound inverse preludes are not newly certified atomic.",
+    "The replay watch set is the prior decoded expected identities plus current touched identities. This preserves the destination revision even when that direction has no physical nonpoint inverse. A real peer atomic move now makes redo stale on both adapters instead of silently accepting the changed parent.",
+    "Old sparse/claim/typed relationship preflight reasons and precedence remain in place; this does not prove uniform SC17 payload policy for all13families. Raw Source workItems.move remains an unchecked bypass. Whole service post-move old-parent status/blockage hand-up still belongs to the caller UoW.",
+    "Real Source application tests explicitly supply legacy edit policy and actual opened storage. They do not establish mounted scoped permission. Faulty read decorators and direct handler service spies supply only their stated dependency/projection oracles, never an authority/capability certificate."
+  ],
+  "pending": [
+    "Keep1.6.3a-d open. Finish generic dryRun/preview, raw Source move retirement without nested queue/gate deadlock, uniform/refined legacy sparse/claim/relationship refusal policy and typed candidate endpoint/stale placement outcomes. All13actual move families/both edge directions, null claims/allocators, scalar/owner/unreadable/fence/concurrent configuration/fact and rollback/release failure checks remain required.",
+    "Genuine legacy producer/admission is next. Six existing memory command scenarios cannot be produced by a current move under destination progress/blockage. They must retain their old state/time/missing and rename/progress laundering guarantees through actual prior producer bytes and accepted report/apply/history ownership. Do not fabricate historical rows, turn current parent writes back on, or erase these checks.",
+    "Original7historical parent-progress scenarios still need genuine producer/report/apply/history evidence. Also restore admitted historical equivalents for the2old standalone progress-restore/blockage timestamp cases whose current counterparts now correctly assert SC17 refusal. Preserve all15named historical scenarios, all old source bytes and any precise report refusal before choosing replay/repair policy.",
+    "Final core31failures include all25prior non-sparse failures plus6legacy-move producer cases. HTTP/resource/property/import/saved-plan/graph/frozen Navigator/counting fixtures remain. Previous6first-child writer lint findings stay open. Existing Source190cohort was not repeated: actual store adapters/capture code are unchanged here; final38store/4first-child cases and broader service controls are the fresh selected evidence.",
+    "Mounted real API/command authority, retained replay compound rollback/no publication, schema-generated OpenAPI/MCP/client/UI integration and full source/application/client/install/inventory/product gates remain incomplete. Standalone whole-service cross-call isolation is not promised by this increment.",
+    "Astra remains unavailable at the recorded account quota until Nov22,2026 10:09AM, timezone unspecified. No retry/spawn bypass or substitute review. Current/replay boundary, watched revision/entry-retention policy and actual legacy producer/admission require review before closure.",
+    "All nine original entity/settings/spaces/SC13/17/22/25/PUNI/Bun/client inventory/install/committed host gate/release requirements remain active. No public commit/push/PR update/merge/deploy or goal completion occurs."
+  ]
+}

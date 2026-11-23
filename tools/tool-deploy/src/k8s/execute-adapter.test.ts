@@ -7,6 +7,11 @@ import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import {
+  CATALOGUE_LAB_SEED,
+  LAB_PROJECT_ID,
+  migrateCatalogueStore,
+} from './catalogue-store.fixture';
 import type { DependencyBinaryObservation } from './dependency-observation';
 import {
   authorizationServerOfRendered,
@@ -71,6 +76,82 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  function seedLabDatabase(path: string | undefined) {
+    const env = { ...process.env };
+    if (path === undefined) delete env['DB_PATH'];
+    else env['DB_PATH'] = path;
+    return Bun.spawnSync([process.execPath, ...CATALOGUE_LAB_SEED.slice(1)], {
+      cwd: BACKEND,
+      env,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+  }
+
+  it('requires the explicit catalogue owner for a new k3s fixture before ordinary migration', () => {
+    const root = scratchSync('wbs-k3s-seed-catalogue-');
+    roots.push(root);
+    const bare = join(root, 'bare.sqlite');
+    const db = join(root, 'current.sqlite');
+    new Database(bare).close();
+    const ordinary = (path: string) => ({ DB_PATH: path, PUNI_TASK: 'migrate' });
+    expect(taskError(ordinary(bare), BACKEND)).toContain(
+      'requires the explicit atomic apply owner',
+    );
+    const before = new Database(bare, { readonly: true });
+    try {
+      expect(before.query("SELECT name FROM sqlite_schema WHERE type = 'table'").all()).toEqual([]);
+    } finally {
+      before.close();
+    }
+    const seeded = seedLabDatabase(db);
+    expect(seeded.exitCode, seeded.stderr.toString()).toBe(0);
+    const observed = new Database(db, { readonly: true });
+    let ledger;
+    try {
+      ledger = observed
+        .query<{ name: string; hash: string; created_at: number }, []>(
+          'SELECT name, hash, created_at FROM __drizzle_migrations ORDER BY created_at, name',
+        )
+        .all();
+      expect(
+        observed
+          .query(
+            'SELECT project.id, organization.legacy FROM project JOIN organization ON organization.id=project.organization_id',
+          )
+          .all(),
+      ).toEqual([{ id: LAB_PROJECT_ID, legacy: 1 }]);
+      expect(observed.query('SELECT id FROM work_package').all()).toEqual([]);
+    } finally {
+      observed.close();
+    }
+    expect(ledger).toHaveLength(119);
+    expect(task(ordinary(db)).applied).toEqual(ledger);
+  }, 30_000);
+
+  it('refuses an absent or empty k3s seed database path', () => {
+    for (const path of [undefined, '']) {
+      const refused = seedLabDatabase(path);
+      expect(refused.exitCode).toBe(1);
+      expect(refused.stderr.toString()).toContain('lab seed requires DB_PATH');
+    }
+  }, 30_000);
+
+  it('refuses to replace an existing k3s fixture database before any catalogue work', () => {
+    const root = scratchSync('wbs-k3s-seed-existing-');
+    roots.push(root);
+    const path = join(root, 'existing.sqlite');
+    const existing = new Database(path);
+    existing.run('CREATE TABLE already_owned (id INTEGER)');
+    existing.run('INSERT INTO already_owned VALUES (42)');
+    existing.close();
+    const before = readFileSync(path);
+    const refused = seedLabDatabase(path);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr.toString()).toContain('EEXIST');
+    expect(readFileSync(path)).toEqual(before);
+  });
+
   it('loads rollback admission below the schema Job memory limit', () => {
     // Proof: FORCE_COLOR=1 made numeric console.log output fail finite parsing (CI run 39935383258).
     const child = Bun.spawnSync({
@@ -414,7 +495,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: root,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,
@@ -459,13 +540,11 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     const db = join(root, 'wbs.sqlite');
     // The script refuses a missing database rather than creating an empty one.
     expect(() => task({ DB_PATH: db, PUNI_TASK: 'status' })).toThrow('does not exist');
-    Bun.spawnSync({ cmd: ['bun', '-e', `new (require('bun:sqlite').Database)('${db}').close()`] });
+    migrateCatalogueStore(db);
 
-    const migrated = task({ DB_PATH: db, PUNI_TASK: 'migrate' });
-    const names = migrated.folders.map((f) => f.name);
-    expect(migrated.applied.map((a) => a.name)).toEqual(names);
-
-    const baseline = names[names.length - 3];
+    // Start the schema Job at the completed catalogue. The next two migrations
+    // are additive and can be rolled back with the exact-set migration owner.
+    const baseline = '20261115130000_add_step_catalogue';
     const legacy = Bun.spawnSync({
       cmd: ['bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`],
       cwd: BACKEND,
@@ -473,7 +552,11 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    expect(legacy.exitCode).toBe(0);
+    expect(legacy.exitCode, legacy.stderr.toString()).toBe(0);
+    const predecessor = task({ DB_PATH: db, PUNI_TASK: 'status' });
+    const names = predecessor.folders.map((f) => f.name);
+    expect(names.at(-3)).toBe(baseline);
+    expect(predecessor.applied.map((a) => a.name)).toEqual(names.slice(0, -2));
     mkdirSync(join(root, 'snapshots'));
     const captured = captureFromReport(
       task({
@@ -530,8 +613,7 @@ describe('the capture Job audience preflight against the real be-01 CLI', () => 
     const root = scratchSync('wbs-k3s-audience-');
     roots.push(root);
     const db = join(root, 'wbs.sqlite');
-    new Database(db).close();
-    task({ DB_PATH: db, PUNI_TASK: 'migrate' });
+    migrateCatalogueStore(db);
     const sqlite = new Database(db);
     try {
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'org-a', 1)");
@@ -725,7 +807,7 @@ describe('schema Jobs through the kubectl adapter', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: spaced,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,
@@ -767,7 +849,7 @@ describe('schema Jobs through the kubectl adapter', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: root,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,
@@ -815,7 +897,7 @@ describe('schema Jobs through the kubectl adapter', () => {
         namespaces: { app: 'wbs', backend: 'wbs-solver' },
         stateDir: root,
         overlay: root,
-        anonymousProjectsStatus: 200,
+        anonymousWorkPackagesStatus: 200,
         rolloutTimeoutSeconds: 5,
         jobTimeoutSeconds: 5,
         drainTimeoutMs: 1000,
@@ -843,7 +925,7 @@ describe('the capture Job manifest', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: root,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,
@@ -964,7 +1046,7 @@ describe('backend rollouts through the kubectl adapter', () => {
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir: root,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 5,
       drainTimeoutMs: 1000,
@@ -1086,7 +1168,7 @@ describe('replay Jobs through kubectl', () => {
           namespaces: { app: 'wbs', backend: 'wbs-solver' },
           stateDir: root,
           overlay: root,
-          anonymousProjectsStatus: 200,
+          anonymousWorkPackagesStatus: 200,
           rolloutTimeoutSeconds: 1,
           jobTimeoutSeconds: 1,
           drainTimeoutMs: 1000,
@@ -1218,7 +1300,7 @@ function observationEffects(
       namespaces: { app: 'wbs', backend: 'wbs-solver' },
       stateDir,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 5,
       jobTimeoutSeconds: 1,
       drainTimeoutMs: 1000,

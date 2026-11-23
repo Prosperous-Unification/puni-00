@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ResolvedPlanInputReads } from '@wbs/core';
 import { captureAndSchedulePlan, schedulePlanInput } from '@wbs/core/service/saved-plan-schedule';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -11,15 +13,13 @@ import { openConnection } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
-import type { PlanInputReads } from '../repository/saved-plan-capture';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { projectRow } from '../testing/project-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from '../repository/work-package';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -56,7 +56,8 @@ describe('scheduling a captured plan', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-schedule-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     live = 0;
     opened = 0;
     const seed = openConnection(path);
@@ -65,21 +66,40 @@ describe('scheduling a captured plan', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: 'p1', name: 'plan', ownerId: 'owner', estimateMethod: 'realistic' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    expect(
+      (
+        await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+          'saved-plan-legacy',
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          {
+            bindingId: 'dev-binding',
+            scopeKind: 'project',
+            scopeId: 'saved-plan-parent',
+            workItemTypeId: null,
+            position: 10,
+          },
+          wrote,
+        )
+      ).ok,
+    ).toBe(true);
+    const born = await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
+        id: 'p1',
+        name: 'plan',
+        projectId: 'saved-plan-parent',
+        estimateMethod: 'realistic',
+      }),
+      [],
       wrote,
     );
+    expect(born).toMatchObject({ id: 'p1', projectId: 'saved-plan-parent' });
     const directory = new DirectoryRepository(db, OPEN);
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     await directory.addPerson({ id: 'pp-ada', name: 'Ada' }, ['t-platform'], wrote);
@@ -92,7 +112,7 @@ describe('scheduling a captured plan', () => {
       await items.insert(
         {
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           parentId: null,
           position,
           name: id,
@@ -130,12 +150,20 @@ describe('scheduling a captured plan', () => {
     // inside a callback, and the reading has to distinguish "sampled 0" from
     // "never sampled", which an initial value cannot.
     const sampled: number[] = [];
-    const result = await captureAndSchedulePlan(capture(), 'p1', (reads: PlanInputReads) => {
-      sampled.push(live);
-      return schedulePlanInput(reads);
-    });
+    const result = await captureAndSchedulePlan(
+      capture(),
+      'p1',
+      (reads: ResolvedPlanInputReads) => {
+        sampled.push(live);
+        return schedulePlanInput(reads);
+      },
+    );
 
     expect(result).not.toBeNull();
+    expect(result?.reads.leafSteps).toEqual([
+      { workItemId: 'wi-1', stepIds: ['st-1'] },
+      { workItemId: 'wi-2', stepIds: ['st-1'] },
+    ]);
     // One sample, and it is zero. An empty array would mean the scheduler never
     // ran and the count below was nobody's observation.
     expect(sampled).toEqual([0]);
@@ -177,7 +205,7 @@ describe('scheduling a captured plan', () => {
     expect(again.waitingForCapacity).toBe(planned.waitingForCapacity);
   });
 
-  it('returns null for a project that is not there, and schedules nothing', async () => {
+  it('returns null for a work package that is not there, and schedules nothing', async () => {
     let scheduled = 0;
     const result = await captureAndSchedulePlan(capture(), 'missing', (reads) => {
       scheduled += 1;

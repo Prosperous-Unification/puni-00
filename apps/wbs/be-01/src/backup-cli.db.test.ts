@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -55,7 +55,10 @@ describe('backup-db-cli and restore-db-cli', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-backup-cli-'));
     roots.push(root);
     const dbPath = join(root, 'wbs.db');
-    runMigrations(dbPath, join(APP_ROOT, 'drizzle'));
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory: root, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     runSql(dbPath, 'CREATE TABLE backup_marker (v TEXT NOT NULL)');
     runSql(dbPath, "INSERT INTO backup_marker (v) VALUES ('before')");
     const snapshotPath = join(root, 'backups', 'wbs-pre-deploy.db');
@@ -78,7 +81,10 @@ describe('backup-db-cli and restore-db-cli', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-backup-cli-'));
     roots.push(root);
     const dbPath = join(root, 'wbs.db');
-    runMigrations(dbPath, join(APP_ROOT, 'drizzle'));
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory: root, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
 
     const backup = await runCli('backup-db-cli.ts', dbPath);
     expect(backup.exitCode).not.toBe(0);
@@ -89,7 +95,10 @@ describe('backup-db-cli and restore-db-cli', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-backup-cli-'));
     roots.push(root);
     const dbPath = join(root, 'wbs.db');
-    runMigrations(dbPath, join(APP_ROOT, 'drizzle'));
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory: root, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
 
     const restore = await runCli('restore-db-cli.ts', dbPath, join(root, 'absent.db'));
     expect(restore.exitCode).not.toBe(0);

@@ -29,7 +29,7 @@ export function isNodeReading(value: unknown): value is NodeReading {
 
 /**
  * Whether a node takes part in its leaf's work. `null` until
- * `configure-project-step-workflows` (010.4.13.3) stores it; until then no node
+ * `configure-work-package-step-workflows` (010.4.13.3) stores it; until then no node
  * reads `skipped`.
  */
 export type Participation = 'included' | 'skipped';

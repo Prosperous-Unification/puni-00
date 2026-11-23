@@ -4,7 +4,7 @@ import { listTimezones } from '@wbs/domain';
 import { bind } from './endpoint';
 
 /**
- * Serves the zones the project PATCH validates against — the same
+ * Serves the zones the work package PATCH validates against — the same
  * `listTimezones` `isTimezone` reads — so a client can never offer a zone this
  * be-01 refuses (`step-node-attempts` D3). Signed-in by its declaration; the
  * list names no tenant data.

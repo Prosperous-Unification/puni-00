@@ -5,6 +5,7 @@ import { Readable, Writable } from 'node:stream';
 
 import type { Monotonic, WallClock } from '../clock';
 import {
+  awaitLegacyRelease,
   holdLegacyLock,
   jobHoldFile,
   type LegacyHold,
@@ -30,6 +31,14 @@ import {
   toolchainOf,
 } from './catalogue';
 import { checkDockerAvailable, ContainerWatch, dockerContainerEvidence } from './containers';
+import type { SubscribeControl } from './gate-control';
+import {
+  encodeGatedEnvironment,
+  type GatedStatus,
+  parseGatedStatus,
+} from './gated-payload-protocol';
+import { createJobControl, type JobControl, type JobInterruption } from './job-control';
+import { readTermination } from './native-exit';
 import { causeText, type OpsExitCode, OpsRefusal } from './refusal';
 import {
   HostJobRunRecords,
@@ -63,6 +72,10 @@ export interface JobRunRequest {
 
 /** Everything `ops job run` reaches outside its arguments. */
 export interface JobRunDependencies {
+  /** Borrow cancellation only; the executable owner retains native listener disposal. */
+  readonly control?: { readonly subscribe: SubscribeControl };
+  /** Fully Dash-namespaced protected selected installation; captured before admission waits. */
+  readonly helperPrefix: readonly string[];
   readonly clock: WallClock;
   readonly monotonic: Monotonic;
   /** The payload's environment before the job variables, and where tools are found (`PATH`). */
@@ -79,33 +92,11 @@ export interface JobRunDependencies {
   readonly settleBudgetMs: number;
   /** The account the linger fix names. */
   readonly user: string;
-  /** The shell lock every host job also queues on in observe mode (J12). */
+  /** Native owner of the shared queue every host job takes in observe mode (J12). */
   readonly legacyLock: LegacyLock;
   /** The leftover ending's waits (task 6.24); {@link LEFTOVER_BUDGET} when absent, as in production. */
   readonly leftoverBudget?: LeftoverBudget;
 }
-
-/**
- * The gated payload (J7): the shell reads `start` from fd 3 before the payload may run (the
- * runtime's FD gate), runs the payload in the foreground so its status is the payload's own
- * (128 + signal when signalled), reports that status on fd 4, and then keeps the scope occupied
- * until the launcher writes `done` on fd 3 or closes it, so the exit sample reads a live scope.
- * The no-op trap keeps the shell, not the payload, alive through a forwarded signal: a caught
- * signal is reset to its default in the exec'd payload, an ignored one would not be.
- */
-const GATED_PAYLOAD = [
-  'trap : HUP INT TERM',
-  'read gate <&3 || exit 125',
-  '[ "$gate" = start ] || exit 125',
-  '"$@" 3<&- 4>&-',
-  'status=$?',
-  'echo "$status" >&4',
-  'exec 4>&-',
-  // Proof: replacing this read with `:` made `a one-second job is still measured` and `a gate is
-  // measured` (job-run.test.ts) record `scope torn down before the exit sample` (2026-11-01, Slice 3).
-  'read done <&3',
-  'exit "$status"',
-].join('\n');
 
 /**
  * The exit code of a job the launcher ended at its type's `maxRuntimeMinutes`: `timeout(1)`'s
@@ -118,13 +109,6 @@ export const RUNTIME_EXCEEDED_EXIT_CODE = 124;
 const SCOPE_POLL_MS = 10;
 const SCOPE_START_BUDGET_MS = 15_000;
 
-/** The exit status of a process that ended with `code` or `signal`, as a shell reports it. */
-function statusOf(code: number | null, signal: NodeJS.Signals | null): number {
-  if (signal !== null) return 128 + constants.signals[signal];
-  if (code === null) throw new Error('payload ended with neither a code nor a signal');
-  return code;
-}
-
 /**
  * The environment the payload starts with (J7). A calibration holds every unit of the pool; its
  * payload is handed the first unit of each id its envelope names, as an ordinary run would be.
@@ -134,9 +118,14 @@ function jobEnvironment(
   job: HostJob,
   label: string,
 ): Record<string, string> {
-  const variables: Record<string, string> = {};
-  for (const [key, value] of Object.entries(environment))
-    if (value !== undefined) variables[key] = value;
+  // Proof: assignment-map replacement loses caller __proto__ in the actual selected
+  // payload test `native payload preserves the exact supplied unusual environment names
+  // before private transport`. Scope telemetry is emulated; no new real-systemd claim.
+  const variables: Record<string, string> = Object.fromEntries(
+    Object.entries(environment).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
   variables['TMPDIR'] = job.locator;
   variables['DASH_JOB_ID'] = job.id;
   variables['DASH_JOB_TYPE'] = job.descriptor.id;
@@ -154,14 +143,46 @@ class LaunchUnstarted extends Error {
   override readonly name = 'LaunchUnstarted';
 }
 
+/** Observe native writable delivery/half-close; a failed control never authorizes success. */
+function writeControl(gate: Writable, text: string, end: boolean): Promise<void> {
+  return new Promise((resolveWrite, rejectWrite) => {
+    const failed = (cause: Error) => {
+      gate.off('error', failed);
+      rejectWrite(cause);
+    };
+    gate.once('error', failed);
+    const delivered = (cause?: Error | null) => {
+      gate.off('error', failed);
+      if (cause) rejectWrite(cause);
+      else resolveWrite();
+    };
+    if (end) gate.end(text, delivered);
+    else gate.write(text, delivered);
+  });
+}
+
+/** Actual stream evidence; native exit and an expired observation budget are never EOF. */
+type PayloadObservation =
+  | GatedStatus
+  | { readonly kind: 'read-failed'; readonly cause: unknown }
+  | { readonly kind: 'closed-before-end' }
+  | { readonly kind: 'unconfirmed' };
+
 interface Launched {
   child: ChildProcess;
   pid: number;
   gate: Writable;
-  /** Resolves with the status the shell reported on fd 4, or null when it ended without one. */
-  payloadStatus: Promise<number | null>;
+  /** Canonical payload status, absent status and malformed status remain distinct. */
+  payloadStatus: Promise<PayloadObservation>;
+  environment: Writable;
+  environmentTransfer: Promise<
+    { readonly kind: 'transferred' } | { readonly kind: 'failed'; readonly cause: unknown }
+  >;
+  startupDeadline: number;
   /** Resolves with the leader's own status once it exits. */
   leaderExit: Promise<number>;
+  readObservation():
+    { readonly kind: 'healthy' } | { readonly kind: 'failed'; readonly cause: unknown };
 }
 
 /** A catalogued job with the scope bound and the pool figures that capped it (S25-A6). */
@@ -198,55 +219,206 @@ function launchGated(
   label: string,
   deps: JobRunDependencies,
 ): Launched {
+  const frame = encodeGatedEnvironment(jobEnvironment(deps.environment, job, label));
+  const startupDeadline = deps.monotonic.now() + SCOPE_START_BUDGET_MS;
   const child = spawn(
     systemdRun,
     [
       ...scopeArguments(unit, catalogued.descriptor, job.calibration === true),
       '--',
-      '/bin/sh',
-      '-c',
-      GATED_PAYLOAD,
-      'dash-job',
+      ...deps.helperPrefix,
+      'ops',
+      'job',
+      'payload-internal-v1',
+      '--',
       ...argv,
     ],
     {
       cwd: deps.cwd,
       detached: true,
-      stdio: ['inherit', 'inherit', 'inherit', 'pipe', 'pipe'],
-      env: jobEnvironment(deps.environment, job, label),
+      stdio: ['inherit', 'inherit', 'inherit', 'pipe', 'pipe', 'pipe'],
+      env: deps.environment,
     },
   );
+  let observation:
+    { readonly kind: 'healthy' } | { readonly kind: 'failed'; readonly cause: unknown } = {
+    kind: 'healthy',
+  };
+  function recordObservationFailure(cause: unknown): void {
+    const prior = observation;
+    observation = {
+      kind: 'failed',
+      cause:
+        prior.kind === 'healthy'
+          ? cause
+          : new AggregateError([prior.cause, cause], 'multiple native leader observations failed'),
+    };
+    try {
+      deps.report(
+        'ops job: native scope helper observation failed; retaining ownership until actual native settlement',
+      );
+    } catch (reportCause) {
+      observation = {
+        kind: 'failed',
+        cause: new AggregateError(
+          [observation.cause, reportCause],
+          'native leader observation and reporting failed',
+        ),
+      };
+    }
+  }
+  const retained = setInterval(() => undefined, 1000);
   const leaderExit = new Promise<number>((resolveExit, rejectExit) => {
-    child.once('error', rejectExit);
+    child.once('error', (cause) => {
+      // Proof: rejecting this join on a post-PID error finishes the operation before its
+      // held native helper in `gated job observation leader-error`; retained reservations
+      // and external telemetry remain separate authorities.
+      if (child.pid === undefined) {
+        clearInterval(retained);
+        rejectExit(cause);
+      } else recordObservationFailure(cause);
+    });
     child.once('exit', (code, signal) => {
-      resolveExit(statusOf(code, signal));
+      const termination = readTermination(code, signal);
+      if (termination.kind !== 'confirmed') {
+        recordObservationFailure(termination.cause);
+        return;
+      }
+      clearInterval(retained);
+      resolveExit(termination.status);
     });
   });
   // A leader that never started (its executable gone since the probe) reports on `leaderExit`.
   // Proof: without this check `refuses 70 when systemd-run vanishes before the launch`
   // (job-run.test.ts) failed on "host job gate pipes unavailable" (2026-11-02, review F13).
   if (child.pid === undefined) {
+    clearInterval(retained);
     void leaderExit.catch(() => undefined);
     throw new LaunchUnstarted(`${systemdRun} did not start`);
   }
   const pid = child.pid;
   const gate = child.stdio[3];
-  const status = child.stdio[4];
-  if (!(gate instanceof Writable) || !(status instanceof Readable))
+  const status = child.stdio[4],
+    environment = child.stdio.at(5);
+  if (
+    !(gate instanceof Writable) ||
+    !(status instanceof Readable) ||
+    !(environment instanceof Writable)
+  )
     throw new Error('host job gate pipes unavailable');
-  // A gate write after the shell ended is an expected EPIPE, never a crash of the launcher.
+  // A gate write after the helper ended is an expected EPIPE, never a crash of the launcher.
   gate.on('error', () => undefined);
-  const payloadStatus = new Promise<number | null>((resolveStatus) => {
-    let text = '';
-    status.on('data', (chunk: Buffer) => {
-      text += chunk.toString('utf8');
+  const environmentTransfer = new Promise<
+    { readonly kind: 'transferred' } | { readonly kind: 'failed'; readonly cause: unknown }
+  >((resolveTransfer) => {
+    environment.once('error', (cause) => {
+      resolveTransfer({ kind: 'failed', cause });
     });
-    status.once('close', () => {
-      const line = text.trim();
-      resolveStatus(/^\d{1,3}$/.test(line) ? Number(line) : null);
+    environment.once('close', () => {
+      if (!environment.writableFinished)
+        resolveTransfer({
+          kind: 'failed',
+          cause: new Error('private environment closed before transfer'),
+        });
+    });
+    environment.end(frame, () => {
+      resolveTransfer({ kind: 'transferred' });
     });
   });
-  return { child, pid, gate, payloadStatus, leaderExit };
+  const statusRetained = setInterval(() => undefined, 1000);
+  const payloadStatus = new Promise<PayloadObservation>((resolveStatus) => {
+    const settleStatus = (observation: PayloadObservation) => {
+      clearInterval(statusRetained);
+      resolveStatus(observation);
+    };
+    let bytes = Buffer.alloc(0),
+      invalid = false,
+      ended = false;
+    status.on('data', (chunk: Buffer) => {
+      if (invalid) return;
+      if (chunk.byteLength > 4 - bytes.byteLength) {
+        invalid = true;
+        return;
+      }
+      bytes = Buffer.concat([bytes, chunk]);
+    });
+    status.once('error', (cause) => {
+      invalid = true;
+      settleStatus({ kind: 'read-failed', cause });
+    });
+    status.once('end', () => {
+      ended = true;
+      settleStatus(invalid ? { kind: 'invalid' } : parseGatedStatus(bytes));
+    });
+    status.once('close', () => {
+      if (!ended) settleStatus({ kind: 'closed-before-end' });
+    });
+  });
+  return {
+    readObservation: () => observation,
+    child,
+    pid,
+    gate,
+    environment,
+    environmentTransfer,
+    startupDeadline,
+    payloadStatus,
+    leaderExit,
+  };
+}
+
+/**
+ * Join actual FD4 evidence even when the native leader exits before queued stream events.
+ * One second after actual leader end is an observation budget, not an execution timeout or
+ * evidence that writers/descendants are absent. Expiry reports once and keeps the real reader,
+ * native reservation and hold owned until stream settlement. Empty EOF, malformed bytes,
+ * read failure and close-before-end remain distinct; no native status substitutes for them.
+ */
+async function joinPayloadStatus(
+  launched: Launched,
+  deps: Pick<JobRunDependencies, 'report'>,
+): Promise<PayloadObservation> {
+  const observed = launched.payloadStatus.then((outcome) => ({
+    kind: 'observed' as const,
+    outcome,
+  }));
+  const first = await Promise.race([
+    observed,
+    launched.leaderExit.then(() => ({ kind: 'leader-ended' as const })),
+  ]);
+  // Proof: synthesizing absence here loses genuine330a/EOF delivered after actual
+  // helper SIGKILL in `gated job observation fd4-delayed`; restored code preserves3.
+  // Native exit is not stream EOF, and exit sampling may still lose telemetry.
+  if (first.kind === 'observed') return first.outcome;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const next = await Promise.race([
+    observed,
+    new Promise<{ readonly kind: 'unconfirmed' }>((resolveExpiry) => {
+      timer = setTimeout(() => {
+        resolveExpiry({ kind: 'unconfirmed' });
+      }, 1000);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (next.kind === 'observed') return next.outcome;
+  let reporting: { readonly cause: unknown } | undefined;
+  try {
+    // Proof: human-selected observation17 changes this text and fails the reports
+    // assertion in `gated job observation fd4-unconfirmed`; one unchanged later baseline
+    // passed. Message-only scope: the excluded original recipe is not a lifetime,
+    // resource-release or cleanup proof.
+    deps.report(
+      'ops job: FD4 observation remains unconfirmed after native helper exit; retaining reader, job and hold ownership',
+    );
+  } catch (cause) {
+    reporting = { cause };
+  }
+  const actual = await launched.payloadStatus;
+  if (reporting !== undefined)
+    throw actual.kind === 'read-failed'
+      ? new AggregateError([reporting.cause, actual.cause], 'FD4 observation and reporting failed')
+      : reporting.cause;
+  return actual;
 }
 
 /**
@@ -260,6 +432,7 @@ async function awaitScope(
   leaderExit: Promise<number>,
   monotonic: Monotonic,
   interrupted: AbortSignal,
+  deadline: number,
 ): Promise<string | null> {
   const leader = { ended: false };
   void leaderExit.then(
@@ -270,7 +443,6 @@ async function awaitScope(
       leader.ended = true;
     },
   );
-  const deadline = monotonic.now() + SCOPE_START_BUDGET_MS;
   while (!leader.ended && !interrupted.aborted && monotonic.now() < deadline) {
     const cgroup = telemetry.cgroupOf(pid);
     if (cgroup?.endsWith(`/${unit}.scope`)) return cgroup;
@@ -291,7 +463,7 @@ async function settle(
 ): Promise<void> {
   const deadline = deps.monotonic.now() + deps.settleBudgetMs;
   let job = runtime.settleHostJob(jobId, containers);
-  // Immediately, then 250 ms (the gated shell is usually just exiting), then once a second:
+  // Immediately, then 250 ms (the Bun gate helper is usually just exiting), then once a second:
   // each pass takes the ledger write lock and reads Git and Docker inside it, which would
   // starve other launchers' polls if repeated faster (reviews F6, R9).
   for (
@@ -359,16 +531,27 @@ function readSample(
 }
 
 /** The exit code a launcher interrupted before its payload started returns, as a shell's. */
-function interruptedCode(signal: NodeJS.Signals): 129 | 130 | 143 {
-  if (signal === 'SIGHUP') return 129;
-  return signal === 'SIGINT' ? 130 : 143;
+function interruptedCode(interruption: JobInterruption): 129 | 130 | 143 {
+  if (interruption.kind === 'external') return 130;
+  if (interruption.signal === 'SIGHUP') return 129;
+  return interruption.signal === 'SIGINT' ? 130 : 143;
 }
 
-/** A signal the launcher received before its payload started, and the abort it raised. */
-interface Interruption {
-  readonly signal: AbortSignal;
-  received(): NodeJS.Signals | null;
+/** External reasons are opaque and never interpolated into job diagnostics. */
+function interruptionText(interruption: JobInterruption): string {
+  return interruption.kind === 'external'
+    ? 'externally cancelled'
+    : `interrupted by ${interruption.signal}`;
 }
+
+/** Expected cancellation must retain an observed control; queue wake alone supplies no provenance. */
+function requireInterruption(interruption: JobInterruption | null): JobInterruption {
+  if (interruption === null) throw new Error('host job cancellation lacks an observed control');
+  return interruption;
+}
+
+/** The operation's first interruption and queue wake, without owner disposal authority. */
+type Interruption = Pick<JobControl, 'signal' | 'received'>;
 
 /**
  * Run one host job measured (`dash-host-jobs` J7, J8, J16): read the catalogue at the checkout's
@@ -377,12 +560,18 @@ interface Interruption {
  * persisting the leader's identity and the gate sample before the gate opens; sample every
  * interval and at exit; record the exit, settle on terminal evidence and return the payload's
  * own status. A signal before the gate opens refuses 129/130/143 with the payload never run; one
- * after is forwarded to the payload's session. A type with `maxRuntimeMinutes` is ended by the
- * launcher once its payload has run longer, at the first sample past the bound: `MemoryHigh`
- * lifted, SIGTERM to the payload's session, SIGKILL to the whole scope after the settle budget
- * (task 6.14), and {@link RUNTIME_EXCEEDED_EXIT_CODE} returned and recorded, the job settling as any exit does. A type without it is unbounded. Once the leader's session has ended,
- * processes still in the job's scope are ended before settlement and recorded (task 6.24). A failure to read telemetry or to write a record
- * after the gate opened is recorded and reported, never substituted for the payload's status.
+ * after is forwarded to the payload's session. Borrowed external cancellation refuses130 before
+ * start with a redacted diagnostic and uses TERM transport afterward, preserving the parent's
+ * reason and the payload's qualified status. The operation retires only its control lease after
+ * native/FD/resource settlement; synchronous delivery failures surface after those joins. A failure
+ * to read telemetry or to write a record after the gate opened is recorded and reported, never
+ * substituted for the payload's status. Retirement is attempted once after required joins; its
+ * failure never skips retained delivery causes. A sole operation/retirement/delivery cause is
+ * rethrown unchanged, while concurrent causes retain their identities in an AggregateError.
+ * A type with `maxRuntimeMinutes` is ended by the launcher at the first sample past its bound:
+ * lift MemoryHigh, send SIGTERM to the payload session, then SIGKILL to the scope after the
+ * settle budget. Report and record124 while retaining the qualified payload status and signal.
+ * Once the leader has ended, end and record remaining scope members before settlement.
  * @throws OpsRefusal for every refusal before the payload runs (64, 70, 73, 75, 129, 130, 143).
  */
 export function runHostJob(request: JobRunRequest, deps: JobRunDependencies): Promise<number> {
@@ -406,6 +595,57 @@ async function executeHostJob(
   request: JobRunRequest,
   deps: JobRunDependencies,
   isCalibration: boolean,
+): Promise<number> {
+  const subscribe = deps.control?.subscribe;
+  const prefix = [...deps.helperPrefix];
+  if (prefix.length === 0 || prefix.some((word) => word === '' || word.includes('\0')))
+    throw new OpsRefusal(70, 'ops job run: selected protected helper prefix is invalid');
+  deps = {
+    ...deps,
+    helperPrefix: Object.freeze(prefix),
+    environment: Object.freeze(Object.fromEntries(Object.entries(deps.environment))),
+    cwd: deps.cwd,
+  };
+  request = { ...request, argv: Object.freeze([...request.argv]) };
+  const control = createJobControl(subscribe),
+    failures: unknown[] = [];
+  let execution: { kind: 'completed'; status: number } | { kind: 'failed'; cause: unknown };
+  try {
+    const prior = control.received();
+    if (prior !== null)
+      throw new OpsRefusal(
+        interruptedCode(prior),
+        'ops job run: ' + interruptionText(prior) + ' before the gate opened',
+      );
+    execution = {
+      kind: 'completed',
+      status: await executeControlledHostJob(request, deps, isCalibration, control),
+    };
+  } catch (cause) {
+    execution = { kind: 'failed', cause };
+  } finally {
+    try {
+      control.close();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  try {
+    control.throwIfFailed();
+  } catch (cause) {
+    failures.push(cause);
+  }
+  if (execution.kind === 'completed' && failures.length === 0) return execution.status;
+  const causes = execution.kind === 'failed' ? [execution.cause, ...failures] : failures;
+  if (causes.length === 1) throw causes[0];
+  throw new AggregateError(causes, 'host job operation or control settlement failed');
+}
+
+async function executeControlledHostJob(
+  request: JobRunRequest,
+  deps: JobRunDependencies,
+  isCalibration: boolean,
+  interruption: JobControl,
 ): Promise<number> {
   const read = readCataloguedJob(deps.cwd, request.type, request.argv);
   // One total wait (J12): the pool's admission and, in observe mode, the shell lock's queue.
@@ -448,19 +688,6 @@ async function executeHostJob(
     runtime.close();
     throw new OpsRefusal(70, `ops job run: ${causeText(cause)}`, { cause });
   }
-  const abort = new AbortController();
-  const received: { signal: NodeJS.Signals | null } = { signal: null };
-  const forward: { to: ((signal: NodeJS.Signals) => void) | null } = { to: null };
-  // Until the gate opens a signal only aborts: admission withdraws its ticket, and a launch in
-  // progress refuses at the gate. After it opens, the signal goes to the payload's session.
-  const onSignal = (signal: NodeJS.Signals): void => {
-    received.signal ??= signal;
-    if (forward.to !== null) forward.to(signal);
-    else abort.abort();
-  };
-  const interruption: Interruption = { signal: abort.signal, received: () => received.signal };
-  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
-  for (const signal of signals) process.on(signal, onSignal);
   try {
     const docker =
       catalogued.descriptor.containers === 'none'
@@ -482,17 +709,17 @@ async function executeHostJob(
       },
       {
         pollMs: request.pollSeconds * 1000,
-        signal: abort.signal,
+        signal: interruption.signal,
         report: (line) => {
           deps.report(line);
         },
       },
     );
     if (admission.kind === 'cancelled') {
-      const signal = received.signal ?? 'SIGTERM';
+      const received = requireInterruption(interruption.received());
       throw new OpsRefusal(
-        interruptedCode(signal),
-        `ops job run: ${typeId} ${request.label} interrupted by ${signal} while waiting; its ticket is withdrawn`,
+        interruptedCode(received),
+        `ops job run: ${typeId} ${request.label} ${interruptionText(received)} while waiting; its ticket is withdrawn`,
       );
     }
     if (admission.kind === 'refused') throw new OpsRefusal(admission.exitCode, admission.reason);
@@ -507,41 +734,62 @@ async function executeHostJob(
         : null;
     const containers =
       docker === null ? declaredContainersOnly : dockerContainerEvidence(docker, deps.environment);
+    let execution: { kind: 'completed'; status: number } | { kind: 'failed'; cause: unknown };
     try {
-      return await runAdmitted(
-        runtime,
-        records,
-        admission.job,
-        catalogued,
-        systemdRun,
-        docker,
-        containers,
-        request,
-        toolchain,
-        deps,
-        interruption,
-        (handler) => {
-          forward.to = handler;
-        },
-      );
-    } finally {
-      if (legacyHold !== null) await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+      execution = {
+        kind: 'completed',
+        status: await runAdmitted(
+          runtime,
+          records,
+          admission.job,
+          catalogued,
+          systemdRun,
+          docker,
+          containers,
+          request,
+          toolchain,
+          deps,
+          interruption,
+          (recipient) => {
+            interruption.setRecipient(recipient);
+          },
+        ),
+      };
+    } catch (cause) {
+      execution = { kind: 'failed', cause };
     }
+    if (legacyHold !== null) {
+      try {
+        await endLegacyHold(runtime, admission.job.id, legacyHold, deps);
+      } catch (cleanupFailure) {
+        if (execution.kind === 'failed')
+          throw new AggregateError(
+            [execution.cause, cleanupFailure],
+            'host job operation and native hold cleanup failed',
+            { cause: cleanupFailure },
+          );
+        throw cleanupFailure;
+      }
+    }
+    if (execution.kind === 'failed') throw execution.cause;
+    return execution.status;
   } finally {
-    for (const signal of signals) process.removeListener(signal, onSignal);
     records.close();
     runtime.close();
   }
 }
 
 /**
- * Observe mode (J12): queue the admitted job on the shell lock with what is left of its one wait
- * budget, so legacy callers and Dash jobs share one order. The hold's ticket, deadline, holder
- * record and label (`dash-job-<id> <label>`) are the shell lock's own; the job launches only
- * once it holds. A refusal or an interruption there withdraws the job, which was never prepared
+ * Observe mode (J12): queue the admitted job through the native host-lock owner with what is
+ * left of its one wait budget. Historical callers and Dash jobs share the same tickets,
+ * deadlines, holder records and labels (`dash-job-<id> <label>`); the job launches only once
+ * its immutable child token and Ready handoff are corroborated. A refusal or an interruption there withdraws the job, which was never prepared
  * or launched, releasing its reservation at once.
  * @throws OpsRefusal 75 when the shell lock gives no turn within the budget left, 129/130/143
- * when interrupted while queued there, 70 for any other refusal of the shell lock.
+ * when interrupted while queued there, 70 for any other refusal of the shell lock. A cancelled
+ * outcome without observed control throws after checked withdrawal of this known unprepared
+ * admission; concurrent provenance/withdrawal causes are aggregated. Native acquisition throws
+ * or retained ownership do not authorize this withdrawal path.
  */
 async function queueOnLegacyLock(
   runtime: ResourceRuntime,
@@ -570,22 +818,39 @@ async function queueOnLegacyLock(
     deps.environment,
   );
   if (outcome.kind === 'held') return outcome.hold;
-  const signal = interruption.received();
-  const [code, reason]: [OpsExitCode, string] =
-    outcome.kind === 'cancelled'
-      ? [
-          interruptedCode(signal ?? 'SIGTERM'),
-          `interrupted by ${signal ?? 'SIGTERM'} while queued on the shell lock (observe mode)`,
-        ]
-      : outcome.exitCode === 75
-        ? [
-            75,
-            `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
-          ]
-        : [
-            70,
-            `the shell lock refused it with exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`} (observe mode)`,
-          ];
+  let refusal: [OpsExitCode, string];
+  if (outcome.kind === 'cancelled') {
+    let received: JobInterruption;
+    try {
+      received = requireInterruption(interruption.received());
+    } catch (cause) {
+      try {
+        runtime.withdrawUnlaunchedHostJob(job.id, causeText(cause));
+      } catch (withdrawalCause) {
+        throw new AggregateError(
+          [cause, withdrawalCause],
+          'host job cancellation provenance and unlaunched withdrawal failed',
+          { cause: withdrawalCause },
+        );
+      }
+      throw cause;
+    }
+    refusal = [
+      interruptedCode(received),
+      interruptionText(received) + ' while queued on the shell lock (observe mode)',
+    ];
+  } else if (outcome.exitCode === 75) {
+    refusal = [
+      75,
+      `the shell lock gave no turn within the ${String(remaining)}s left of its wait budget (observe mode)`,
+    ];
+  } else {
+    refusal = [
+      70,
+      `the shell lock refused it with exit ${String(outcome.exitCode)}: ${outcome.reason} (observe mode)`,
+    ];
+  }
+  const [code, reason] = refusal;
   // Proof: without the withdrawal `a legacy deadline withdraws the Dash job`
   // (host-pool-mode.test.ts) left the job starting with its cores reserved (2026-11-02, Slice 6b).
   runtime.withdrawUnlaunchedHostJob(job.id, reason);
@@ -605,44 +870,30 @@ export async function endLegacyHold(
   runtime: Pick<ResourceRuntime, 'inspectHostJob'>,
   jobId: string,
   hold: LegacyHold,
-  deps: JobRunDependencies,
-): Promise<void> {
+  deps: Pick<JobRunDependencies, 'report'>,
+): Promise<{ readonly kind: 'released' } | { readonly kind: 'retained' }> {
   let released: boolean;
   try {
     released = runtime.inspectHostJob(jobId).compute.state === 'released';
   } catch (cause) {
-    deps.report(
-      `ops job: ${jobId} keeps the shell lock: its compute entry is unreadable (${causeText(cause)}); watch releases it`,
+    // Proof: the previous return-on-unreadable branch failed the retained-ledger failure control in job-hold.test.ts; restoration passed (2026-11-11).
+    throw new Error(
+      'ops job: ' + jobId + ' keeps the native hold: its compute entry is unreadable',
+      { cause },
     );
-    return;
   }
-  // Proof: releasing regardless made `a surviving child keeps the shell lock until its compute
-  // settles` (host-pool-mode.test.ts) see the holder gone (2026-11-02, Slice 6b).
+  // Proof: removing compute authorization released an outstanding job in job-hold.test.ts; restoration passed (2026-11-11).
   if (!released) {
     deps.report(
-      `ops job: ${jobId} keeps the shell lock until its compute settles; watch releases it`,
+      'ops job: ' + jobId + ' keeps the shell lock until its compute settles; watch releases it',
     );
-    return;
+    return { kind: 'retained' };
   }
   hold.release();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const ended = await Promise.race([
-    hold.exited.then(
-      () => true,
-      () => true,
-    ),
-    new Promise<boolean>((resolveGrace) => {
-      timer = setTimeout(() => {
-        resolveGrace(false);
-      }, 10_000);
-    }),
-  ]);
-  clearTimeout(timer);
-  deps.report(
-    ended
-      ? `ops job: ${jobId} released the shell lock`
-      : `ops job: ${jobId} removed its shell lock hold; holder ${String(hold.pid)} has not exited yet`,
-  );
+  // Proof: the previous rejected-exit-as-success projection failed the native-wait failure control in job-hold.test.ts; restoration passed (2026-11-11).
+  await awaitLegacyRelease(hold);
+  deps.report('ops job: ' + jobId + ' released the shell lock');
+  return { kind: 'released' };
 }
 
 /** Kill the whole session of `pid`; a session already gone is not an error. */
@@ -701,21 +952,19 @@ function scopeOf(unit: string): string {
 }
 
 /**
- * End a payload the launcher no longer lets run (task 6.14), in three steps: lift the scope's
- * `MemoryHigh` to `infinity`, so a throttled payload runs its handlers (and the gated shell its
- * trap) at full speed instead of at one return to user mode per 2 s; SIGTERM to its session;
- * then, once the settle budget passes without `ending` resolving, SIGKILL to every process of
- * the scope through `systemctl --user kill`, which reaches `setsid`'d descendants (an nx daemon,
- * a stray `git checkout`) that a process-group signal misses. A failed lift is reported and the
- * SIGTERM sent regardless; a failed scope kill is reported and the session SIGKILLed instead, so
- * at least the payload ends. The gated shell traps SIGTERM, so it still reports the payload's
- * status; after SIGKILL it reports none.
- * @throws Error when the SIGTERM itself fails other than for a session already gone.
+ * End a payload the launcher no longer lets run (task 6.14): lift the scope's `MemoryHigh`
+ * to `infinity`, then SIGTERM its session. After the settle budget, ask the retained Bun
+ * keeper to SIGKILL only its original native child, preserving the keeper's native callback,
+ * numeric exit observation and private status frame. Scope descendants are ended by
+ * `endLeftovers` after the keeper joins. A failed lift is reported and SIGTERM sent regardless.
+ * @throws Error when SIGTERM fails other than for a session already gone, or the private kill
+ * delivery fails. Delivery failure cannot qualify a runtime-bound return.
  */
 async function endPayload(
   pid: number,
   unit: string,
   ending: Promise<void>,
+  requestKill: () => Promise<void>,
   deps: JobRunDependencies,
 ): Promise<void> {
   const scope = scopeOf(unit);
@@ -746,21 +995,11 @@ async function endPayload(
   // budget` (job-run.test.ts) take the payload's full 20 s, 21.1 s against its 15 s (2026-11-12).
   if (!ended) {
     deps.report(
-      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL to every process of ${scope}`,
+      `ops job: session ${String(pid)} outlived SIGTERM by ${String(deps.settleBudgetMs)} ms; SIGKILL to its owned payload; scope descendants after keeper retirement`,
     );
-    // Proof: restoring `killSession(pid, 'SIGKILL')` here made `a setsid'd descendant that
-    // ignores SIGTERM ends with the scope at the bound` (job-run.test.ts) find the descendant
-    // alive, `members` `[93]` against `[]` (2026-11-18).
-    const unkilled = await systemctlFailure(deps.environment, ['kill', '--signal=SIGKILL', scope]);
-    // Proof: dropping the session SIGKILL below made `a failed scope kill is reported and the
-    // session SIGKILLed instead` (job-run.test.ts) take the payload's full 20 s, 21.2 s against
-    // its 15 s (2026-11-18).
-    if (unkilled !== null) {
-      deps.report(
-        `ops job: SIGKILL to ${scope} failed: ${unkilled}; SIGKILL to session ${String(pid)} instead`,
-      );
-      killSession(pid, 'SIGKILL');
-    }
+    // Proof: adding scope SIGKILL here tripped the actual keeper-exit witness in gated job
+    // observation control-kill-ordering; descendants remain for the post-keeper phase.
+    await requestKill();
   }
   await ending;
 }
@@ -986,12 +1225,13 @@ async function runAdmitted(
   }
   const { pid } = launched;
   /**
-   * Close the gate unopened: the shell exits 125 and the payload never runs. The ledger records
+   * Close the gate unopened: the helper exits 125 and the payload never runs. The ledger records
    * the launch failure apart from any payload exit (review F5), then the job settles.
    */
   const refuseAtGate = async (code: 64 | 70 | 129 | 130 | 143, reason: string): Promise<never> => {
     launched.gate.destroy();
-    // The gated shell exits 125 on the closed gate at once; a leader still inside `systemd-run`
+    launched.environment.destroy();
+    // The Bun gate helper exits 125 on the closed gate at once; a leader still inside `systemd-run`
     // (a hung user manager) does not, so it is killed after a grace.
     let timer: ReturnType<typeof setTimeout> | undefined;
     const lingering = await Promise.race([
@@ -1018,20 +1258,21 @@ async function runAdmitted(
   };
   /** The interruption refusal, when a signal arrived before the gate opened. */
   const refuseIfInterrupted = async (): Promise<void> => {
-    const signal = interruption.received();
+    const received = interruption.received();
     // Proof: without this check `a SIGINT while the scope starts refuses 130, the payload
     // never runs` (job-run.test.ts) refuse 70 "did not start scope" instead of 130
     // (2026-11-02, Slice 3 review F4).
-    if (signal !== null)
+    if (received !== null)
       await refuseAtGate(
-        interruptedCode(signal),
-        `interrupted by ${signal} before the gate opened`,
+        interruptedCode(received),
+        `${interruptionText(received)} before the gate opened`,
       );
   };
   try {
     runtime.recordHostJobLaunch(job.id, pid);
   } catch (cause) {
     launched.gate.destroy();
+    launched.environment.destroy();
     await launched.leaderExit.catch(() => undefined);
     // Proof: without this refusal `refuses 70 when the launch identity cannot be recorded`
     // (job-run.test.ts) rejected with the bare ledger error (2026-11-02, Slice 3 review F2c).
@@ -1048,6 +1289,7 @@ async function runAdmitted(
     launched.leaderExit,
     deps.monotonic,
     interruption.signal,
+    launched.startupDeadline,
   );
   await refuseIfInterrupted();
   if (cgroup === null) {
@@ -1057,6 +1299,30 @@ async function runAdmitted(
     // runs` (job-run.test.ts) refuse "scope counters unreadable" on a null cgroup (2026-11-02, F2a).
     return refuseAtGate(70, `systemd-run did not start scope ${unit}`);
   }
+  let transferTimer: ReturnType<typeof setTimeout> | undefined;
+  const interruptedTransfer = Promise.withResolvers<{ readonly kind: 'interrupted' }>();
+  const interruptTransfer = () => {
+    interruptedTransfer.resolve({ kind: 'interrupted' });
+  };
+  interruption.signal.addEventListener('abort', interruptTransfer, { once: true });
+  if (interruption.signal.aborted) interruptTransfer();
+  const transfer = await Promise.race([
+    launched.environmentTransfer,
+    interruptedTransfer.promise,
+    new Promise<{ readonly kind: 'expired' }>((resolveExpiry) => {
+      transferTimer = setTimeout(
+        () => {
+          resolveExpiry({ kind: 'expired' });
+        },
+        Math.max(0, launched.startupDeadline - deps.monotonic.now()),
+      );
+    }),
+  ]);
+  clearTimeout(transferTimer);
+  interruption.signal.removeEventListener('abort', interruptTransfer);
+  await refuseIfInterrupted();
+  if (transfer.kind !== 'transferred')
+    return refuseAtGate(70, 'private payload environment transfer failed');
   const startedAt = deps.clock.read();
   // The runtime bound is measured on the monotonic clock, as every other launcher deadline is;
   // `startedAt` stays the wall-clock instant the record states.
@@ -1139,17 +1405,35 @@ async function runAdmitted(
     throw cause;
   });
   onSignal((signal) => {
-    // The whole session: the payload and its children, not only the gated shell. Forwarding
+    // The whole session: the payload and its children, not only the Bun gate helper. Forwarding
     // neither lifts `MemoryHigh` nor escalates (task 6.14, S14-A2): an operator's signal is the
     // operator's own end, and the manual sequence in docs/infra/gate-hosts.md does both.
     try {
       killSession(pid, signal);
     } catch (cause) {
-      deps.report(`ops job: forwarding ${signal} to ${unit} failed: ${causeText(cause)}`);
+      try {
+        deps.report(`ops job: forwarding ${signal} to ${unit} failed: ${causeText(cause)}`);
+      } catch (reportCause) {
+        throw new AggregateError([cause, reportCause], 'host job forwarding and reporting failed', {
+          cause: reportCause,
+        });
+      }
+      throw cause;
     }
   });
-  launched.gate.write('start\n');
-  const failures: string[] = [];
+  let startControlFailed = false;
+  try {
+    await writeControl(launched.gate, 'start\n', false);
+  } catch {
+    // Proof: hiding the controlled start callback failure returns3 instead of failed70
+    // in `gated job observation control-start-callback-after-status`. The callback
+    // projection is not kernel EPIPE or proof the payload never ran.
+    startControlFailed = true;
+    launched.gate.destroy();
+  }
+  const failures: string[] = startControlFailed
+    ? ['payload start control delivery is unconfirmed']
+    : [];
   const persist = (sample: RunSample): void => {
     if (sample.failure !== null) failures.push(`${sample.kind}: ${sample.failure}`);
     try {
@@ -1158,28 +1442,33 @@ async function runAdmitted(
       failures.push(`${sample.kind} sample unrecorded: ${causeText(cause)}`);
     }
   };
-  const payload: { ended: boolean; status: number | null } = { ended: false, status: null };
-  const ending = Promise.race([launched.payloadStatus, launched.leaderExit.then(() => null)]).then(
-    (status) => {
-      payload.status = status;
-      payload.ended = true;
-    },
-  );
+  const payload: { ended: boolean; outcome: PayloadObservation } = {
+    ended: false,
+    outcome: { kind: 'unconfirmed' },
+  };
+  const ending = joinPayloadStatus(launched, deps).then((outcome) => {
+    payload.outcome = outcome;
+    payload.ended = true;
+  });
   const { maxRuntimeMinutes } = catalogued.jobType;
   let endedByLauncher: string | undefined;
+  let killControlFailure: { readonly cause: unknown } | undefined;
   for (;;) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A cleared timer, not `Bun.sleep`: a pending sleep would hold the process open for up to
     // one interval after the job ended.
     // Proof: leaving the timer uncleared made `the launcher process ends with its job`
     // (job-run.test.ts) take 15.5 s for a payload that exits at once (2026-11-01, Slice 3).
-    await Promise.race([
-      ending,
-      new Promise((resolveTick) => {
-        timer = setTimeout(resolveTick, deps.sampleIntervalMs);
-      }),
-    ]);
-    clearTimeout(timer);
+    try {
+      await Promise.race([
+        ending,
+        new Promise((resolveTick) => {
+          timer = setTimeout(resolveTick, deps.sampleIntervalMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     if (payload.ended) break;
     const sample = readSample('interval', deps.clock.read(), deps.telemetry, cgroup, job.locator);
     if (watch !== null) sample.containers = await watch.sample();
@@ -1200,7 +1489,20 @@ async function runAdmitted(
       // settles` (job-run.test.ts) reject with `kill EPERM` before the exit was recorded
       // (2026-11-12).
       try {
-        await endPayload(pid, unit, ending, deps);
+        await endPayload(
+          pid,
+          unit,
+          ending,
+          async () => {
+            try {
+              await writeControl(launched.gate, 'kill\n', false);
+            } catch (cause: unknown) {
+              killControlFailure = { cause };
+              throw cause;
+            }
+          },
+          deps,
+        );
       } catch (cause) {
         deps.report(`ops job: ending ${unit} at its runtime bound failed: ${causeText(cause)}`);
       }
@@ -1211,14 +1513,63 @@ async function runAdmitted(
   persist(exitSample);
   const verdicts = watch === null ? [] : await watch.finish(deps.clock.read());
   // The scope may end now: the exit sample is read. Then the leader exits with the payload's
-  // status, or with its own when it died before reporting one.
-  launched.gate.end('done\n');
+  // status only when that private frame qualified; a leader status never substitutes for it.
+  let acknowledgementFailed = false;
+  try {
+    await writeControl(launched.gate, 'done\n', true);
+  } catch {
+    // Proof: hiding this controlled end callback failure returns3 instead of failed70
+    // in `gated job observation control-end-callback`; native helper end3 alone is
+    // insufficient to erase a separate delivery failure.
+    acknowledgementFailed = true;
+    launched.gate.destroy();
+  }
   const leaderStatus = await launched.leaderExit;
-  // The run ends with its payload: the leftover ending below takes up to 30 s that are not the
-  // job's wall time, so neither the record's `endedAt` nor the ledger's exit waits for it.
+  if (payload.outcome.kind !== 'status') {
+    deps.report(
+      'ops job: ' +
+        job.id +
+        ' private payload status ' +
+        payload.outcome.kind +
+        '; run outcome remains incomplete',
+    );
+    await settle(runtime, job.id, containers, deps);
+    throw new OpsRefusal(
+      70,
+      'ops job run: private payload status is not qualified',
+      payload.outcome.kind === 'read-failed' ? { cause: payload.outcome.cause } : undefined,
+    );
+  }
   const payloadEndedAt = deps.clock.read();
-  const payloadStatus = payload.status ?? leaderStatus;
+  const payloadStatus = payload.outcome.status;
   const status = endedByLauncher === undefined ? payloadStatus : RUNTIME_EXCEEDED_EXIT_CODE;
+  const leaderObservation = launched.readObservation();
+  const helperSignal = launched.child.signalCode;
+  // Proof: removing normal helper correspondence resolves the native contradiction case
+  // instead of refusal70. Conversely treating actual helper signal loss as a normal
+  // mismatch loses qualified payload3 in `gated job observation fd4-delayed`. That
+  // recovery still records lost keeper/ACK/telemetry authority and incomplete attribution;
+  // neither a valid frame nor ACK EPIPE alone grants native/resource settlement.
+  const protocolFailed =
+    leaderObservation.kind === 'failed' ||
+    startControlFailed ||
+    // Proof: omitting this latch returned124 instead of refusal70 in gated job observation
+    // control-kill-callback, after genuine raw137, ACK and native keeper join.
+    killControlFailure !== undefined ||
+    (helperSignal === null && (acknowledgementFailed || leaderStatus !== payloadStatus));
+  if (helperSignal !== null) {
+    const loss =
+      'private helper ended by ' +
+      helperSignal +
+      ' after qualified payload status' +
+      (acknowledgementFailed ? '; acknowledgement failed' : '');
+    failures.push(loss);
+    deps.report('ops job: ' + job.id + ' ' + loss + '; exit keeper and attribution are incomplete');
+  }
+  if (leaderObservation.kind === 'failed')
+    failures.push('private helper native observation reported an error before actual settlement');
+  if (killControlFailure !== undefined)
+    failures.push('private payload kill delivery failed: ' + causeText(killControlFailure.cause));
   // A status above 128 is how a shell reports a signal; the record names the signal it implies.
   const signal =
     Object.entries(constants.signals).find(([, number]) => number === payloadStatus - 128)?.[0] ??
@@ -1294,7 +1645,8 @@ async function runAdmitted(
       ledgerFailure,
       // Proof: without the guard term `a guard holder lost mid-run marks the running jobs`
       // (host-pool-mode.test.ts) found the run complete in `ops job audit` (2026-11-02, H5).
-      attributionIncomplete: incomplete.length > 0 || guardLost !== undefined,
+      attributionIncomplete:
+        incomplete.length > 0 || guardLost !== undefined || helperSignal !== null || protocolFailed,
       containers: verdicts,
       ...(guardLost === undefined ? {} : { guardLost }),
       ...(endedByLauncher === undefined ? {} : { endedByLauncher }),
@@ -1308,5 +1660,25 @@ async function runAdmitted(
   } catch (cause) {
     deps.report(`ops job: ${job.id} settlement failed: ${causeText(cause)}; watch settles it`);
   }
+  if (protocolFailed)
+    throw new OpsRefusal(
+      70,
+      'ops job run: payload ended but private helper settlement failed',
+      killControlFailure !== undefined
+        ? {
+            // Proof: the old precedence lost the exact original native-observation cause
+            // in gated job observation control-kill-callback-leader-error (kill remained).
+            cause:
+              leaderObservation.kind === 'failed'
+                ? new AggregateError(
+                    [killControlFailure.cause, leaderObservation.cause],
+                    'private payload kill delivery and native helper observation failed',
+                  )
+                : killControlFailure.cause,
+          }
+        : leaderObservation.kind === 'failed'
+          ? { cause: leaderObservation.cause }
+          : undefined,
+    );
   return status;
 }

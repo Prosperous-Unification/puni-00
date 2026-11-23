@@ -1,4 +1,4 @@
-import { importProject, type PlanDocumentRequest, preflightRequest } from '@wbs/contracts';
+import { type PlanDocumentRequest, planDocumentRequest, validateSchema } from '@wbs/contracts';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,11 +10,10 @@ import {
   directoryRefusalSentence,
   type DirectoryUsage,
   httpDirectoryApi,
-  httpProjectApi,
+  httpWorkPackageApi,
   planDocumentRequestFromJson,
   PlanImportRefusalError,
   STEP_REFUSALS,
-  type StepUsage,
   WbsRequestError,
 } from './wbs-api';
 
@@ -28,12 +27,12 @@ import {
 const response = (status: number, body: string): Response =>
   new Response(body === '' ? null : body, { status });
 
-/** A tree answer naming `ids` on project `projectId`, enough for the client to learn them. */
-const TREE = (projectId: string, ids: string[]): string =>
+/** A tree answer naming `ids` on work package `workPackageId`, enough for the client to learn them. */
+const TREE = (workPackageId: string, ids: string[]): string =>
   JSON.stringify({
     workItems: ids.map((id, position) => ({
       id,
-      projectId,
+      workPackageId,
       parentId: null,
       position,
       name: id,
@@ -94,22 +93,31 @@ const TREE = (projectId: string, ids: string[]): string =>
     estimateRounding: 'ceil',
     depReach: 'whole-item',
     startDate: null,
-    projectRevision: 1,
+    workPackageRevision: 1,
     undoable: false,
     redoable: false,
   });
 
-/** What be-01 answers a first, uncascaded removal of a step somebody is using. */
-const IN_USE: StepUsage = {
-  estimates: 2,
-  actuals: 0,
-  progress: 0,
-  measures: 0,
-  assignments: 1,
-  assumedAssignees: [{ workItemId: 'w2', assumedNow: null, assumedAfter: 'p1' }],
+const WORK_PACKAGE = {
+  id: 'p1',
+  abbreviation: 'PLAN',
+  name: 'Plan',
+  projectId: 'fixture-project',
+  restricted: false,
+  estimateMethod: 'pert',
+  depReach: 'whole-item',
+  pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+  estimateRounding: 'ceil',
+  startDate: null,
+  solutionRef: null,
+  revision: 0,
+  createdAt: 0,
+  optimizationEnabled: false,
+  scheduleEngine: 'fast',
+  scheduleObjective: 'pri',
 };
 
-const PROJECT = {
+const ARCHIVAL_WORK_PACKAGE = {
   id: 'p1',
   abbreviation: 'PLAN',
   name: 'Plan',
@@ -153,31 +161,78 @@ const ATTEMPTS = {
 };
 
 /**
- * A current export carries the timezone, step-code attempts and direct blockage
- * collection, so the generated client validates the archival response contract.
+ * Constructed archival writable-input control, detached from current HTTP row metadata.
+ * Current response controls use CURRENT_PLAN_DOCUMENT instead.
  */
 const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   const tree = JSON.parse(TREE('p1', ids)) as { workItems: Record<string, unknown>[] };
   return {
     ...tree,
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
-    project: PROJECT,
+    workPackage: ARCHIVAL_WORK_PACKAGE,
     stepNodes: [],
     document: { format: 'wbs-plan', version: 11, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     stepBlockages: [],
     settings: {
-      name: PROJECT.name,
-      restricted: PROJECT.restricted,
-      estimateMethod: PROJECT.estimateMethod,
-      depReach: PROJECT.depReach,
-      pertWeights: PROJECT.pertWeights,
-      estimateRounding: PROJECT.estimateRounding,
-      startDate: PROJECT.startDate,
-      solutionRef: PROJECT.solutionRef,
-      optimizationEnabled: PROJECT.optimizationEnabled,
-      scheduleEngine: PROJECT.scheduleEngine,
-      scheduleObjective: PROJECT.scheduleObjective,
+      name: ARCHIVAL_WORK_PACKAGE.name,
+      restricted: ARCHIVAL_WORK_PACKAGE.restricted,
+      estimateMethod: ARCHIVAL_WORK_PACKAGE.estimateMethod,
+      depReach: ARCHIVAL_WORK_PACKAGE.depReach,
+      pertWeights: ARCHIVAL_WORK_PACKAGE.pertWeights,
+      estimateRounding: ARCHIVAL_WORK_PACKAGE.estimateRounding,
+      startDate: ARCHIVAL_WORK_PACKAGE.startDate,
+      solutionRef: ARCHIVAL_WORK_PACKAGE.solutionRef,
+      optimizationEnabled: ARCHIVAL_WORK_PACKAGE.optimizationEnabled,
+      scheduleEngine: ARCHIVAL_WORK_PACKAGE.scheduleEngine,
+      scheduleObjective: ARCHIVAL_WORK_PACKAGE.scheduleObjective,
+      timezone: 'Europe/Kyiv',
+      budgetFactor: 1,
+    },
+    capacity: [],
+    resourceCapacities: [],
+    demands: [],
+    calendarMarkers: [],
+    directory: {
+      teams: [],
+      people: [],
+      tags: [],
+      services: [],
+      types: [],
+      externalSystems: [],
+      resources: [],
+    },
+    measureDefinitions: [],
+    measureFacts: [],
+    measureEstimates: [],
+    budgets: [],
+  };
+};
+
+/** Independently constructed current15 response control; no real producer is executed here. */
+const CURRENT_PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
+  const tree = JSON.parse(TREE('p1', ids)) as { workItems: Record<string, unknown>[] };
+  return {
+    ...tree,
+    workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
+    workPackage: WORK_PACKAGE,
+    project: { id: 'fixture-project', name: 'Fixture project' },
+    stepNodes: [],
+    document: { format: 'wbs-plan', version: 15, exportedAt: '2026-09-14T08:30:00.000Z' },
+    typedDependencies: [],
+    stepBlockages: [],
+    settings: {
+      name: WORK_PACKAGE.name,
+      restricted: WORK_PACKAGE.restricted,
+      estimateMethod: WORK_PACKAGE.estimateMethod,
+      depReach: WORK_PACKAGE.depReach,
+      pertWeights: WORK_PACKAGE.pertWeights,
+      estimateRounding: WORK_PACKAGE.estimateRounding,
+      startDate: WORK_PACKAGE.startDate,
+      solutionRef: WORK_PACKAGE.solutionRef,
+      optimizationEnabled: WORK_PACKAGE.optimizationEnabled,
+      scheduleEngine: WORK_PACKAGE.scheduleEngine,
+      scheduleObjective: WORK_PACKAGE.scheduleObjective,
       timezone: 'Europe/Kyiv',
       budgetFactor: 1,
     },
@@ -219,10 +274,20 @@ const importDocument = async (): Promise<PlanDocumentRequest> => {
   legacyDocument['workItems'] = (legacyDocument['workItems'] as Record<string, unknown>[]).map(
     ({ attempts: _attempts, ...row }) => row,
   );
-  const preflight = await preflightRequest(importProject, { body: legacyDocument });
-  if (preflight.kind === 'failure') throw new Error('the import fixture is not a valid request');
-  return preflight.input.body;
+  const validation = await validateSchema(planDocumentRequest, legacyDocument);
+  if (validation.issues !== undefined)
+    throw new Error('the archival fixture is not a valid document');
+  return validation.value;
 };
+
+it('parses an archival file without requiring the destination-project envelope', async () => {
+  const archival = PLAN_DOCUMENT();
+  const parsed = await planDocumentRequestFromJson(JSON.stringify(archival));
+  expect(parsed.document).toEqual(archival['document']);
+  expect(parsed.settings.name).toBe(WORK_PACKAGE.name);
+  expect(parsed.workItems).toHaveLength(1);
+  expect(parsed).not.toHaveProperty('projectId');
+});
 
 beforeEach(() => {
   vi.stubGlobal('location', { origin: 'http://wbs.test' });
@@ -253,7 +318,7 @@ describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
       Promise.resolve(response(200, JSON.stringify({ measures: [definition] }))),
     );
     vi.stubGlobal('fetch', fetched);
-    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+    await expect(httpWorkPackageApi('token').listMeasures()).resolves.toEqual({
       kind: 'ready',
       measures: [definition],
     });
@@ -264,7 +329,7 @@ describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
     vi.stubGlobal('fetch', () =>
       Promise.resolve(response(409, JSON.stringify({ error: 'organization_required' }))),
     );
-    await expect(httpProjectApi('token').listMeasures()).resolves.toEqual({
+    await expect(httpWorkPackageApi('token').listMeasures()).resolves.toEqual({
       kind: 'organization_required',
     });
   });
@@ -273,33 +338,33 @@ describe('the measure list (wbs-measure-budgets D17, review S3-6)', () => {
     vi.stubGlobal('fetch', () =>
       Promise.resolve(response(401, JSON.stringify({ error: 'unauthenticated' }))),
     );
-    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('unauthenticated');
+    await expect(httpWorkPackageApi('token').listMeasures()).rejects.toThrow('unauthenticated');
     vi.stubGlobal('fetch', () =>
       Promise.resolve(
         response(200, JSON.stringify({ measures: [{ ...definition, kind: 'volume' }] })),
       ),
     );
-    await expect(httpProjectApi('token').listMeasures()).rejects.toThrow('invalid_response');
+    await expect(httpWorkPackageApi('token').listMeasures()).rejects.toThrow('invalid_response');
   });
 });
 
 describe('plan JSON transfer', () => {
-  it('downloads the validated JSON representation through the generated project client', async () => {
-    const document = PLAN_DOCUMENT(['kept-row']);
+  it('downloads the validated JSON representation through the generated work package client', async () => {
+    const document = CURRENT_PLAN_DOCUMENT(['kept-row']);
     const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify(document))),
     );
     vi.stubGlobal('fetch', fetched);
 
-    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+    await expect(httpWorkPackageApi('token').exportPlan('p1')).resolves.toEqual(document);
 
     const call = fetched.mock.calls.at(0);
-    expect(call?.[0]).toBe('/api/projects/p1/export?format=json');
+    expect(call?.[0]).toBe('/api/work-packages/p1/export?format=json');
     expect(call?.[1]?.method).toBe('GET');
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-9 JSON representation containing a typed dependency and attempts', async () => {
+  it('accepts a constructed archival typed-dependency input while current HTTP rejects its old version', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {
@@ -311,11 +376,13 @@ describe('plan JSON transfer', () => {
     ];
     vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
 
-    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+    await expect(httpWorkPackageApi('token').exportPlan('p1')).rejects.toThrow('invalid_response');
+    const writable = await planDocumentRequestFromJson(JSON.stringify(document));
+    expect(writable.typedDependencies).toEqual(document['typedDependencies']);
   });
 
   it('accepts complete v12 history and strips it only at the JSON import boundary', async () => {
-    const document = PLAN_DOCUMENT(['kept-row']);
+    const document = CURRENT_PLAN_DOCUMENT(['kept-row']);
     document['document'] = {
       format: 'wbs-plan',
       version: 12,
@@ -327,12 +394,12 @@ describe('plan JSON transfer', () => {
         type: 'SS',
         predecessor: {
           kind: 'external',
-          projectId: 'remote-project',
+          workPackageId: 'remote-work-package',
           workItemId: 'remote-row',
           scope: 'node',
           stepId: 'remote-step',
           display: {
-            projectName: 'Remote',
+            workPackageName: 'Remote',
             abbreviation: 'REM',
             workItemName: 'Remote row',
             address: 'REM.010',
@@ -344,11 +411,11 @@ describe('plan JSON transfer', () => {
     ];
     document['connected'] = {
       kind: 'connected',
-      projectId: 'p1',
+      workPackageId: 'p1',
       mode: 'isolated',
-      projects: [
+      workPackages: [
         {
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Plan',
           abbreviation: 'PLAN',
           rank: 0,
@@ -362,27 +429,30 @@ describe('plan JSON transfer', () => {
       placement: { kind: 'unavailable', reason: 'cycle' },
     };
     vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
-    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+    await expect(httpWorkPackageApi('token').exportPlan('p1')).rejects.toThrow('invalid_response');
     const request = await planDocumentRequestFromJson(JSON.stringify(document));
     expect(request.typedDependencies).toEqual(document['typedDependencies']);
     expect(request).not.toHaveProperty('connected');
     delete document['connected'];
-    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    await expect(httpWorkPackageApi('token').exportPlan('p1')).rejects.toThrow();
     document['connected'] = { kind: 'connected' };
-    await expect(httpProjectApi('token').exportPlan('p1')).rejects.toThrow();
+    await expect(httpWorkPackageApi('token').exportPlan('p1')).rejects.toThrow();
     await expect(planDocumentRequestFromJson(JSON.stringify(document))).resolves.not.toHaveProperty(
       'connected',
     );
   });
 
-  it('projects the actual mounted v11 transfer artifact after generated-client validation', async () => {
+  it('imports the unchanged mounted v11 artifact while current HTTP rejects its archived version', async () => {
     vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(mountedTransfer))));
-    const exported = await httpProjectApi('token').exportPlan(mountedTransfer.connected.projectId);
-    expect(exported).toEqual(mountedTransfer);
-    const request = await planDocumentRequestFromJson(JSON.stringify(exported));
+    const preserved = structuredClone(mountedTransfer);
+    await expect(
+      httpWorkPackageApi('token').exportPlan(mountedTransfer.connected.workPackageId),
+    ).rejects.toThrow('invalid_response');
+    const request = await planDocumentRequestFromJson(JSON.stringify(mountedTransfer));
+    expect(mountedTransfer).toEqual(preserved);
     expect(request.typedDependencies).toEqual(mountedTransfer.typedDependencies);
     expect(request.steps).toEqual(
-      mountedTransfer.steps.map(({ projectId: _projectId, ...step }) => step),
+      mountedTransfer.steps.map(({ workPackageId: _work_packageId, ...step }) => step),
     );
     expect(request).not.toHaveProperty('connected');
     expect(request).not.toHaveProperty('connectedDependencies');
@@ -401,26 +471,52 @@ describe('plan JSON transfer', () => {
     }
   });
 
-  it('imports the archival request and returns its typed summary', async () => {
-    const document = await importDocument();
-    const summary = {
-      projectId: 'restored-p1',
-      rows: 1,
-      created: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
-      solutionRef: 'none',
-    };
-    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
-      Promise.resolve(response(201, JSON.stringify(summary))),
-    );
-    vi.stubGlobal('fetch', fetched);
+  it.each([false, true])(
+    'forwards the explicit catalogue import choice %s to the actual request',
+    async (defineMissing) => {
+      const document = await importDocument();
+      const summary = {
+        workPackageId: 'restored-p1',
+        rows: 1,
+        created: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+        solutionRef: 'none',
+      };
+      const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+        Promise.resolve(response(201, JSON.stringify(summary))),
+      );
+      vi.stubGlobal('fetch', fetched);
 
-    await expect(httpProjectApi('token').importPlan(document)).resolves.toEqual(summary);
+      await expect(
+        httpWorkPackageApi('token').importPlan('fixture-project', document, { defineMissing }),
+      ).resolves.toEqual(summary);
 
-    const call = fetched.mock.calls.at(0);
-    expect(call?.[0]).toBe('/api/projects/import');
-    expect(call?.[1]?.method).toBe('POST');
-    expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
-  });
+      const call = fetched.mock.calls.at(0);
+      expect(call?.[0]).toBe('/api/work-packages/import');
+      expect(call?.[1]?.method).toBe('POST');
+      expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+      const body = call?.[1]?.body;
+      if (typeof body !== 'string') throw new Error('Expected serialized import body');
+      expect(JSON.parse(body)).toEqual({ projectId: 'fixture-project', document, defineMissing });
+    },
+  );
+
+  it.each(['unknown_step_codes', 'retired_step_codes'] as const)(
+    'retains ordered %s from the actual import response',
+    async (error) => {
+      const document = await importDocument();
+      vi.stubGlobal('fetch', () =>
+        Promise.resolve(response(422, JSON.stringify({ error, codes: ['qa', 'dev'] }))),
+      );
+      await expect(
+        httpWorkPackageApi('token').importPlan('fixture-project', document, {
+          defineMissing: true,
+        }),
+      ).rejects.toMatchObject({
+        name: 'PlanImportRefusalError',
+        refusal: { error, codes: ['qa', 'dev'] },
+      });
+    },
+  );
 
   it('retains a validated import refusal code, path and detail', async () => {
     const document = await importDocument();
@@ -440,7 +536,9 @@ describe('plan JSON transfer', () => {
       ),
     );
 
-    const refusal = httpProjectApi('token').importPlan(document);
+    const refusal = httpWorkPackageApi('token').importPlan('fixture-project', document, {
+      defineMissing: false,
+    });
     await expect(refusal).rejects.toBeInstanceOf(PlanImportRefusalError);
     await expect(refusal).rejects.toMatchObject({
       name: 'PlanImportRefusalError',
@@ -453,126 +551,34 @@ describe('plan JSON transfer', () => {
   });
 });
 
-describe('removing a step', () => {
-  it('reads the counts out of the refusal rather than throwing the code', async () => {
-    // The whole reason this call models one refusal instead of throwing it:
-    // `inUse` is what the confirmation is made of.
-    // Proof: the `in_use` branch deleted so the 409 falls through to the throw
-    // below, this failed on `promise rejected "Error: in_use" instead of
-    // resolving`. Watched, 2026-08-09.
+describe('package step values', () => {
+  it('keeps allowances on current work package reads', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
-        Promise.resolve(response(409, JSON.stringify({ error: 'in_use', inUse: IN_USE }))),
-      ),
-    );
-    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).resolves.toEqual({
-      ok: false,
-      reason: 'in_use',
-      inUse: IN_USE,
-    });
-  });
-
-  it('throws a 409 that is not the refusal this client models', async () => {
-    // There is no such answer from `stepController` today. The branch exists so
-    // that if one ever arrives it is a failure somebody sees, rather than being
-    // read as an `in_use` with no counts in it.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'taken' })))),
-    );
-    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).rejects.toThrow(
-      'invalid_response',
-    );
-  });
-
-  it('throws an in_use with no counts rather than confirming against nothing', async () => {
-    // A body claiming the refusal without the numbers is a be-01 that has
-    // changed shape. Confirming a cascade from an empty confirmation is exactly
-    // the silent-default this repository refuses.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'in_use' })))),
-    );
-    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).rejects.toThrow(
-      'invalid_response',
-    );
-  });
-
-  it('asks for the cascade only when it is given one', async () => {
-    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
-      Promise.resolve(response(204, '')),
-    );
-    vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
-    await api.removeStep('p1', 'step-qa', false);
-    await api.removeStep('p1', 'step-qa', true);
-    expect(fetched.mock.calls.map((call) => call[0])).toEqual([
-      '/api/projects/p1/steps/step-qa',
-      '/api/projects/p1/steps/step-qa?cascade=true',
-    ]);
-  });
-
-  it('answers a removal be-01 performed outright', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(response(204, ''))),
-    );
-    await expect(httpProjectApi('t').removeStep('p1', 'step-qa', false)).resolves.toEqual({
-      ok: true,
-    });
-  });
-});
-
-describe('adding and renaming a step', () => {
-  it('keeps allowances on project reads and rename replies', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) =>
         Promise.resolve(
-          url === '/api/projects/p1'
-            ? response(
-                200,
-                JSON.stringify({
-                  project: PROJECT,
-                  steps: [
-                    {
-                      id: 'r3',
-                      projectId: 'p1',
-                      name: 'QA',
-                      position: 0,
-                      allowancePercent: 30,
-                      estimateUnit: 'workdays' as const,
-                    },
-                  ],
-                }),
-              )
-            : response(
-                200,
-                JSON.stringify({
-                  step: {
-                    id: 'r3',
-                    projectId: 'p1',
-                    name: 'Review',
-                    position: 0,
-                    allowancePercent: 30,
-                    estimateUnit: 'workdays' as const,
-                  },
-                }),
-              ),
+          response(
+            200,
+            JSON.stringify({
+              workPackage: WORK_PACKAGE,
+              steps: [
+                {
+                  id: 'r3',
+                  workPackageId: 'p1',
+                  name: 'QA',
+                  position: 0,
+                  allowancePercent: 30,
+                  estimateUnit: 'workdays',
+                },
+              ],
+            }),
+          ),
         ),
       ),
     );
-    const api = httpProjectApi('t');
-    await expect(api.steps('p1')).resolves.toEqual([
-      { estimateUnit: 'workdays' as const, id: 'r3', name: 'QA', allowancePercent: 30 },
+    await expect(httpWorkPackageApi('t').steps('p1')).resolves.toEqual([
+      { id: 'r3', name: 'QA', estimateUnit: 'workdays', allowancePercent: 30 },
     ]);
-    await expect(api.renameStep('p1', 'r3', 'Review')).resolves.toEqual({
-      estimateUnit: 'workdays' as const,
-      id: 'r3',
-      name: 'Review',
-      allowancePercent: 30,
-    });
   });
 
   it('sends an allowance patch and returns the updated policy', async () => {
@@ -583,7 +589,7 @@ describe('adding and renaming a step', () => {
           JSON.stringify({
             step: {
               id: 'r3',
-              projectId: 'p1',
+              workPackageId: 'p1',
               name: 'QA',
               position: 0,
               allowancePercent: 30,
@@ -594,13 +600,13 @@ describe('adding and renaming a step', () => {
       ),
     );
     vi.stubGlobal('fetch', fetched);
-    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30)).resolves.toEqual({
+    await expect(httpWorkPackageApi('t').setStepAllowance('p1', 'r3', 30)).resolves.toEqual({
       estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'QA',
       allowancePercent: 30,
     });
-    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ allowancePercent: 30 }));
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ allowanceBps: 3000 }));
   });
 
   it('throws the invalid allowance refusal', async () => {
@@ -608,7 +614,9 @@ describe('adding and renaming a step', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'invalid_allowance' })))),
     );
-    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30.001)).rejects.toMatchObject({
+    await expect(
+      httpWorkPackageApi('t').setStepAllowance('p1', 'r3', 30.001),
+    ).rejects.toMatchObject({
       message: 'invalid_allowance',
     });
   });
@@ -618,55 +626,8 @@ describe('adding and renaming a step', () => {
       'fetch',
       vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'calendar_range' })))),
     );
-    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 1000)).rejects.toMatchObject({
+    await expect(httpWorkPackageApi('t').setStepAllowance('p1', 'r3', 1000)).rejects.toMatchObject({
       message: 'calendar_range',
-    });
-  });
-  it('sends the name and answers with the step', async () => {
-    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
-      Promise.resolve(
-        response(
-          200,
-          JSON.stringify({
-            step: {
-              id: 'r3',
-              projectId: 'p1',
-              name: 'Design',
-              position: 0,
-              code: 'design',
-              allowancePercent: 0,
-              estimateUnit: 'workdays' as const,
-            },
-          }),
-        ),
-      ),
-    );
-    vi.stubGlobal('fetch', fetched);
-    await expect(httpProjectApi('t').addStep('p1', 'Design')).resolves.toEqual({
-      estimateUnit: 'workdays' as const,
-      id: 'r3',
-      name: 'Design',
-      code: 'design',
-      allowancePercent: 0,
-    });
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
-    expect(fetched.mock.calls[0]?.[1]?.body).toBe(
-      JSON.stringify({ name: 'Design', estimateUnit: 'workdays' }),
-    );
-  });
-
-  it('throws be-01’s code for a duplicate, for the caller to phrase', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(response(409, JSON.stringify({ error: 'taken' })))),
-    );
-    await expect(httpProjectApi('t').renameStep('p1', 'r3', 'Dev')).rejects.toMatchObject({
-      message: 'taken',
-      problem: {
-        kind: 'refusal',
-        operation: 'patchApiProjectsByIdStepsByStepId',
-        refusal: { error: 'taken' },
-      },
     });
   });
 });
@@ -705,7 +666,7 @@ describe('what a refused step change says', () => {
  * ends with nobody.
  */
 const USAGE: DirectoryUsage = {
-  projects: [
+  workPackages: [
     {
       id: 'pr1',
       name: 'Rollout',
@@ -741,12 +702,12 @@ describe('patching a work item team set', () => {
           : JSON.stringify({ results: [{ index: 0 }], undoable: true, redoable: false }),
       ),
     );
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
     await api.patchWorkItem('w1', { teamIds: ['team-b', 'team-a'] });
 
     expect(fetched).toHaveBeenCalledTimes(2);
-    expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+    expect(fetched.mock.calls[1]?.[0]).toBe('/api/work-packages/p1/commands');
     expect(fetched.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({
@@ -763,8 +724,8 @@ describe('setting the estimate arithmetic', () => {
     // One `PATCH`, not two: the weights and the rounding are one arithmetic,
     // and two requests would take the plan through an intermediate answer
     // nobody asked for — every figure in it recomputed twice.
-    const fetched = stub(() => response(200, JSON.stringify({ project: PROJECT })));
-    const api = httpProjectApi('t');
+    const fetched = stub(() => response(200, JSON.stringify({ workPackage: WORK_PACKAGE })));
+    const api = httpWorkPackageApi('t');
 
     await api.setEstimateArithmetic('p1', {
       pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
@@ -772,7 +733,7 @@ describe('setting the estimate arithmetic', () => {
     });
 
     expect(fetched).toHaveBeenCalledTimes(1);
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'PATCH',
       body: JSON.stringify({
@@ -787,8 +748,8 @@ describe('setting the estimate arithmetic', () => {
     // body carrying `pertWeights: undefined` would be a different request from
     // one that omits it — `JSON.stringify` drops the key, and this is what says
     // so out loud.
-    const fetched = stub(() => response(200, JSON.stringify({ project: PROJECT })));
-    const api = httpProjectApi('t');
+    const fetched = stub(() => response(200, JSON.stringify({ workPackage: WORK_PACKAGE })));
+    const api = httpWorkPackageApi('t');
 
     await api.setEstimateArithmetic('p1', { estimateRounding: 'exact' });
 
@@ -946,7 +907,7 @@ describe('the directory client', () => {
     // to reach the `?cascade=true` second ask. An unremovable entry, from a
     // payload be-01 had assembled correctly.
     const tagged: DirectoryUsage = {
-      projects: [
+      workPackages: [
         {
           id: 'pr1',
           name: 'Rollout',
@@ -973,7 +934,7 @@ describe('the directory client', () => {
     // does". Proving the fix on the tag alone would prove it on half the
     // removals that reach this arm.
     const served: DirectoryUsage = {
-      projects: [
+      workPackages: [
         {
           id: 'pr1',
           name: 'Rollout',
@@ -1003,7 +964,7 @@ describe('the directory client', () => {
     // until it is given a payload, which is the check that was missing when
     // `label_removed` was added and the parse was not told. `capacity_released`
     // is in it because it was the *second* arm the guard did not know — a team
-    // whose project carries a capacity would have been as unremovable as the
+    // whose work package carries a capacity would have been as unremovable as the
     // tag, and no case had ever sent one over the wire.
     //
     // One effect per payload, not five in a list: `every` passes a list whose
@@ -1024,7 +985,7 @@ describe('the directory client', () => {
     };
     for (const effect of Object.values(oneOfEach)) {
       const usage: DirectoryUsage = {
-        projects: [
+        workPackages: [
           {
             id: 'pr1',
             name: 'Rollout',
@@ -1050,14 +1011,17 @@ describe('the directory client', () => {
     // usage with no `members` key would show an empty list while people were
     // about to lose one.
     stub(() =>
-      response(409, JSON.stringify({ error: 'in_use', usage: { projects: USAGE.projects } })),
+      response(
+        409,
+        JSON.stringify({ error: 'in_use', usage: { workPackages: USAGE.workPackages } }),
+      ),
     );
     await expect(httpDirectoryApi('t').removeTeam('t1', false)).rejects.toThrow('invalid_response');
   });
 
   it('throws a work item with no number rather than confirming against a row nobody can find', async () => {
     const noNumber = {
-      projects: [
+      workPackages: [
         { id: 'pr1', name: 'Rollout', workItems: [{ id: 'w7', name: 'Design', effects: [] }] },
       ],
       members: [],
@@ -1140,10 +1104,10 @@ describe('what a refused directory change says', () => {
   });
 });
 
-describe('setting project optimization', () => {
-  it('patches the shared flag, engine, and objective at the project route', async () => {
-    const fetched = stub(() => response(200, JSON.stringify({ project: PROJECT })));
-    const api = httpProjectApi('t');
+describe('setting work package optimization', () => {
+  it('patches the shared flag, engine, and objective at the work package route', async () => {
+    const fetched = stub(() => response(200, JSON.stringify({ workPackage: WORK_PACKAGE })));
+    const api = httpWorkPackageApi('t');
 
     await api.setOptimizationSettings('p1', {
       optimizationEnabled: true,
@@ -1152,7 +1116,7 @@ describe('setting project optimization', () => {
     });
 
     expect(fetched).toHaveBeenCalledTimes(1);
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'PATCH',
       body: JSON.stringify({
@@ -1188,30 +1152,30 @@ function stubbed(status: number, body: string) {
 
 describe('the browser writes through command batches (plan-commands)', () => {
   it('sends a rename as one commands request carrying one patchWorkItem', async () => {
-    // The route is the project’s, and `patch` is given a work item id: the
-    // client knows the project from the tree it read that row in.
+    // The route is the work package’s, and `patch` is given a work item id: the
+    // client knows the work package from the tree it read that row in.
     const fetched = vi.fn((url: string) =>
       Promise.resolve(response(200, url.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED)),
     );
     vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
     await api.patchWorkItem('w1', { name: 'Strip it' });
 
     const [, write] = fetched.mock.calls as [unknown, [string, RequestInit]];
-    expect(write[0]).toBe('/api/projects/p1/commands');
+    expect(write[0]).toBe('/api/work-packages/p1/commands');
     expect(write[1].method).toBe('POST');
     expect(JSON.parse(bodyOf(write[1]))).toEqual({
       commands: [{ kind: 'patchWorkItem', workItemId: 'w1', patch: { name: 'Strip it' } }],
     });
   });
 
-  it('refuses to write to a row no tree has shown it, rather than guessing a project', async () => {
-    // Proof: the projects map made to answer the first project it ever saw,
+  it('refuses to write to a row no tree has shown it, rather than guessing a work package', async () => {
+    // Proof: the work packages map made to answer the first work package it ever saw,
     // this failed on `expected …rejects.toThrow('unknown_work_item')`. Watched,
     // 2026-08-29.
     stubbed(200, APPLIED);
-    await expect(httpProjectApi('t').patchWorkItem('nobody', { name: 'X' })).rejects.toThrow(
+    await expect(httpWorkPackageApi('t').patchWorkItem('nobody', { name: 'X' })).rejects.toThrow(
       'unknown_work_item',
     );
   });
@@ -1232,7 +1196,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
       ),
     );
     vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
     const days = { optimistic: 1, realistic: 2, pessimistic: 3 };
     const writes: [() => Promise<unknown>, string][] = [
@@ -1277,8 +1241,8 @@ describe('the browser writes through command batches (plan-commands)', () => {
       ],
       [() => api.removeTypedDependency('p1', 'd1'), 'removeTypedDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
-      [() => api.freezeProject('p1'), 'freezeProject'],
-      [() => api.unfreezeProject('p1'), 'unfreezeProject'],
+      [() => api.freezeWorkPackage('p1'), 'freezeWorkPackage'],
+      [() => api.unfreezeWorkPackage('p1'), 'unfreezeWorkPackage'],
       [() => api.unfreezeWorkItem('w1'), 'unfreezeWorkItem'],
       [() => api.claimWorkItem('w1', 'person-k'), 'claimWorkItem'],
       [() => api.releaseWorkItem('w1', 'person-k'), 'releaseWorkItem'],
@@ -1292,7 +1256,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
       expect(
         made.map(([url]) => url),
         kind,
-      ).toEqual(['/api/projects/p1/commands']);
+      ).toEqual(['/api/work-packages/p1/commands']);
       const body = JSON.parse(bodyOf(made[0]?.[1])) as { commands: { kind: string }[] };
       expect(
         body.commands.map((each) => each.kind),
@@ -1336,7 +1300,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
         ),
       );
       vi.stubGlobal('fetch', fetched);
-      const api = httpProjectApi('t');
+      const api = httpWorkPackageApi('t');
       await api.updateTypedDependency(
         'p1',
         'd1',
@@ -1384,7 +1348,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
       reason: 'taken',
       survivingName: 'legal',
     });
-    const usage = { projects: [], members: [] };
+    const usage = { workPackages: [], members: [] };
     stubbed(409, JSON.stringify({ error: 'in_use', at: 0, kind: 'deleteTag', usage }));
     const removal = await httpDirectoryApi('t').removeTag('t1', false);
     expect(removal.ok).toBe(false);
@@ -1400,7 +1364,7 @@ describe('reads asked for twice at once', () => {
     });
     const fetched = vi.fn(async () => (await held).clone());
     vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
 
     const first = api.listTeams();
     const second = api.listTeams();
@@ -1416,7 +1380,7 @@ describe('reads asked for twice at once', () => {
   it('asks again once the first has landed', async () => {
     const fetched = vi.fn(() => Promise.resolve(response(200, JSON.stringify({ teams: [] }))));
     vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
 
     await api.listTeams();
     await api.listTeams();
@@ -1432,10 +1396,10 @@ describe('reads asked for twice at once', () => {
     });
     const fetched = vi.fn(() => held);
     vi.stubGlobal('fetch', fetched);
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
 
-    const first = api.openProject('p1');
-    const second = api.openProject('p1');
+    const first = api.openWorkPackage('p1');
+    const second = api.openWorkPackage('p1');
     await vi.waitFor(() => {
       expect(fetched.mock.calls).toHaveLength(2);
     });
@@ -1456,24 +1420,24 @@ describe('the calendar-marker client', () => {
    */
   const MARKER = {
     id: 'm1',
-    projectId: 'p1',
+    workPackageId: 'p1',
     date: '2026-08-19',
     name: 'Launch',
     color: automaticColor('m1'),
     createdAt: 0,
   };
 
-  it('reads the markers off the project route the panel draws from', async () => {
+  it('reads the markers off the work package route the panel draws from', async () => {
     const fetched = stub(() => response(200, JSON.stringify({ markers: [MARKER] })));
 
-    await expect(httpProjectApi('t').listCalendarMarkers('p1')).resolves.toEqual([MARKER]);
+    await expect(httpWorkPackageApi('t').listCalendarMarkers('p1')).resolves.toEqual([MARKER]);
 
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/calendar-markers');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1/calendar-markers');
   });
 
   it('sends the client-named id as `markerId`, which is the only name the route reads', async () => {
     // The one place the wire name and the domain name differ: the path already
-    // spends `id` on the project, so the create body calls the marker's own id
+    // spends `id` on the work package, so the create body calls the marker's own id
     // `markerId` and `calendar-marker.routes.ts` maps it back. A client
     // that sent `id` would have its id silently ignored and be answered a
     // marker under a different one — which is exactly the collision
@@ -1481,7 +1445,7 @@ describe('the calendar-marker client', () => {
     const fetched = stub(() => response(201, JSON.stringify({ marker: MARKER })));
 
     await expect(
-      httpProjectApi('t').createCalendarMarker('p1', {
+      httpWorkPackageApi('t').createCalendarMarker('p1', {
         markerId: 'm1',
         date: '2026-08-19',
         name: 'Launch',
@@ -1489,7 +1453,7 @@ describe('the calendar-marker client', () => {
       }),
     ).resolves.toEqual(MARKER);
 
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/calendar-markers');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1/calendar-markers');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ markerId: 'm1', date: '2026-08-19', name: 'Launch', color: null }),
@@ -1505,12 +1469,14 @@ describe('the calendar-marker client', () => {
       response(200, JSON.stringify({ marker: { ...MARKER, name: 'Ship' } })),
     );
 
-    await expect(httpProjectApi('t').renameCalendarMarker('p1', 'm1', 'Ship')).resolves.toEqual({
-      ...MARKER,
-      name: 'Ship',
-    });
+    await expect(httpWorkPackageApi('t').renameCalendarMarker('p1', 'm1', 'Ship')).resolves.toEqual(
+      {
+        ...MARKER,
+        name: 'Ship',
+      },
+    );
 
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/calendar-markers/m1');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1/calendar-markers/m1');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'PATCH',
       body: JSON.stringify({ name: 'Ship' }),
@@ -1524,7 +1490,7 @@ describe('the calendar-marker client', () => {
     // arm. `null` is a stated choice and the only way to say it on this wire.
     const fetched = stub(() => response(200, JSON.stringify({ marker: MARKER })));
 
-    await httpProjectApi('t').recolorCalendarMarker('p1', 'm1', null);
+    await httpWorkPackageApi('t').recolorCalendarMarker('p1', 'm1', null);
 
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'PATCH',
@@ -1535,9 +1501,9 @@ describe('the calendar-marker client', () => {
   it('reads a removal answered 204 without a body rather than parsing nothing', async () => {
     const fetched = stub(() => response(204, ''));
 
-    await expect(httpProjectApi('t').deleteCalendarMarker('p1', 'm1')).resolves.toBeUndefined();
+    await expect(httpWorkPackageApi('t').deleteCalendarMarker('p1', 'm1')).resolves.toBeUndefined();
 
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/calendar-markers/m1');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1/calendar-markers/m1');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({ method: 'DELETE' });
   });
 });
@@ -1563,17 +1529,17 @@ describe('the claims client', () => {
   it('reads a coherent claims read whole', async () => {
     const fetched = answering([claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')]);
 
-    await expect(httpProjectApi('t').readClaims('p1')).resolves.toEqual({
+    await expect(httpWorkPackageApi('t').readClaims('p1')).resolves.toEqual({
       readAt: 5,
       claims: [claim('c-sub', null), claim('c-dev', 's-dev', 'c-sub')],
     });
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/claims');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1/claims');
   });
 
   it('refuses a claims read with two claims on one step', async () => {
     answering([claim('c-1', 's-dev'), claim('c-2', 's-dev')]);
 
-    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+    await expect(httpWorkPackageApi('t').readClaims('p1')).rejects.toThrow(
       'claims read holds two claims on w1/s-dev',
     );
   });
@@ -1581,7 +1547,7 @@ describe('the claims client', () => {
   it('refuses a claims read whose delegated claim names an unlisted parent', async () => {
     answering([claim('c-dev', 's-dev', 'c-gone')]);
 
-    await expect(httpProjectApi('t').readClaims('p1')).rejects.toThrow(
+    await expect(httpWorkPackageApi('t').readClaims('p1')).rejects.toThrow(
       'claim c-dev names parent c-gone, not in its read',
     );
   });
@@ -1614,7 +1580,7 @@ describe('read ownership across API lifetimes', () => {
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
     );
 
-    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+    await expect(httpWorkPackageApi('t').tree('p1')).rejects.toMatchObject({
       message: 'invalid_response',
       problem: { kind: 'failure', failure: { code: 'invalid_response' } },
     });
@@ -1656,7 +1622,7 @@ describe('read ownership across API lifetimes', () => {
         vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
       );
 
-      await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+      await expect(httpWorkPackageApi('t').tree('p1')).rejects.toMatchObject({
         message: 'invalid_response',
         problem: { kind: 'failure', failure: { code: 'invalid_response' } },
       });
@@ -1683,7 +1649,7 @@ describe('read ownership across API lifetimes', () => {
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
     );
 
-    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+    await expect(httpWorkPackageApi('t').tree('p1')).rejects.toMatchObject({
       problem: { kind: 'failure', failure: { code: 'invalid_response' } },
     });
   });
@@ -1702,7 +1668,7 @@ describe('read ownership across API lifetimes', () => {
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
     );
 
-    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+    await expect(httpWorkPackageApi('t').tree('p1')).rejects.toMatchObject({
       message: 'invalid_response',
       problem: { kind: 'failure', failure: { code: 'invalid_response' } },
     });
@@ -1724,7 +1690,7 @@ describe('read ownership across API lifetimes', () => {
       vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
     );
 
-    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+    await expect(httpWorkPackageApi('t').tree('p1')).rejects.toMatchObject({
       message: 'invalid_response',
       problem: { kind: 'failure', failure: { code: 'invalid_response' } },
     });
@@ -1740,8 +1706,8 @@ describe('read ownership across API lifetimes', () => {
       .mockReturnValueOnce(oldResponse)
       .mockResolvedValue(response(200, TREE('p1', ['new-row'])));
     vi.stubGlobal('fetch', fetched);
-    const oldRead = httpProjectApi('old-session').tree('p1');
-    const newRead = httpProjectApi('new-session').tree('p1');
+    const oldRead = httpWorkPackageApi('old-session').tree('p1');
+    const newRead = httpWorkPackageApi('new-session').tree('p1');
     release(response(200, TREE('p1', ['old-row'])));
     const [before, after] = await Promise.all([oldRead, newRead]);
     expect(before.workItems.map((row) => row.id)).toEqual(['old-row']);
@@ -1752,7 +1718,7 @@ describe('read ownership across API lifetimes', () => {
 
 /**
  * The transport half of the pin that `READS_THE_FULL_SCOPE_MAKES` makes at the
- * `ProjectApi` boundary, in `optimization-integration.test.tsx`.
+ * `WorkPackageApi` boundary, in `optimization-integration.test.tsx`.
  *
  * That one wraps the methods with a recording proxy, so it counts a call
  * ENTERING `tree` and cannot see inside it: a `tree` that quietly issued a
@@ -1763,7 +1729,7 @@ describe('read ownership across API lifetimes', () => {
  * The two are one claim in two places and neither replaces the other. The
  * method-level multiset says WHICH reads a full-scope invalidation performs;
  * this one says each of those reads costs exactly one request, over the real
- * `httpProjectApi` and a fake `fetch`. Break either half and only that half
+ * `httpWorkPackageApi` and a fake `fetch`. Break either half and only that half
  * goes red, which is how they stay readable as separate facts.
  *
  * Sorted on both sides for the same reason the multiset is: what is being
@@ -1771,10 +1737,10 @@ describe('read ownership across API lifetimes', () => {
  * issued in.
  */
 const FULL_SCOPE_PUTS_ON_THE_WIRE = [
-  'GET /api/projects/p1/work-items',
-  'GET /api/projects/p1',
-  'GET /api/projects/p1/calendar-markers',
-  'GET /api/projects/p1/claims',
+  'GET /api/work-packages/p1/work-items',
+  'GET /api/work-packages/p1',
+  'GET /api/work-packages/p1/calendar-markers',
+  'GET /api/work-packages/p1/claims',
   'GET /api/teams',
   'GET /api/tags',
   'GET /api/services',
@@ -1790,10 +1756,10 @@ describe('what a full-scope read puts on the wire', () => {
     // whichever request happened to be third and turn an ordering change into a
     // shape failure somewhere else.
     const bodies: Record<string, string | undefined> = {
-      '/api/projects/p1/work-items': TREE('p1', []),
-      '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
-      '/api/projects/p1/calendar-markers': '{"markers":[]}',
-      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
+      '/api/work-packages/p1/work-items': TREE('p1', []),
+      '/api/work-packages/p1': JSON.stringify({ workPackage: WORK_PACKAGE, steps: [] }),
+      '/api/work-packages/p1/calendar-markers': '{"markers":[]}',
+      '/api/work-packages/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1810,30 +1776,30 @@ describe('what a full-scope read puts on the wire', () => {
       return response(body === undefined ? 404 : 200, body ?? '{}');
     });
     // All ten on the object a socket-driven refresh is actually handed.
-    // `httpProjectApi` builds its own `httpDirectoryApi` and spreads those six
+    // `httpWorkPackageApi` builds its own `httpDirectoryApi` and spreads those six
     // methods into what it returns (`wbs-api.ts:2197`, `:2237-2239`), so calling
     // them on a separately constructed directory would exercise the shared
     // implementations while missing the wiring: remap the spread to send
     // `listTags` to `directory.listServices` — type-compatible — and a pin over
     // an independent directory stays green while a real refresh asks for
     // `/api/services` twice and never asks for `/api/tags`.
-    const project = httpProjectApi('t');
+    const workPackage = httpWorkPackageApi('t');
 
     // Settled rather than awaited: an unlisted path has to surface as an extra
     // entry in `requests` naming it, and not as the response-validation
     // rejection its 404 would raise first. The reads are still required to have
     // succeeded — that assertion just comes after the multiset.
     const settled = await Promise.allSettled([
-      project.tree('p1'),
-      project.steps('p1'),
-      project.listCalendarMarkers('p1'),
-      project.readClaims('p1'),
-      project.listTeams(),
-      project.listTags(),
-      project.listServices(),
-      project.listWorkItemTypes(),
-      project.listExternalSystems(),
-      project.listPeople(),
+      workPackage.tree('p1'),
+      workPackage.steps('p1'),
+      workPackage.listCalendarMarkers('p1'),
+      workPackage.readClaims('p1'),
+      workPackage.listTeams(),
+      workPackage.listTags(),
+      workPackage.listServices(),
+      workPackage.listWorkItemTypes(),
+      workPackage.listExternalSystems(),
+      workPackage.listPeople(),
     ]);
 
     expect([...requests].sort()).toEqual([...FULL_SCOPE_PUTS_ON_THE_WIRE].sort());
@@ -1845,11 +1811,11 @@ describe('what a full-scope read puts on the wire', () => {
    * The case above is unconditional by construction: one fresh client, one
    * unoptimized tree, one pass. A request that is CONDITIONAL therefore slips
    * past it — Sol's mutant on TASK-342 round 2 adds a second
-   * `getApiProjectsByIdWork-items` inside `httpProjectApi.tree` guarded by
+   * `getApiWorkPackagesByIdWork-items` inside `httpWorkPackageApi.tree` guarded by
    * `tree.optimization !== undefined`, or by that client having already
    * completed one tree read, and both the case above and the two method-level
-   * cases in `optimization-integration.test.tsx` — which use `fakeProjectApi`
-   * and never reach the wire — stay green while a real optimized project sends
+   * cases in `optimization-integration.test.tsx` — which use `fakeWorkPackageApi`
+   * and never reach the wire — stay green while a real optimized work package sends
    * ten requests for one full-scope refresh.
    *
    * Both guards are exercised here rather than in a third file. The branch is
@@ -1860,7 +1826,7 @@ describe('what a full-scope read puts on the wire', () => {
    * `FULL_SCOPE_PUTS_ON_THE_WIRE` also keeps the claim readable as two places
    * rather than three.
    */
-  it('spends the same ten on an optimized project, and again on the same client', async () => {
+  it('spends the same ten on an optimized work package, and again on the same client', async () => {
     const optimized = JSON.parse(TREE('p1', [])) as Record<string, unknown>;
     optimized['optimization'] = {
       enabled: true,
@@ -1876,10 +1842,10 @@ describe('what a full-scope read puts on the wire', () => {
       sameOrderAsFast: { pri: true },
     };
     const bodies: Record<string, string | undefined> = {
-      '/api/projects/p1/work-items': JSON.stringify(optimized),
-      '/api/projects/p1': JSON.stringify({ project: PROJECT, steps: [] }),
-      '/api/projects/p1/calendar-markers': '{"markers":[]}',
-      '/api/projects/p1/claims': '{"readAt":0,"claims":[]}',
+      '/api/work-packages/p1/work-items': JSON.stringify(optimized),
+      '/api/work-packages/p1': JSON.stringify({ workPackage: WORK_PACKAGE, steps: [] }),
+      '/api/work-packages/p1/calendar-markers': '{"markers":[]}',
+      '/api/work-packages/p1/claims': '{"readAt":0,"claims":[]}',
       '/api/teams': '{"teams":[]}',
       '/api/tags': '{"tags":[]}',
       '/api/services': '{"services":[]}',
@@ -1893,19 +1859,19 @@ describe('what a full-scope read puts on the wire', () => {
       const body = bodies[path.split('?')[0] ?? path];
       return response(body === undefined ? 404 : 200, body ?? '{}');
     });
-    const project = httpProjectApi('t');
+    const workPackage = httpWorkPackageApi('t');
     const fullScope = (): Promise<PromiseSettledResult<unknown>[]> =>
       Promise.allSettled([
-        project.tree('p1'),
-        project.steps('p1'),
-        project.listCalendarMarkers('p1'),
-        project.readClaims('p1'),
-        project.listTeams(),
-        project.listTags(),
-        project.listServices(),
-        project.listWorkItemTypes(),
-        project.listExternalSystems(),
-        project.listPeople(),
+        workPackage.tree('p1'),
+        workPackage.steps('p1'),
+        workPackage.listCalendarMarkers('p1'),
+        workPackage.readClaims('p1'),
+        workPackage.listTeams(),
+        workPackage.listTags(),
+        workPackage.listServices(),
+        workPackage.listWorkItemTypes(),
+        workPackage.listExternalSystems(),
+        workPackage.listPeople(),
       ]);
 
     const first = await fullScope();
@@ -1935,11 +1901,11 @@ describe('setting a row’s status', () => {
           : JSON.stringify({ results: [{ index: 0 }], undoable: true, redoable: false }),
       ),
     );
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
     await api.setStatus('w1', 'done', '2026-09-12');
 
-    expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+    expect(fetched.mock.calls[1]?.[0]).toBe('/api/work-packages/p1/commands');
     expect(fetched.mock.calls[1]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({
@@ -1972,13 +1938,13 @@ describe('writing one step node’s progress through the learned row', () => {
       const fetched = stub((path) =>
         response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
       );
-      const api = httpProjectApi('t');
+      const api = httpWorkPackageApi('t');
       await api.tree('p1');
 
       await api.setProgress('w1', 'step-1', state);
 
       expect(fetched.mock.calls).toHaveLength(2);
-      expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+      expect(fetched.mock.calls[1]?.[0]).toBe('/api/work-packages/p1/commands');
       expect(fetched.mock.calls[1]?.[1]?.method).toBe('POST');
       expect(JSON.parse(bodyOf(fetched.mock.calls[1]?.[1]))).toEqual({
         commands: [{ kind: 'setProgress', workItemId: 'w1', stepId: 'step-1', state }],
@@ -1990,13 +1956,13 @@ describe('writing one step node’s progress through the learned row', () => {
     const fetched = stub((path) =>
       response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
     );
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
 
     await api.clearProgress('w1', 'step-1');
 
     expect(fetched.mock.calls).toHaveLength(2);
-    expect(fetched.mock.calls[1]?.[0]).toBe('/api/projects/p1/commands');
+    expect(fetched.mock.calls[1]?.[0]).toBe('/api/work-packages/p1/commands');
     expect(fetched.mock.calls[1]?.[1]?.method).toBe('POST');
     expect(JSON.parse(bodyOf(fetched.mock.calls[1]?.[1]))).toEqual({
       commands: [{ kind: 'clearProgress', workItemId: 'w1', stepId: 'step-1' }],
@@ -2010,14 +1976,14 @@ describe('writing one step node’s progress through the learned row', () => {
         ? response(200, TREE('p1', ['w1']))
         : response(404, JSON.stringify(refusal)),
     );
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
 
     await expect(api.setProgress('w1', 'missing-step', 'done')).rejects.toMatchObject({
       name: WbsRequestError.name,
       problem: {
         kind: 'refusal',
-        operation: 'postApiProjectsByIdCommands',
+        operation: 'postApiWorkPackagesByIdCommands',
         refusal,
       },
     });
@@ -2028,7 +1994,7 @@ describe('writing one step node’s progress through the learned row', () => {
     const fetched = stub((path) =>
       response(200, path.endsWith('/work-items') ? TREE('p1', ['w1']) : APPLIED),
     );
-    const api = httpProjectApi('t');
+    const api = httpWorkPackageApi('t');
     await api.tree('p1');
 
     await expect(api.clearProgress('w2', 'step-1')).rejects.toThrow('unknown_work_item');
@@ -2036,7 +2002,7 @@ describe('writing one step node’s progress through the learned row', () => {
   });
 });
 
-it('sends explicit estimate units on create and unit patch without converting values', async () => {
+it('sends an explicit package estimate unit without converting values', async () => {
   const fetch = vi.fn((_url: RequestInfo | URL, _init?: RequestInit) =>
     Promise.resolve(
       response(
@@ -2044,7 +2010,7 @@ it('sends explicit estimate units on create and unit patch without converting va
         JSON.stringify({
           step: {
             id: 'agent',
-            projectId: 'p1',
+            workPackageId: 'p1',
             name: 'Agent',
             position: 0,
             allowancePercent: 0,
@@ -2055,16 +2021,14 @@ it('sends explicit estimate units on create and unit patch without converting va
     ),
   );
   vi.stubGlobal('fetch', fetch);
-  const api = httpProjectApi('token');
-  expect((await api.addStep('p1', 'Agent', 'minutes')).estimateUnit).toBe('minutes');
+  const api = httpWorkPackageApi('token');
   expect((await api.setStepUnit('p1', 'agent', 'minutes')).estimateUnit).toBe('minutes');
   expect(fetch.mock.calls.map((call) => call[1]?.body)).toEqual([
-    JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
     JSON.stringify({ estimateUnit: 'minutes' }),
   ]);
 });
 
-describe('project address observation client', () => {
+describe('work package address observation client', () => {
   it('preserves typed stale refusals and passes selected identity and observation', async () => {
     const fetcher = vi
       .fn()
@@ -2075,41 +2039,47 @@ describe('project address observation client', () => {
         ),
       );
     vi.stubGlobal('fetch', fetcher);
-    const { httpProjectAddressApi } = await import('./wbs-api');
-    const answer = await httpProjectAddressApi('token').resolve('selected', 'P.010', 'qar1:old');
+    const { httpWorkPackageAddressApi } = await import('./wbs-api');
+    const answer = await httpWorkPackageAddressApi('token').resolve(
+      'selected',
+      'P.010',
+      'qar1:old',
+    );
     expect(answer.kind).toBe('refusal');
     if (answer.kind === 'refusal')
       expect(answer.body).toEqual({ error: 'stale_address_revision', addressRevision: 'qar1:new' });
     const called = String(fetcher.mock.calls[0][0]);
-    expect(called).toContain('/api/projects/selected/address-references');
+    expect(called).toContain('/api/work-packages/selected/address-references');
     expect(called).toContain('revision=qar1%3Aold');
   });
-  it('cancels before issuing an external project discovery request', async () => {
+  it('cancels before issuing an external work package discovery request', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);
     const abort = new AbortController();
     abort.abort();
-    const { httpProjectAddressApi } = await import('./wbs-api');
-    expect(await httpProjectAddressApi('token').projects({ q: 'P' }, abort.signal)).toEqual({
-      kind: 'failure',
-      failure: { code: 'cancelled' },
-    });
+    const { httpWorkPackageAddressApi } = await import('./wbs-api');
+    expect(await httpWorkPackageAddressApi('token').workPackages({ q: 'P' }, abort.signal)).toEqual(
+      {
+        kind: 'failure',
+        failure: { code: 'cancelled' },
+      },
+    );
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
 
-describe('project abbreviation settings', () => {
+describe('work package abbreviation settings', () => {
   it('patches only the abbreviation and returns the canonical stored code', async () => {
     const fetched = stub(() =>
       response(
         200,
-        JSON.stringify({ project: { ...PROJECT, abbreviation: 'PUNI2-CORE_MAIN12345' } }),
+        JSON.stringify({ workPackage: { ...WORK_PACKAGE, abbreviation: 'PUNI2-CORE_MAIN12345' } }),
       ),
     );
-    expect(await httpProjectApi('t').setAbbreviation('p1', 'puni2-core_main12345')).toBe(
+    expect(await httpWorkPackageApi('t').setAbbreviation('p1', 'puni2-core_main12345')).toBe(
       'PUNI2-CORE_MAIN12345',
     );
-    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/work-packages/p1');
     expect(fetched.mock.calls[0]?.[1]).toMatchObject({
       method: 'PATCH',
       body: JSON.stringify({ abbreviation: 'puni2-core_main12345' }),
@@ -2120,22 +2090,22 @@ describe('project abbreviation settings', () => {
     [409, 'abbreviation_taken'],
   ] as const)('retains typed refusal %s %s', async (status, error) => {
     stub(() => response(status, JSON.stringify({ error })));
-    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow(error);
+    await expect(httpWorkPackageApi('t').setAbbreviation('p1', 'other')).rejects.toThrow(error);
   });
   it('rejects a successful response missing its trusted abbreviation', async () => {
-    const { abbreviation: _abbreviation, ...missing } = PROJECT;
-    stub(() => response(200, JSON.stringify({ project: missing })));
-    await expect(httpProjectApi('t').setAbbreviation('p1', 'other')).rejects.toThrow();
+    const { abbreviation: _abbreviation, ...missing } = WORK_PACKAGE;
+    stub(() => response(200, JSON.stringify({ workPackage: missing })));
+    await expect(httpWorkPackageApi('t').setAbbreviation('p1', 'other')).rejects.toThrow();
   });
 });
 
 it('preserves exact captured remote coordinates and labels through the HTTP tree adapter', async () => {
   const endpoint = {
-    endpoint: { projectId: 'remote-id', scope: 'whole', workItemId: 'remote-row' },
+    endpoint: { workPackageId: 'remote-id', scope: 'whole', workItemId: 'remote-row' },
     isLeaf: true,
     revision: 4,
     name: 'Captured title',
-    projectAbbreviation: 'RENAMED',
+    workPackageAbbreviation: 'RENAMED',
     workItemNumber: '080',
     step: null,
     qualifiedReference: 'RENAMED.080',
@@ -2146,21 +2116,24 @@ it('preserves exact captured remote coordinates and labels through the HTTP tree
   wire['connectedDependencies'] = [
     {
       id: 'remote-relationship',
-      projectId: 'p1',
+      workPackageId: 'p1',
       type: 'FS',
       predecessor: endpoint,
-      successor: { ...endpoint, endpoint: { projectId: 'p1', scope: 'whole', workItemId: 'w1' } },
+      successor: {
+        ...endpoint,
+        endpoint: { workPackageId: 'p1', scope: 'whole', workItemId: 'w1' },
+      },
     },
   ];
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve(response(200, JSON.stringify(wire)))),
   );
-  const plan = await httpProjectApi('t').tree('p1');
+  const plan = await httpWorkPackageApi('t').tree('p1');
   expect(plan.typedDependencies).toMatchObject([
     {
       id: 'remote-relationship',
-      predecessor: { projectId: 'remote-id', workItemId: 'remote-row', captured: endpoint },
+      predecessor: { workPackageId: 'remote-id', workItemId: 'remote-row', captured: endpoint },
       successor: { workItemId: 'w1' },
     },
   ]);
@@ -2179,10 +2152,12 @@ it('keeps the typed boundary Retry refusal through the generated client', async 
       ),
     ),
   );
-  await expect(httpProjectApi('token').retryOptimization('p1', 'pri', 'q1')).rejects.toMatchObject({
+  await expect(
+    httpWorkPackageApi('token').retryOptimization('p1', 'pri', 'q1'),
+  ).rejects.toMatchObject({
     problem: {
       kind: 'refusal',
-      operation: 'postApiProjectsByIdOptimizationRetry',
+      operation: 'postApiWorkPackagesByIdOptimizationRetry',
       refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
     },
   });
@@ -2193,63 +2168,89 @@ it.each([
   ['other', 'pending'],
   ['p1', 'terminal'],
   ['other', 'terminal'],
-])('preserves connected packets only for the URL project: %s %s', async (projectId, state) => {
-  const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
-  tree.optimization = {
-    enabled: true,
-    engine: 'optimized',
-    objective: 'time',
-    inputHash: 'input',
-    generation: null,
-    contractVersion: 'test',
-    budgetMs: 100,
-    displayed: 'fast',
-    variants: {
-      pri: { state: 'pending' },
-      time:
-        state === 'pending'
-          ? { state: 'pending' }
-          : {
-              state: 'boundary-infeasible',
-              certificate: {
-                kind: 'boundary-infeasible',
-                question: {
-                  projectId: 'p1',
-                  objective: 'time',
-                  inputHash: 'input',
-                  questionHash: 'separate',
-                  contractVersion: 'test',
-                  budgetMs: 100,
-                  quantum: 48,
-                  wireVersion: 5,
-                  stageBytes: 'captured',
+])(
+  'preserves connected packets only for the URL work package: %s %s',
+  async (workPackageId, state) => {
+    const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
+    tree.optimization = {
+      enabled: true,
+      engine: 'optimized',
+      objective: 'time',
+      inputHash: 'input',
+      generation: null,
+      contractVersion: 'test',
+      budgetMs: 100,
+      displayed: 'fast',
+      variants: {
+        pri: { state: 'pending' },
+        time:
+          state === 'pending'
+            ? { state: 'pending' }
+            : {
+                state: 'boundary-infeasible',
+                certificate: {
+                  kind: 'boundary-infeasible',
+                  question: {
+                    workPackageId: 'p1',
+                    objective: 'time',
+                    inputHash: 'input',
+                    questionHash: 'separate',
+                    contractVersion: 'test',
+                    budgetMs: 100,
+                    quantum: 48,
+                    wireVersion: 5,
+                    stageBytes: 'captured',
+                  },
+                  evidence: 'contradictory-bounds',
                 },
-                evidence: 'contradictory-bounds',
               },
-            },
-    },
-    finishDays: { fast: 1 },
-    sameOrderAsFast: {},
-    scope: {
-      kind: 'connected-stage',
-      projectId: 'p1',
-      originOrdinal: 1,
-      mode: 'isolated',
-      quantum: 48,
-      wireVersion: 5,
-      boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
-      fixed: [],
-    },
-  };
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
-  );
-  if (projectId === 'p1') {
-    expect((await httpProjectApi('t').tree(projectId)).optimization).toEqual(tree.optimization);
-  } else {
-    await expect(httpProjectApi('t').tree(projectId)).rejects.toThrow(
-      'connected_optimization_project_mismatch',
+      },
+      finishDays: { fast: 1 },
+      sameOrderAsFast: {},
+      scope: {
+        kind: 'connected-stage',
+        workPackageId: 'p1',
+        originOrdinal: 1,
+        mode: 'isolated',
+        quantum: 48,
+        wireVersion: 5,
+        boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
+        fixed: [],
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
     );
-  }
-});
+    if (workPackageId === 'p1') {
+      expect((await httpWorkPackageApi('t').tree(workPackageId)).optimization).toEqual(
+        tree.optimization,
+      );
+    } else {
+      await expect(httpWorkPackageApi('t').tree(workPackageId)).rejects.toThrow(
+        'connected_optimization_work_package_mismatch',
+      );
+    }
+  },
+);
+
+it.each([
+  [404, 'unknown_step'],
+  [422, 'step_not_resolved'],
+  [409, 'type_conflict'],
+] as const)(
+  'bulk estimate import transport retains status %s refusal %s and document location',
+  async (status, error) => {
+    const document = await importDocument();
+    const body = { error, path: 'workItems[0].estimates[0]', detail: null };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(status, JSON.stringify(body)))),
+    );
+    const refusal = httpWorkPackageApi('token').importPlan('fixture-project', document, {
+      defineMissing: false,
+    });
+    await expect(refusal).rejects.toBeInstanceOf(PlanImportRefusalError);
+    await expect(refusal).rejects.toMatchObject({ name: 'PlanImportRefusalError', refusal: body });
+  },
+);

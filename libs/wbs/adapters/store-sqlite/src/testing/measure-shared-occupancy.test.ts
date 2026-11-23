@@ -7,7 +7,7 @@ import {
 } from './shared-occupancy-measurement';
 
 const targets: ClaimTarget[] = Array.from({ length: 200 }, (_, index) => ({
-  projectId: 'P1',
+  workPackageId: 'P1',
   workItemId: `L${String(index)}`,
   personId: `A${String(index)}`,
   steps: ['dev', 'qa'],

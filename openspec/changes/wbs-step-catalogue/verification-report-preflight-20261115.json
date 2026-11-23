@@ -1,0 +1,642 @@
+{
+  "schema": "verification-report-preflight-v1",
+  "recordedDate": "2026-11-15",
+  "scope": {
+    "kind": "Private actual SQLite migration/reporter/preflight tests and exact production-body fault replicas",
+    "historicalCanonicalSourceCount": 475,
+    "historicalCanonicalSourceSha256": "de90844328d1341afca2601eb3fd4d767bb048fb012b4021cb8200614c1fd03c",
+    "qualification": "Canonical source was not mutated. Import/header relocation was applied only to private replicas; no live-run or gate claim."
+  },
+  "nativeRecordFormat": {
+    "originalLocator": "Directory containing native.log, native.receipt.json and native.validation.json. Hashes bind originals. No full logs/environment records are embedded.",
+    "allNativeFlags": {
+      "originalObserved": true,
+      "settled": true,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    }
+  },
+  "executedSources": [
+    {
+      "file": "classify-step-migration.ts",
+      "originalSha256": "82157a657654aad52aa915abe2dde13cdcf3ed979d47e90bb86cfef03dfcbfcb",
+      "originalBytes": 9800,
+      "executedSha256": "5440732031eed6595382dce273b0e8bbad44b360b1c1bc75a86319faf7fe638f",
+      "executedBytes": 9914
+    },
+    {
+      "file": "step-catalogue-report-capture.ts",
+      "originalSha256": "4412fafd395b03b3579d76d2473eb844088b60294630673e91c14b885268aa29",
+      "originalBytes": 13501,
+      "executedSha256": "3054f5c9154ef5d10279f29b3714fb1186bf2fd4dc0fe9fbcea68cac313f450f",
+      "executedBytes": 13754
+    },
+    {
+      "file": "step-catalogue-report.ts",
+      "originalSha256": "96d04fde9b770764d5162383ed9707518bbc47007991972fa35d6cb73eb4df52",
+      "originalBytes": 11153,
+      "executedSha256": "15e8f7ceadebffa40051f7d53bc0510fb7a08ca6367957e0fcd508f660f6ee9d",
+      "executedBytes": 11456
+    },
+    {
+      "file": "step-catalogue-report.db.test.ts",
+      "originalSha256": "c580be675fc05aa2f5e1363872f3e250732d653689c7437e878fb62e2ea000d5",
+      "originalBytes": 62251,
+      "executedSha256": "edce8df5aeacd475cdb237f3988e09e251c5c63cb24dd10dbf911dea0d77eacf",
+      "executedBytes": 62765
+    }
+  ],
+  "relocation": {
+    "kind": "Import/header-only private relocation",
+    "adaptationSha256": "4bf44d19b5d7aa5e428a24988bd31b48f03fa9af04dfaee0729500dfe73b7652",
+    "qualification": "Source bodies were independently reviewed; private import URLs differ from eventual repository imports."
+  },
+  "ordinary": {
+    "counts": {
+      "pass": 74,
+      "fail": 0,
+      "expects": 1664,
+      "files": 1,
+      "durationSeconds": 36.28
+    },
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "/tmp/puni-step-catalogue-fact-full-green-v2/step-catalogue-report.db.test.ts",
+        "--timeout=30000"
+      ],
+      "cwd": "/home/df/.codex/worktrees/af5e/puni-00",
+      "deadlineMs": 180000
+    },
+    "argvSha256": "1c4ed28f8fa74d0b773c482e33329c97722c88b32408b5a0bb43b6ef35560028",
+    "exitCode": 0,
+    "originalLocator": "/tmp/puni-step-catalogue-fact-full-green-v2",
+    "rawSha256": "a4f998491f254dff6feafa96882af5b47b6872f5c8fe29f8853f7a6594ef5a9b",
+    "rawBytes": 7929,
+    "receiptSha256": "631afcc2555a322f8db2e7fdb118d48ebf9149e71be3ab5030145d5e6773b12a",
+    "validationSha256": "175f263cb2916adfca6ad50b98379c5461ecb77543849499649cb87d2fbfa9be",
+    "requestSha256": "aad6ac09b1e3ddc46cfde1263ede60483e20f98f141d3ad2d44ab7271cfc2a42",
+    "validation": {
+      "post475Matched": true,
+      "supportsMatched": true,
+      "evidenceMatched": true
+    },
+    "nativeFlags": "allNativeFlags",
+    "coverage": [
+      "Seven report kinds",
+      "Atomic report replacement rollback and report migration downpair",
+      "Independent reversed-input binary identity tie",
+      "All15 step-FK columns in13 actual tables",
+      "Nullable whole/subtree/parent scope and paired external references",
+      "Empty-package divergence",
+      "Tree/type/fact/lease fingerprint changes",
+      "Trusted-state corruption with restored constraints"
+    ],
+    "qualification": "Named ordinary controls, not removal proofs for all reporter safety checks."
+  },
+  "finiteAcceptance": {
+    "indexLocator": "/tmp/puni-step-rules-faults-v1/root-observed-index.json",
+    "indexSha256": "90d2880f9a6e0ce3d69baee9dce8bf44117c1a931ee5fce0969503988fd1e3e4",
+    "commandNormalization": {
+      "meaning": "Replace {id}/{testTitle} literally for each fault. For group controls append the | join of the referenced testTitle+$ strings between argvPrefix and argvSuffix. argvSha256 hashes JSON.stringify of the expanded actual argv.",
+      "fault": {
+        "cwd": "/home/df/.codex/worktrees/af5e/puni-00",
+        "deadlineMs": 120000,
+        "argvTemplate": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "/tmp/puni-step-rules-faults-v1/{id}/step-catalogue-report.db.test.ts",
+          "--test-name-pattern",
+          "{testTitle}$",
+          "--timeout=30000"
+        ]
+      },
+      "healthyGroup": {
+        "cwd": "/home/df/.codex/worktrees/af5e/puni-00",
+        "deadlineMs": 120000,
+        "argvPrefix": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "/tmp/puni-step-rules-fixture-green-v2/step-catalogue-report.db.test.ts",
+          "--test-name-pattern"
+        ],
+        "selector": {
+          "join": "|",
+          "appendToEachTitle": "$",
+          "faultIds": [
+            "P01",
+            "P02",
+            "P03",
+            "P04",
+            "P05",
+            "P06",
+            "P07",
+            "P08",
+            "P09",
+            "P10",
+            "P11",
+            "P12"
+          ]
+        },
+        "argvSuffix": ["--timeout=30000"]
+      }
+    },
+    "healthyControls": [
+      {
+        "counts": {
+          "pass": 12,
+          "fail": 0,
+          "filtered": 31,
+          "expects": 164
+        },
+        "argvSha256": "8bf7486bfbf350d01381cd533081433f10e0af42d3a30ae50e03d5ae5cf23385",
+        "exitCode": 0,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/before",
+        "rawSha256": "7585daf90ac47c7b7ba10b69d16d4659f6dabb24d16b36ef04a8070d55500190",
+        "rawBytes": 1410,
+        "receiptSha256": "49ef042e46965979923f835271f48fc08f0c21f3b0b1870f5a079d23f207ea0e",
+        "validationSha256": "f296901cbe76725cac5c84557570072add27ada9c2a61c902744cf47e89757d9",
+        "requestSha256": "fb959b83c9b0607d05f3cf55d30a295ae2f0a818cf0059d93ddcfa51466227a0",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "phase": "before",
+        "commandRef": "healthyGroup"
+      },
+      {
+        "counts": {
+          "pass": 12,
+          "fail": 0,
+          "filtered": 31,
+          "expects": 164
+        },
+        "argvSha256": "8bf7486bfbf350d01381cd533081433f10e0af42d3a30ae50e03d5ae5cf23385",
+        "exitCode": 0,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/after",
+        "rawSha256": "9d0bb1f2b9ecf7f7ddadbe2506940c42b3fdace94febd537cb99450dd4f11157",
+        "rawBytes": 1410,
+        "receiptSha256": "d1f721aafac887844b8298b58bdbee41a18a915d612c2a6d8349e58752d4bb02",
+        "validationSha256": "7a684ce414db73e0cec6e3fe9aa789cc8e68d80b49cb8c15417e2186f8da5e49",
+        "requestSha256": "a962e316a86b2a6bf8abbcac4ffc54428bb26220a6f8dd4143d1f761cfe0e15a",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "phase": "after",
+        "commandRef": "healthyGroup"
+      }
+    ],
+    "faults": [
+      {
+        "id": "P01",
+        "boundary": "root unknown keys",
+        "testTitle": "refuses malformed merge rules with unknown root projects without writing the store",
+        "sourceEffect": {
+          "before": "const MergeRules = type({\n  version: '1',\n  fingerprint: /^[0-9a-f]{64}$/,\n  organizations: type({ '[string]': OrganizationRules }),\n}).onUndeclaredKey('reject');",
+          "after": "const MergeRules = type({\n  version: '1',\n  fingerprint: /^[0-9a-f]{64}$/,\n  organizations: type({ '[string]': OrganizationRules }),\n}).onUndeclaredKey('ignore');",
+          "occurrences": 1,
+          "utf8Offset": 3270
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "091c1c391514d8acb9345c90d94a3d0e087b24dab11a8ff46a88ebe406d9cdf5",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "8a4a8b59cc1434451fef29407665e45d8064c9dea90f3072b9582409a61ee6a5",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P01",
+        "rawSha256": "7109bee764b691ea0ba1ee1a68a11d3932d3893941abd5365b2e9f448605ec54",
+        "rawBytes": 953,
+        "receiptSha256": "54cef86d1bbfd6e9413e4fdf62c07f8022e5b0891cd80b67d5cb0e52f11a9ba9",
+        "validationSha256": "e6c4cd473776b0395b936d989c9c0e7c068a50ef87bdbd9cda0cffb56ed52408",
+        "requestSha256": "bac3c48059eb8a0da85f54369b1fb8515d0f2849dd8813161cfcb4bdcacffe5d",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Only this named object level. Installed onUndeclaredKey(string) is shallow. No arbitrary prototype/input-shape or other schema-constraint credit."
+      },
+      {
+        "id": "P02",
+        "boundary": "organization unknown keys",
+        "testTitle": "refuses malformed merge rules with unknown organization projects without writing the store",
+        "sourceEffect": {
+          "before": "const OrganizationRules = type({\n  codes: type({ '[string]': SurvivorRule }),\n  uncoded: type({ '[string]': UncodedRule }),\n}).onUndeclaredKey('reject');",
+          "after": "const OrganizationRules = type({\n  codes: type({ '[string]': SurvivorRule }),\n  uncoded: type({ '[string]': UncodedRule }),\n}).onUndeclaredKey('ignore');",
+          "occurrences": 1,
+          "utf8Offset": 3116
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "883d54dcaffd1e6b82558fa3e8d511c1e0c373ccbd015e195c8eb92ff2ff00e6",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "ff7dda5390eba71e9e6c61eeaf312c878e88fcc32f69c19721c4701f6f420df4",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P02",
+        "rawSha256": "306fba275ee4261fa0e5e051b1c7bb190b87cfecdaf8e1d2c2bb8262f7997b97",
+        "rawBytes": 961,
+        "receiptSha256": "3c240be62691142553d84dfd8270d959d87b52770801826d47ffff9a78c82854",
+        "validationSha256": "f2b04067d8ec92b27deca0e56ba35cc534d5ab213c10eccf01b9bc0e7c725a46",
+        "requestSha256": "f556bb743250e4ada74f16f0407326197f2b746a71d77a43afaa35ea30826d68",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Only this named object level. Installed onUndeclaredKey(string) is shallow. No arbitrary prototype/input-shape or other schema-constraint credit."
+      },
+      {
+        "id": "P03",
+        "boundary": "survivor unknown keys",
+        "testTitle": "refuses malformed merge rules with unknown survivor field without writing the store",
+        "sourceEffect": {
+          "before": "const SurvivorRule = type({ survivorStepId: 'string > 0' }).onUndeclaredKey('reject');",
+          "after": "const SurvivorRule = type({ survivorStepId: 'string > 0' }).onUndeclaredKey('ignore');",
+          "occurrences": 1,
+          "utf8Offset": 2953
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "d14c2c13bce4ba08d0e4568854708e059bb26a2e7a4276c9d446d362ced2cd2c",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "b304e60d4f3db1d1a0cf88534e46c67082823c74904e8853de29897ae6587212",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P03",
+        "rawSha256": "79cf18e4b154f2991c5cbc635becd09b4f6aa66a1f6700d9f5989ddb9bae6601",
+        "rawBytes": 954,
+        "receiptSha256": "7baa0d491d0db3ea6ef549fb70890b5b9dd114963d2c5892ce8a0b8277a54e0b",
+        "validationSha256": "0dfeb476bf6497891332eb7963484050b0f783642ebd23148c34ab7d6fbbd8ad",
+        "requestSha256": "e262b16b4de70a08c036f5ab4909b733bce46f20eef20582c79b7d32211332df",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Only this named object level. Installed onUndeclaredKey(string) is shallow. No arbitrary prototype/input-shape or other schema-constraint credit."
+      },
+      {
+        "id": "P04",
+        "boundary": "confirmation unknown keys",
+        "testTitle": "refuses malformed merge rules with unknown confirmation field without writing the store",
+        "sourceEffect": {
+          "before": "const UncodedRule = type({ code: 'string > 0' }).onUndeclaredKey('reject');",
+          "after": "const UncodedRule = type({ code: 'string > 0' }).onUndeclaredKey('ignore');",
+          "occurrences": 1,
+          "utf8Offset": 3040
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "9925f7f98fc4441677034bbd653cbe1e4309f0713f9fe73c0e637d86d5214b9c",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 12
+        },
+        "argvSha256": "9e1ad1cb73a2e53d284801d4be91ab3269927fe141b7885a9b3ccc18a230ab0f",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P04",
+        "rawSha256": "3497be4bb0fabe0b52b8985258e9d711b062e389661c8a4ac94ed704c0024144",
+        "rawBytes": 958,
+        "receiptSha256": "4443c58cb1d1cc6f86a490cce1e1361e27ce22c83b22f9b102200049f843c9b0",
+        "validationSha256": "0509814c91f037ff7a2341beb11faccbd7fc881bfa64999949ffc69229b79bad",
+        "requestSha256": "b8b96d05c71f16f8005c38b815cd72f1b8853ef248053217f6061858a78d8273",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Only this named object level. Installed onUndeclaredKey(string) is shallow. No arbitrary prototype/input-shape or other schema-constraint credit."
+      },
+      {
+        "id": "P05",
+        "boundary": "literal version",
+        "testTitle": "refuses malformed merge rules with unsupported version without writing the store",
+        "sourceEffect": {
+          "before": "  version: '1',",
+          "after": "  version: 'number',",
+          "occurrences": 1,
+          "utf8Offset": 3296
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "8a84d209e0a8a5616b416574b10b475edf892e8ad87829ced6fc25ca4330b8a0",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "7120b23d0edc5e43cd8b0b90ba9c6aabd9653b8e91abe5fc60551389aa2cdf11",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P05",
+        "rawSha256": "54944cfb87a2d17be4b8b6a18e44cc3925f379849d66210fb8919b90c2641ec9",
+        "rawBytes": 951,
+        "receiptSha256": "d2fe4667ac83456310a53c08d7eb4f8c0ad86abc27cc3d800f340ec73a1e6b63",
+        "validationSha256": "df7da07aee4e076a87badb6c1f8f099f970a07e7a39119829a3c308bad662f61",
+        "requestSha256": "1d68cee051186f7ac48d08f575164095f0d54ae1c30f8eb41a1b0ada469ef6e4",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Allows a number rather than literal 1 only; no other malformed primitive/type credit."
+      },
+      {
+        "id": "P06",
+        "boundary": "fresh fingerprint comparison",
+        "testTitle": "refuses a stale merge-rules fingerprint after an actual step write without refreshing report rows",
+        "sourceEffect": {
+          "before": "    if (rules.fingerprint !== fingerprint)\n      throw new Error('step merge-rules fingerprint does not match current source');\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 4556
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "16ca043e76064cf5672482318a14495fd7957767cd75a1d96f5cdd0a8ed7b00e",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "1d8d2ea11d98e95ec9b52bb675444c89d0cdab78c88f5b80266d74588d4d620c",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P06",
+        "rawSha256": "b7917de9b49f0c11fe5d55885009a4c53719eb40ba4445211779861e6b17add0",
+        "rawBytes": 968,
+        "receiptSha256": "6c1c039e4d0e89662994e81ced528993e6eb05b713a07f29ca1ce28391170631",
+        "validationSha256": "d721510ea3c319be99de71fe4b646e8af475fb100f257239489af3c3c851ae23",
+        "requestSha256": "932c8ae5238ada8c063830b6bd39eb6a34486a2d296416e4dda921f3912016bb",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Does not prove every captured field, generic snapshot isolation, or report refresh behavior. Later full-state equality is unreached after the fault."
+      },
+      {
+        "id": "P07",
+        "boundary": "selected organization admission",
+        "testTitle": "refuses merge rules selecting unknown organization without writing the store",
+        "sourceEffect": {
+          "before": "      if (!organizations.has(organizationId))\n        throw new Error('step merge-rules unknown organization ' + organizationId);\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 5065
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "01872f99db26bf29893c4a7d2009d75e3bf85c5689f0c93db9ecb2fa2af32fc8",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "d00c80d9852e4a24556d6dc9fcf4171c6153e71ddcc52b6af262b8e97ab4a057",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P07",
+        "rawSha256": "62a59c7ddb8906ad4e31d372d08b1eee12ab3735de31a4170f52ca2a95b12043",
+        "rawBytes": 947,
+        "receiptSha256": "78990b4adebeec36c556a1d62b50b41c2092519c84ab8d9262c4ad801429a2f3",
+        "validationSha256": "c748c9740a945240a39a89ee78f8b865a3530274ced42624f25ff56cf7a46976",
+        "requestSha256": "08150fc21593a08fa3d73d72cc1c12535804e92ec1a0c57207091fbba43d0833",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Only unknown organization selection; no foreign authorization or required organization branch-conjunct credit."
+      },
+      {
+        "id": "P08",
+        "boundary": "unknown divergent code branch",
+        "testTitle": "refuses merge rules selecting unknown code without writing the store",
+        "sourceEffect": {
+          "before": "        if (issue === undefined)\n          throw new Error('step merge-rules unknown divergent code ' + code);",
+          "after": "        if (issue === undefined) continue;",
+          "occurrences": 1,
+          "utf8Offset": 5373
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "c32a4d6df764722645e385fe96b48d0796d104d4a0e93c8d4f5df543a5dd4650",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "6d3ab9488370b1ba602d4b2b934cf2f5506e5207ff46ec910796c8b9bed626dc",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P08",
+        "rawSha256": "9751f1304006c437912e47d0d9f3800aa3e8db87a260d71f243a5efd17eda7c7",
+        "rawBytes": 939,
+        "receiptSha256": "ad73182a067f004bcf2ac887403ba8c957c9cfc15a954900d26e5d1a9214e75c",
+        "validationSha256": "cbe55686c3ad437062b443a3f8e99de41eb5317c7a27a416283dd8ae18b3ac0b",
+        "requestSha256": "49e6da3f51fe05f4f271e36250e4780b45c6f7e809af99ba631eb72c95dec90a",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "This is an exact single-branch refuse-to-ignore substitution, not literal deletion. Literal deletion dereferences issue.steps and still rejects with TypeError; that would only change diagnostics."
+      },
+      {
+        "id": "P09",
+        "boundary": "survivor belongs to selected group",
+        "testTitle": "refuses merge rules selecting survivor from another code without writing the store",
+        "sourceEffect": {
+          "before": "        if (!issue.steps.some(step => step.id === rule.survivorStepId))\n          throw new Error('step merge-rules survivor does not belong to organization and code ' + code);\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 5484
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "e73f7ccfd1fd6098d77e2bd060fe8a697e349528f0853e693265c9dc7870f9c7",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "8f05c340087efd90eaf526b31f6e24cb94578eb508aa0fde8c0025dc1558df22",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P09",
+        "rawSha256": "d35ebcac0a0f0d5351664ba84bd1d821f56070cb22c5a4b8c68355469755f0bb",
+        "rawBytes": 953,
+        "receiptSha256": "f9be7c1a17ebd55c46a8bbaaf1cb781f2941eb78014044f9fb172488623df374",
+        "validationSha256": "d723b688870c5bbb795e8004ec5948cd290d7cceef7997d7b58c949a4cd83d7f",
+        "requestSha256": "a9805fe9fa352bde1fdb4d30833cef990c7e9a3c2682c579ed8c57d340d9e3f2",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Whole group membership check only. Alternative foreign-dev differs in organization AND code, so it does not independently establish the organization term."
+      },
+      {
+        "id": "P10",
+        "boundary": "supplied uncoded confirmation coherence",
+        "testTitle": "refuses an uncoded different confirmation before changing any stored state",
+        "sourceEffect": {
+          "before": "        if (issue === undefined || rule.code !== issue.suggestedCode)\n          throw new Error('step merge-rules unknown or different uncoded confirmation ' + stepId);\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 5853
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "eb5468aeed3a07f429809ae839040da0d903c2f287431613c4f27de188001e83",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 13
+        },
+        "argvSha256": "9e6d276ca737674f4550464b9ec7e49f15300957a098fd7dec79da0445cdc2ea",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P10",
+        "rawSha256": "27119ecc306b10e4172f7cd7e3eab8fd59f10f65ee818eaea5ec67daf0bb6eeb",
+        "rawBytes": 945,
+        "receiptSha256": "c5fabb15e6375b02f068b7ebd72cab4a631c8b92097b3663a85bd85cc9736e50",
+        "validationSha256": "75e46efd07446ee5b3512d541bcd0240f0ccdab2223197a7881e527ac97c8605",
+        "requestSha256": "2a07cc77860fedf2358f9ece3473868dc8398da5d1c07b38518f07dacbf898a9",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "One whole compound guard, no independent disjunct credit. Alternative unknown-step owner exercises the same effect with absent step and no required uncoded row."
+      },
+      {
+        "id": "P11",
+        "boundary": "required divergent survivor",
+        "testTitle": "refuses merge rules selecting missing divergent survivor without writing the store",
+        "sourceEffect": {
+          "before": "      if (selected === undefined || !Object.hasOwn(selected.codes, issue.code))\n        throw new Error('step merge-rules missing shared_code survivor ' + issue.code);\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 6218
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "f587d41ed5cb52e315a7364f5a27c98205fb54d646e4fbe294844f51bbbc6be5",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 10
+        },
+        "argvSha256": "5307e42a4d0fbb491f9a1fd41d86903e3ea55b231251af3c39d4358e847dcd71",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P11",
+        "rawSha256": "3a60eec7895749d8ccfb71c1a3b1ddba30faac067be683ed987027b874f31dbe",
+        "rawBytes": 953,
+        "receiptSha256": "25b995faf61f158661d5433ac660944f95f1fb3ea6952191e15f0804e218177a",
+        "validationSha256": "a803889b55b0453dc53ec847a571e6b17a1a91717e6f54fafed95e792484f463",
+        "requestSha256": "0de40d5445f56cb3f75ea77dca26294784031abcdb3d4ed026536f77632f5aec",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Whole missing-selection check; absent organization and missing own key are not separately proved, and no inherited-key test exists."
+      },
+      {
+        "id": "P12",
+        "boundary": "required uncoded confirmation",
+        "testTitle": "refuses an uncoded missing confirmation before changing any stored state",
+        "sourceEffect": {
+          "before": "      if (selected === undefined || !Object.hasOwn(selected.uncoded, issue.stepId))\n        throw new Error('step merge-rules missing uncoded confirmation ' + issue.stepId);\n",
+          "after": "",
+          "occurrences": 1,
+          "utf8Offset": 6572
+        },
+        "canonicalProductionSourceSha256": "f1437ad84347df9ed8e72097f1170a851c0c9d75879f0717ba307e98f6f9923f",
+        "executedPrivateReporterSha256": "43380afadee2b75413302cd559870f860f71e64065ab7632ea78a96c9284a575",
+        "counts": {
+          "pass": 0,
+          "fail": 1,
+          "filtered": 42,
+          "expects": 13
+        },
+        "argvSha256": "5d956a138b233e442f93f085a471ae39769a4d3d9cb770b5a1d8fdfdd7f874a9",
+        "exitCode": 1,
+        "originalLocator": "/tmp/puni-step-rules-faults-v1/P12",
+        "rawSha256": "ad35895d4807c2fd543b7a59fd4b1e3521df75f85c573c8bddd6fdb1490701c5",
+        "rawBytes": 943,
+        "receiptSha256": "930d4f40ccac2aa0a17894f587488a76a0403f062f83bc0bcf1c2f852f4950a9",
+        "validationSha256": "7c4b4cbfbd3180acd8b2cb93761aa4d31fd4fac0b04e83894de357dcd1b4ab5e",
+        "requestSha256": "7fa96f33f39f07ce53add2278f781943ae5a885fd15746b1bbca24f1370bae1f",
+        "validation": {
+          "post475Matched": true,
+          "supportsMatched": true,
+          "evidenceMatched": true
+        },
+        "nativeFlags": "allNativeFlags",
+        "commandRef": "fault",
+        "firstObservedFault": "Actual selected owner resolved and failed outcome.rejected false versus true in expectReportRefusal:167; later error diagnostic and full-state equality were unreached.",
+        "limits": "Whole missing-selection check; no individual Object.hasOwn/prototype or absent-organization credit."
+      }
+    ],
+    "qualification": "Each fault selects1of43 and fails actual outcome.rejected false versus true, no TypeError or collection issue. Canonical source was never mutated. Aggregate12 controls do not establish per-case triples. D01 lexical-schema diagnostic and all other guards, prototype keys, all capture fields, transactions, apply/history/SC23 completion remain unclosed."
+  },
+  "remaining": [
+    "Other reporter guards and capture-field removal proofs",
+    "SC13 preservation and catalogue apply/merge",
+    "History translation",
+    "APIs, UI and current consumer closure",
+    "Operator script migration and guarded integration window",
+    "No whole task1.1, catalogue change, gate or deployment closure"
+  ]
+}

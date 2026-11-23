@@ -1,0 +1,1473 @@
+{
+  "schema": "puni-memory-reference-and-space-census-v1",
+  "recordedAt": "2026-11-21T00:44:26.715Z",
+  "goalStatus": "active",
+  "classification": "progress",
+  "previousGoalTurn": "V89 made progress: browser import choice and actual retired-code census. Revalidated all527 curated pins before this slice.",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v89.json",
+    "sha256": "79617cd3a517134d125585361728f23e8aa58e1f5a3e5217f8f4dc0dc116f111",
+    "bytes": 81641,
+    "mode": 384
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/space-fixture.ts",
+      "sha256": "ac4257791fe030da42a35a3e6a0753b4fa16bc93396a64c62cde74c6624086df",
+      "bytes": 11522,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "2413ebc4f5f2ffab8c989a6e7c4c5d5df72c7d4602a6674b234abd07ac72dffa",
+      "bytes": 71340,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "410a4715a2db0b401299d218c019ba557fa8b12be19651791adcf124d3f66bda",
+      "bytes": 323705,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+      "sha256": "80f74021e3e0787823696b6d07f27f5866153e16a8209c407ef5eb1b1b734145",
+      "bytes": 5845,
+      "mode": 436
+    }
+  ],
+  "implementation": {
+    "capacity": "Actual Source work-package and team maps decide not_found synchronously on the existing writer invocation, including null clears and actual project addresses. Public coordinator and borrowed owners use the same checks; queued team removal is observed at admission.",
+    "priority": "Actual work-package existence precedes whole-ladder replacement. A real engagement project cannot stand in for a package. Standalone Map fixture implementations are unchanged.",
+    "space": "Existing actual Source space port is now offered through the shared create/find/foreign-owner/remove registration, with actual organization setup. The stale absent declaration is removed; this is not full space membership/settings/permission/lifetime closure.",
+    "optional": "Actual public/ordinary/repair observations find livePlans, workPackageRanks and accessDecisions ports absent. Reasons now describe missing ports, not an absence of real grants or separate export capture."
+  },
+  "verification": {
+    "source": {
+      "name": "memory-configuration-final-source-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-final-source-v2.receipt.json",
+        "sha256": "b0f70eca2d5b9fcbdd5600ac1acd22c704c894288e0ad08900856c6cd022e401",
+        "bytes": 1609,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-final-source-v2.log",
+        "sha256": "7e956a4a39b1e7a56e70b63d66eafc1c2bffbe5df2d9a5dbe20f6f68fd033c18",
+        "bytes": 31840,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 220,
+      "fail": 0,
+      "errors": 0,
+      "assertions": 15263,
+      "tests": 220,
+      "files": 4,
+      "seconds": 9
+    },
+    "certificate": {
+      "source": "memory",
+      "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+      "certifiedCases": [
+        "actuals.listByWorkItems:scope-order",
+        "actuals.listPlacements:source-order",
+        "actuals.moveAll:ownership",
+        "actuals.remove:pair",
+        "actuals.set:replace",
+        "actuals.set:unknown_step",
+        "attempts.moveAll:issued",
+        "attempts.moveAll:ownership",
+        "attempts.start:never-reuses",
+        "attempts.start:number-and-running",
+        "blockages.set:read-remove",
+        "budgets.set:defined-key",
+        "budgets.set:replace-remove",
+        "calendarMarkers.listFor:total-order",
+        "calendarMarkers.write:work-package-scope",
+        "capacity.set:clear",
+        "capacity.set:missing-reference",
+        "capacity.set:work-package-team-key",
+        "claims.add:taken-stated-remove",
+        "claims.lease:revoked-instant-read",
+        "claims.lease:run-scoped",
+        "claims.lease:write-renew-expire",
+        "claims.listStampedByWorkPackage:write-instant",
+        "claims.moveAll:in-place",
+        "claims.observeWorkPackage:legacy-observation",
+        "claims.occupancy:hold-read-cascade",
+        "claims.occupancy:organization-scope",
+        "claims.remove:delegated-cascade",
+        "demands.set:missing-reference",
+        "demands.set:replace-clear-scope",
+        "dependencies.add:idempotent-pair",
+        "dependencies.listByWorkItems:incident-scope",
+        "dependencies.remove:pair",
+        "dependencies.removeAllFor:touching-set",
+        "directory.addMeasure:index-backstop",
+        "directory.addResource:taken",
+        "directory.addTag",
+        "directory.assign:scope-replace-clear",
+        "directory.assign:unknown_person",
+        "directory.listMeasures:seeded-per-organization",
+        "directory.patchMeasure:scoped-key-frozen",
+        "directory.patchMeasure:shape-frozen",
+        "directory.patchPerson:account-binding",
+        "directory.patchPerson:owned-binding",
+        "directory.patchTeam:atomic-refusal",
+        "directory.removeMeasure:scoped",
+        "directory.removePerson:claims-in-use",
+        "directory.removePerson:delegated-claims",
+        "directory.removeResource:in-use-cascade",
+        "directory.setDirectoryCapacity:state-clear-remove",
+        "directory.setResourceProvider:unknown-and-clear",
+        "directory.usageOfMeasure:budgets",
+        "directory.usageOfMeasure:estimates",
+        "directory.usageOfMeasure:facts",
+        "estimates.listByWorkItems:scope-order",
+        "estimates.listPlacements:source-order",
+        "estimates.moveAll:ownership",
+        "estimates.remove",
+        "estimates.set",
+        "estimates.set:replace",
+        "estimates.set:unknown_step",
+        "eventLog.pruneBeyond",
+        "eventLog.pruneBeyond:empty-sequence",
+        "eventLog.rangeSince",
+        "eventLog.recordEvent",
+        "history.batch:independent-commit",
+        "history.batch:independent-rollback",
+        "history.batch:interleaved-success-survives",
+        "journal.append:account-redo-depth",
+        "journal.append:acting-person-stacks",
+        "journal.append:history-atomic",
+        "journal.appendEvent:history-only",
+        "journal.flip:preconditions",
+        "measureEstimates.moveAll:every-key",
+        "measureEstimates.set:basis",
+        "measureEstimates.set:defined-key",
+        "measureEstimates.set:three-point-clears-flag",
+        "measures.listByWorkItems:scope-order",
+        "measures.listPlacements:source-order",
+        "measures.moveAll:all-metrics",
+        "measures.remove:metric-key",
+        "measures.set:alias-one-row",
+        "measures.set:basis",
+        "measures.set:defined-key",
+        "measures.set:legacy-estimate-replaces-trio",
+        "measures.set:metric-key",
+        "measures.set:unknown_step",
+        "organizationLimits.readAgentPersonCap:organization-scope",
+        "organizationLimits.readCapacityCap:per-resource-except-work-package",
+        "organizationLimits.readConcurrentClaimCap:bound-triples",
+        "planEvents.listFor:batches-limit",
+        "planEvents.listFor:filters-order",
+        "planEvents.pruneOlderThan:strict-cutoff",
+        "priorityBands.listFor:defaults",
+        "priorityBands.replace:missing-work-package",
+        "priorityBands.replace:whole-work-package",
+        "progress.listByWorkItems:scope-order",
+        "progress.listPlacements:source-order",
+        "progress.moveAll:ownership",
+        "progress.remove:absence",
+        "progress.set:replace",
+        "progress.set:unknown_step",
+        "resourceCapacity.set:missing-reference",
+        "resourceCapacity.set:stated-zero-cleared",
+        "runtimeCommands.write:permanent-history",
+        "savedPlanCapture.readPlanInput:coherent-interleave",
+        "savedPlanCapture.readPlanInput:complete",
+        "savedPlanCapture.readPlanInput:detached",
+        "savedPlanCapture.readPlanInput:missing-work-package",
+        "savedPlans.touch:principals-scope",
+        "savedPlans.write:bytes-and-bodies",
+        "savedPlans.write:late-body-failure",
+        "savedPlans.write:quota-refusal",
+        "savedPlans.write:quota-window",
+        "settings.capture:inherited-and-detached",
+        "settings.packageIds:descendants-and-touch",
+        "settings.readTarget:actual-chain-and-scope",
+        "settings.write:refusal-and-clear",
+        "spaces.create:scoped-round-trip",
+        "stepCatalogue.bindStep:scope-union-and-type-key",
+        "stepCatalogue.defineAndBindStep:modeled-refusals-atomic",
+        "stepCatalogue.defineAndBindStep:nan-default-atomic",
+        "stepCatalogue.defineAndBindStep:precision-default-atomic",
+        "stepCatalogue.defineAndBindStep:project-empty-materialization",
+        "stepCatalogue.defineAndBindStep:range-default-atomic",
+        "stepCatalogue.factRead:actual-borrowed-expiry",
+        "stepCatalogue.factRead:actual-current-order",
+        "stepCatalogue.factRead:actual-malformed-value",
+        "stepCatalogue.factRead:actual-public-source-close",
+        "stepCatalogue.factRead:actual-targeted-order",
+        "stepCatalogue.factRead:actual-unresolved-type",
+        "stepCatalogue.factRead:attempts-current-tuples",
+        "stepCatalogue.factRead:attempts-targeted-tuples",
+        "stepCatalogue.factRead:estimate-borrowed-expiry",
+        "stepCatalogue.factRead:estimate-catalogue-order",
+        "stepCatalogue.factRead:estimate-public-source-close",
+        "stepCatalogue.factRead:issued-counter-selection",
+        "stepCatalogue.factRead:issued-parent-allocator-retention",
+        "stepCatalogue.factRead:measure-estimates-current-tuples",
+        "stepCatalogue.factRead:measures-current-tuples",
+        "stepCatalogue.factRead:measures-targeted-tuples",
+        "stepCatalogue.factRead:progress-borrowed-expiry",
+        "stepCatalogue.factRead:progress-current-order",
+        "stepCatalogue.factRead:progress-malformed-time",
+        "stepCatalogue.factRead:progress-public-source-close",
+        "stepCatalogue.factRead:progress-targeted-order",
+        "stepCatalogue.factRead:progress-unresolved-type",
+        "stepCatalogue.factRead:targeted-estimate-catalogue-order",
+        "stepCatalogue.factRead:work-package-catalogue-values",
+        "stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit",
+        "stepCatalogue.factWrite:borrowed-subtree-actual-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-measure-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-progress-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit",
+        "stepCatalogue.factWrite:borrowed-target-types-keep-commit",
+        "stepCatalogue.factWrite:estimate-after-unbind",
+        "stepCatalogue.factWrite:estimate-target-types",
+        "stepCatalogue.factWrite:queued-estimate-input-retention",
+        "stepCatalogue.factWrite:subtree-actual-refusal",
+        "stepCatalogue.factWrite:subtree-borrowed-expiry",
+        "stepCatalogue.factWrite:subtree-estimate-after-unbind",
+        "stepCatalogue.factWrite:subtree-measure-refusal",
+        "stepCatalogue.factWrite:subtree-progress-refusal",
+        "stepCatalogue.factWrite:subtree-public-source-close",
+        "stepCatalogue.factWrite:subtree-queued-payload-retention",
+        "stepCatalogue.factWrite:target-borrowed-after-commit",
+        "stepCatalogue.factWrite:target-plain-repair-expiry",
+        "stepCatalogue.factWrite:target-public-source-close",
+        "stepCatalogue.lifetime:borrowed-settlement",
+        "stepCatalogue.lifetime:source-close",
+        "stepCatalogue.pointWrite:actual-conflict",
+        "stepCatalogue.pointWrite:actual-parent",
+        "stepCatalogue.pointWrite:actual-unknown",
+        "stepCatalogue.pointWrite:actual-untyped",
+        "stepCatalogue.pointWrite:measure-conflict",
+        "stepCatalogue.pointWrite:measure-parent",
+        "stepCatalogue.pointWrite:measure-unknown",
+        "stepCatalogue.pointWrite:measure-untyped",
+        "stepCatalogue.pointWrite:progress-conflict",
+        "stepCatalogue.pointWrite:progress-parent",
+        "stepCatalogue.pointWrite:progress-unknown",
+        "stepCatalogue.pointWrite:progress-untyped",
+        "stepCatalogue.read:detached-nested-values",
+        "stepCatalogue.readRetiredCodes:owned-detached-state",
+        "stepCatalogue.readRetiredCodes:writer-snapshot-and-rollback",
+        "stepCatalogue.unbindStep:201-pairs-cap-and-order",
+        "stepCatalogue.unbindStep:borrowed-expiry",
+        "stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit",
+        "stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit",
+        "stepCatalogue.unbindStep:detached-refusal",
+        "stepCatalogue.unbindStep:estimate-refusal-and-preview",
+        "stepCatalogue.unbindStep:foreign-parent-allocator-not-global-veto",
+        "stepCatalogue.unbindStep:parent-allocator-delete-unbind-revival",
+        "stepCatalogue.unbindStep:queued-mode-retention",
+        "stepCatalogue.unbindStep:redundant-binding-keeps-protected-node",
+        "stepCatalogue.unbindStep:safe-preview-apply-retains-values",
+        "stepCatalogue.unbindStep:sibling-parent-allocator-not-global-veto",
+        "stepCatalogue.unbindStep:source-close",
+        "stepCatalogue.write:queued-input-retention",
+        "stepParallels.set:sparse-replace-remove",
+        "steps.listByWorkPackage:detached",
+        "steps.listByWorkPackage:resolved-scope",
+        "steps.listByWorkPackage:unknown",
+        "subtrees.insertSubtree:complete-copy",
+        "subtrees.insertSubtree:late-failure",
+        "typedDependencies.write:identity-and-bulk",
+        "users.create:unique-name",
+        "users.find:identity",
+        "users.resolveOidcIdentity:issuer-subject",
+        "users.resolveOidcIdentity:verified-conflict",
+        "workItems.insert:respace",
+        "workItems.listByIds:labels-scope",
+        "workItems.listPlacements:source-order",
+        "workItems.move:parent-position",
+        "workItems.patch:refusal-atomic",
+        "workItems.remove:promotion",
+        "workItems.setFrozenNumbers:clear",
+        "workPackages.create:steps",
+        "workPackages.createWithSteps:catalogue-snapshot",
+        "workPackages.recordOpen:reader-order",
+        "workPackages.update:scope"
+      ],
+      "exclusions": [],
+      "absentFamilies": [
+        {
+          "family": "accessDecisions",
+          "reason": "This Memory Source exposes no accessDecisions port; grant-backed package/export authority is separate."
+        },
+        {
+          "family": "livePlans",
+          "reason": "This Memory Source exposes no livePlans port; its separate export capture remains available."
+        },
+        {
+          "family": "workPackageRanks",
+          "reason": "This Memory Source exposes no workPackageRanks port or organization ordering writer."
+        }
+      ]
+    },
+    "compiler": {
+      "name": "memory-configuration-types-v3",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-types-v3.receipt.json",
+        "sha256": "929cb61c768084c59c1fac1bd620cb4d1ef2c535a913bea280007338bcfb4147",
+        "bytes": 1346,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-types-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-memory-configuration-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "entries": 284
+    },
+    "lint": {
+      "name": "memory-configuration-lint-v3",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-lint-v3.receipt.json",
+        "sha256": "eb547e9cbfaf336923f9ead416b2a3183d44281d2d130e74ef55fc4a2ce3b49d",
+        "bytes": 1585,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-lint-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "--max-warnings",
+          "0"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "files": 4
+    },
+    "sourceFormat": {
+      "name": "memory-configuration-format-v5",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-format-v5.receipt.json",
+        "sha256": "6cd04e56132ee994b0cbdad42ef98d247c26196ae9b422976cae9a8a78fe96b1",
+        "bytes": 1687,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-format-v5.log",
+        "sha256": "365d3f6d2776ce3ca1fa5ba4252db378bb9d8407120378d7fd4b07af546f4d91",
+        "bytes": 433,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "openspec/changes/wbs-step-catalogue/tasks.md",
+          "openspec/changes/wbs-step-catalogue/design.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "audit": {
+      "name": "memory-configuration-retirement-audit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-retirement-audit-v2.receipt.json",
+        "sha256": "352843dc7adedc345ceff9fbddb375f66c210e15da18b31371264c4c225cfc38",
+        "bytes": 1303,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-retirement-audit-v2.log",
+        "sha256": "05d09079f853a910b1d4c1eeddcdf85f4e2afc6ec773bdf6dd39bb76650ed282",
+        "bytes": 275,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v28.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "artifact": {
+        "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v28.json",
+        "sha256": "bfb3beb49f00906aa4762712f3635d929e9e9cca85e8daa4eed73f018d6c05a1",
+        "bytes": 1872541,
+        "mode": 384
+      },
+      "files": 6081,
+      "qualification": "All V89 TS pins rechecked; only3 existing Memory files and1 new Source test differ. V89 frontend/E2E and protected archive remain unchanged. Static retired-shape scope is qualified; no browser/installed gate claim."
+    },
+    "optional": {
+      "name": "memory-configuration-optional-observation-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-optional-observation-v1.receipt.json",
+        "sha256": "85b0d26185f8b2836a83fba4046a5fd1946ce21e6fb09d58f02ec7602a4bb27c",
+        "bytes": 1311,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-optional-observation-v1.log",
+        "sha256": "861911004270e79e0a7011d8da621bd88c94f3170c7c1a7ccb0c5657b12fca75",
+        "bytes": 194,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-memory-optional-ports-observe-v1.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "artifact": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-optional-ports-v1.json",
+        "sha256": "b11896926afe8408a19db76989a905c42e9a443ea0ec74125542b59e7692b41a",
+        "bytes": 1391,
+        "mode": 384
+      }
+    },
+    "core": {
+      "name": "memory-configuration-core-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-core-v1.receipt.json",
+        "sha256": "a8d7c107af16c75c47cbac1164e2657047e40a75b1ed3e4bbbe091def3bd03d3",
+        "bytes": 14837,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-core-v1.log",
+        "sha256": "a2fb3f3114d3d649d10136eea1bcba82f5878d38fa4c439f1035734cf44f6740",
+        "bytes": 251939,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/compose.test.ts",
+          "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+          "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+          "./libs/wbs/application/core/src/http/endpoint.test.ts",
+          "./libs/wbs/application/core/src/http/history.routes.test.ts",
+          "./libs/wbs/application/core/src/http/import.routes.test.ts",
+          "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+          "./libs/wbs/application/core/src/http/project.routes.test.ts",
+          "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+          "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+          "./libs/wbs/application/core/src/http/step-admission.test.ts",
+          "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+          "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+          "./libs/wbs/application/core/src/module-boundaries.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+          "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+          "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+          "./libs/wbs/application/core/src/module/directory/module.test.ts",
+          "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input13-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+          "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+          "./libs/wbs/application/core/src/module/step/module.test.ts",
+          "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+          "./libs/wbs/application/core/src/playwright-config.test.ts",
+          "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+          "./libs/wbs/application/core/src/ports/clock.test.ts",
+          "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+          "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+          "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+          "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+          "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+          "./libs/wbs/application/core/src/service/actual.test.ts",
+          "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/authorize.test.ts",
+          "./libs/wbs/application/core/src/service/broadcast.test.ts",
+          "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+          "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/compensating.test.ts",
+          "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+          "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+          "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+          "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+          "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+          "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+          "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+          "./libs/wbs/application/core/src/service/estimate.test.ts",
+          "./libs/wbs/application/core/src/service/freeze.test.ts",
+          "./libs/wbs/application/core/src/service/list-query.test.ts",
+          "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+          "./libs/wbs/application/core/src/service/measure.test.ts",
+          "./libs/wbs/application/core/src/service/node-readings.test.ts",
+          "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+          "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+          "./libs/wbs/application/core/src/service/plan-history.test.ts",
+          "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+          "./libs/wbs/application/core/src/service/progress.test.ts",
+          "./libs/wbs/application/core/src/service/project.resource.test.ts",
+          "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+          "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+          "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+          "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+          "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people.test.ts",
+          "./libs/wbs/application/core/src/service/space.resource.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+          "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+          "./libs/wbs/application/core/src/testing/harness.test.ts",
+          "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+          "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 2118,
+      "fail": 13,
+      "errors": 0,
+      "assertions": 12854,
+      "tests": 2131,
+      "files": 171,
+      "seconds": 113.42,
+      "failures": [
+        {
+          "file": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "name": "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "name": "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "name": "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+          "diagnostic": "error: step write requires a leaf work item"
+        },
+        {
+          "file": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "name": "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner",
+          "diagnostic": "error: step write requires a leaf work item"
+        }
+      ],
+      "comparison": {
+        "before": {
+          "name": "current-core-source-only-v40",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v40.receipt.json",
+            "sha256": "128143706446421f89b5f5e877543b87818aaf260d039a884efd706006a1a8cc",
+            "bytes": 14837,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v40.log",
+            "sha256": "2c6b804a87b2afa839aa8525d59fbfe84d5e64fe201afef3f57982ad304b9ac4",
+            "bytes": 251824,
+            "mode": 384
+          },
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/application/core/src/compose.test.ts",
+              "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+              "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+              "./libs/wbs/application/core/src/http/endpoint.test.ts",
+              "./libs/wbs/application/core/src/http/history.routes.test.ts",
+              "./libs/wbs/application/core/src/http/import.routes.test.ts",
+              "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+              "./libs/wbs/application/core/src/http/project.routes.test.ts",
+              "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+              "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+              "./libs/wbs/application/core/src/http/step-admission.test.ts",
+              "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+              "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+              "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+              "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+              "./libs/wbs/application/core/src/module-boundaries.test.ts",
+              "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+              "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+              "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+              "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+              "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+              "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+              "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+              "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+              "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+              "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+              "./libs/wbs/application/core/src/module/directory/module.test.ts",
+              "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+              "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+              "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+              "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+              "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+              "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+              "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+              "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+              "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+              "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+              "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+              "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+              "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+              "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/input13-integrity.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+              "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+              "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+              "./libs/wbs/application/core/src/module/step/module.test.ts",
+              "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+              "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+              "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+              "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+              "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+              "./libs/wbs/application/core/src/playwright-config.test.ts",
+              "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+              "./libs/wbs/application/core/src/ports/clock.test.ts",
+              "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+              "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+              "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+              "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+              "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+              "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+              "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+              "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+              "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+              "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+              "./libs/wbs/application/core/src/service/actual.test.ts",
+              "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+              "./libs/wbs/application/core/src/service/authorize.test.ts",
+              "./libs/wbs/application/core/src/service/broadcast.test.ts",
+              "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+              "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+              "./libs/wbs/application/core/src/service/compensating.test.ts",
+              "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+              "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+              "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+              "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+              "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+              "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+              "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+              "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+              "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+              "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+              "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+              "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+              "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+              "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+              "./libs/wbs/application/core/src/service/estimate.test.ts",
+              "./libs/wbs/application/core/src/service/freeze.test.ts",
+              "./libs/wbs/application/core/src/service/list-query.test.ts",
+              "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+              "./libs/wbs/application/core/src/service/measure.test.ts",
+              "./libs/wbs/application/core/src/service/node-readings.test.ts",
+              "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+              "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+              "./libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+              "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+              "./libs/wbs/application/core/src/service/plan-history.test.ts",
+              "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+              "./libs/wbs/application/core/src/service/progress.test.ts",
+              "./libs/wbs/application/core/src/service/project.resource.test.ts",
+              "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+              "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+              "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+              "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+              "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+              "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+              "./libs/wbs/application/core/src/service/shared-people.test.ts",
+              "./libs/wbs/application/core/src/service/space.resource.test.ts",
+              "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+              "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+              "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+              "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+              "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+              "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+              "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+              "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+              "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+              "./libs/wbs/application/core/src/testing/harness.test.ts",
+              "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+              "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+              "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+              "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+              "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+              "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 900000
+          }
+        },
+        "sameNamesAndPrimaryDiagnostics": true,
+        "qualification": "Same171-file2131-test cohort;2118pass13fail. Fresh assertion count12854 differs from prior12903; no invariant assertion-count claim and no historical closure."
+      }
+    },
+    "wholeSourceAdapter": {
+      "name": "memory-configuration-source-adapter-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-source-adapter-v1.receipt.json",
+        "sha256": "7622470ba2ca64cd255e5a5d2135cce7732ffb8744df893b3ecdb89f9868c23a",
+        "bytes": 4966,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-source-adapter-v1.log",
+        "sha256": "62ff65d000b0ea0658e076f2046280e73fdae0a97ef4af3b3806f9d1539dcdca",
+        "bytes": 114918,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+          "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-execution.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-node-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-package.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-saved-plan.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-status.test.ts",
+          "./libs/wbs/adapters/store-memory/src/directory-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+          "./libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "./libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/resolved-plan-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-command.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-rename.test.ts",
+          "./libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/space-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-manifest-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revision-faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revisions.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-usage-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-allowance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-birth-response.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-retirement.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-step-tree.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/move-write.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/point-write-ownership.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/sparse-current-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 715,
+      "fail": 40,
+      "errors": 0,
+      "assertions": 22714,
+      "tests": 755,
+      "files": 48,
+      "seconds": 127.65,
+      "failures": [
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > imports a defined measure into its actual legacy organization and refuses incompatible shapes without writes",
+          "diagnostic": "error: expect(received).toBe(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > imports a shuffled-step relationship valid in position order",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > imports direct blockage facts with both identities remapped and exact time",
+          "diagnostic": "error: expect(received).toBe(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > imports distinct relationships whose work-item and step IDs share a delimiter spelling",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\",\"c\",\"bc\"]}: {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\",\"c\",\"bc\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > leaves off a solution slug already held inside admission",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > preserves actual destination settings and sibling for equal version-11 factor",
+          "diagnostic": "error: expect(received).toBe(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > publishes directory, work package, and tree refreshes without writing history",
+          "diagnostic": "error: valid import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"impl\",\"qa\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > re-imports its own export of a leaf held and then marked done (add-work-item-statuses)",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > refuses a combined cycle without a partial plan write",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > refuses a resource the directory holds under another kind, writing no work package",
+          "diagnostic": "error: expect(received).toEqual(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > refuses a self node without a partial plan write",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > refuses a shuffled-step relationship cyclic in position order before writing",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > releases admission before a held publisher settles",
+          "diagnostic": ""
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > restores a new agent kind and memberships",
+          "diagnostic": "error: imported team was not stored"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > retains an imported direct blockage on a done step without changing progress",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"impl\",\"qa\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > reuses an existing tag by name",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > rolls back direct blockage import after refused",
+          "diagnostic": "error: expect(received).toBeInstanceOf(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > rolls back direct blockage import after second-write",
+          "diagnostic": "error: expect(received).toBeInstanceOf(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > rolls back visible admitted writes after a later store refused",
+          "diagnostic": ""
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > rolls back visible admitted writes after a later store thrown",
+          "diagnostic": ""
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round trips a version-1 file’s step codes, suggesting those it does not keep",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"build\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round trips a version-2 file’s step codes, suggesting those it does not keep",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"build\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round trips a version-3 file’s step codes, suggesting those it does not keep",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round trips every authored input while storing leaf values only",
+          "diagnostic": "error: round-trip seed refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round trips SS and FF step links and a legacy link with fresh identities",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round-trips a version-11 plan’s trios, budgets and factor byte for byte (wbs-measure-budgets)",
+          "diagnostic": "error: import refused: {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round-trips a version-6 readiness and hold, and reads a version-5 file with neither",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > round-trips resources, their capacities and demands (wbs-resources)",
+          "diagnostic": "error: import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"impl\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > serializes concurrent imports competing for one free solution slug",
+          "diagnostic": ""
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > stores a fresh complete tree without changing rows that own the file ids",
+          "diagnostic": "error: valid import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"impl\",\"qa\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "name": "ImportService admitted writes > stores exact work package settings, nondefault step order, capacity, bands, and marker",
+          "diagnostic": "error: valid import refused at {\"ok\":false,\"code\":\"unknown_step_codes\",\"codes\":[\"discover\",\"build\",\"verify\"]}"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "name": "memory conformance fault controls > reaches the final subtree write inside the real staged source",
+          "diagnostic": "error: subtree package is absent"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "name": "refuses a naturally stored empty legacy organization during generic memory capture",
+          "diagnostic": "error: settings organization mapping is absent or malformed"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "name": "refuses removing a memory step with retained parallelism (cascade=false)",
+          "diagnostic": "error: catalogue step write package organization is absent or malformed"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "name": "refuses removing a memory step with retained parallelism (cascade=true)",
+          "diagnostic": "error: catalogue step write package organization is absent or malformed"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "name": "retains the complete public memory creation before waiting for its Source owner",
+          "diagnostic": "error: expect(received).toMatchObject(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "name": "targeted memory readers reject malformed trusted state > names a cross-work-package step in all four satellite families",
+          "diagnostic": "error: expect(received).rejects.toThrow(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "name": "targeted memory readers reject malformed trusted state > names a missing step in all four satellite families",
+          "diagnostic": "error: expect(received).rejects.toThrow(expected)"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "name": "targeted memory readers reject malformed trusted state > names a missing work-item reference in all four satellite families",
+          "diagnostic": "error: step write work item is absent or inconsistent"
+        },
+        {
+          "file": "libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "name": "targeted memory readers reject malformed trusted state > rejects invalid values and timestamps in each satellite shape",
+          "diagnostic": "error: expect(received).rejects.toThrow(expected)"
+        }
+      ],
+      "inventory": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-source-test-inventory-v1.json",
+        "sha256": "8356341ac5da41f7372438419a9707bb688ce0e0ad68c58a265cc98d6611dcb1",
+        "bytes": 12469,
+        "mode": 384
+      },
+      "qualification": "Complete48-source-file argv, excluding generated dist outputs by actual inventory.715pass40fail755tests and no module errors. This failed run predates only the later absence-reason wording correction; fresh current221-case census above includes corrected wording. No full Memory adapter pass claim."
+    }
+  },
+  "proofs": {
+    "red": [
+      {
+        "name": "memory-configuration-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-red-v1.receipt.json",
+          "sha256": "276a333ccf4867a0c5062ad96011d9338f3c8ef079ff4dc79e84e7722a76d3ea",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-red-v1.log",
+          "sha256": "db8378295edd7cc5eec97f573d246f1a635498c7d488c64e3b9a944e79227fe9",
+          "bytes": 9638,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--test-name-pattern",
+            "capacity refuses|priority bands refuse|queued capacity checks|executes configuration reference refusals"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "memory-space-declaration-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-space-declaration-red-v1.receipt.json",
+          "sha256": "a8680896b71a20f655ae6585e8b4db0909779eb12c4c6cb010ac3f0c741bccd4",
+          "bytes": 1416,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-space-declaration-red-v1.log",
+          "sha256": "82230bc82a42f6a9d1f0487aa5cf9aaa43441e42cd5e6c5ccf8cfc37e69bee0a",
+          "bytes": 1231,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--test-name-pattern",
+            "executes the installed Memory Source space round-trip"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      }
+    ],
+    "faults": {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-faults-v1.state.json",
+        "sha256": "0e1ecf9f278073bc5ef6344e66e440cebf5ef201040c57e55321f10f74fb9c51",
+        "bytes": 5481,
+        "mode": 384
+      },
+      "effects": [
+        {
+          "id": "capacity-package",
+          "path": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "needle": "      set(workPackageId, serviceTeamId, size, stamp) {\n        if (!state.tables.workPackages.workPackages.has(workPackageId))\n          return Promise.resolve({ ok: false, reason: 'not_found' });\n",
+          "replacement": "      set(workPackageId, serviceTeamId, size, stamp) {\n",
+          "file": "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "test": "capacity refuses",
+          "failed": ["memory public capacity refuses", "memory borrowed capacity refuses"],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-capacity-package-v1.receipt.json",
+            "sha256": "52d80fc5f8f6bcfe8b309af15b971a5388b2830730537fe609b940a4fb828938",
+            "bytes": 1415,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-capacity-package-v1.log",
+            "sha256": "0ed039840a8121ac29b9a000410dade7f3e10711a2099878a719a05f2b9ac90c",
+            "bytes": 3192,
+            "mode": 384
+          },
+          "qualification": "Actual public/borrowed Source refuses unknown references; team variant also fails after real committed removal before queued write admission. No standalone fixture is substituted."
+        },
+        {
+          "id": "capacity-team",
+          "path": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "needle": "        if (!state.tables.directory.teams.has(serviceTeamId))\n          return Promise.resolve({ ok: false, reason: 'not_found' });\n",
+          "replacement": "",
+          "file": "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "test": "capacity refuses|queued capacity checks",
+          "failed": [
+            "memory public capacity refuses",
+            "memory borrowed capacity refuses",
+            "memory queued capacity checks"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-capacity-team-v1.receipt.json",
+            "sha256": "396adc634fc2007b23c94533068b8ea6e94d8354319075f12b8c8143c090515d",
+            "bytes": 1432,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-capacity-team-v1.log",
+            "sha256": "04c76d43c6d80e5105b5b2701da531f9465c39aa5b0089523b5ce3c57663e774",
+            "bytes": 4642,
+            "mode": 384
+          },
+          "qualification": "Actual public/borrowed Source refuses unknown references; team variant also fails after real committed removal before queued write admission. No standalone fixture is substituted."
+        },
+        {
+          "id": "priority-package",
+          "path": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "needle": "      replace(workPackageId, bands, stamp) {\n        if (!state.tables.workPackages.workPackages.has(workPackageId))\n          return Promise.resolve({ ok: false, reason: 'not_found' });\n",
+          "replacement": "      replace(workPackageId, bands, stamp) {\n",
+          "file": "libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "test": "priority bands refuse",
+          "failed": [
+            "memory public priority bands refuse",
+            "memory borrowed priority bands refuse"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-priority-package-v1.receipt.json",
+            "sha256": "84189d8d6073d9b3d67e6e6403a2465701a9a0ee3ca6417a4e5b65105482b49f",
+            "bytes": 1420,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-priority-package-v1.log",
+            "sha256": "febb6b79d82bee4416dfaa803f315df50865f98fa4b54762930554135e89248e",
+            "bytes": 3277,
+            "mode": 384
+          },
+          "qualification": "Actual public/borrowed Source refuses unknown references; team variant also fails after real committed removal before queued write admission. No standalone fixture is substituted."
+        },
+        {
+          "id": "space-owner",
+          "path": "libs/wbs/adapters/store-memory/src/space-fixture.ts",
+          "needle": "    return found?.organizationId === organizationId ? found : undefined;",
+          "replacement": "    return found;",
+          "file": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "test": "executes the installed Memory Source space round-trip",
+          "failed": [
+            "memory existing source conformance > executes the installed Memory Source space round-trip"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-space-owner-v1.receipt.json",
+            "sha256": "0cd83ef1e6736497423398b182242909ab45d027ebc0dab7a68c2b14fb94de42",
+            "bytes": 1437,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-fault-space-owner-v1.log",
+            "sha256": "b4162e6af79f9294b4e816285258c70f5fdcbc7c29649299efe1ce4e771c1a12",
+            "bytes": 1054,
+            "mode": 384
+          },
+          "qualification": "Existing actual Space foreign-organization predicate is necessary for the newly offered real Source round-trip. This is not full space permission/lifetime closure."
+        }
+      ],
+      "qualification": "Each independent actual reference/organization predicate omission failed its intended public/borrowed/queued or foreign-space consumer. Exact restoration precedes final Source assertions."
+    },
+    "baseline": {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-v89-baseline-v1.state.json",
+        "sha256": "daa08afd5576aeb2a9e708458759fa74183cea510b347ebc07e7805d0cee0323",
+        "bytes": 3599,
+        "mode": 384
+      },
+      "observation": {
+        "name": "memory-configuration-adapter-v89-baseline-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-adapter-v89-baseline-v1.receipt.json",
+          "sha256": "024b9008bbcfc8b214aeb9799968343d74068e11a627b7d31c6860ed1ec2ccdc",
+          "bytes": 1343,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-adapter-v89-baseline-v1.log",
+          "sha256": "b365b0377fb2f1447b831c2a9e52b2e477c0d587749c1170bb747e39ef3917ab",
+          "bytes": 127609,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "test", "libs/wbs/adapters/store-memory/src", "--timeout=30000"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree/",
+          "deadlineMs": 660000
+        },
+        "pass": 709,
+        "fail": 78,
+        "errors": 38,
+        "assertions": 22564,
+        "tests": 787,
+        "files": 85,
+        "seconds": 127.85
+      },
+      "qualification": "Replaced only3 current private source paths with actual V89 staged-tree blobs, each matched to its6080-source audit, and hid only the newly authored test for the old inventory. All current bytes/modes/new test restored after the native actor settled. Same40 named actual Source failures predate the changes. The old broad selector also collected38 generated-output module errors; it is not source-only gate evidence."
+    }
+  },
+  "selectionCorrection": {
+    "initial": {
+      "name": "memory-configuration-adapter-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-adapter-v1.receipt.json",
+        "sha256": "b682747437b2c6de8e115897584dc1f2c8a6133555d935931b9348f5a3b25287",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-configuration-adapter-v1.log",
+        "sha256": "45d222f7275b846fd8a34c9fe7df15fb0fd7e84bc7bb10f5aae6c302d8ab7791",
+        "bytes": 127879,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "test", "libs/wbs/adapters/store-memory/src", "--timeout=30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 715,
+      "fail": 78,
+      "errors": 38,
+      "assertions": 22714,
+      "tests": 793,
+      "files": 86,
+      "seconds": 131.47
+    },
+    "qualification": "Bare directory token was a Bun filter and collected38 dist/out-tsc JS modules with unresolved aliases. Generated files were preserved. Corrected launcher enumerates every current Source test/spec file and supplies explicit ./ paths. Initial715pass78fail793tests86files includes38 errors and is superseded by the Source-only715pass40fail755tests48files census, not treated as78 product test failures."
+  },
+  "reviews": {
+    "previous": {
+      "status": "Astra unavailable until recorded2026-11-22 10:09AM, timezone unspecified. No retry, substitute or new agent spawned. Catalogue reconciliation, rank compaction, required retirement read and authorization/cycle ownership remain queued for formal requested review."
+    },
+    "current": "Requested Astra remains unavailable until recorded2026-11-22 10:09AM timezone unspecified. No retry/substitute/spawn. Source guard placement and broader current import/history semantics remain queued for formal review."
+  },
+  "remaining": [
+    "Current Memory Source221 declared cases pass with zero exclusions; three optional ports remain actually absent. Do not infer full Source/fact/access/epoch/lifetime closure.",
+    "Resolve all40 actual whole-Memory-adapter failures. Most shared ImportService contracts still omit SC24 definition consent or use obsolete local step/graph assumptions; inspect every assertion before converting. Preserve default-false refusal and actual project settings authority. Do not auto-enable production defineMissing or fabricate historical producers.",
+    "Core remains2118pass13fail with matched failure names/primary diagnostics. All15 genuine old-producer historical guarantees, move-to-parent policy, native actors and full import matrices remain.",
+    "Source-only gate launcher now excludes generated artifacts through complete explicit inventory; failed broad attempts and actual V89 baseline are retained.",
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

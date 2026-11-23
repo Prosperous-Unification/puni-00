@@ -1,10 +1,11 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -30,11 +31,14 @@ function baseline(): string {
   return before;
 }
 
-/** A store migrated through the column, with an account, a project and an agent person. */
+/** A store migrated through the column, with an account, a work package and an agent person. */
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-journal-person-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  renameSync(
+    copyRecoveryPrefix(root, '20261103110000_add_initial_access_offers'),
+    join(root, 'drizzle'),
+  );
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
   run(
@@ -149,7 +153,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(entryIds(dbPath)).toEqual(['human']);
@@ -162,7 +166,7 @@ describe('the command journal person migration', () => {
 
   // Proof: with the DELETE removed from `add_command_journal_person/down.sql`,
   // this found `agent` among the human's rows after the rollback (watched
-  // 2026-10-26): the outgoing release reads by (project, account), so its undo
+  // 2026-10-26): the outgoing release reads by (work package, account), so its undo
   // would have reverted the agent's edit.
   it('discards only the agents’ entries on rollback, leaving every human stack whole', async () => {
     const { root, dbPath } = migratedStore();
@@ -183,7 +187,7 @@ describe('the command journal person migration', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, 20261102120000_add_access_grants, ${HOST_JOB_PROJECTION}, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}, ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`,
     );
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(newestApplied(dbPath)).toBe(baseline());

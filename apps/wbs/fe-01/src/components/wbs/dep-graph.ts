@@ -26,14 +26,14 @@ interface Edge {
 export type EdgeRefusal = 'self' | 'ancestor' | 'descendant' | 'cycle';
 
 /**
- * The project's tree and its edges, indexed once for a whole list of candidates.
+ * The work package's tree and its edges, indexed once for a whole list of candidates.
  *
  * Built per render from the rows on screen and never cached: a refetch can move
  * a row under a parent or land a peer's new edge while the picker is open, and a
  * remembered graph would go on greying yesterday's rows.
  */
 export interface DepGraph {
-  /** Every id in this project, so an end that names no row can be caught. */
+  /** Every id in this work package, so an end that names no row can be caught. */
   ids: Set<string>;
   parentOf: Map<string, string | null>;
   /** Every work item with no children — the only nodes the schedule orders. */
@@ -159,7 +159,7 @@ function canOrder(leafIds: readonly string[], edges: readonly Edge[]): boolean {
 export function refusalFor(graph: DepGraph, edge: Edge): EdgeRefusal | null {
   const { predecessorId, successorId } = edge;
   for (const id of [predecessorId, successorId]) {
-    if (!graph.ids.has(id)) throw new Error(`no work item ${id} in this project`);
+    if (!graph.ids.has(id)) throw new Error(`no work item ${id} in this work package`);
   }
 
   if (predecessorId === successorId) return 'self';

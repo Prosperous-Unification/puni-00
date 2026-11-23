@@ -1,9 +1,11 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -13,14 +15,14 @@ import type {
   CapacityStore,
   DirectoryStore,
   EstimateStore,
-  ProjectStore,
   WorkItemStore,
+  WorkPackageStore,
   WriteStamp,
 } from '../repository';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
+import { createTestServices } from '../testing/harness';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**
@@ -45,6 +47,7 @@ import { optimizerWiring } from './optimizer-wiring';
  * unit offsets exactly as a parsed solver response would drive it.
  */
 
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 /** The one team a single-pool case here draws from. */
@@ -61,71 +64,81 @@ const PLATFORM = 'team-platform';
 const ALPHA = 'team-alpha';
 const BETA = 'team-beta';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let capacity: CapacityStore;
 let directory: DirectoryStore;
 let serviceOptions: WorkItemServiceOptions;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 /**
- * The project's second step, so a slice can have a floor that is neither the
- * project start nor a pool.
+ * The work package's second step, so a slice can have a floor that is neither the
+ * work package start nor a pool.
  *
  * Step order is an edge in this engine (`slicesOf`), so a work item's QA slice
  * sits on a `stepOrder` floor at its Dev slice's finish — the cheapest real
  * floor a payload fixture can build, needing no dependency rows and no
- * project start date.
+ * work package start date.
  */
 let laterStepId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects, workItems, estimates, capacity, directory } = harness.stores);
+  const packageFixture = await createLegacyWorkPackageFixture(
+    OWNER,
+    'service-fixture-legacy',
+    PARENT_PROJECT_ID,
+  );
+  const harness = createTestServices(packageFixture.source);
+  ({ workPackages, workItems, estimates, capacity, directory } = harness.stores);
   serviceOptions = {
     dependencyContext: createLocalDependencyContext(harness.stores),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,
     scheduler: harness.scheduler,
   };
-  const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
+  const workPackage = workPackageRow({ id: crypto.randomUUID(), projectId: PARENT_PROJECT_ID });
   stepId = crypto.randomUUID();
   laterStepId = crypto.randomUUID();
-  await projects.create(
-    project,
-    [
-      {
-        id: stepId,
-        projectId: project.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+  await bindFixtureSteps(
+    packageFixture.source,
+    'service-fixture-legacy',
+    (
+      [
+        [stepId, 'Dev', 'dev', 10],
+        [laterStepId, 'QA', 'qa', 20],
+      ] as const
+    ).map(([id, name, code, position]) => ({
+      definition: {
+        id,
+        name,
+        code,
+        position,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
       },
-      {
-        id: laterStepId,
-        projectId: project.id,
-        name: 'QA',
-        position: 20,
-        code: 'qa',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+      binding: {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position,
       },
-    ],
+    })),
     WROTE,
   );
-  projectId = project.id;
-  const moved = await projects.update(
-    projectId,
+  await workPackages.create(workPackage, [], WROTE);
+  workPackageId = workPackage.id;
+  await directory.addTeam({ id: PLATFORM, name: 'Platform' }, WROTE);
+  const moved = await workPackages.update(
+    workPackageId,
     { optimizationEnabled: true, scheduleEngine: 'optimized' },
     WROTE,
   );
-  if (moved === null) throw new Error('project vanished');
+  if (moved === null) throw new Error('work package vanished');
 });
 
 /**
@@ -150,7 +163,7 @@ async function leaf(
   await workItems.insert(
     {
       id,
-      projectId,
+      workPackageId,
       parentId: null,
       position: 10,
       name,
@@ -222,7 +235,7 @@ async function twoStepLeaf(name: string, days: number, serviceTeamId: string | n
 }
 
 /**
- * The `ScheduleInput` the plan read will hand its reader for this project.
+ * The `ScheduleInput` the plan read will hand its reader for this work package.
  *
  * Taken from a throwaway pass with a reader that answers `null` rather than
  * rebuilt here: the input is the service's own canonicalisation of the stored
@@ -250,7 +263,7 @@ async function askedInput(): Promise<ScheduleInput> {
       readCaptured: read,
     }).scheduler,
   });
-  await probe.tree(projectId);
+  await probe.tree(workPackageId);
   // A length check rather than an `=== undefined` guard on the indexed read:
   // `noUncheckedIndexedAccess` is off in this repo, so the read is not optional
   // and eslint refuses the guard as `no-unnecessary-condition`.
@@ -272,7 +285,7 @@ async function askedInput(): Promise<ScheduleInput> {
  * The unmoved ones therefore come from `quantisedFastBaseline` — the plan's own
  * hint, and the one offset set that is legal by construction — and `moved`
  * overrides only the slices a case is about. Spelling every offset in the case
- * instead made the fixtures depend on how many steps the project happens to
+ * instead made the fixtures depend on how many steps the work package happens to
  * have: a second step added for 4.11 (f) silently gave every other leaf a
  * second slice, and three cases that had spelled one offset each began throwing
  * `this plan has no such slice`'s converse. Measured 2026-09-04.
@@ -316,8 +329,8 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
     scheduler: optimizerWiring({ readLive: () => Promise.resolve(read()), readCaptured: read })
       .scheduler,
   });
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return tree;
 }
 
@@ -373,7 +386,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     //
     // Watched red: `timing = planned.workItems` replaced by
     // `timing = schedule(rows, edges, slices, notBefore, slotsOf,
-    // project.depReach).workItems` — Fast's own annotations under the
+    // work package.depReach).workItems` — Fast's own annotations under the
     // optimizer's dates. `strip` came back `float: 0, critical: true` and this
     // failed on both. Watched 2026-09-04.
     const strip = await leaf('Strip', 2);
@@ -400,14 +413,14 @@ describe("the materialiser's annotations, through the plan read", () => {
 
   it('labels a deliberately idled slice `optimizer` and not by the floor it cleared', async () => {
     // tasks.md 4.11 (b). One leaf, nothing holding it up, pinned three days
-    // above the only floor it has. `projectStart` is a true statement about
+    // above the only floor it has. `workPackageStart` is a true statement about
     // where it *could* have gone and a false one about why it is where it is —
     // the difference a Gantt bar's reason text is drawn from.
     //
     // Watched red: `pinFloor`'s last line returned
     // `{ start: window.start, boundBy: resolved.boundBy }` — the optimizer's
     // date under the floor's own label. This failed on
-    // `'projectStart'` where `'optimizer'` was expected, and it is the only
+    // `'workPackageStart'` where `'optimizer'` was expected, and it is the only
     // case in the repository that fails on it: the date is unchanged, so every
     // placement assertion elsewhere stays green. Watched 2026-09-04.
     const rewire = await leaf('Rewire', 2);
@@ -456,7 +469,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     // in the payload with `capacityTeamId: null` and no predecessors, so the
     // render invariant a Gantt arrow depends on survives the DTO. A mutation
     // that reddens it would have to be in the payload build, not the engine.
-    await capacity.set(projectId, PLATFORM, 2, WROTE);
+    await capacity.set(workPackageId, PLATFORM, 2, WROTE);
     const hold = await leaf('Hold', 6, PLATFORM);
     const rewire = await leaf('Rewire', 2, PLATFORM);
     const tree = await servedBy({
@@ -493,7 +506,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     // `pinned === undefined || withinDrift(pinned, resolved.start)` to
     // `pinned === undefined`, so a pin equal to its own floor falls through to
     // the window and comes back `'optimizer'`.
-    await capacity.set(projectId, PLATFORM, 2, WROTE);
+    await capacity.set(workPackageId, PLATFORM, 2, WROTE);
     const rewire = await twoStepLeaf('Rewire', 2, PLATFORM);
     const tree = await servedBy({
       [sliceKey(rewire, stepId)]: units(0),
@@ -528,11 +541,18 @@ describe("the materialiser's annotations, through the plan read", () => {
     //
     // Watched red: `annotateCapacity`'s
     // `window.blocking.filter(finishesByStart)` reduced to `window.blocking`.
-    await capacity.set(projectId, PLATFORM, 2, WROTE);
-    const long = await leaf('Long', 10, PLATFORM);
-    const short = await leaf('Short', 5, PLATFORM);
-    const pinned = await leaf('Pinned', 2, PLATFORM);
-    const tree = await servedBy({ [sliceKey(pinned, stepId)]: units(5) });
+    await capacity.set(workPackageId, PLATFORM, 2, WROTE);
+    const long = await leaf('Long', 10, PLATFORM, 10);
+    const short = await leaf('Short', 5, PLATFORM, 20);
+    const pinned = await leaf('Pinned', 2, PLATFORM, 30);
+    const tree = await servedBy({
+      [sliceKey(long, stepId)]: units(0),
+      [sliceKey(long, laterStepId)]: units(10),
+      [sliceKey(short, stepId)]: units(0),
+      [sliceKey(short, laterStepId)]: units(5),
+      [sliceKey(pinned, stepId)]: units(5),
+      [sliceKey(pinned, laterStepId)]: units(7),
+    });
 
     const shortSlice = slicedFor(tree, short);
     expect(slicedFor(tree, pinned)).toMatchObject({
@@ -612,8 +632,8 @@ describe("the materialiser's annotations, through the plan read", () => {
     //   about which pool ran out rather than about which id sorts first.
     await directory.addTeam({ id: ALPHA, name: 'Alpha' }, WROTE);
     await directory.addTeam({ id: BETA, name: 'Beta' }, WROTE);
-    await capacity.set(projectId, ALPHA, 1, WROTE);
-    await capacity.set(projectId, BETA, 1, WROTE);
+    await capacity.set(workPackageId, ALPHA, 1, WROTE);
+    await capacity.set(workPackageId, BETA, 1, WROTE);
     const alpha = await leaf('Alpha tenant', 2, ALPHA, 10);
     await estimateLaterStep(alpha, 2);
     const beta = await leaf('Beta tenant', 4, BETA, 10);

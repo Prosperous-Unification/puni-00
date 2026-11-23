@@ -1,0 +1,2834 @@
+{
+  "date": "2026-11-19",
+  "scope": "SC22 offline Burokrat manifest validation, distinct schema2 acceptance producer/reader and shared typed Optique grammar. Parent task and full PUNI semantic integration remain open.",
+  "qualification": "Root authored; Astra unavailable at known usage limit. Twenty-four bounded restored effects, not a claim that every new boundary/whole goal/gate is complete.",
+  "source": {
+    "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/source-pins.json",
+    "sha256": "5dec916a3237a325770894a11999130a798b9319d6bd94bcf6e205cceeb39e6c",
+    "bytes": 5211083,
+    "mode": 384
+  },
+  "first": {
+    "command11": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowManifest/native.receipt.json",
+        "sha256": "2d64191d6cb4e0a4b00070c950f1d67d72b3c0c5458aae7af787dd03f378510c",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowManifest/native.log",
+        "sha256": "5e364fcd26f435ed8c0e18383e5a86718eef6543baffbac41aaccf37034035be",
+        "bytes": 12969,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowManifest/native.validation.json",
+        "sha256": "e5120ab515e5350a98537c2f66e9dadba6d5194039f42bbb3e03c607d8caf5e9",
+        "bytes": 2000,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "command34": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v2/workflowManifest/native.receipt.json",
+        "sha256": "5b5600fee8f516fc0af945ce19667afb66fe489d69926ef6c9c86d19396d3c14",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v2/workflowManifest/native.log",
+        "sha256": "a2d8387bfe960667929712e0a09235e01446e8055d5bf43a9b6f8d35678bb750",
+        "bytes": 35474,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v2/workflowManifest/native.validation.json",
+        "sha256": "80a8ebebf6072d2eaeb8bbe977095d780c35546a94d3e5c2f3d52f2ff5529e1c",
+        "bytes": 2000,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "reader17": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-acceptance-first-live-v1/workflowManifestAcceptance/native.receipt.json",
+        "sha256": "51f1a13b32d8eeb174f4c6c1da4c09eb6d3750833060337c27472a28296cf790",
+        "bytes": 1479,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-acceptance-first-live-v1/workflowManifestAcceptance/native.log",
+        "sha256": "f35818f05cdb882d12fb9e668abb7b201af525e120f0dade893c2e19d4f85505",
+        "bytes": 17087,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-acceptance-first-live-v1/workflowManifestAcceptance/native.validation.json",
+        "sha256": "ac5288a7fe325348a4d1fc641810d5534341e753ad15bafba529f360c3bca21f",
+        "bytes": 2063,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "grammar3": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-grammar-first-live-v1/workflowManifest/native.receipt.json",
+        "sha256": "77a4bed3e619a0dd5daa136e520329d45b55f1d778bfb7e486fe823b483bc3d7",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-grammar-first-live-v1/workflowManifest/native.log",
+        "sha256": "e778c98fa0a9ab9d9ab86586a7cc6e29e8e0b5c1c741398853ae21864b30129e",
+        "bytes": 7884,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-grammar-first-live-v1/workflowManifest/native.validation.json",
+        "sha256": "9fdba2aea0c56a27123ddc48dbcb65e3cf31e9e30167c17a523b9edfad339386",
+        "bytes": 2023,
+        "mode": 384
+      },
+      "exitCode": 1
+    }
+  },
+  "firstObserved": "Initial11actual command helpers reach missing --manifest support. Expanded34ownerfirst has4existinggrammarpass30fail. Reader17absence is scaffolding only, no necessity credit. Root grammar first has34pass3fail: request remained argv and competing applicability flags reached dispatch. Functional implementations follow those actual first controls.",
+  "controls": {
+    "command46": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifest/native.receipt.json",
+        "sha256": "b5b718fe1f25f000003df044305e5849778c75dbd3e3862fdeb1e9113fac8630",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifest/native.log",
+        "sha256": "0e88ef823cb51eabd44345924f2534013867bb32b21d8f6858a9501ae389bec0",
+        "bytes": 4228,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifest/native.validation.json",
+        "sha256": "30c14959bd574ada6ca22df6ad7ef6967a479fcb8ce32c4e8ab61d4dcac182af",
+        "bytes": 2023,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "reader17": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifestAcceptance/native.receipt.json",
+        "sha256": "fd00a9802a5ad3e12e248c49900b25284a20e8efeab85209978061d71b5afbcb",
+        "bytes": 1472,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifestAcceptance/native.log",
+        "sha256": "4aab03f75cede63eb9934d6bf1dd24f94f2f6c3e1a5d0c7e8d0717c6b087d81d",
+        "bytes": 1652,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowManifestAcceptance/native.validation.json",
+        "sha256": "a8bdb15d5297b89cdb6aa447c5e0485dfc0fdfba59ce637ad55365496cf1c825",
+        "bytes": 2053,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "legacy180": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowLegacy/native.receipt.json",
+        "sha256": "0de6df2ef8a205e305c95944cd7ecea2639f34a2c7cd7e7058323c7227b4e68c",
+        "bytes": 1629,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowLegacy/native.log",
+        "sha256": "2d71bab0e8a1487d27ff4bcb38b539fb5470c6d0508c040e69be506688c432cb",
+        "bytes": 11007,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowLegacy/native.validation.json",
+        "sha256": "d9c2c04fcee009ceb6d37aff0ca9980c861aaed8c78a2a4b3b85ba941d2ade7c",
+        "bytes": 2018,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "types": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/burokratTypes/native.receipt.json",
+        "sha256": "7f2e520fbe82046ecc93f7892e1e0118e0b09b11faefadce85e75d821424c108",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/burokratTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/burokratTypes/native.validation.json",
+        "sha256": "e090a90859856ea678f4d2c30a791a06e01d068c6965ae82ae68e334846f8deb",
+        "bytes": 2011,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "format11": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowFormat/native.receipt.json",
+        "sha256": "51b65d272d78a9e2c46a04f9c282f4510d356831b6b5a94092e47085151a13a2",
+        "bytes": 2256,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowFormat/native.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-safety-owners-live-v1/workflowFormat/native.validation.json",
+        "sha256": "5680ea0977217f6bb5542b499d921f13341fbdb80fd5ed1b4077b436d29fad2d",
+        "bytes": 2015,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "help1": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-grammar-source-live-v1/workflowHelp/native.receipt.json",
+        "sha256": "f3b629d412f08d575018e31a98762a68cdded57c6dd2d60dbfb0818143c8978f",
+        "bytes": 1510,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-grammar-source-live-v1/workflowHelp/native.log",
+        "sha256": "6e3da58c1de90e1ccdf7a6f486f3487cccb8cb08ca128b70216b8ce4cd40a288",
+        "bytes": 292,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-grammar-source-live-v1/workflowHelp/native.validation.json",
+        "sha256": "53ddb4699541a99719b4ad3d3d07bd0bcb55fd2c9bf9e4eb76a6769d67dfabf6",
+        "bytes": 2013,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "actualInterop1": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.receipt.json",
+        "sha256": "d810c50aed48702b9dcec1735fa358e017abaa9bd123c058f11561afc30c2fb3",
+        "bytes": 1583,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.log",
+        "sha256": "787700fa431f730eb9f8f77e40edb3cd2935cec51c74f3ab9f34083bb71d4b31",
+        "bytes": 328,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.validation.json",
+        "sha256": "1da89175df543dca39545b8bd7d5dfde340afafaa1a4e3a96d6d11c4a7178c1a",
+        "bytes": 2001,
+        "mode": 384
+      },
+      "exitCode": 0
+    }
+  },
+  "counts": {
+    "commandCases": 46,
+    "commandAssertions": 143,
+    "readerCases": 17,
+    "readerAssertions": 98,
+    "legacyCases": 180,
+    "legacyAssertions": 463,
+    "interopCases": 1,
+    "interopAssertions": 40,
+    "creditedEffects": 24
+  },
+  "implementation": "Version2 binding separately names project{id,revision}, untyped default step/class array, stable-type-ID/steps arrays and existing classes. Strict manifest1 input and canonicalization preserve SC18 code order. Project ID/revision, all actual types, whole-default fallback, complete explicit mappings, classes and uniqueness validate offline. Arrays preserve literal default/prototype/whitespace IDs. Empty mappings/classes are valid when no class reference is needed. Schema2 acceptance binds canonical binding/manifest/manifestDigest/original prompt descriptors; distinct retained reader rechecks applicability/digest/descriptor completeness. Existing schema1 decoder/version guard and byte acceptance remain unchanged. Both actual root dispatch and exported helper use one pure Optique1.3.6 grammar with an explicit steps/manifest union and grammar-before-IO.",
+  "sharedBoundaries": "Executor/model/prompt-path policies extracted into one shared class reader. Existing YAML1.2/root/regular-file/physical prompt containment boundaries moved without semantic changes. Original prompt byte acceptance extracted once; no synthetic bindings, type names or code sets bypass the legacy checker. Native children use exclusive FD capture and bounded sync ownership; old output/exit assertions retained.",
+  "proofPlan": {
+    "path": "/tmp/puni-workflow-manifest-proof-plan-v1/plan.json",
+    "sha256": "b92ffa32242375a41e8157ac653b93b6fc99020b4994cb291035ac9828b42954",
+    "bytes": 31292,
+    "mode": 384
+  },
+  "proofEngine": {
+    "path": "/tmp/puni-workflow-manifest-proofs-engine-root-v1.ts",
+    "sha256": "48a31b188fd0ab17c8d35988e8832cf9ef7101bc1ac17c951674eea00970020d",
+    "bytes": 9676,
+    "mode": 384
+  },
+  "proofAudit": {
+    "path": "/tmp/puni-workflow-manifest-proof-audit-v1.json",
+    "sha256": "c398c91820a69f31daa9386820f388646a67db5bb02e6dce8268d23cdebc9f19",
+    "bytes": 17924,
+    "mode": 384
+  },
+  "proofs": [
+    {
+      "id": "WF_PROJECT_ID",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/plan.json",
+        "sha256": "7b97a6f861d700bc33e3e9aad1ff547e86d0a65fc0dc03794b94799df5d3c3ca",
+        "bytes": 3632,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/baseline/native.receipt.json",
+          "sha256": "a88db4a43d6c28877f0b307bdbdbd81ce51ca1c994b6da136442d4c83e51432b",
+          "bytes": 1516,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/baseline/native.log",
+          "sha256": "5d0b4f0cb9e4e7027f81088cee7f2aa7fd9503fb91a604b72e3fb6088bf40d6f",
+          "bytes": 261,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/baseline/native.validation.json",
+          "sha256": "9bcaf8aff0a3227339c149f320df074330bc902efa0ccd973f6c2f8da29c7c5f",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/fault/native.receipt.json",
+          "sha256": "6fbf3b30ee9a4ecd8ed3fdf9897dc7e5a1a1fedb89af376cb50b858392c72ade",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/fault/native.log",
+          "sha256": "f0bb5651c238145f1111c3ba0a43df58ec5ebe206b4a631178b94ef1c24b8d65",
+          "bytes": 895,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/fault/native.validation.json",
+          "sha256": "aa1450418f78d9cf97cca14d1c07929be060ae4bdc74f8cef415d770fce40d7e",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/restored.json",
+        "sha256": "c0440265b1794b1e2d7e38a1ff1cf886f23cb616a8889a4db651938db6ddc43d",
+        "bytes": 511,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/after/native.receipt.json",
+          "sha256": "fb014e9047fd4865609c4ab1365bbaaa7e2f72068eda85824420ded0c08919ac",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/after/native.log",
+          "sha256": "a484e5b50c15f721e8d3be1c9f01d7e08aa65a4935a657f803bf3b7d6885e6de",
+          "bytes": 261,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_project_id-v1/after/native.validation.json",
+          "sha256": "0dfe16f97dd2e63cf67c67730df8169d2dc623c2d1b91e6af2edaed97e25b886",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_PROJECT_ID",
+        "caseName": "workflow manifest refuses a different project id [20.46ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:103:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_REVISION",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/plan.json",
+        "sha256": "d91646218d1c3155c858ebeda1cab12575e3dd6549d3668b437b7e46ae2b5d3e",
+        "bytes": 3640,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/baseline/native.receipt.json",
+          "sha256": "646769dedce53ae5b46f0b7af59a7168fd18bda39886c5e4ae419a5252ab8849",
+          "bytes": 1518,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/baseline/native.log",
+          "sha256": "1bf6b3ce0b8a47204ce38b93ddc20376f0cbd7974bf62363197cfcbf495a4281",
+          "bytes": 267,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/baseline/native.validation.json",
+          "sha256": "f4c207cfde4a1d7371a45b6a844ff32ba96d571ba5c6123c4c57e4c786b45a20",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/fault/native.receipt.json",
+          "sha256": "36fc040eab5ce12554eeea6c97d28d3f4c67f8381b6776e3e00401f4fcb859e4",
+          "bytes": 1512,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/fault/native.log",
+          "sha256": "d9b0cf8d2c8579e794ad6a17e17f688c514eb36e218fabae449e4db7dfc099c7",
+          "bytes": 901,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/fault/native.validation.json",
+          "sha256": "694d244eb43378a020a93d7e1d166e4a060bf42f25b5c465fe41f1928315b4e2",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/restored.json",
+        "sha256": "1658f734f5e2b38f080dc8012f3f3814ac17ca2185bafa6e4bb32fc68df1c65a",
+        "bytes": 509,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/after/native.receipt.json",
+          "sha256": "2cce7103573a6f3bb6fcdf961cd90c89d26925ae0fb893505876266f9f3bd02d",
+          "bytes": 1512,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/after/native.log",
+          "sha256": "b30318f2b9cbe89bcfc564b14d677f44d349dedeb9929494178a4e5080513123",
+          "bytes": 267,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_revision-v1/after/native.validation.json",
+          "sha256": "2b735f7f138cb59651e48c3807a75b1204a28d0529ab0c31c51aaad4a41c28f1",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_REVISION",
+        "caseName": "workflow manifest refuses a different project revision [19.43ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:103:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_TYPED",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/plan.json",
+        "sha256": "16f5563c0d49777138cd57a7ac9c7e4d67c23b62f46f6523b2b8a171945905d0",
+        "bytes": 3839,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/baseline/native.receipt.json",
+          "sha256": "ef9f8bee5250c364b3fb5298e552fb743ea5a336bea0739d1c94bbbf6034a760",
+          "bytes": 1524,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/baseline/native.log",
+          "sha256": "d0b0c61f65a767bff1be9cc17d381a4e1799d5788e215078b733b18cc5e3ea83",
+          "bytes": 279,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/baseline/native.validation.json",
+          "sha256": "fe3ad513a581436de6cf01d97175a0ead9c4de4b68a127e41dc51841234bc106",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/fault/native.receipt.json",
+          "sha256": "1d28b4ada2b06a04adf5961e38c0269ccc40571eda931d93a93a17c0491d0235",
+          "bytes": 1518,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/fault/native.log",
+          "sha256": "f2965841efcbf5a4ba3ece1e968a12f34783816c0715359407bc11fca1d075c8",
+          "bytes": 912,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/fault/native.validation.json",
+          "sha256": "91daf87c0dd85fd1e7983b707df6371d743eaf46f0eba16e3973bbd243ceff03",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/restored.json",
+        "sha256": "35a06f59a6d3c3c507496d1f72027b8b6c0485dc591c8a29040a5931c4ac81f9",
+        "bytes": 506,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/after/native.receipt.json",
+          "sha256": "55e73579f623f61a840d7092ecc1f2ec8ce55f0ea152a7ab7880edd080bec61d",
+          "bytes": 1518,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/after/native.log",
+          "sha256": "56f9356315cda783c6a9b8643390b5c3dfe82e048d971592d32675079f0d0a8d",
+          "bytes": 279,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_typed-v1/after/native.validation.json",
+          "sha256": "0fef8b06deaac1cc81a1422cdb44fc019deda49f733fb20cd299756c2eeed21e",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_TYPED",
+        "caseName": "workflow manifest refuses a code that only belongs to another type [19.67ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:80:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_DEFAULT",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/plan.json",
+        "sha256": "66a5bb2614c62e725b8caa63651f79741a984e65bb0092fc30513d41708c4266",
+        "bytes": 3684,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/baseline/native.receipt.json",
+          "sha256": "26411e8a15fecf02892d82ffaa65ef13c31424e0466500b7f5bda6445a57da8c",
+          "bytes": 1546,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/baseline/native.log",
+          "sha256": "6eb04423b595a79d00e226e75ee8b417dc33b728f4d71fa069ffbfd2dacb330f",
+          "bytes": 297,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/baseline/native.validation.json",
+          "sha256": "4ce9cd94b7f201bef253478e35b8ad89faf70523956c9906fcb164f86466dba0",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/fault/native.receipt.json",
+          "sha256": "3c7325d69bff723dc78725b4625552e294e5d20a4bb9560d8d296c42cea2c05a",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/fault/native.log",
+          "sha256": "5dd6d99e1eba1cde7a193e618a72a267868513dcef1fba62bd34fd79460170a4",
+          "bytes": 931,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/fault/native.validation.json",
+          "sha256": "1117182a75c96be11b6d42a786de755ff1a8f3cd823dbb1840693e51e0b2b4d7",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/restored.json",
+        "sha256": "b7538fe09621c3c8b507b4ef04cab287324f59a055418d0590ec45a4793fda03",
+        "bytes": 508,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/after/native.receipt.json",
+          "sha256": "9e0132fb775db4a5dab168038c07343d5ffab7c85a4d67e9a584ce7ae46553d2",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/after/native.log",
+          "sha256": "07c988fd161a789b237f502af048e8bb1b5a7bded2303da8d80595501a444ff3",
+          "bytes": 297,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_default-v1/after/native.validation.json",
+          "sha256": "69dea704092b7655facfdebac7e3dca260f0dc4518e342d7859b3db821bf0f13",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_DEFAULT",
+        "caseName": "workflow manifest checks an untyped-only default without typed fallback interference [16.47ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:344:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_EXPLICIT_WHOLE",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/plan.json",
+        "sha256": "d0b32cfe17cf8154098693fdef295239b1ce713482beef7abb2bc23b24c77ab3",
+        "bytes": 3734,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/baseline/native.receipt.json",
+          "sha256": "6373c119d4dc3ee7af971dbb8433fbdb812587bc441f5c8b90551ba5b9d85d0b",
+          "bytes": 1548,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/baseline/native.log",
+          "sha256": "e5d41a945b44aa6538a17417ca12c035d3a300fede6f43e34ce71a45cf26d093",
+          "bytes": 285,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/baseline/native.validation.json",
+          "sha256": "66ef2a40760c5fff3fc3ed9d4bfd5c86820b68e8df2d0ee303dbfbdf9598dbaa",
+          "bytes": 700,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/fault/native.receipt.json",
+          "sha256": "ac273bf0a78dcbaa1b28ba7830cd979f59cbbc6a224ec6bd86c5eeebc9334c75",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/fault/native.log",
+          "sha256": "c0bb5b852f15df7342d4e07cb2f09a4dd2956a44b33d9332095d9659e3678806",
+          "bytes": 918,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/fault/native.validation.json",
+          "sha256": "72b870231258d882e5727f1c7db3c6be9872f6afc6ab883a4cc7b389b25288f1",
+          "bytes": 694,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/restored.json",
+        "sha256": "499bbfa35e88fbb06245a28290621a9f46ea3afc2d75733992aa5f6e9cdc43f0",
+        "bytes": 515,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/after/native.receipt.json",
+          "sha256": "975421d98256e35a56a8cfcc89f503e771b84d682af139fcf9355c5341b75aa5",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/after/native.log",
+          "sha256": "46204740f64fc1c808fa54da25ac49119b49b6dd7dd428892371fcdbe488d7e5",
+          "bytes": 285,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_explicit_whole-v1/after/native.validation.json",
+          "sha256": "3ed9cb76c91028ed2ac533f640ae429b396890cbcb0866a518c1e0bb02abce0a",
+          "bytes": 694,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_EXPLICIT_WHOLE",
+        "caseName": "workflow manifest does not fill an incomplete explicit type from default [20.67ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:87:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNKNOWN_TYPE",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/plan.json",
+        "sha256": "f7de5e2a3fdd5d1ea8259ea3b7555eaa1e8b77e863c07464c6a15b84983cad67",
+        "bytes": 3639,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/baseline/native.receipt.json",
+          "sha256": "e405976df3e30831a89031651de943c6fab647105110526e308ffbc4146f873a",
+          "bytes": 1528,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/baseline/native.log",
+          "sha256": "2bc64f2b87d325f9521a81b4e7d46dad2b468f7dfe71d373a8227a983aa28f63",
+          "bytes": 269,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/baseline/native.validation.json",
+          "sha256": "783f68770060bcf20d529bedad0a6b48b79f09217533857c6ed8df9ceaa35e75",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/fault/native.receipt.json",
+          "sha256": "99e78620004c19a36b4d679906b2c18495d37348daa2ba27279021c90376e61a",
+          "bytes": 1522,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/fault/native.log",
+          "sha256": "6174ee05ab7651409f2a7a7b9ca7a74d6682953ddd5ec55f3757a8ff133a3192",
+          "bytes": 903,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/fault/native.validation.json",
+          "sha256": "bbc20981942a598775cc4549349ccf96c3b84b2b597672bf767e58c5a8c30abf",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/restored.json",
+        "sha256": "5dd047d82df47375dfcba1ec6a1f322495538b150b7a210049dc7949d7a0918f",
+        "bytes": 513,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/after/native.receipt.json",
+          "sha256": "b8d29eba7bc567cbbd6327d897b08498dd829f7b0689e0eef3298c63097de6bb",
+          "bytes": 1522,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/after/native.log",
+          "sha256": "51d835f14420a82792d860b01e3029a77f8b6937e2b8dc630e846c23d27d0ce2",
+          "bytes": 269,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_type-v1/after/native.validation.json",
+          "sha256": "30ae63a4a74bf8729d8a2196c66fd790ab66902c5ca67192537d4e36da305b26",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNKNOWN_TYPE",
+        "caseName": "workflow manifest refuses malformed binding unknown-type [22.16ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:234:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNKNOWN_CLASS",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/plan.json",
+        "sha256": "e0a8ead0a5d354c9b4c22e1294cdc83cc59193048e511a630842b307b99f2daf",
+        "bytes": 3657,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/baseline/native.receipt.json",
+          "sha256": "ab93988238b7c764aae1c0775f88b76c3f3615682d6b07197420c82665641376",
+          "bytes": 1531,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/baseline/native.log",
+          "sha256": "c36605ae8b28e4e679cce7bbfb67c8a2bc7350ff2cfbb4fda0327bca1491a41e",
+          "bytes": 270,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/baseline/native.validation.json",
+          "sha256": "93da1da72d2d9066cd3bcd5308313a2914b50070d6f04c31576671135d44ed42",
+          "bytes": 698,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/fault/native.receipt.json",
+          "sha256": "6f27452223d15b7057878c792ce2816634d079bc7237bb02be5dc8e42ee1c66b",
+          "bytes": 1525,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/fault/native.log",
+          "sha256": "906c8522a92a47c1fc2645451628a9383246f7e0617d2b350aeac82196db990d",
+          "bytes": 904,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/fault/native.validation.json",
+          "sha256": "7774a21de62aca03775de2692026287b405cc076753e7fc01b6dc78d89e2ee74",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/restored.json",
+        "sha256": "fe28ebd666c5d861c0ce4561b85d30cf40c73281585a429d40a25f6a412fe0ae",
+        "bytes": 514,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/after/native.receipt.json",
+          "sha256": "fa47523be72e7677759ad118a5e586fb5edf8388593dc990e6acdf84c6eb8852",
+          "bytes": 1525,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/after/native.log",
+          "sha256": "632fc597dacc1b41a255736a7e900595acc341fb7d5220bd7ddc712a4771ee38",
+          "bytes": 270,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unknown_class-v1/after/native.validation.json",
+          "sha256": "c0629c3e188f6390614d99cd1dd9e0075cda88233735452432fa15876ce61c92",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNKNOWN_CLASS",
+        "caseName": "workflow manifest refuses malformed binding unknown-class [20.06ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:234:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_PREDICATE",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/plan.json",
+        "sha256": "2b9ffc9f78e9e027f4c2ab9e3951390ebd5855913a8048f6b1ca6493162fd6a8",
+        "bytes": 3663,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/baseline/native.receipt.json",
+          "sha256": "2f19203664add7bcda76dc60edfb95c55d3c0c2fa711001b0da8f750f39d9207",
+          "bytes": 1539,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/baseline/native.log",
+          "sha256": "a528aa8d623196b880107bca5e9074aff46f1e74c0eab87ff953f1ecb49d8e8b",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/baseline/native.validation.json",
+          "sha256": "2b763a9f4800e4542f7d1f982fba5d0d715ecd497cc77dfc801e9cdd11b8de81",
+          "bytes": 704,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/fault/native.receipt.json",
+          "sha256": "f457b4622985ad49970162d693216fe1b8249c8f25cd792d624d1497781e53ee",
+          "bytes": 1533,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/fault/native.log",
+          "sha256": "37a0e1accaf0cad81fb88172db328fabd812112ce4e33031733fa6ba2f2af1d5",
+          "bytes": 906,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/fault/native.validation.json",
+          "sha256": "2ae8da9ffdaf06c73209e145ea3e05043c0e13fadc29ba91ab494d7070b57a1e",
+          "bytes": 698,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/restored.json",
+        "sha256": "b12324ec0349bf9513f36ea5131e02488684aafd2a37e0da2884177633145579",
+        "bytes": 517,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/after/native.receipt.json",
+          "sha256": "e255fc76a47dca27ac0f735ae07c5d143d4452352337dd2b5ef366fde94d71e6",
+          "bytes": 1533,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/after/native.log",
+          "sha256": "9ce4293169d10cf3054e2b6cca7b8c1c8e4e948cfb4de448a002fbcd7366ad19",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_predicate-v1/after/native.validation.json",
+          "sha256": "97c17a321edb7cb532f0d9d45789d5730b850eb60a3937a2d6b1befaea6de544",
+          "bytes": 698,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_PREDICATE",
+        "caseName": "workflow manifest refuses malformed manifest duplicate-type [22.06ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:211:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_MANIFEST_TYPES",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/plan.json",
+        "sha256": "9ea383ba0a30b9d41498bd1f3b713922b3917723540d4e1f26a8c7d818708486",
+        "bytes": 3743,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/baseline/native.receipt.json",
+          "sha256": "e35d1f0e143dc8e8e21b6e7080c3e0cbbd7f7d430a7f7fb76ec0611a621b85f5",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/baseline/native.log",
+          "sha256": "dd52f3d74c17198c8b71c8257a0522ee17cc0e814cc41506c776727159c1eafe",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/baseline/native.validation.json",
+          "sha256": "b4ad0ff633720070952e9544315d091ddb6ffc87e326d175dad865bb230eb3a3",
+          "bytes": 714,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/fault/native.receipt.json",
+          "sha256": "21f4ed251c9b6ad8876a4679af474b8a1e9e9915b6da864e982206dacfbd9261",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/fault/native.log",
+          "sha256": "d906b95dd72b9070798b14d5bfc4dbd2cda8e3b8e98cf9d3c3c1d43bb63ffd8f",
+          "bytes": 906,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/fault/native.validation.json",
+          "sha256": "e67db725715690569bcf64fb04303edbf54924f927e8afc6df7f634635a4fa40",
+          "bytes": 708,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/restored.json",
+        "sha256": "eeab47be611de3345fdd56e493e45c8ae317674c4538e7cc80d6b4639e296a01",
+        "bytes": 522,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/after/native.receipt.json",
+          "sha256": "c72e4d1883ae9402d5362fa18b52801bac1319acc31518e8556bb8cebbcdfbd3",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/after/native.log",
+          "sha256": "49435304923066caf1194c2423ba6b18035236b5d7c249efcdf7e6aa30931694",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_manifest_types-v1/after/native.validation.json",
+          "sha256": "cd91a6c5a46d10686958492106dd69c927e91b4f5835170701810ca78e7ec207",
+          "bytes": 708,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_MANIFEST_TYPES",
+        "caseName": "workflow manifest refuses malformed manifest duplicate-type [20.87ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:211:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_DEFAULT_CODES",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/plan.json",
+        "sha256": "62e1279d88e9a8de34bc363fc2b946f935f366777e6e7fbd128812a97d6202eb",
+        "bytes": 3691,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/baseline/native.receipt.json",
+          "sha256": "a12779c1ab67ba4704de6b22761d83f5e59085646c802c2c4cd0189c36f6f4bd",
+          "bytes": 1547,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/baseline/native.log",
+          "sha256": "015ffc89e42a765e55b88d171234f711b08d2b1a8464c2ed872831e963c98e42",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/baseline/native.validation.json",
+          "sha256": "7781a87971b6c82e88d2e5905db6450977bcbec46b7dc46c94076f468d4934d0",
+          "bytes": 712,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/fault/native.receipt.json",
+          "sha256": "8455389fe31be6d7f7a7504582d9492b5bb0f083a0738253b51b93a6cd935667",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/fault/native.log",
+          "sha256": "5e1447045a9f027d802107daeebaafec021be15b8516a00a0e5fa6a7891e4a84",
+          "bytes": 906,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/fault/native.validation.json",
+          "sha256": "bab856dad55070f65213b73341226037260c03786cc234eb2d693c73b0b4289f",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/restored.json",
+        "sha256": "3a551ef7cf3803bae0165e89085ec30102658dd1abc643b7d7c09a2761cc79a3",
+        "bytes": 521,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/after/native.receipt.json",
+          "sha256": "cf3e8576efc5556503c5c7e908cb2eac8f08f1425efe9286893c9daac056c7be",
+          "bytes": 1541,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/after/native.log",
+          "sha256": "0a218f32ee868737ae1ccbdae58b7b44df61186ab1bfe098ef2f198f890f1d68",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_default_codes-v1/after/native.validation.json",
+          "sha256": "c9b0ff02387a04891d2278370a65c92cfb7bb6c41073e7f164e6c00014ae00a9",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_DEFAULT_CODES",
+        "caseName": "workflow manifest refuses malformed manifest duplicate-code [19.14ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:211:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_TYPED_CODES",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/plan.json",
+        "sha256": "f0f137b17165465a223da497e2ab50f8234ca0e50bf4dcab147d8f944c2c5710",
+        "bytes": 3758,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/baseline/native.receipt.json",
+          "sha256": "e257de586907d453c18a682ec4984659d810bb526e632d16640b8c2ec11b4fda",
+          "bytes": 1554,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/baseline/native.log",
+          "sha256": "ed88dd0adb4008a1b78dc7074276c992fab05fd1d6a8861f5d2fdbcff0ec5b0c",
+          "bytes": 283,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/baseline/native.validation.json",
+          "sha256": "e272448ada6843f1d1432595778c7a195f69fa3b200c4215d442863ebba9279d",
+          "bytes": 708,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/fault/native.receipt.json",
+          "sha256": "1e8d86b74d2219cbcfe5beb6b16d8548c9b072fdec976b17874da83d49af3405",
+          "bytes": 1548,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/fault/native.log",
+          "sha256": "84037c1f3f9a9727d85d65cfb92929eca1b22ef9649f31416d826c79d580e3c8",
+          "bytes": 917,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/fault/native.validation.json",
+          "sha256": "d6f59323433ddbdb2db38317be45e2094be8affc246915c359454bb17c55918b",
+          "bytes": 702,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/restored.json",
+        "sha256": "2760d82d685e256ef6f3fbf91982d2f1b6a12660e1f514d8a433447f7d541b86",
+        "bytes": 519,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/after/native.receipt.json",
+          "sha256": "f7801f22760b5ef6cc988bfc4ce199d0f448a0e519b25d496bb239d919d49d2c",
+          "bytes": 1548,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/after/native.log",
+          "sha256": "8a13d2afe1bedeccdab7ec9892f084235de7a7d536eaa469e11c407852404e94",
+          "bytes": 283,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_typed_codes-v1/after/native.validation.json",
+          "sha256": "28721fe59b8558a33455d239cf3b5ea43ecead6c200b814066aa7696e882461b",
+          "bytes": 702,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_TYPED_CODES",
+        "caseName": "workflow manifest refuses duplicate typed codes in the actual manifest [21.60ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:351:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_BINDING_TYPES",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/plan.json",
+        "sha256": "9165ffa2fc1208ab30a840479fc27a8f4dd24ea6f2e3ad54ddf475cb253f8eb5",
+        "bytes": 3727,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/baseline/native.receipt.json",
+          "sha256": "e35530ce4252cf59672d256f687ab35cee997ad7809cfc2600acd27a5db81fa7",
+          "bytes": 1546,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/baseline/native.log",
+          "sha256": "6dfa8f6346cf20fa190c0d64092adcbb3b4e6d4f9568fb88cd0c91ee32458d95",
+          "bytes": 271,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/baseline/native.validation.json",
+          "sha256": "504f398f796f6c66567d7875413fe54eada9a13b2143baf66bc855bf76b4b1f4",
+          "bytes": 712,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/fault/native.receipt.json",
+          "sha256": "0e15d5a4e220caf8cc21bf682d08112824590c731f4aaac5d2cfebfef568b353",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/fault/native.log",
+          "sha256": "ff7b726b26668915d7611b2df78855565fedc36f03accea854bd4bc45b4dcd68",
+          "bytes": 905,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/fault/native.validation.json",
+          "sha256": "7a51328f7c443121fa4090f9f2ec5e0ad0d79686d8fd641a8d62c9d65be7b9b0",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/restored.json",
+        "sha256": "a6c805e401c5b240e099106b7f77b4d2c8da2149af7ce76938547d6f27038564",
+        "bytes": 521,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/after/native.receipt.json",
+          "sha256": "44bf2d0112d78c5caad8f8686ce35881314450b98d2b5c3a16a698e6b2590e0a",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/after/native.log",
+          "sha256": "efaa21a199b0dc0cf3b96514cb051ccfd17988020aa6e9d0026ba9e1eca3e04e",
+          "bytes": 271,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_types-v1/after/native.validation.json",
+          "sha256": "2b793e03bb210a49ff90cada4ca29f38121634f2cebff4c30c3ac3ebf5fe68f5",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_BINDING_TYPES",
+        "caseName": "workflow manifest refuses malformed binding duplicate-type [20.91ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:234:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_BINDING_DEFAULT",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/plan.json",
+        "sha256": "6a63bb63027df4bda449ed86feb527d659f7e0330b146e871fc91e1daad0e31b",
+        "bytes": 3730,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/baseline/native.receipt.json",
+          "sha256": "bcacef4df2f9f3bf249c9a525f4598d1827f28e946be7e7330e082a79e8cb9d5",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/baseline/native.log",
+          "sha256": "d881ea34f5db06931fe35539d1f15f4363ac6bf811afff61488954314f5be7cd",
+          "bytes": 270,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/baseline/native.validation.json",
+          "sha256": "a53639a8ec200abe218d3454123e9cf4adbdd74bd594342ad1bac0b3365c3558",
+          "bytes": 716,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/fault/native.receipt.json",
+          "sha256": "db41f288b5cc3e093a77b2d66fdb5e0b627e9e7d1c6031d7c7057c622b681695",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/fault/native.log",
+          "sha256": "d24674508f8540a4adc9cadadbeae164f17a2d04aef7c48fe9f3e0ad56c9001e",
+          "bytes": 904,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/fault/native.validation.json",
+          "sha256": "adfbaf9d804187348397b912e1ddbeab51092de701629bc121b1d66fb6be39a9",
+          "bytes": 710,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/restored.json",
+        "sha256": "e0962b7d69b1b41a67124d58b63c00e6042f3a7bdf327b6f21990eebfff08bb8",
+        "bytes": 523,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/after/native.receipt.json",
+          "sha256": "1c402083cbb8cfe519813858e50be6e2288f5b50a6c6b260cbd491a85c69c254",
+          "bytes": 1543,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/after/native.log",
+          "sha256": "d82b57a80b30f4441982fdd9f065b9ae2f56a6c4a2368e4f3ae906da39f22074",
+          "bytes": 270,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_default-v1/after/native.validation.json",
+          "sha256": "b948ac031fe25fa4585f0536a547a2578779ee304184d553affe3afb5da0e936",
+          "bytes": 710,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_BINDING_DEFAULT",
+        "caseName": "workflow manifest refuses duplicate untyped binding codes [19.85ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:358:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_UNIQUE_BINDING_STEPS",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/plan.json",
+        "sha256": "fff50d2153d404498f10c10f7ad41438841fabe2d19bccc9dad85ae875d17b2e",
+        "bytes": 3782,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/baseline/native.receipt.json",
+          "sha256": "f86fac9526175b0fc509272cb70c6b7cd459936900cc70254a6a89433f156158",
+          "bytes": 1546,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/baseline/native.log",
+          "sha256": "f023f985e2ee876ee266936f75327f4853f5f9c21b4cb4a76b6bb900392e90d0",
+          "bytes": 271,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/baseline/native.validation.json",
+          "sha256": "71826bdd166fa9c56f9f4e3a10ca827329b81e5a36c67e45e1be405ff5ff536c",
+          "bytes": 712,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/fault/native.receipt.json",
+          "sha256": "0734b0e865d4c60b9bb4efd12e1ced8383501180f7278773d13abcf360f8cdac",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/fault/native.log",
+          "sha256": "ec7eab9b641fab1aa3f3211e231888e79949ad458729301333570cd23dc728d0",
+          "bytes": 905,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/fault/native.validation.json",
+          "sha256": "dcb311559c27394043e3b438e1783e5815c625fb76ef07ba9aebad3a246b6e54",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/restored.json",
+        "sha256": "7301b28f63877520b5d50a183e97b50e5163fcca0e7a0a7a145f51c0e89b9349",
+        "bytes": 521,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/after/native.receipt.json",
+          "sha256": "ca0b37382681bcf66ca52c18d4e917b477f67894008baf6c9b813ff96ce328dd",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/after/native.log",
+          "sha256": "60873e4dc756def12bf85b68e90fb318e428f2dd6ceee8b6857172cbaab0c8be",
+          "bytes": 271,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_unique_binding_steps-v1/after/native.validation.json",
+          "sha256": "1e42b5340f3118d5dec3dfd8384f37191cb0f70e69a06d107a9c77fff923778e",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_UNIQUE_BINDING_STEPS",
+        "caseName": "workflow manifest refuses malformed binding duplicate-code [19.32ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:234:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_REV_NONNEGATIVE",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/plan.json",
+        "sha256": "591d4090e12b46c8edf4fb0849a2be1f9691c06036f09184fa6608aeead22d2e",
+        "bytes": 3708,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/baseline/native.receipt.json",
+          "sha256": "03b99b64796534d6900f06a892b56683d508c040cb4f3fa754b3166b1cca713e",
+          "bytes": 1537,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/baseline/native.log",
+          "sha256": "9f991b6bb90d146df529336dc67f8394d3db4239ec1e0813d3d8ddc059502019",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/baseline/native.validation.json",
+          "sha256": "24afc7312aaf6b9015581dd18a40f0d38e62faac4c56ea705b1a398a85bf2ae4",
+          "bytes": 702,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/fault/native.receipt.json",
+          "sha256": "15dac56ac313756b457bbe0e97855bad92aada6b39fd8e85020df09268e4e2b7",
+          "bytes": 1531,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/fault/native.log",
+          "sha256": "6acde95080086005e755c2db47d5a47abcf0b7667b8c674fa1be472e520e6df0",
+          "bytes": 906,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/fault/native.validation.json",
+          "sha256": "a4f2d8d2cb36c0dc4754e2066f1b35d79ab8a5214c5793338636a95057fb8599",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/restored.json",
+        "sha256": "8f3df8d81ff24c8d9857746d315f6cbaf83ece97298def47bcee97d9c78332fd",
+        "bytes": 516,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/after/native.receipt.json",
+          "sha256": "8e654e932d4a45fb052d539f63ec4244bbbdb17bf0b537d087716a6709353679",
+          "bytes": 1531,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/after/native.log",
+          "sha256": "bc8f416572ad53f746c56b88f1a4050282235036109f3c2db8ed1a334046dd35",
+          "bytes": 272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_nonnegative-v1/after/native.validation.json",
+          "sha256": "4f6023fdb642291949d84d44d9b64b7c4ea5355e98221b582423fac6c0dacf97",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_REV_NONNEGATIVE",
+        "caseName": "workflow manifest refuses coherently malformed revisions -1 [20.43ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:369:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_REV_INTEGER",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/plan.json",
+        "sha256": "c3ee719cce1ff5f0dde246446f9868de474a64d84b294c0331ecd44bbb76ed86",
+        "bytes": 3688,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/baseline/native.receipt.json",
+          "sha256": "a0f07b3042fc8b0336a54117bd12007c21649c70c8ed5130f5159a148636fe9f",
+          "bytes": 1532,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/baseline/native.log",
+          "sha256": "48f4d04354e682d53ee65b5fc099624977e7c239b704bc03b90517bd1f839882",
+          "bytes": 273,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/baseline/native.validation.json",
+          "sha256": "d892ea8bf3be70c6445ec1c23e0e4773be52c26b0337d1fd3e99edd4ed23f2d4",
+          "bytes": 694,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/fault/native.receipt.json",
+          "sha256": "9ecc34b9aabd190f4af23abffc177c878e201d2244e66592989415397642117b",
+          "bytes": 1526,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/fault/native.log",
+          "sha256": "209d22c01134c9f08f3748cf42f1cc86a00ad0f476dd58b1a2c6cdc2497e82d4",
+          "bytes": 907,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/fault/native.validation.json",
+          "sha256": "ce3114d0bbaa79a6c6a160bf33844806cd75e978d2d551d70c305b7ddcbfa575",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/restored.json",
+        "sha256": "f03359b5cd8860adba37df20f8bac5f3cd07dcd2d7b2136a7b755c5189e6a4a2",
+        "bytes": 512,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/after/native.receipt.json",
+          "sha256": "fd4a0674c5972fbca656ad5a9f9a41e40a19c4f5cd304e7320089f0b75088fcd",
+          "bytes": 1526,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/after/native.log",
+          "sha256": "4e307fb206004d9f6943de4f0a8597880d368bcfe61e756ecc11de54993a3501",
+          "bytes": 273,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_integer-v1/after/native.validation.json",
+          "sha256": "9ca9f7ec5df37938cf304ad734787ce174ebb1dec89be94d6dcaced2d7c5808f",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_REV_INTEGER",
+        "caseName": "workflow manifest refuses coherently malformed revisions 1.5 [19.79ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:369:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_REV_MAX",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/plan.json",
+        "sha256": "108452d17d1a6f2f19b684715db6f44e494761c912a18a74d082ce4289aae86a",
+        "bytes": 3667,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/baseline/native.receipt.json",
+          "sha256": "3aa27d39ea7d92749e754b4e21d619800adc0005361ab067ae36de00abf27715",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/baseline/native.log",
+          "sha256": "1f87dfdda59216023ad6cc790592fe42b615541e003cbfd596486b837d7cd750",
+          "bytes": 286,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/baseline/native.validation.json",
+          "sha256": "85e54c288a77390d78694c1e9e22c5501e8cd7b7faf7e7db9a0b917ca80be615",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/fault/native.receipt.json",
+          "sha256": "5eec7c2aca48189920edfa5eb334cf2539513769d534475928f09d05b8bac82e",
+          "bytes": 1529,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/fault/native.log",
+          "sha256": "bedc938b0d6a4b47acf10b323240aedd4f6db314c4eab5c7114a2181f225145b",
+          "bytes": 920,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/fault/native.validation.json",
+          "sha256": "0fd26068117e9ff075d9caa7453bd2dde1b262c32f43572a439dcc32b430dd5f",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/restored.json",
+        "sha256": "08956ba5ebf4858cf1bc66834b40836eb8e7bf3f00975b77d9bab06bd501b2df",
+        "bytes": 508,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/after/native.receipt.json",
+          "sha256": "456d789c6b734b1adaaf5dbe200c59606417bd1e12736480561d293344ce83fc",
+          "bytes": 1529,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/after/native.log",
+          "sha256": "02937b09f796fd001e373e7003bf830a4401d53c699315e3ff368b283fcf5ba3",
+          "bytes": 286,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_rev_max-v1/after/native.validation.json",
+          "sha256": "aae8b9645c97db24a0f41f125d109c7dedeb126472f9bff31a8bf8631ed4bef8",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_REV_MAX",
+        "caseName": "workflow manifest refuses coherently malformed revisions 9007199254740992 [19.80ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:369:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_ACCEPT_DIGEST",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/plan.json",
+        "sha256": "913981e46037c021500407ab91a1896580015ad05e74937c08b0c3aa3292d075",
+        "bytes": 3691,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/baseline/native.receipt.json",
+          "sha256": "c7c33abb46f2fba615e35393b0eb844dde27c490de0619c005a6643d5f2788a8",
+          "bytes": 1562,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/baseline/native.log",
+          "sha256": "75de5593ace7c7ae4610122dd14ef82321c9457fe6f0d04df5c7922c8836452b",
+          "bytes": 300,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/baseline/native.validation.json",
+          "sha256": "0e8a7ddbb6a87aa512fb3b613fc58530f086392d3a0d44ecf580a7bbc5b55e86",
+          "bytes": 698,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/fault/native.receipt.json",
+          "sha256": "172d40b70094548bd232e8ecc13467d949814e678607980c6280b05c8e91fcd6",
+          "bytes": 1556,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/fault/native.log",
+          "sha256": "a21227dc1170fd4d085af7402d0c9459c45178e105a2724d8f10181fb2563be3",
+          "bytes": 961,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/fault/native.validation.json",
+          "sha256": "de29c6d8719aa965f6ea6ddaa5aae8cf81c209a89a9e66824153707925adda8c",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/restored.json",
+        "sha256": "1b1d042a83048ecca7fdafb6aff2e8e1d2a2cf3835fb645d835b0992c27a1f2e",
+        "bytes": 514,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/after/native.receipt.json",
+          "sha256": "4c677a94facab1b6023557645c7f851271795b77fb1ed537f571f85b24a76224",
+          "bytes": 1556,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/after/native.log",
+          "sha256": "b14911f8979fe5b10b6c7ea25265aa09510a46d91acc3ffd91c3cf38ca34703b",
+          "bytes": 300,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_digest-v1/after/native.validation.json",
+          "sha256": "fef6e7f9b48c1ebaf836139e13bf0c3d540725c2e8783a35dc6dffc4ec44c99c",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_ACCEPT_DIGEST",
+        "caseName": "manifest acceptance reader refuses a syntactically valid wrong manifest digest [7.85ms]",
+        "counts": "4 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:54:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:69:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_ACCEPT_COVERAGE",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/plan.json",
+        "sha256": "420653833564402b0c0f090b326773b0c461fbb047a51621b9a2a5f267509d72",
+        "bytes": 3667,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/baseline/native.receipt.json",
+          "sha256": "1a8152cd567fd03aeab72151ae9d150e1e188ecf70fcc276653d958cdebea106",
+          "bytes": 1550,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/baseline/native.log",
+          "sha256": "d78c6beadd437186d9b34fe913c6e42c70a98445e1ee8f2ab890a3d23e2b4df3",
+          "bytes": 284,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/baseline/native.validation.json",
+          "sha256": "99738d5a280287265daf4d9d023a47702609f07d46108ae532ff32893a50ceea",
+          "bytes": 702,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/fault/native.receipt.json",
+          "sha256": "0b43a3046c2a61660193facb2b6327d0b3e7c5edfb28f2eddce451b44c1fd4f8",
+          "bytes": 1544,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/fault/native.log",
+          "sha256": "20e3c606e5cf9bae889ec79ac62122346735f8136c534f767e56e3d0068bb95f",
+          "bytes": 945,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/fault/native.validation.json",
+          "sha256": "1bed843abb8e712d4ea5b0076320fef4634a9948ed00691ef4e00ecfeb73c3d1",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/restored.json",
+        "sha256": "69fd8804a4fdeb4f9b2bf4a9b0d64e505b86b93cbd0574dfedcb14d0876a0fb9",
+        "bytes": 516,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/after/native.receipt.json",
+          "sha256": "60bd6f4bd006db949ef4e5b9de76d39a324be8a751918bc3438a4abcf0289249",
+          "bytes": 1544,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/after/native.log",
+          "sha256": "99c337a69820bf00dffd6100ec5f22addda3777e13a8f7f5c7e4d89cdb4c24ee",
+          "bytes": 284,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_coverage-v1/after/native.validation.json",
+          "sha256": "04eac43de6b5ee1282e12f022c7408a4cc5c88ff907a436a54225522fb1e172d",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_ACCEPT_COVERAGE",
+        "caseName": "manifest acceptance reader rechecks retained per-type coverage [7.23ms]",
+        "counts": "4 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:54:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:91:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_DESC_LENGTH",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/plan.json",
+        "sha256": "6e445656535bef358ddef675709d27fc7b9ff78f6fc75fb0ccfc5586258756a3",
+        "bytes": 3658,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/baseline/native.receipt.json",
+          "sha256": "ed38ef0b6909d06f608126be88548f3c6c83b6dfaa4861dea887b0c236d6a5d4",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/baseline/native.log",
+          "sha256": "aa0911a2b7eb8bd2f0209464c912ac34dd300c9f866a96b6b7f1f7f2f1164d2b",
+          "bytes": 284,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/baseline/native.validation.json",
+          "sha256": "f4333c21d77f2dae6209b6cdbd4144332ce4db06a1b7a9248f4de0851677ee4a",
+          "bytes": 694,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/fault/native.receipt.json",
+          "sha256": "1a92b1eee7030fe883ba5b1c247d399345d416a4c09c5ba21eb034ae78429af3",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/fault/native.log",
+          "sha256": "4049a052638e4b62e5cd687c09788199117d2707d7b3694d1d392d88fba09553",
+          "bytes": 946,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/fault/native.validation.json",
+          "sha256": "d1e5b24a960599f74fd244ff3e1efb69c4d082b2b23b33bb3e4fb06cef6231c8",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/restored.json",
+        "sha256": "1bb5208db86144b42b4f0b55e00d17d91c720852ff49f1d06a33e51e29940467",
+        "bytes": 512,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/after/native.receipt.json",
+          "sha256": "0392b5374db23b4c76ae377ea8c32eb9d7bcef61a8ad2c7104f8d13e09d83bdf",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/after/native.log",
+          "sha256": "a6d67ef1ee16c78aaa587afd3e09e2a1edc711f22a8d3fae0a9f7e1cb03df360",
+          "bytes": 285,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_length-v1/after/native.validation.json",
+          "sha256": "cbea90ceb7f4539f45c0e212022a57d201f4bc33368959bdad1d6c5b4f4f716d",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_DESC_LENGTH",
+        "caseName": "manifest acceptance reader refuses descriptor coverage missing [7.00ms]",
+        "counts": "4 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:54:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:112:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_DESC_ORDER",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/plan.json",
+        "sha256": "37927468d12ebea7af93f4be89f4a9f0ea388d7b0c39250958613fc837620259",
+        "bytes": 3676,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/baseline/native.receipt.json",
+          "sha256": "92885d6dbd05d0d49c3429590bf5fd6b16e7ec12d4490b2d73e8ebe2f75566d2",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/baseline/native.log",
+          "sha256": "14c4b83291a31a09c8ec73d82fb01dbdad743341066dd3e2b9932d93adc42a48",
+          "bytes": 286,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/baseline/native.validation.json",
+          "sha256": "aa1e57c54b7aa6f7026e94255241fe70541e41cb357ac1df2651f5ed2a09c842",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/fault/native.receipt.json",
+          "sha256": "87b4b2f31d65ceba16529e02f0c05f44e19415d34b98c3c1732812d19b893620",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/fault/native.log",
+          "sha256": "a4245673e28068f0693e820a96e0db71563ba45f49671a4b881a8faf9dcb4a5f",
+          "bytes": 948,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/fault/native.validation.json",
+          "sha256": "8bcf2fb9f24c21449a1982bf87e097f37294bcc3ec10d5e959d2a7d8afd9ffba",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/restored.json",
+        "sha256": "7cedff452047b4d2d358a731cdb1cef63d0d2924214d5ba67bb090b9d21f451c",
+        "bytes": 511,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/after/native.receipt.json",
+          "sha256": "cd2747ab7db700dba71b5901183bbd7caa393e0b8126e0b2009950d68366efe1",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/after/native.log",
+          "sha256": "17dc0a3940796c04f24f61f5bc73ffd0f81dfb234a58511867bbafcaa71ac6f4",
+          "bytes": 286,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_desc_order-v1/after/native.validation.json",
+          "sha256": "b36d0711517bcaaa47e895e2c09d218c45202f934ac4b98acbc100cb428ab7f1",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_DESC_ORDER",
+        "caseName": "manifest acceptance reader refuses descriptor coverage duplicate [7.00ms]",
+        "counts": "4 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:54:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:112:5)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_FILE_REGULAR",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/plan.json",
+        "sha256": "b2f55107418b4efe62547d443ef20c0d0a349c083ef8720e96e947e6c091748d",
+        "bytes": 3715,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/baseline/native.receipt.json",
+          "sha256": "07d2f1151475986d13b229ee6590f3ca3912222a4016928361e98162cade60e8",
+          "bytes": 1532,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/baseline/native.log",
+          "sha256": "436ce592fd6bfbaa9e93adcd852e851daad76724bfce01bf8395a4c5fa2cb84c",
+          "bytes": 273,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/baseline/native.validation.json",
+          "sha256": "2760de2a392d0245b2299fbcd5b32e02834d64abdc8854b60e085a37c342a0b8",
+          "bytes": 696,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/fault/native.receipt.json",
+          "sha256": "95f8f96386140c1022430ba31779a1f01389e77c17da39f56469d396d6fea025",
+          "bytes": 1526,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/fault/native.log",
+          "sha256": "92c76f2db5b7fc15176e3bc26b9ffeaaf1b8f9058658fa2b551d805fb5957e5c",
+          "bytes": 980,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/fault/native.validation.json",
+          "sha256": "73dc7947ab2466cf565e0075191e59047951623517257b677c326e410adc4437",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/restored.json",
+        "sha256": "fc09485ae93a22a01be1fd8414d2943b54c0d3af2112646fc2230bfe2507d034",
+        "bytes": 507,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/after/native.receipt.json",
+          "sha256": "924310078c3e41535a6782f30d41a286e97e0681c3389546edabd7e20ec9a678",
+          "bytes": 1526,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/after/native.log",
+          "sha256": "edd4aa5b8569990eb6e895edc61a8e3f40922ad720c883f648a9f75a7fe013c6",
+          "bytes": 273,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_regular-v1/after/native.validation.json",
+          "sha256": "42e7fca6ef5c9cfd0582807f17195653d8618f0171b82d5d1bbcd09b0ad49bdc",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_FILE_REGULAR",
+        "caseName": "workflow manifest refuses nonregular manifest before reading [20.37ms]",
+        "counts": "3 expect() calls",
+        "qualification": "Classification only: removing pre-read regular-file admission changes directory refusal from invalid_manifest to manifest_unreadable. No FIFO or underlying-I/O admission credit.",
+        "firstFailure": "error: expect(received).toBe(expected)\n\nExpected: \"invalid_manifest\"\nReceived: \"manifest_unreadable\"\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:60:24)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:250:3)\n"
+      },
+      "qualification": "Classification only: removing pre-read regular-file admission changes directory refusal from invalid_manifest to manifest_unreadable. No FIFO or underlying-I/O admission credit."
+    },
+    {
+      "id": "WF_FILE_UTF8",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/plan.json",
+        "sha256": "ecee69f03f2d83c9af927805cb4e1c3822cbdbd8b01f1f0a05a5d827fed38c58",
+        "bytes": 3743,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/baseline/native.receipt.json",
+          "sha256": "a37375f38485eab58579902d0c9c789a947d67aae76ace68df1f6d25a37660be",
+          "bytes": 1556,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/baseline/native.log",
+          "sha256": "54a3f448c4f0f418782418124bc41704272f5a755bf7fe35806d4d2faf83871a",
+          "bytes": 303,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/baseline/native.validation.json",
+          "sha256": "7435559506798d3fe6cb603efc8aa76e7e2184bb9972f0be57cc155f02852f8d",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/fault/native.receipt.json",
+          "sha256": "149a0a4260abc09120692e2a3f7f5570a4affaa6c91d2b0c0c33872d457f6619",
+          "bytes": 1550,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/fault/native.log",
+          "sha256": "a188047b68ff91f128d17da999525913ec39e889ec671c9c8fa19333ec92bf46",
+          "bytes": 937,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/fault/native.validation.json",
+          "sha256": "54b2026ce817a39f14d6a171c4e3ff6f5112513bf3ecf6546b6f97073d5162bf",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/restored.json",
+        "sha256": "68818764a64067925f762a1b91fee9799b12abed7a7a292a476f1dd4c567f663",
+        "bytes": 504,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/after/native.receipt.json",
+          "sha256": "7ad435485fba485b7c7db9ae95db667dbe355d96b02ae9d8ac17bdac556e8b5e",
+          "bytes": 1550,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/after/native.log",
+          "sha256": "4e986f0819bef419bde61a321b616fae090cdd3862d7274b46a001eb627f24dd",
+          "bytes": 303,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_file_utf8-v1/after/native.validation.json",
+          "sha256": "9d1bec79ac43a2a77164540126293ff8931f0cd40f440d0263a8e54155766043",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_FILE_UTF8",
+        "caseName": "workflow manifest refuses invalid UTF-8 even when replacement text would match the binding [19.93ms]",
+        "counts": "2 expect() calls",
+        "qualification": "Actual command/helper admission first oracle only; no later-tail credit.",
+        "firstFailure": "error: expect(received).toBeInstanceOf(expected)\n\nExpected constructor: [class WorkflowBindingError extends Error]\nReceived value: undefined\n\n      at expectRefusal (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:58:19)\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/workflow-manifest.test.ts:390:3)\n"
+      },
+      "qualification": "Actual command/helper admission first oracle only; no later-tail credit."
+    },
+    {
+      "id": "WF_ACCEPT_JSON",
+      "plan": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/plan.json",
+        "sha256": "562aabafd47de7c4effe3a846041e56a151df5d482b9d0d7e60def78f1afcfa2",
+        "bytes": 3779,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/baseline/native.receipt.json",
+          "sha256": "6a0dacc2554e4bf2e678786911720e4baed02475fb4c189d52c90b6669748ce3",
+          "bytes": 1545,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/baseline/native.log",
+          "sha256": "1b6ad456d5865f8d6ecbbb536f4eab501a5053146949c1fc1c67053fd272db4c",
+          "bytes": 287,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/baseline/native.validation.json",
+          "sha256": "7c0007ef502b8137e80afb52dc0da2f1ebf5149cb879db6d1fa8c0d585f38b6f",
+          "bytes": 694,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/fault/native.receipt.json",
+          "sha256": "65f4c24886337add3f1ca1d0416e4ad6631f197910d234bad00e2fbf84466151",
+          "bytes": 1539,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/fault/native.log",
+          "sha256": "e7d5a18731c7ea827212f8316ca11992fda3b1af060025d9e8967021d0c4fe2e",
+          "bytes": 717,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/fault/native.validation.json",
+          "sha256": "2ac031d201f0c0cdcb37702059869d0146fd96bf9dcffb28a1eab5ccfd1ef8ba",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/restored.json",
+        "sha256": "6954a9341288a766320fbcd1ef66eb30caee68da7efc06e1d808f6589d8d0051",
+        "bytes": 512,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/after/native.receipt.json",
+          "sha256": "4412ee0df8f77a592c2b4aadcfe39542e126d51b86640adca7335e974ff2de67",
+          "bytes": 1539,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/after/native.log",
+          "sha256": "192d670dcb3ac847bb6af836bb0db52eb5711cefcd1ef92c1ae73bb7b4aa22a9",
+          "bytes": 287,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-proof-wf_accept_json-v1/after/native.validation.json",
+          "sha256": "0fce3f0da75fb0528b5955a554d20f80355c9c7043f6608ececbbc24977e00f8",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "observed": {
+        "id": "WF_ACCEPT_JSON",
+        "caseName": "manifest acceptance reader refuses accessors without reading them [4.81ms]",
+        "counts": "6 expect() calls",
+        "qualification": "Accessor side-effect boundary only: omitted outer check allows structuredClone to invoke the accessor; nested manifest schema still refuses its empty object. Exact observed getter oracle, not silent acceptance.",
+        "firstFailure": "error: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-manifest.test.ts:155:20)\n"
+      },
+      "qualification": "Accessor side-effect boundary only: omitted outer check allows structuredClone to invoke the accessor; nested manifest schema still refuses its empty object. Exact observed getter oracle, not silent acceptance."
+    }
+  ],
+  "interop": {
+    "first": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v1/workflowInterop/native.receipt.json",
+        "sha256": "d931c5b91954c384041c44f73f71ba9999540b5030dc1eacf1ebe4f4f3ebedd0",
+        "bytes": 1584,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v1/workflowInterop/native.log",
+        "sha256": "80958f83fbeb848d8d607f860c078871ab0736b2117e108c9e4dbb018bf0c332",
+        "bytes": 1577,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v1/workflowInterop/native.validation.json",
+        "sha256": "34c65ce50325b72bceb0a25b59b91cda97ac96d7c96a4460828744a7fa4f95ea",
+        "bytes": 2002,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "after": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.receipt.json",
+        "sha256": "d810c50aed48702b9dcec1735fa358e017abaa9bd123c058f11561afc30c2fb3",
+        "bytes": 1583,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.log",
+        "sha256": "787700fa431f730eb9f8f77e40edb3cd2935cec51c74f3ab9f34083bb71d4b31",
+        "bytes": 328,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/workflowInterop/native.validation.json",
+        "sha256": "1da89175df543dca39545b8bd7d5dfde340afafaa1a4e3a96d6d11c4a7178c1a",
+        "bytes": 2001,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "observed": "Actual WBS API response is accepted by real Burokrat process. Real directory type creation increments actual project revision; refreshed manifest rejects old binding with manifest_mismatch/project.revision. Explicitly rebound revision succeeds and changes digest; full DB/announcements remain exact outside the intended actual write.",
+    "correction": "Bun1.4.4 toMatchObject with nested arrayContaining mutates actual types into a matcher serialized as{}. Isolated actual fault proves mutation; asserting structuredClone instead retains original bytes. API and consumer production unchanged.",
+    "observation": {
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-bun-matchobject-observation-native-v1/fault.receipt.json",
+          "sha256": "657ad0f01c3e1a85a1131a396a3cdefdc9f65bb681d7d9dc832dbead46834d2e",
+          "bytes": 1349,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-bun-matchobject-observation-native-v1/fault.log",
+          "sha256": "5af45f99116dc6544f44af2cf44e271f8fa6dd70d2cccf625f63182939ef537d",
+          "bytes": 1276,
+          "mode": 384
+        },
+        "validation": null,
+        "exitCode": 1
+      },
+      "restored": {
+        "receipt": {
+          "path": "/tmp/puni-bun-matchobject-observation-native-v1/restored.receipt.json",
+          "sha256": "976e27e8b1fad36f9194800a0a7e417e2674f7b1ffe1889de1a6423abf6e1572",
+          "bytes": 1363,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-bun-matchobject-observation-native-v1/restored.log",
+          "sha256": "7a9ed8f0d54df50baf15a56264014e2184ba361bb93ceb39419a86e0d923841b",
+          "bytes": 225,
+          "mode": 384
+        },
+        "validation": null,
+        "exitCode": 0
+      },
+      "faultSource": {
+        "path": "/tmp/puni-bun-matchobject-observation-v1.test.ts",
+        "sha256": "a9d429909e78c6af2b43bfd0ac909d91c9b64475d0a2e747824dfc9dceaa2774",
+        "bytes": 638,
+        "mode": 436
+      },
+      "restoredSource": {
+        "path": "/tmp/puni-bun-matchobject-observation-restored-v1.test.ts",
+        "sha256": "a3f6227aac5cc1b329b1ed1fe4e68fa8befcc20e582faf35996249c61e9b98c5",
+        "bytes": 655,
+        "mode": 384
+      }
+    }
+  },
+  "regressionCorrections": {
+    "originalLegacyPipes": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowLegacy/native.receipt.json",
+        "sha256": "39d599ace7ef30429344ab41c74d751cd7ffa1f4765c146ae2b833efbbf00b98",
+        "bytes": 1613,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowLegacy/native.log",
+        "sha256": "214b3829114079abe9a0c863f4c4cbdd42c6a82cd410c50c981be33cbe8b32d8",
+        "bytes": 34775,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-first-live-v1/workflowLegacy/native.validation.json",
+        "sha256": "2635b4e7e313e9e6abad222daf7ae354802c93c6d9e45e946476e2a1e84716d9",
+        "bytes": 1994,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "ownedLegacyCapture": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-legacy-file-capture-live-v1/workflowLegacy/native.receipt.json",
+        "sha256": "13d4553581a3b57d725d7b9f7bf1acff15bb15893fbb62514c1d2fe9a5ce575f",
+        "bytes": 1623,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-legacy-file-capture-live-v1/workflowLegacy/native.log",
+        "sha256": "51073dc6a63bcff0ece24c3f94d3e1696d73fe39e6795666c8e16a9a19c2dd7f",
+        "bytes": 11007,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-legacy-file-capture-live-v1/workflowLegacy/native.validation.json",
+        "sha256": "29f669cfd3655b69a9e2182c99e5635737a6ee690a23a85db594654dbb79812c",
+        "bytes": 2009,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "fullCliFirst": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/burokratCli/native.receipt.json",
+        "sha256": "c43f7a6bf781b588b4a0575783a921ce1a8fcf9ac6d98f071e2eeced4481f80c",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/burokratCli/native.log",
+        "sha256": "6a8165f30f9d78b6bd25b94daf45b7348f4cef3199311665208acfd4a1715657",
+        "bytes": 19745,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-manifest-interop-live-v2/burokratCli/native.validation.json",
+        "sha256": "686d9d7d4faf6b3e346c1df11d7632c96b76bae59f4054bd786e2805f74095dd",
+        "bytes": 1991,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "fullCliSuccessor": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-cli-compat-live-v1/burokratCli/native.receipt.json",
+        "sha256": "7bc848910aaf4cf1e946635043b651f4acd502e5069f37ecd4f3b2195ebaf37c",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-cli-compat-live-v1/burokratCli/native.log",
+        "sha256": "1ab6c9566f7ad64c8e01349f38eaf12b882035b27c2387786fc0a983f2d25634",
+        "bytes": 6518,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-workflow-cli-compat-live-v1/burokratCli/native.validation.json",
+        "sha256": "2c5945ed2dfff0666aee48140e1c3eb87f83c4dcecc12aa16cc4fd471edfea56",
+        "bytes": 1972,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "observed": "Original legacy161pass19nestedpipeEPERMfail became180pass with exclusive FD observation. Broader CLI17pass14fail separated12nestedpipe failures from2typed-help contract changes. Corrected capture/delegated classification/typed-help assertion has31pass1README-generationfail; actual help is captured for this publication. Type-only capture API issues were corrected to Bun actual SyncSubprocess and optional environment value types; no output or exit assertion weakened.",
+    "generatedHelp": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-root-help-native-v1/native.receipt.json",
+        "sha256": "428d1ddc1c5bb25711abc4ec4bcad2b1c8c16a505753202ef81c2328fc088dce",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-root-help-native-v1/native.log",
+        "sha256": "8071bf5c475035a127c7d2f39768d41a886e4cfd8da59ae05953b2f7ff2a1d33",
+        "bytes": 10178,
+        "mode": 384
+      },
+      "validation": null,
+      "exitCode": 0
+    },
+    "installedHelpCorrection": {
+      "receipt": {
+        "path": "/tmp/puni-workflow-installed-help-native-v1/native.receipt.json",
+        "sha256": "3f87c16e2df4e6f6034cadfb9c38d087bf8ac2cb9fbd8ecd34b55bbdfadbd047",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-workflow-installed-help-native-v1/native.log",
+        "sha256": "ed932bbfede174fcf4b9e7a8d3e97f89252dc1be1ffd357f6d12db6c954a456a",
+        "bytes": 11052,
+        "mode": 384
+      },
+      "observed": "First refresh captured validator cli.ts, but README documents installed bin.ts; full CLI test correctly stayed31pass1fail. Captured the actual bin.ts --help entry with lint/activation/version and retained its strict stopped/reaped/closed receipt. No help assertion weakened."
+    },
+    "formattingCorrection": "Large existing WBS catalogue test needed a stable second Prettier pass; third pass equals second before publication. Final14fileformat check at0add passes. No behavior change."
+  },
+  "unverified": [
+    "Independent strict envelope/nested shape/ID/class-reference/version checks, decoder-specific JSON boundaries/canonicalization/freezes, typed grammar option/shape/branch/usage necessities and changed shared empty-dictionary policy still require their own exact controls. Twenty-four effects do not imply all guards proved.",
+    "WF_FILE_REGULAR proves named directory classification before opening; no FIFO/native I/O admission credit. WF_ACCEPT_JSON proves accessor non-observation only; nested malformed manifest still refuses when that outer check is omitted.",
+    "Distinct schema2 descriptor reconstruction is implemented; full actual held RunStore lifecycle/version1 compatibility and other workflow consumers still need the task2.3.4 audit.",
+    "WBS current root/helper typed grammar is implemented, but protected PUNI policy-parser/alias branch still needs semantic integration and actual unified CLI source/installed checks. Protected PAXSource2 remains unapplied; no blocked source edit bypassed.",
+    "Broader runtime/resource fixtures remain RED at legacy atomic117 setup. Original full entity/UI/history/import/scheduler/migration/client-surface obligations remain open.",
+    "Astra follow-up is pending at account usage limit; no full-goal or gate closure."
+  ],
+  "afterControls": {
+    "source": {
+      "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/source-pins.json",
+      "sha256": "8355b06078b2bc36270ad5aef14e56e955c3becf35840da648b6bec23c3642a3",
+      "bytes": 5211355,
+      "mode": 384
+    },
+    "controls": [
+      {
+        "phase": "workflowManifest",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/source-pins.json",
+          "sha256": "0342de0e06a6b5cf312d307589942ef87e042403430747532cbabe8ac1171712",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifest/native.receipt.json",
+          "sha256": "e63f9ed1f29103db54621d775fef04dc02d77feec92dfd0f0c4bd72ebf56d7fd",
+          "bytes": 1432,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifest/native.validation.json",
+          "sha256": "bb98b92bd8e9a8aa44151b0f2f6a8501fa6a4a41dd08ed2f1e35d600882d830e",
+          "bytes": 2008,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifest/native.log",
+          "sha256": "22949252aca37251db9ec53e4c429ef5e21deb57211abf95422d605cfc34e48e",
+          "bytes": 4228,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "workflowManifestAcceptance",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/source-pins.json",
+          "sha256": "0342de0e06a6b5cf312d307589942ef87e042403430747532cbabe8ac1171712",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifestAcceptance/native.receipt.json",
+          "sha256": "299268dd5173487fc7e350be5bd36390d8848bc8208d59cd427396d222bcf3a6",
+          "bytes": 1462,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifestAcceptance/native.validation.json",
+          "sha256": "e7a578463a8157d1fc0b08bbd9e6081d47b0f905254206e7cb0fbd16a528dac0",
+          "bytes": 2038,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/workflowManifestAcceptance/native.log",
+          "sha256": "40fb33d3f1d04c22656b7c112b1a874ad39fc1c04b80660e18b8946de33e3f5f",
+          "bytes": 1652,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "burokratTypes",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/source-pins.json",
+          "sha256": "0342de0e06a6b5cf312d307589942ef87e042403430747532cbabe8ac1171712",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/burokratTypes/native.receipt.json",
+          "sha256": "b1376ea2d58cafd0f08a8f672e2312dd9672b15ee53cb5136684827f8bf0cd51",
+          "bytes": 1395,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/burokratTypes/native.validation.json",
+          "sha256": "4431a2cc6cdfd5887190b7d7d4d49060223f3cc77ad3ffc401bef062ca9d0220",
+          "bytes": 1996,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-evidence-live-v1/burokratTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "workflowLegacy",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/source-pins.json",
+          "sha256": "0add8f78f81fbcf0cef0257127962a27b42fe27a4a677816f7843c4f0ff3b118",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/workflowLegacy/native.receipt.json",
+          "sha256": "8a1ffef1cab6bf05479130ee19f9043db6cc4b811c909e1ceed778fee7691a53",
+          "bytes": 1615,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/workflowLegacy/native.validation.json",
+          "sha256": "b2649d2213d293b47addadf20d5c4b256be852413f2bf638fc533031c0fbefaf",
+          "bytes": 1997,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/workflowLegacy/native.log",
+          "sha256": "ab26eab142929883d41dc1a816531854daaa14f2f7f8b053ac83671c49621db8",
+          "bytes": 11009,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "globalCatalogueHttp",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/source-pins.json",
+          "sha256": "0add8f78f81fbcf0cef0257127962a27b42fe27a4a677816f7843c4f0ff3b118",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/globalCatalogueHttp/native.receipt.json",
+          "sha256": "8cf05de4484fc207d449f9503c4fddaaf8e1ff190b7adc4db1ebcb04d8f8e6fa",
+          "bytes": 1492,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/globalCatalogueHttp/native.validation.json",
+          "sha256": "ee90b4d5b17dfe83bd7e0994c2d0e403e798ab9d13d7956f762835896a148427",
+          "bytes": 2011,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/globalCatalogueHttp/native.log",
+          "sha256": "db9ad11a3ec1f90de05f5caa34fcf0878f617ad5efca068d593ed49407e4831c",
+          "bytes": 9737,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "backendTypes",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/source-pins.json",
+          "sha256": "0add8f78f81fbcf0cef0257127962a27b42fe27a4a677816f7843c4f0ff3b118",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/backendTypes/native.receipt.json",
+          "sha256": "b750acbdecd81f202f76237d1fdc46162f0c601d950a57386d3fbb6343c786ce",
+          "bytes": 1363,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/backendTypes/native.validation.json",
+          "sha256": "d2f5f11b9826be717e6d2451dd3890fd141c42593154bf31ed2e0a5bab4c6cad",
+          "bytes": 1987,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/backendTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "allSpecs",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/source-pins.json",
+          "sha256": "0add8f78f81fbcf0cef0257127962a27b42fe27a4a677816f7843c4f0ff3b118",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/allSpecs/native.receipt.json",
+          "sha256": "e36de03db044799dd6292799d562631bc9e5a4104337527f46027d548d0bf53f",
+          "bytes": 1324,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/allSpecs/native.validation.json",
+          "sha256": "e836fdb7a23fd15e7b0d3da1b1871fcbf46cfeccfb0b334d97de8cd7887b7b16",
+          "bytes": 1980,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-format-live-v1/allSpecs/native.log",
+          "sha256": "f73dd6c7af68ddf4beafe1da8487b7d1ac7253d37c0b80ba555458251e62c72e",
+          "bytes": 337687,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "burokratCli",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/source-pins.json",
+          "sha256": "8355b06078b2bc36270ad5aef14e56e955c3becf35840da648b6bec23c3642a3",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/burokratCli/native.receipt.json",
+          "sha256": "cfb5f6dd1bbe14d9dd3728085ca5fcc2c6778dca6a19ddf244d2e78cf90df74e",
+          "bytes": 1420,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/burokratCli/native.validation.json",
+          "sha256": "e765f213a5628998a3d77208b6e0fca5d3c2559435239a2f3432720c7c79fade",
+          "bytes": 2011,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/burokratCli/native.log",
+          "sha256": "37d6acfe400bda8e6a7a64a7f3f6f147ebcba7b30c483b89ce9bcd293c4344c4",
+          "bytes": 4088,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "workflowFinalFormat",
+        "source": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/source-pins.json",
+          "sha256": "8355b06078b2bc36270ad5aef14e56e955c3becf35840da648b6bec23c3642a3",
+          "bytes": 5211355,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/workflowFinalFormat/native.receipt.json",
+          "sha256": "f2090005977f81617666bd96923f84a5779aea777a4e07cc4e60e5a632df9737",
+          "bytes": 2495,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/workflowFinalFormat/native.validation.json",
+          "sha256": "aea91fe5ffacfdb1587c36e4cf14451297593f1caad5c27d8969737826798eaf",
+          "bytes": 2033,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-workflow-manifest-installed-help-live-v1/workflowFinalFormat/native.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      }
+    ],
+    "counts": {
+      "workflowManifest": 46,
+      "workflowManifestAssertions": 143,
+      "workflowManifestAcceptance": 17,
+      "workflowManifestAcceptanceAssertions": 98,
+      "workflowLegacy": 180,
+      "workflowLegacyAssertions": 463,
+      "burokratCli": 32,
+      "burokratCliAssertions": 394,
+      "globalCatalogueHttp": 37,
+      "globalCatalogueAssertions": 1947,
+      "targetedCases": 312,
+      "targetedAssertions": 3045,
+      "changedTypeScriptFilesFormatted": 13,
+      "readmesFormatted": 1
+    },
+    "observed": "All controls terminal0. Burokrat types/command46/reader17 at0342; a subsequent mechanical stable formatting pass changes only the WBS test, then legacy180/API37/backendtypes/specs at0add pass. Documentation-only installed-help correction then yields fullCLI32 and14fileformat at8355. Runtime Burokrat file bytes are unchanged across these final control epochs. Compiler roots run serially. All six input inventories match before/after each native run; all24mutants remain exactly restored.",
+    "qualification": "Final publication changes evidence only. No full product/gate/CLI archive/source-installed/profile/cleancombinedSHA or full-goal completion claim."
+  }
+}

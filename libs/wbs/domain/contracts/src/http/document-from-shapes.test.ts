@@ -3,13 +3,13 @@ import { describe, expect, test } from 'bun:test';
 
 import { documentFromShapes } from './document-from-shapes';
 import { defineEndpointShape } from './endpoint-shape';
-import { importProject } from './import-shapes';
+import { importWorkPackage } from './import-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { httpShapes } from './shapes';
 
 const batch = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/commands',
+  path: '/api/work-packages/:id/commands',
   operationId: 'applyPlanCommands',
   policies: [],
   query: requestSchema(type({ 'preview?': 'string' })),
@@ -30,7 +30,11 @@ describe('documentFromShapes', () => {
   test('emits human-only policy from the same shapes with document method and path spelling', () => {
     const document = documentFromShapes([{ ...batch, humanOnly: true }]);
     expect(document['x-wbs-human-only-operations']).toEqual([
-      { method: 'post', path: '/api/projects/{id}/commands', operationId: 'applyPlanCommands' },
+      {
+        method: 'post',
+        path: '/api/work-packages/{id}/commands',
+        operationId: 'applyPlanCommands',
+      },
     ]);
     expect(documentFromShapes([batch])['x-wbs-human-only-operations']).toEqual([]);
   });
@@ -38,7 +42,7 @@ describe('documentFromShapes', () => {
   test('emits inline object bodies with intact nested union arms and optional fields', () => {
     const document = documentFromShapes([batch]);
     expect(document.openapi).toBe('3.1.0');
-    const operation = document.paths['/api/projects/{id}/commands']?.['post'];
+    const operation = document.paths['/api/work-packages/{id}/commands']?.['post'];
     expect(operation?.operationId).toBe('applyPlanCommands');
     expect(operation?.requestBody?.content['application/json']?.schema).toEqual(
       batch.body.jsonSchema,
@@ -82,9 +86,9 @@ describe('documentFromShapes', () => {
       },
     };
     expect(
-      documentFromShapes([{ ...batch, body: declaration }]).paths['/api/projects/{id}/commands']?.[
-        'post'
-      ]?.requestBody?.content['application/json']?.schema,
+      documentFromShapes([{ ...batch, body: declaration }]).paths[
+        '/api/work-packages/{id}/commands'
+      ]?.['post']?.requestBody?.content['application/json']?.schema,
     ).toEqual(batch.body.jsonSchema);
   });
   test('emits text and empty representations without inventing JSON bodies', () => {
@@ -98,7 +102,7 @@ describe('documentFromShapes', () => {
         ],
       },
     ]);
-    const replies = document.paths['/api/projects/{id}/commands']?.['post']?.responses;
+    const replies = document.paths['/api/work-packages/{id}/commands']?.['post']?.responses;
     expect(replies?.['204']).toEqual({ description: 'Success' });
     expect(replies?.['302']).toEqual({ description: 'Success' });
     expect(replies?.['200']?.content?.['text/plain']?.schema).toEqual({ type: 'string' });
@@ -121,7 +125,7 @@ test('refuses a declared parameter object that omits a route segment', () => {
     documentFromShapes([
       {
         ...batch,
-        path: '/api/projects/:id/commands/:commandId',
+        path: '/api/work-packages/:id/commands/:commandId',
         params: requestSchema(type({ id: 'string' })),
       },
     ]),
@@ -133,7 +137,7 @@ test('refuses whitespace operation names and colliding methods at a converted pa
   expect(() =>
     documentFromShapes([
       batch,
-      { ...batch, path: '/api/projects/{id}/commands', operationId: 'collision' },
+      { ...batch, path: '/api/work-packages/{id}/commands', operationId: 'collision' },
     ]),
   ).toThrow('duplicate route');
 });
@@ -153,7 +157,7 @@ test('preserves response alternatives and media types without overwriting a stat
         { status: 400, schema: responseSchema(type({ error: "'invalid_query'" })) },
       ],
     },
-  ]).paths['/api/projects/{id}/commands']?.['post']?.responses;
+  ]).paths['/api/work-packages/{id}/commands']?.['post']?.responses;
   expect(replies?.['200']?.content?.['application/json']?.schema).toMatchObject({
     anyOf: [
       {
@@ -197,7 +201,7 @@ test('emits a typed refusal independently of where its empty alternative is decl
   const responses = (
     refusals: readonly [typeof empty, typeof typed] | readonly [typeof typed, typeof empty],
   ) =>
-    documentFromShapes([{ ...batch, refusals }]).paths['/api/projects/{id}/commands']?.['post']
+    documentFromShapes([{ ...batch, refusals }]).paths['/api/work-packages/{id}/commands']?.['post']
       ?.responses;
 
   expect(responses([empty, typed])).toEqual(responses([typed, empty]));
@@ -231,7 +235,9 @@ test('documents arbitrary singleton query keys as one exploded form object', () 
     query: requestSchema(type({ '[string]': 'string' })),
     queryMode: 'arbitrary-singleton',
   });
-  const operation = documentFromShapes([openQuery]).paths['/api/projects/{id}/commands']?.['post'];
+  const operation = documentFromShapes([openQuery]).paths['/api/work-packages/{id}/commands']?.[
+    'post'
+  ];
   expect(operation?.parameters).toEqual([
     { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
     {
@@ -338,7 +344,7 @@ test('finds references only in supported schema-valued keywords', () => {
     } satisfies JsonSchema,
   };
   expect(
-    documentFromShapes([{ ...batch, body }]).paths['/api/projects/{id}/commands']?.['post']
+    documentFromShapes([{ ...batch, body }]).paths['/api/work-packages/{id}/commands']?.['post']
       ?.requestBody?.content['application/json']?.schema,
   ).toMatchObject({
     properties: { $ref: { type: 'string' }, literal: { const: { $ref: '#/$defs/literal' } } },
@@ -352,7 +358,7 @@ test('declares exactly the accepted body media while retaining one inline schema
     ...batch,
     bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   });
-  const content = documentFromShapes([shape]).paths['/api/projects/{id}/commands']?.['post']
+  const content = documentFromShapes([shape]).paths['/api/work-packages/{id}/commands']?.['post']
     ?.requestBody?.content;
   expect(Object.keys(content ?? {})).toEqual([
     'application/json',
@@ -385,18 +391,19 @@ export function mediaTypeFixtures() {
 }
 
 test('emits an operation description only where the shape gives one', () => {
-  const document = documentFromShapes([batch, importProject]);
-  expect(document.paths['/api/projects/{id}/commands']?.['post']).not.toHaveProperty('description');
-  expect(document.paths['/api/projects/import']?.['post']?.description).toContain(
+  const document = documentFromShapes([batch, importWorkPackage]);
+  expect(document.paths['/api/work-packages/{id}/commands']?.['post']).not.toHaveProperty(
+    'description',
+  );
+  expect(document.paths['/api/work-packages/import']?.['post']?.description).toContain(
     'From version 6 every work item must carry both `readiness`',
   );
 });
 
 test('derives the three attempt commands and the timezone read from the shared shapes', () => {
   const document = documentFromShapes(httpShapes);
-  const commands = document.paths['/api/projects/{id}/commands']?.['post']?.requestBody?.content[
-    'application/json'
-  ]?.schema as {
+  const commands = document.paths['/api/work-packages/{id}/commands']?.['post']?.requestBody
+    ?.content['application/json']?.schema as {
     properties: {
       commands: {
         items: { anyOf: { properties: { kind: { const: string }; stepNodeId?: unknown } }[] };

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { sourceDatabaseFixture } from '../fixtures/source-database-binding';
-import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
+import { prepareRetainedSourceFrontendProfile } from '../fixtures/source-frontend-retained-inputs';
 import { sourceRestorationConfiguration } from '../fixtures/source-restoration';
 import { roots } from '../fixtures/source-startup';
 import { withDependencyOwner } from './edge-ownership';
@@ -33,7 +33,7 @@ test.each(['supported', 'changed-index', 'changed-link-target', 'running-drift']
       false,
       undefined,
       async (root) => {
-        await prepareSourceFrontendProfile(root);
+        await prepareRetainedSourceFrontendProfile(root);
         if (variant === 'changed-index') {
           const path = join(root, 'apps/wbs/fe-01/index.html');
           const bytes = await readFile(path);

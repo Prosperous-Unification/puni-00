@@ -5,6 +5,7 @@ import {
   describeAddressSpace,
   formatStepReference,
   parseStepReference,
+  readAddressSteps,
   resolveStepReference,
 } from './step-reference';
 
@@ -21,6 +22,60 @@ const space: AddressSpace = {
     { id: 's-old', code: null, position: 40 },
   ],
 };
+
+const currentSpace = {
+  ...space,
+  leafSteps: new Map([
+    [
+      'w-010',
+      [
+        { id: 's-qa', code: 'qa' },
+        { id: 's-dev', code: 'dev' },
+      ],
+    ],
+    ['w-020-2', []],
+  ]),
+};
+
+it('current domain references resolve only the addressed leaf inventory', () => {
+  expect(resolveStepReference('010.qa', currentSpace)).toEqual({
+    ok: true,
+    ref: { workItemId: 'w-010', stepId: 's-qa' },
+    reference: '010.s1-qa',
+  });
+  expect(resolveStepReference('020.2.dev', currentSpace)).toEqual({
+    ok: false,
+    reason: 'unknown_code',
+  });
+  expect(resolveStepReference('010.s2-qa', currentSpace)).toEqual({
+    ok: false,
+    reason: 'alias_mismatch',
+  });
+});
+
+it('current address reader throws for an absent required leaf inventory', () => {
+  expect(() => readAddressSteps({ ...currentSpace, leafSteps: new Map() }, 'w-010')).toThrow(
+    'address leaf steps are absent',
+  );
+});
+
+it('current description retains leaf order independently of row or map insertion order', () => {
+  const reversed = {
+    ...currentSpace,
+    workItems: [...currentSpace.workItems].reverse(),
+    leafSteps: new Map([...currentSpace.leafSteps].reverse()),
+  };
+  expect(describeAddressSpace('p', reversed)).toBe(describeAddressSpace('p', currentSpace));
+  expect(describeAddressSpace('p', currentSpace)).toBe(
+    '["ar2","p",[["w-010","010","leaf"],["w-020","020","parent"],["w-020-2","020.2","leaf"]],[["w-010",[["s-qa","qa"],["s-dev","dev"]]],["w-020-2",[]]]]',
+  );
+});
+
+it('uniform legacy description keeps its exact ar1 representation', () => {
+  expect(describeAddressSpace('p', space)).toBe(
+    '["ar1","p",[["w-010","010","leaf"],["w-020","020","parent"],["w-020-2","020.2","leaf"]],[["s-dev","dev",10],["s-qa","qa",20],["s-review","review",30],["s-old",null,40]]]',
+  );
+});
 
 function resolve(reference: string) {
   return resolveStepReference(reference, space);

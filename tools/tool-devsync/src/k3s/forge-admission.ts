@@ -8,12 +8,15 @@
  * concurrent `dev-env` runs cannot drop each other's roots.
  */
 
+import { posix } from 'node:path';
+
 export const TRUSTED_WORKLOAD = 'puni-trusted-workload';
 export const TRUSTED_WORKLOAD_NAMESPACE = 'wbs-solver';
 export const SOLVER_NODE_PATH = '/run/puni/solver';
 const LAB_LABEL = 'puni.dev/lab-id';
 const OWNERS_ANNOTATION = 'puni.dev/forge-root-owners';
 const BASE_ANNOTATION = 'puni.dev/forge-base-roots';
+const INSTALLATIONS_ANNOTATION = 'puni.dev/forge-installation-owners';
 const FLUX_NAME_LABEL = 'kustomize.toolkit.fluxcd.io/name';
 const FLUX_SSA_ANNOTATION = 'kustomize.toolkit.fluxcd.io/ssa';
 const DEFAULT_ATTEMPTS = 5;
@@ -23,10 +26,18 @@ export interface ForgeAdmission {
   readonly baseRoots: readonly string[];
   /** Slug → exact worktree node path. */
   readonly owners: Readonly<Partial<Record<string, string>>>;
+  /** Slug → exact separately admitted installation directory; never a worktree permission. */
+  readonly installationOwners: Readonly<Partial<Record<string, string>>>;
 }
 
 export type ForgeAdmissionChange =
-  | { readonly kind: 'claim'; readonly slug: string; readonly root: string; readonly image: string }
+  | {
+      readonly kind: 'claim';
+      readonly slug: string;
+      readonly root: string;
+      readonly image: string;
+      readonly installationRoot: string;
+    }
   | { readonly kind: 'release'; readonly slug: string }
   | { readonly kind: 'restore'; readonly slug: string; readonly previous: ForgeAdmission };
 
@@ -55,6 +66,25 @@ export function rootsOf(state: ForgeAdmission): readonly string[] {
   return [
     ...new Set([...state.baseRoots, ...claimed, ...(claimed.length > 0 ? [SOLVER_NODE_PATH] : [])]),
   ];
+}
+
+/** Read exact installation directories without adding them to writable worktree permissions. */
+export function readInstallationRoots(state: ForgeAdmission): readonly string[] {
+  return [...new Set(Object.values(state.installationOwners).filter((root) => root !== undefined))];
+}
+
+/** A comma-delimited policy value must retain one exact canonical absolute directory per entry. */
+export function readInstallationRoot(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    value.endsWith('/') ||
+    !posix.isAbsolute(value) ||
+    posix.normalize(value) !== value ||
+    value.includes(',') ||
+    value.includes('\0')
+  )
+    throw new Error('Forge installation root must be one exact absolute directory');
+  return value;
 }
 
 /**
@@ -93,6 +123,26 @@ export function decodeForgeAdmission(configMap: unknown, labId: string): ForgeAd
   if (typeof forgeImage !== 'string' || typeof roots !== 'string') {
     throw new Error(`${TRUSTED_WORKLOAD} lacks forgeImage or forgeWorktreeRoots`);
   }
+  const installationRoots = data['forgePuniInstallationRoots'];
+  const installationText = annotations[INSTALLATIONS_ANNOTATION];
+  if (typeof installationRoots !== 'string' || typeof installationText !== 'string')
+    throw new Error(`${TRUSTED_WORKLOAD} lacks explicit PUNI installation admission state`);
+  const declared =
+    installationRoots === '' ? [] : installationRoots.split(',').map(readInstallationRoot);
+  if (new Set(declared).size !== declared.length)
+    throw new Error(`${TRUSTED_WORKLOAD} repeats an installation root`);
+  const installationRecord = recordOf(JSON.parse(installationText), INSTALLATIONS_ANNOTATION);
+  const installationOwners = Object.fromEntries(
+    Object.entries(installationRecord).map(([slug, path]): readonly [string, string] => [
+      slug,
+      readInstallationRoot(path),
+    ]),
+  );
+  if (
+    JSON.stringify([...new Set(Object.values(installationOwners))].sort()) !==
+    JSON.stringify([...declared].sort())
+  )
+    throw new Error(`${TRUSTED_WORKLOAD} installation claims disagree with exact admission roots`);
   const ownersText = annotations[OWNERS_ANNOTATION];
   const baseText = annotations[BASE_ANNOTATION];
   if ((ownersText === undefined) !== (baseText === undefined)) {
@@ -102,7 +152,9 @@ export function decodeForgeAdmission(configMap: unknown, labId: string): ForgeAd
   }
   if (typeof ownersText !== 'string' || typeof baseText !== 'string') {
     // First write on this lab: whatever is listed now is the committed base.
-    return { forgeImage, baseRoots: splitRoots(roots), owners: {} };
+    if (Object.keys(installationOwners).length !== 0)
+      throw new Error(`${TRUSTED_WORKLOAD} has installation claims without worktree claims`);
+    return { forgeImage, baseRoots: splitRoots(roots), owners: {}, installationOwners };
   }
   const decoded: unknown = JSON.parse(ownersText);
   if (!isRecord(decoded)) throw new Error(`${OWNERS_ANNOTATION} is not a slug-to-root object`);
@@ -112,7 +164,12 @@ export function decodeForgeAdmission(configMap: unknown, labId: string): ForgeAd
       throw new Error(`${OWNERS_ANNOTATION} maps ${slug} to a non-path`);
     owners[slug] = root;
   }
-  return { forgeImage, baseRoots: splitRoots(baseText), owners };
+  if (
+    JSON.stringify(Object.keys(owners).sort()) !==
+    JSON.stringify(Object.keys(installationOwners).sort())
+  )
+    throw new Error(`${TRUSTED_WORKLOAD} installation and worktree claim owners disagree`);
+  return { forgeImage, baseRoots: splitRoots(baseText), owners, installationOwners };
 }
 
 /**
@@ -128,8 +185,12 @@ export function planForgeAdmission(
   const others = Object.fromEntries(
     Object.entries(state.owners).filter(([slug]) => slug !== change.slug),
   );
+  const otherInstallations = Object.fromEntries(
+    Object.entries(state.installationOwners).filter(([slug]) => slug !== change.slug),
+  );
   switch (change.kind) {
     case 'claim': {
+      const installationRoot = readInstallationRoot(change.installationRoot);
       const holders = Object.keys(others);
       // Proof: ignoring other holders failed `refuses a second forge image while another
       // environment holds the first`; the forge would then deny that environment's next Pod.
@@ -143,17 +204,24 @@ export function planForgeAdmission(
         ...state,
         forgeImage: change.image,
         owners: { ...others, [change.slug]: change.root },
+        installationOwners: { ...otherInstallations, [change.slug]: installationRoot },
       };
     }
     case 'release':
-      return { ...state, owners: others };
+      return { ...state, owners: others, installationOwners: otherInstallations };
     case 'restore': {
       const previous: string | undefined = change.previous.owners[change.slug];
+      const previousInstallation: string | undefined =
+        change.previous.installationOwners[change.slug];
       return {
         ...state,
         forgeImage:
           Object.keys(others).length === 0 ? change.previous.forgeImage : state.forgeImage,
         owners: previous === undefined ? others : { ...others, [change.slug]: previous },
+        installationOwners:
+          previousInstallation === undefined
+            ? otherInstallations
+            : { ...otherInstallations, [change.slug]: previousInstallation },
       };
     }
   }
@@ -178,12 +246,14 @@ export function encodeForgeAdmission(
         ...(isRecord(metadata['annotations']) ? metadata['annotations'] : {}),
         [OWNERS_ANNOTATION]: JSON.stringify(state.owners),
         [BASE_ANNOTATION]: state.baseRoots.join(','),
+        [INSTALLATIONS_ANNOTATION]: JSON.stringify(state.installationOwners),
       },
     },
     data: {
       ...recordOf(configMap['data'], 'data'),
       forgeImage: state.forgeImage,
       forgeWorktreeRoots: rootsOf(state).join(','),
+      forgePuniInstallationRoots: readInstallationRoots(state).join(','),
     },
   };
 }

@@ -49,25 +49,25 @@ A socket SHALL remain usable after refusing malformed input.
 - **AND** a JSON string containing a serialized command is refused as `invalid_payload`, including when prefixed by that whitespace
 - **AND** a subsequent ping succeeds on the same connection
 
-### Requirement: Presence changes identify affected projects
+### Requirement: Presence changes identify affected work packages
 
-Presence membership mutations SHALL identify the distinct projects whose membership changed. Delivery SHALL visit only current connections belonging to those projects. A move SHALL notify both the old and new projects. Unknown connections and unchanged membership SHALL produce no project notifications.
+Presence membership mutations SHALL identify the distinct work packages whose membership changed. Delivery SHALL visit only current connections belonging to those work packages. A move SHALL notify both the old and new work packages. Unknown connections and unchanged membership SHALL produce no work package notifications.
 
-#### Scenario: Move between projects
+#### Scenario: Move between work packages
 
-- **GIVEN** a connection in project A, another observer remaining in A, and members in B and C
+- **GIVEN** a connection in work package A, another observer remaining in A, and members in B and C
 - **WHEN** the connection enters B
 - **THEN** current members of A and B receive their respective updated rosters
 - **AND** C receives no frame
 
 #### Scenario: Repeated or stale membership instruction
 
-- **WHEN** a connection subscribes to its current project or unsubscribes from a project it already left
+- **WHEN** a connection subscribes to its current work package or unsubscribes from a work package it already left
 - **THEN** it causes no presence delivery and retains its current roster
 
 #### Scenario: Rejoin an existing connection id
 
-- **GIVEN** an id in project A is joined again with a replacement username and socket
+- **GIVEN** an id in work package A is joined again with a replacement username and socket
 - **WHEN** the old membership is removed
 - **THEN** remaining A members receive the updated roster
 - **AND** the replacement socket receives its own empty initial roster
@@ -75,35 +75,35 @@ Presence membership mutations SHALL identify the distinct projects whose members
 
 ### Requirement: Initial and reset rosters are connection-specific
 
-A newcomer SHALL receive an empty initial roster without notifying unrelated sockets. A connection that leaves its current project but remains connected SHALL receive an empty roster. A disconnected socket SHALL receive no further roster.
+A newcomer SHALL receive an empty initial roster without notifying unrelated sockets. A connection that leaves its current work package but remains connected SHALL receive an empty roster. A disconnected socket SHALL receive no further roster.
 
-#### Scenario: Newcomer among many projects
+#### Scenario: Newcomer among many work packages
 
-- **GIVEN** 1,000 connections across 100 projects
-- **WHEN** one additional connection joins without selecting a project
+- **GIVEN** 1,000 connections across 100 work packages
+- **WHEN** one additional connection joins without selecting a work package
 - **THEN** exactly one presence frame is sent to that newcomer
 - **AND** all 1,000 existing connections receive zero frames at that transition
 
-#### Scenario: Current-project unsubscribe
+#### Scenario: Unsubscribe from the current work package
 
-- **WHEN** a connection unsubscribes from its current project
-- **THEN** remaining project members receive the updated roster
+- **WHEN** a connection unsubscribes from its current work package
+- **THEN** remaining work package members receive the updated roster
 - **AND** the departing but connected socket receives an empty roster
 - **AND** unrelated connections receive no frame
 
 ### Requirement: Scoped presence preserves connection identity and isolation
 
-Presence SHALL retain separate connection identities for multiple tabs and deduplicate usernames in each project roster. Disconnect SHALL identify the affected project using the connection index. Scoped delivery SHALL preserve existing authentication verification ordering and project-content isolation.
+Presence SHALL retain separate connection identities for multiple tabs and deduplicate usernames in each work package roster. Disconnect SHALL identify the affected work package using the connection index. Scoped delivery SHALL preserve existing authentication verification ordering and isolation of work package content.
 
 #### Scenario: One of two tabs disconnects
 
-- **GIVEN** two connections for one username in the same project
+- **GIVEN** two connections for one username in the same work package
 - **WHEN** one disconnects
 - **THEN** the remaining connection still contributes that username exactly once
-- **AND** only current members of that project receive the roster
+- **AND** only current members of that work package receive the roster
 
 #### Scenario: Verification races
 
 - **WHEN** subscribe or close races an unresolved authentication verification
 - **THEN** existing join ordering and controlled close behavior remain valid
-- **AND** no unauthenticated connection enters or receives another project's roster
+- **AND** no unauthenticated connection enters or receives another work package's roster

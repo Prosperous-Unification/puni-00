@@ -1,12 +1,22 @@
 import { rejects } from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { afterEach, expect, test } from 'bun:test';
 
 import { createEdgeEnvironment } from '../../test/edge-state';
+import { completeActivationFixture } from '../fixtures/dependency-complete-activation';
+import { roots } from '../fixtures/source-startup';
 import { checkBackendRecovery } from '../swap';
 import { admitDormantDependencies } from './dependency-admission';
 import { ROOT } from './docker';
@@ -19,15 +29,15 @@ const dormant = {
   state: 'DISABLED',
   externalRelationships: 0,
 } as const;
-function migrated(root: string): string {
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true });
+});
+
+async function migrated(root: string): Promise<string> {
+  const current = await completeActivationFixture(['prod']);
   const path = join(root, 'wbs.db');
-  const migration = Bun.spawnSync(['bun', join(backend, 'src/migrate-cli.ts')], {
-    cwd: backend,
-    env: { ...process.env, DB_PATH: path },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  if (migration.exitCode !== 0) throw new Error(migration.stderr.toString());
+  // The actual empty-catalogue owner has closed its connections before this detached source copy.
+  copyFileSync(current.prodPath, path);
   return path;
 }
 function probe(path: string, args: string[]): string {
@@ -49,7 +59,7 @@ for (const mode of ['clean', 'wal'] as const)
   test(`real migrated dormant ${mode} store agrees with backend inspection and preserves source`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'dependency-real-'));
     try {
-      const path = migrated(root);
+      const path = await migrated(root);
       const cli = Bun.spawnSync(
         ['bun', join(backend, 'src/dependency-activation-cli.ts'), 'inspect'],
         { env: { ...process.env, DB_PATH: path }, stdout: 'pipe', stderr: 'pipe' },
@@ -61,13 +71,13 @@ for (const mode of ['clean', 'wal'] as const)
       expect(JSON.parse(cli.stdout.toString())).toEqual({ state: 'DISABLED', receipt: null });
       if (mode === 'wal') {
         const checkpoint = new Database(path);
-        checkpoint.run("UPDATE cross_project_dependency_activation SET state='ENABLED'");
+        checkpoint.run("UPDATE cross_work_package_dependency_activation SET state='ENABLED'");
         checkpoint.close();
         const child = Bun.spawnSync(
           [
             'bun',
             '-e',
-            `import { Database } from 'bun:sqlite'; const db = new Database(process.env.DB_PATH); db.run('PRAGMA journal_mode=WAL'); db.run("UPDATE cross_project_dependency_activation SET state='DISABLED'"); process.kill(process.pid,'SIGKILL');`,
+            `import { Database } from 'bun:sqlite'; const db = new Database(process.env.DB_PATH); db.run('PRAGMA journal_mode=WAL'); db.run("UPDATE cross_work_package_dependency_activation SET state='DISABLED'"); process.kill(process.pid,'SIGKILL');`,
           ],
           { env: { ...process.env, DB_PATH: path }, stdout: 'pipe', stderr: 'pipe' },
         );
@@ -92,12 +102,12 @@ for (const fault of ['enabled', 'historical'] as const)
   test(`recovery uses coordinator authority despite deceptive image CLI: ${fault}`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'dependency-recovery-'));
     try {
-      const path = migrated(root);
+      const path = await migrated(root);
       const sqlite = new Database(path);
       sqlite.run(
         fault === 'enabled'
-          ? "UPDATE cross_project_dependency_activation SET state='ENABLED'"
-          : 'DROP TABLE cross_project_dependency_activation_receipt',
+          ? "UPDATE cross_work_package_dependency_activation SET state='ENABLED'"
+          : 'DROP TABLE cross_work_package_dependency_activation_receipt',
       );
       sqlite.close();
       const commands: string[][] = [];
@@ -163,12 +173,12 @@ test('dependency admission bounds a stalled probe', async () => {
 });
 
 for (const transport of ['source', 'built'] as const)
-  test(`installed ${transport} recovery dispatch refuses ENABLED and retains markers`, () => {
+  test(`installed ${transport} recovery dispatch refuses ENABLED and retains markers`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'dependency-dispatch-'));
     try {
-      const path = migrated(root);
+      const path = await migrated(root);
       const sqlite = new Database(path);
-      sqlite.run("UPDATE cross_project_dependency_activation SET state='ENABLED'");
+      sqlite.run("UPDATE cross_work_package_dependency_activation SET state='ENABLED'");
       sqlite.close();
       const marker = join(root, 'be-writer-stop.json');
       writeFileSync(marker, 'retain exact interruption evidence');

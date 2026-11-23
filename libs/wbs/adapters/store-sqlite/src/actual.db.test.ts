@@ -2,34 +2,37 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
+import type { WorkItem, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 let dir: string;
 let path: string;
 let ownerId: string;
 let repo: ActualRepository;
 let workItems: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row. Not to be read as an
  * actual's `recordedAt` — that is the day somebody says the work took, and this
@@ -40,7 +43,7 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 const insertItem = async (id: string, position: number, name: string): Promise<void> => {
   const item: WorkItem = workItemRow({
     id,
-    projectId,
+    workPackageId,
     position,
     name,
   });
@@ -48,56 +51,57 @@ const insertItem = async (id: string, position: number, name: string): Promise<v
 };
 
 const revisionOf = async (id: string): Promise<number> => {
-  const rows = await workItems.listByProject(projectId);
+  const rows = await workItems.listByWorkPackage(workPackageId);
   const found = rows.find((row) => row.id === id);
-  if (found === undefined) throw new Error(`${id} is not in the project`);
+  if (found === undefined) throw new Error(`${id} is not in the work package`);
   return found.revision;
 };
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-actual-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody.hasUnknownOwner = false;
+  ownerId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
+  // Key order must differ from authored order to prove the real step projection.
+  devId = `z-dev-${crypto.randomUUID()}`;
+  qaId = `a-qa-${crypto.randomUUID()}`;
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: wrote(),
+      definitions: [
+        {
+          id: devId,
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          id: qaId,
+          code: 'qa',
+          name: 'QA',
+          position: 20,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    custody,
+  );
   const db = openDrizzle(path);
   repo = new ActualRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
-
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
     wrote(),
   );
-  projectId = crypto.randomUUID();
-  // Ids chosen so that sorting them disagrees with step order, exactly as
-  // `estimate.test.ts` does: `Dev` runs first and sorts last, so a read that
-  // fell back to the primary key's own order hands back `QA` first.
-  devId = `z-dev-${crypto.randomUUID()}`;
-  qaId = `a-qa-${crypto.randomUUID()}`;
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
-  });
-  const steps: Step[] = [
-    {
-      id: devId,
-      projectId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    {
-      id: qaId,
-      projectId,
-      name: 'QA',
-      position: 20,
-      code: 'qa',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -106,7 +110,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('ActualRepository', () => {
@@ -120,7 +124,7 @@ describe('ActualRepository', () => {
 
     await repo.set({ workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 },
     ]);
   });
@@ -136,7 +140,7 @@ describe('ActualRepository', () => {
 
     await repo.remove(stripId, devId, wrote());
 
-    const left = await repo.listByProject(projectId);
+    const left = await repo.listByWorkPackage(workPackageId);
     expect(left).toHaveLength(2);
     // The same step on another work item survives — the work-item half.
     expect(left).toContainEqual({ workItemId: sandId, stepId: devId, days: 3, recordedAt: 3 });
@@ -150,7 +154,7 @@ describe('ActualRepository', () => {
     await repo.remove(stripId, devId, wrote());
     await repo.remove(stripId, devId, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 },
     ]);
   });
@@ -162,7 +166,7 @@ describe('ActualRepository', () => {
     // that treated 0 as nothing to write would make the two the same sentence.
     await repo.set({ workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 },
     ]);
   });
@@ -176,14 +180,13 @@ describe('ActualRepository', () => {
     await repo.set({ workItemId: stripId, stepId: qaId, days: 4, recordedAt: 1 }, wrote());
     await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 2 }, wrote());
 
-    const held = await repo.listByProject(projectId);
+    const held = await repo.listByWorkPackage(workPackageId);
 
     expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
 
-  it('answers one project only, so another plan’s recorded days are never in the list', async () => {
-    const otherProject = crypto.randomUUID();
-    const otherStep = crypto.randomUUID();
+  it('answers one work package only, so another plan’s recorded days are never in the list', async () => {
+    const otherWorkPackage = crypto.randomUUID();
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
@@ -193,42 +196,34 @@ describe('ActualRepository', () => {
       { id: owner, username: 'other', passwordHash: 'x', createdAt: 1 },
       wroteElsewhere,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
-        id: otherProject,
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
+        id: otherWorkPackage,
         name: 'Another shed',
-        ownerId: owner,
+        projectId: 'fixture-project',
       }),
-      [
-        {
-          id: otherStep,
-          projectId: otherProject,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wroteElsewhere,
     );
     await new WorkItemRepository(db, OPEN).insert(
       workItemRow({
         id: otherItem,
-        projectId: otherProject,
+        workPackageId: otherWorkPackage,
         position: 10,
         name: 'Elsewhere',
       }),
       [],
       wroteElsewhere,
     );
-    await repo.set(
-      { workItemId: otherItem, stepId: otherStep, days: 9, recordedAt: 1 },
-      wroteElsewhere,
-    );
+    expect(
+      await repo.set(
+        { workItemId: otherItem, stepId: devId, days: 9, recordedAt: 1 },
+        wroteElsewhere,
+      ),
+    ).toBe('written');
     await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 },
     ]);
   });
@@ -259,7 +254,7 @@ describe('ActualRepository', () => {
 
     await repo.moveAll(stripId, sandId, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: sandId, stepId: devId, days: 2, recordedAt: 7 },
     ]);
     expect(await revisionOf(sandId)).toBe(sandBefore + 1);
@@ -283,27 +278,42 @@ describe('ActualRepository', () => {
       db.close();
     }
 
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
-  it('refuses to leave a step that still holds recorded days, rather than emptying it quietly', async () => {
-    // `actual.step_id` deliberately carries **no** cascade, which is what makes
-    // a step delete that forgot the actuals fail loudly.
-    // `StepRepository.remove` is the caller that says so explicitly; this is the
-    // constraint underneath it, asserted so that a later migration cannot add a
-    // cascade without a red test.
-    await repo.set({ workItemId: stripId, stepId: devId, days: 4, recordedAt: 1 }, wrote());
-
-    const db = openDatabase(path);
+  it('the pre-catalogue schema refuses a step deletion while actuals still reference it', () => {
+    const retained = mkdtempSync(join(dir, 'retained-step-'));
+    const previousPath = join(retained, 'store.db');
+    runMigrations(
+      previousPath,
+      copyRecoveryPrefix(retained, '20261115120000_add_step_migration_report'),
+    );
+    seedLegacyPackageParent(previousPath, 'retained-org', 'retained-parent');
+    const db = openDatabase(previousPath);
     try {
       db.run('PRAGMA foreign_keys = ON');
-      expect(() => {
-        db.run(`DELETE FROM step WHERE id = '${devId}'`);
-      }).toThrow(/FOREIGN KEY constraint failed/);
+      db.run("INSERT INTO users(id,username,created_at) VALUES ('owner','Owner',1)");
+      db.run(
+        "INSERT INTO work_package(id,name,project_id,created_at,created_by) VALUES ('retained','Retained','retained-parent',1,'owner')",
+      );
+      db.run(
+        "INSERT INTO work_item(id,work_package_id,name,position) VALUES ('leaf','retained','Leaf',10)",
+      );
+      db.run(
+        "INSERT INTO step(id,work_package_id,code,name,position) VALUES ('dev','retained','dev','Dev',10)",
+      );
+      db.run("INSERT INTO actual(work_item_id,step_id,days,recorded_at) VALUES ('leaf','dev',4,1)");
+      expect(() => db.run("DELETE FROM step WHERE id='dev'")).toThrow(
+        /FOREIGN KEY constraint failed/,
+      );
+      expect(db.query('SELECT work_item_id,step_id,days,recorded_at FROM actual').all()).toEqual([
+        { work_item_id: 'leaf', step_id: 'dev', days: 4, recorded_at: 1 },
+      ]);
+      db.run("DELETE FROM actual WHERE step_id='dev'");
+      db.run("DELETE FROM step WHERE id='dev'");
+      expect(db.query("SELECT id FROM step WHERE id='dev'").get()).toBeNull();
     } finally {
       db.close();
     }
-
-    expect(await repo.listByProject(projectId)).toHaveLength(1);
   });
 });

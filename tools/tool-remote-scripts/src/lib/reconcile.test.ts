@@ -140,13 +140,18 @@ describe('planSwap', () => {
     }
   });
 
-  it('backfills step codes for be once the old colour has stopped, before committing', () => {
+  it('current backend plans retain post-stop admission before aliasing without predecessor backfill', () => {
     const steps = planSwap('be', base).steps;
-    expect(steps.indexOf('stop-blue')).toBeLessThan(steps.indexOf('backfill-step-codes'));
-    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(steps.indexOf('grant-alias'));
+    expect(steps).not.toContain('backfill-step-codes');
+    expect(steps.indexOf('stop-blue')).toBeLessThan(
+      steps.indexOf('stored-vocabularies-after-stop'),
+    );
+    expect(steps.indexOf('stored-vocabularies-after-stop')).toBeLessThan(
+      steps.indexOf('grant-alias'),
+    );
   });
 
-  it('backfills step codes for be on a first-ever deploy too — the file may predate it', () => {
+  it('current first backend deployment retains post-stop admission without predecessor backfill', () => {
     const steps = planSwap('be', {
       routedColor: null,
       runningColors: [],
@@ -154,7 +159,10 @@ describe('planSwap', () => {
       phase: null,
     }).steps;
     expect(steps).toContain('stored-vocabularies-after-stop');
-    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(steps.indexOf('grant-alias'));
+    expect(steps).not.toContain('backfill-step-codes');
+    expect(steps.indexOf('stored-vocabularies-after-stop')).toBeLessThan(
+      steps.indexOf('grant-alias'),
+    );
   });
 
   it('never backfills step codes for gw or fe', () => {

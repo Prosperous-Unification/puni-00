@@ -35,10 +35,10 @@ describe('groupSlicesByLeaf', () => {
     expect(groupSlicesByLeaf(['A', 'B'], [sliceOf('A')]).has('B')).toBe(false);
   });
 
-  it('refuses a slice for something that is not a leaf of this project', () => {
+  it('refuses a slice for something that is not a leaf of this work package', () => {
     // A parent has no work of its own and a stranger has no place in the graph.
     expect(() => groupSlicesByLeaf(['A'], [sliceOf('P')])).toThrow(
-      'slice for P, which is not a leaf of this project',
+      'slice for P, which is not a leaf of this work package',
     );
   });
 

@@ -1,0 +1,583 @@
+{
+  "recordedAt": "2026-11-19T12:57:36.156Z",
+  "goalStatus": "active",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "c5d425c86a1b70055b4f4262e2dfae5a25d94b35a0e067f0ca5bff6e24202ab7",
+      "bytes": 62835,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "9f06866acda61ebd2fde66e158e511deebac3508c609b93b2ee209ef44c87b2d",
+      "bytes": 80462,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+      "sha256": "b2b3750b3b9083b9fd73cf3814fa45db4b4797b48104d70090b559dc8ca73360",
+      "bytes": 9471,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+      "sha256": "97b5b8041c81f8e5a0efadb182bda4502ce7134d0117a05c377b446cb5474cf4",
+      "bytes": 15296,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+      "sha256": "9cd5c87ac426c18d90275f9697bb40cffbe20dbcce6e0aa792c0917a37a92569",
+      "bytes": 2341,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-package-store.ts",
+      "sha256": "e514485895dc89fc4572ed6c9a28494f7afd6cd9043e6cb4f24ce504f8b8f06e",
+      "bytes": 13101,
+      "mode": 436
+    }
+  ],
+  "birthEvidence": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verification-memory-package-birth-20261119.json",
+    "sha256": "b1a71ab9fc75829388fc4d108870a9d3cf6c84038bb0f13f801d8b69f473a279",
+    "bytes": 67054,
+    "mode": 384
+  },
+  "broadBeforeFixtureMigration": {
+    "observation": {
+      "name": "legacy-birth-all-memory-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/legacy-birth-all-memory-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:53:21.546Z",
+        "endedAt": "2026-11-19T12:54:57.993Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-all-memory-v1.log",
+          "sha256": "04b45c59dbb93e9018a0c070f1eebc5ad6b8d3984c58856c34cf10c554fb8849",
+          "bytes": 120794
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-all-memory-v1.receipt.json",
+        "sha256": "b7e88233f442ba73f0e8188fee3071fa830c8449d4e2e717c58ad8853acf0e0a",
+        "bytes": 1324,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-all-memory-v1.log",
+        "sha256": "04b45c59dbb93e9018a0c070f1eebc5ad6b8d3984c58856c34cf10c554fb8849",
+        "bytes": 120794,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-all-memory-v1.validation.json",
+        "sha256": "403da0273fac14cb4745d169e1c9458aba5ad32ce1e63aefeee64df2a5435ae9",
+        "bytes": 487,
+        "mode": 384
+      }
+    },
+    "passed": 488,
+    "failed": 91,
+    "errors": 34,
+    "assertions": 17840,
+    "tests": 579,
+    "files": 68,
+    "qualification": "Terminal complete bounded run, still RED. Includes imported shared-contract tests. No pre-birth baseline was run, so failures are not all attributed as preexisting. No count extrapolation after the two fixture migrations."
+  },
+  "fixtureChanges": [
+    "Plan export authors a real project definition/binding before scoped package birth and supplies no legacy starting rows. The current definition uses valid lowercase dev rather than legacy uppercase DEV. Existing nonempty export and metadata assertions remain.",
+    "Sparse step parallelism authors real project bindings after birth. Main and foreign packages have distinct actual projects so the foreign step remains inapplicable to the main package. Existing refusal, exact fact, ordering, commit and rollback assertions remain unchanged."
+  ],
+  "controls": [
+    {
+      "name": "memory-export-parallel-current-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/memory-export-parallel-current-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:55:55.558Z",
+        "endedAt": "2026-11-19T12:55:58.235Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-export-parallel-current-v1.log",
+          "sha256": "31f1083f92f6e588103e63d956db7744c33a03d9461073a5b55e2aa91c2a1fbc",
+          "bytes": 2415
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-export-parallel-current-v1.receipt.json",
+        "sha256": "c618f7283b71ddf218f3831b84a33cee7ae1260473a91d6123720708a3227253",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-export-parallel-current-v1.log",
+        "sha256": "31f1083f92f6e588103e63d956db7744c33a03d9461073a5b55e2aa91c2a1fbc",
+        "bytes": 2415,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-export-parallel-current-v1.validation.json",
+        "sha256": "eff6b5c89474e2d27aa8aed68a1e6fdd4c1b2f4b614c0a0f9654c91c4a23e984",
+        "bytes": 499,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-birth-fixture-final-tests-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-tests-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:56:40.850Z",
+        "endedAt": "2026-11-19T12:56:46.507Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-tests-v1.log",
+          "sha256": "e94c84b54a8518554daebeade6ec7788ad5875643423c28032a25f73f6ddf6bd",
+          "bytes": 9060
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-tests-v1.receipt.json",
+        "sha256": "be0d89966256993d2515520ac457d7c71534d11b48b6416d6efedb68cf70d171",
+        "bytes": 1607,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-tests-v1.log",
+        "sha256": "e94c84b54a8518554daebeade6ec7788ad5875643423c28032a25f73f6ddf6bd",
+        "bytes": 9060,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-tests-v1.validation.json",
+        "sha256": "a1d8a8c46ba2f7aee52609cbd8e0621e5e147196d31f8232b02c86050e39f099",
+        "bytes": 503,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-birth-fixture-final-types-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:56:40.836Z",
+        "endedAt": "2026-11-19T12:56:47.459Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-types-v1.receipt.json",
+        "sha256": "8eb4ae9b8e94612050637a35239ec84e85ca215a47a9724ddd74bcd186cd8f65",
+        "bytes": 1391,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-types-v1.validation.json",
+        "sha256": "781921cfc23dc7798e48c597dc10bd9d24c1fd6affc241b385c47c15eb7b80e3",
+        "bytes": 500,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-birth-fixture-final-lint-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "libs/wbs/application/core/src/ports/work-package-store.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:56:40.836Z",
+        "endedAt": "2026-11-19T12:56:47.176Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-lint-v1.receipt.json",
+        "sha256": "b9cd91a47b409b1ec81e30be1b37eb096ec7277c4f9e335dc395159ec5160898",
+        "bytes": 1701,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-lint-v1.validation.json",
+        "sha256": "c63ef2649187d4b55308ccfcae573afbe92d58b9b0d7d9c88b05e3c4a64e67e7",
+        "bytes": 498,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-birth-fixture-final-format-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "libs/wbs/application/core/src/ports/work-package-store.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:56:40.840Z",
+        "endedAt": "2026-11-19T12:56:41.767Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-format-v1.receipt.json",
+        "sha256": "22f6c091f27d10687b820eca4200b508e640bb868d32a7755f8a686d0f39a92b",
+        "bytes": 1728,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-birth-fixture-final-format-v1.validation.json",
+        "sha256": "7beccde6d4ca7666a25a13e4f0dc243a82158e2c4f56a414b823fe9bf74c38f7",
+        "bytes": 503,
+        "mode": 384
+      }
+    },
+    {
+      "name": "legacy-birth-specs-v1",
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/legacy-birth-specs-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T12:53:21.552Z",
+        "endedAt": "2026-11-19T12:53:22.410Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-specs-v1.log",
+          "sha256": "fded2623dd48aefe8128486fb018f487ba7e546174a32d552103feecc2193392",
+          "bytes": 345251
+        },
+        "settled": true
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-specs-v1.receipt.json",
+        "sha256": "8aa655a1e1b36bcc3b31fb25fc2dc519c2404692c62372175ab612273c967373",
+        "bytes": 1339,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-specs-v1.log",
+        "sha256": "fded2623dd48aefe8128486fb018f487ba7e546174a32d552103feecc2193392",
+        "bytes": 345251,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/legacy-birth-specs-v1.validation.json",
+        "sha256": "e18f37e67bbcd3cb194bdf6d44f6f4d98c0f0b5eae4362a069c43db6309e37a5",
+        "bytes": 477,
+        "mode": 384
+      }
+    }
+  ],
+  "final": {
+    "passed": 106,
+    "failed": 0,
+    "assertions": 2713,
+    "files": 4,
+    "changedFileLint": "passed",
+    "changedFileFormat": "passed",
+    "memoryCompilerRoot": "passed"
+  },
+  "limits": [
+    "Only two broader fixtures were migrated; whole memory Source and the broader adapter/import fixture cutover remain required.",
+    "Existing StepStore add/rename cases, coherent custom-measure ownership, obsolete creation fault owner, current import/runtime/resource fixtures and all original entity/CLI requirements remain open.",
+    "No fresh full adapter after-control, SQL Source, whole Performance, full products or exact committed host gate is claimed.",
+    "Astra remains unavailable at its account usage limit. Protected archive refinement remains rejected/unapplied. No public push, merge or deployment."
+  ]
+}

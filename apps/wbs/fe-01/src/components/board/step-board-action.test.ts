@@ -10,7 +10,7 @@ import { createBusy } from '@/modules/plan-writer/busy-store';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
 import { planRead, workItemView } from '@/testing/views';
 
-import { projectStepBoard, type StepBoardCard } from './step-board';
+import { type StepBoardCard, workPackageStepBoard } from './step-board';
 import { type BoardColumn, createStepBoardAction } from './step-board-action';
 
 function owner(): PlanRefresh {
@@ -43,8 +43,14 @@ function deliver(plan: DeliveredPlanStore, progress: Record<string, 'in_progress
       value: planRead({
         workItems: [workItemView({ id: 'leaf', number: '010', name: 'Build', progress })],
         steps: [
-          { estimateUnit: 'workdays', id: 'dev', name: 'Development', allowancePercent: 0 },
-          { estimateUnit: 'workdays', id: 'qa', name: 'QA', allowancePercent: 0 },
+          {
+            code: 'dev',
+            estimateUnit: 'workdays',
+            id: 'dev',
+            name: 'Development',
+            allowancePercent: 0,
+          },
+          { code: 'qa', estimateUnit: 'workdays', id: 'qa', name: 'QA', allowancePercent: 0 },
         ],
       }),
     },
@@ -68,6 +74,7 @@ function replaceTree(
       value: planRead({
         workItems: rows,
         steps: stepIds.map((id) => ({
+          code: id,
           estimateUnit: 'workdays',
           id,
           name: id,
@@ -99,7 +106,9 @@ function markTreeUnusable(plan: DeliveredPlanStore, kind: 'stale' | 'failed'): v
 function card(plan: DeliveredPlanStore, column: 'unknown' | 'inProgress' | 'done'): StepBoardCard {
   const tree = plan.snapshot().tree;
   if (tree === null) throw new Error('test needs a delivered tree');
-  const found = projectStepBoard(tree.value).columns[column].find((node) => node.stepId === 'dev');
+  const found = workPackageStepBoard(tree.value).columns[column].find(
+    (node) => node.stepId === 'dev',
+  );
   if (found === undefined) throw new Error('test needs the Dev card');
   return found;
 }
@@ -204,7 +213,7 @@ describe('the selected runtime Board action', () => {
       expect(at.rereads).toEqual([['tree']]);
       const latest = at.plan.snapshot().tree;
       if (latest === null) throw new Error('tree disappeared');
-      expect(projectStepBoard(latest.value).columns[source]).toHaveLength(
+      expect(workPackageStepBoard(latest.value).columns[source]).toHaveLength(
         source === 'unknown' ? 2 : 1,
       );
     },

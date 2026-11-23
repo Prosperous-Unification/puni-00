@@ -1,0 +1,1070 @@
+{
+  "schema": "puni-genuine-historical-parent-undo-v1",
+  "recordedAt": "2026-11-19T23:24:32.999Z",
+  "task": "1.6.2a-c: precise unsupported historical deletion refusal and genuine lawful old deletion replay; parent tasks remain open",
+  "previous": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verification-legacy-parent-admission-20261120.json",
+    "sha256": "09e528ef8b5e051882cd4101fdc095c0d7cfb6e5afc6afd96320367b98b6aa1d",
+    "bytes": 64229,
+    "mode": 420
+  },
+  "producer": {
+    "commit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+    "tree": "/tmp/puni-legacy-producer-v1/tree",
+    "fixtureProvenance": {
+      "schema": "puni-genuine-legacy-delete-fixtures-v1",
+      "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+      "sourceLockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "runtime": {
+        "version": "1.4.4",
+        "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+      },
+      "ledgerEpoch": "20261103110000_add_initial_access_offers",
+      "ledgerEntries": 110,
+      "cases": {
+        "parent-progress": {
+          "file": "legacy-delete-parent-progress.sqlite.gz",
+          "databaseSha256": "45292e5963bbd210fc11576ccb2a5b0da643773b1898712c82f24a2925928518",
+          "gzipSha256": "5a2ec603c8f12ca4a81a29f05cfaf8c92f1788cf40094d9fadd1205887db3d83",
+          "producerScriptSha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+          "producerCaptureSha256": "090e5963b2c5bc676079cb045e51d5f48ecefb6cfcafe775c38bb78a15e6dad6",
+          "oldReplayControlSha256": "e872573f7c48c918c998eb2a6715451b499bf3deb4c30d152d28c1cb7149a192",
+          "hasHistoricalParentProgress": true
+        },
+        "leaf-only": {
+          "file": "legacy-delete-leaf-only.sqlite.gz",
+          "databaseSha256": "58e633d3059f9821644eb4ac52457f4e87b591e0ee0d41e3478bba9e43b15909",
+          "gzipSha256": "36bbd33540aa699588490d904592771a180b54ecffd724dd9d84ecd1b5797fba",
+          "producerScriptSha256": "1f9bcec575a2f9f86daab652b248b4be3ec6382990e5c9aed394557b7abbbf3b",
+          "producerCaptureSha256": "d723cd81ab057af22f47e146dc80de08de7f77a585675555e60686135947141b",
+          "oldReplayControlSha256": "cfb7fc954bb786bd7cba054698ae3b2c98d51207f5c23b3283a38fbd91482760",
+          "hasHistoricalParentProgress": false
+        }
+      },
+      "provenance": "Both databases were authored through actual immutable old SQLite Source stores and deletion service. Both old undo controls succeeded on independent copied databases. The parent-progress case includes exact original parent statedAt -30 and child20 in its genuine inverse; the leaf-only case never authored parent progress before deletion. No journal/fact row was hand-built. Tests must run actual normal migrations, report, E37 backup and guarded catalogue apply before opening current Source.",
+      "parentProgressProducer": "legacy-history-producer.ts.txt",
+      "leafOnlyProducer": "legacy-delete-positive-producer.ts.txt",
+      "qualification": "Isolated old blockage marker is fixture-native; no host/session/scoped activation claim. These assets do not authorize current parent progress or close all15historical guarantees."
+    },
+    "positive": {
+      "receipt": {
+        "path": "/tmp/puni-legacy-producer-v1/delete-positive-native-v1.receipt.json",
+        "sha256": "176b09d7d6614ed005bba4a23ce43cd8d3f607b825a431ad084a27b9d3bc9434",
+        "bytes": 1397,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-legacy-producer-v1/delete-positive-native-v1.log",
+        "sha256": "504780cf1c2c838d855a040be4647dc3f9714946e973392aa41271104fa87a0f",
+        "bytes": 244,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "{\"scenario\":\"parent-delete-restore\",\"replay\":\"undo\",\"expected\":true,\"path\":\"/tmp/puni-legacy-producer-v1/history-delete-positive-v1/parent-delete-restore/producer.db\",\"sha256\":\"58e633d3059f9821644eb4ac52457f4e87b591e0ee0d41e3478bba9e43b15909\"}\n"
+    },
+    "parentProgress": {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-delete-restore/producer.json",
+      "sha256": "090e5963b2c5bc676079cb045e51d5f48ecefb6cfcafe775c38bb78a15e6dad6",
+      "bytes": 48109,
+      "mode": 384
+    },
+    "parentProgressOldReplay": {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-delete-restore/old-replay-control.json",
+      "sha256": "e872573f7c48c918c998eb2a6715451b499bf3deb4c30d152d28c1cb7149a192",
+      "bytes": 4413,
+      "mode": 384
+    },
+    "leafOnly": {
+      "path": "/tmp/puni-legacy-producer-v1/history-delete-positive-v1/parent-delete-restore/producer.json",
+      "sha256": "d723cd81ab057af22f47e146dc80de08de7f77a585675555e60686135947141b",
+      "bytes": 47471,
+      "mode": 384
+    },
+    "leafOnlyOldReplay": {
+      "path": "/tmp/puni-legacy-producer-v1/history-delete-positive-v1/parent-delete-restore/old-replay-control.json",
+      "sha256": "cfb7fc954bb786bd7cba054698ae3b2c98d51207f5c23b3283a38fbd91482760",
+      "bytes": 4171,
+      "mode": 384
+    },
+    "qualification": "Both actual old SQLite Source deletion recipes succeed under their immutable old producer on independent copied databases. New positive only omits authoring the old parent point; it preserves the genuine child fact/timestamp and actual producer calls. Normal migrations110→116, report, E37 and guarded117 followed by118/119 run in every current test. Catalogue history strings stay exact. No hand-built journal, fake Source, mounted scoped or host activation claim."
+  },
+  "behavior": {
+    "before": "Actual admitted old deletion undo inserted child/points and then threw through ordinary parent progress.set. Its real UoW rolled back and retained the journal, but the API path could not return a modeled conflict.",
+    "after": "Validated old inverse carrying restoredParentProgress refuses as permanently inapplicable under current leaf-only rules, after existing deletion/sparse checks and before blockage clear/subtree insertion. It uses existing stale_undo detail/entryId contract; the real runner rolls back and repairs the mutable journal discard. Direct borrowed caller rollback restores that discard. Immutable plan_event rows and all other raw state remain exact. No catch converts unknown storage failures. Unreachable ordinary parent-progress writes and obsolete dated write-fault proof comments are removed.",
+    "scope": "No new wire error or point-writer exception. This repairs the legacy runtime failure mode and certifies a separate lawful predecessor recipe. Original historical read/projection guarantees and all15named cases remain open."
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "8a65e0e5566d36f492bce6b01517fa473c84b8780f17a8d44286155325491b8a",
+      "bytes": 576856,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/historical-parent-undo.db.test.ts",
+      "sha256": "4613acea68475c49dd9e31599626a9713727fda8007a9212c36c3273eb5e2d2c",
+      "bytes": 8014,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/legacy-delete-database.ts",
+      "sha256": "abe2e01efbdfb41e5c31de77472c491798f7923e6cf33ad1dc25d9e189116a62",
+      "bytes": 5009,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete.json",
+      "sha256": "d00c297aa10e1e9b89fb8b38e622f43bf28de94a221d03cfffc4bb3602566e7d",
+      "bytes": 2460,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete-parent-progress.sqlite.gz",
+      "sha256": "5a2ec603c8f12ca4a81a29f05cfaf8c92f1788cf40094d9fadd1205887db3d83",
+      "bytes": 64458,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete-leaf-only.sqlite.gz",
+      "sha256": "36bbd33540aa699588490d904592771a180b54ecffd724dd9d84ecd1b5797fba",
+      "bytes": 64436,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete-positive-producer.ts.txt",
+      "sha256": "1f9bcec575a2f9f86daab652b248b4be3ec6382990e5c9aed394557b7abbbf3b",
+      "bytes": 11216,
+      "mode": 384
+    }
+  ],
+  "verification": {
+    "red": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-red-v1.receipt.json",
+        "sha256": "c0c4681062a84c21e3202db86de247fcf15e7ef87ba11e89c3d6553e4b45dd31",
+        "bytes": 1344,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-red-v1.log",
+        "sha256": "6cced8fe62d817dba67718cba366c0025c4eaa321ad17248625418680cfc7386",
+        "bytes": 3393,
+        "mode": 384
+      },
+      "exit": 1,
+      "summary": "e/libs/wbs/adapters/store-sqlite/src/step-progress.ts:77:15)\n      at set (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts:76:28)\n      at applyRestore (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:10847:50)\n(fail) refuses genuine historical parent progress before deletion undo writes through borrowed [452.74ms]\n(pass) restores a genuine historical leaf-only deletion with exact progress time through undo redo undo [538.02ms]\n\n 1 pass\n 2 fail\n 41 expect() calls\nRan 3 tests across 1 file. [4.12s]\n"
+    },
+    "green": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-green-v1.receipt.json",
+        "sha256": "51e9cdea26b0631dd78d26b1630a147ba3315e5213732a2fae929f78269ea930",
+        "bytes": 1347,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-green-v1.log",
+        "sha256": "7a95ab1068ef75a24d20a02a2dbb53fa9fbcbd415a6b218d4139812aa45f01d2",
+        "bytes": 495,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/historical-parent-undo.db.test.ts:\n(pass) refuses genuine historical parent progress before deletion undo writes through runner [577.54ms]\n(pass) refuses genuine historical parent progress before deletion undo writes through borrowed [446.73ms]\n(pass) restores a genuine historical leaf-only deletion with exact progress time through undo redo undo [518.83ms]\n\n 3 pass\n 0 fail\n 51 expect() calls\nRan 3 tests across 1 file. [4.27s]\n"
+    },
+    "unknownControl": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-controls-v2.receipt.json",
+        "sha256": "61c6b58daeb7930cb40f5209e0cd840eb76c979cc064d145510dff13d21e2f12",
+        "bytes": 1353,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-controls-v2.log",
+        "sha256": "65269218fc91ba58d6437c3c241817f7643d9082c2f06ffa96b6a9022e25408d",
+        "bytes": 598,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/historical-parent-undo.db.test.ts:\n(pass) refuses genuine historical parent progress before deletion undo writes through runner [581.77ms]\n(pass) refuses genuine historical parent progress before deletion undo writes through borrowed [510.64ms]\n(pass) restores a genuine historical leaf-only deletion with exact progress time through undo redo undo [550.26ms]\n(pass) retains genuine deletion history when required current package values are unreadable [497.19ms]\n\n 4 pass\n 0 fail\n 64 expect() calls\nRan 4 tests across 1 file. [4.72s]\n"
+    },
+    "finalSelected": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-controls-final-v1.receipt.json",
+        "sha256": "e6632dd032936bfb796b39ddec86fde0f834820d77e41bdc8222c8e267f84b47",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-controls-final-v1.log",
+        "sha256": "e18517e2c0060dd5cc04db9650bb7a0beeab77809b0f901fd3cff81c12a50dfb",
+        "bytes": 1872,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "[9.89ms]\n(pass) throws on selected trusted workPackage corruption before deletion [9.46ms]\n(pass) throws on selected trusted parent corruption before deletion [9.54ms]\n(pass) throws on selected trusted duplicate corruption before deletion [10.59ms]\n(pass) copies detached exact refusal nodes and allows deletion when cleared [11.87ms]\n(pass) throws when the required deletion sparse reader is absent before writes [6.35ms]\n(pass) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [21.59ms]\n\n 16 pass\n 0 fail\n 137 expect() calls\nRan 16 tests across 2 files. [9.55s]\n"
+    },
+    "selectedSummary": {
+      "passed": 16,
+      "failed": 0,
+      "assertions": 137,
+      "files": 2,
+      "newSqliteCases": 4,
+      "existingSparseDeleteCases": 12
+    },
+    "core": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v10.receipt.json",
+        "sha256": "5a81073e404c73f6be11d3d3b5bca9870f465be9e726e42468ee68a6f243bde2",
+        "bytes": 14590,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v10.log",
+        "sha256": "f2f51c501c7d65d07964e0874db5b32f52685250b3025e32557f47b4664783b9",
+        "bytes": 267061,
+        "mode": 384
+      },
+      "exit": 1,
+      "summary": "d work package read returning another work package identity [0.15ms]\n(fail) refuses a typed node endpoint absent from the full tree [0.10ms]\n(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule [0.88ms]\n(fail) existing Navigator v13 bytes remain frozen under their historical descriptor [0.25ms]\n(fail) existing Navigator v14 bytes remain frozen under their historical descriptor [0.03ms]\n(fail) counting unit of work rejects unexpected store access and records rollback [2.17ms]\n\n 2060 pass\n 31 fail\n 9580 expect() calls\nRan 2091 tests across 168 files. [83.24s]\n"
+    },
+    "coreComparison": {
+      "previous": {
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v9",
+        "summary": "\n\n 2060 pass\n 31 fail\n 9448 expect() calls\nRan 2091 tests across 168 files. [84.92s]\n"
+      },
+      "current": {
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v10",
+        "failures": [
+          "(fail) dispatches the complete returned variant and independently maps modeled package allocation refusals",
+          "(fail) direct solution binding reads the exact slug and complete work package with ordered steps",
+          "(fail) a patched allowance runs as the one journalled setStepAllowance command",
+          "(fail) a rename sent with an allowance is the batch prelude, and its refusal runs no command",
+          "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+          "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+          "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+          "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner",
+          "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+          "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+          "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+          "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+          "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+          "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+          "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+          "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+          "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+          "(fail) the Plan import module > admits a small document over the graph installPlanImport wires",
+          "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+          "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+          "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+          "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+          "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows",
+          "(fail) rejects a required work package read returning another work package identity",
+          "(fail) refuses a typed node endpoint absent from the full tree",
+          "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+          "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor",
+          "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor",
+          "(fail) counting unit of work rejects unexpected store access and records rollback"
+        ],
+        "summary": "\n\n 2060 pass\n 31 fail\n 9580 expect() calls\nRan 2091 tests across 168 files. [83.24s]\n",
+        "source": [
+          {
+            "path": "libs/wbs/application/core/src/compose.test.ts",
+            "sha256": "d73343f3e4e8b7c4d55129a50539f8f1cc0a6c917204ea5f30207866382c08f9"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+            "sha256": "a73eb93f5dd16a185a27d07238abcfeb17cbf6b81adf810ecb735dc1c54a6a63"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/directory.routes.test.ts",
+            "sha256": "dd26c1081763905094c6894aca61420df3b301e130253c48ae13fa368cd013ca"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/endpoint.test.ts",
+            "sha256": "9741e1e7b90bab19e7b714bb5fbcc7eb41715767448ec74a395f40ebe131c93a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/history.routes.test.ts",
+            "sha256": "55a48097deb55167ff6bb8b9cb079f50430f3b9e0ced218ed9ed7628013cd7aa"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/import.routes.test.ts",
+            "sha256": "cbc25db4404646b5b0b267b3082eab9907e049afb5adf216bd2fba8a60492722"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/internal.routes.test.ts",
+            "sha256": "2008d971645e29902b4145f87ef37771c3d28232c547a016979e9be22a3f90d7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/project.routes.test.ts",
+            "sha256": "d4489dd87caadee248a441330b6e78d07a5be10f66fa466f6cc0f940592908ea"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+            "sha256": "02c74ef96a9921b15c877c0a56437a242eb21aa0d8d23473a46f0f8ed222be4b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/solution.routes.test.ts",
+            "sha256": "5e7deb8687b291a505f3090bca803abf2ea9b8ab755e4c353599b46278674a25"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/step.routes.test.ts",
+            "sha256": "b4b7bd85c776cf6d4a17ee837403a6592acaa9788c8c074c3045e4f5e7eee251"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/work-item.routes.test.ts",
+            "sha256": "0b87b556c51530822a11e2b3d0149b1e58936acb5e785dc1aa537e4fadae121e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+            "sha256": "ab2964ddbbed9b4e5c92682a3d9c6d90715f9565ac1e5aca366c27e4fad204dd"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/work-package-parent.test.ts",
+            "sha256": "2a5a29a85d1235306aa767167bc2bb6bb415b789dea7699934b900b4d352800b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/http/work-package.routes.test.ts",
+            "sha256": "add924f4a81a96e749c5229d795703ee1ab2de5279849988ddf72aca0515ae09"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module-boundaries.test.ts",
+            "sha256": "025311f2aee4f74e1a300f4592d1bd5e2d49e9d0f092665c141f715dee9a2f13"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+            "sha256": "949f995265c90895d77a56d64b0ebb1f7d0e18b1f4e5d07ecf6e37a340c7e3bb"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+            "sha256": "ad63afc0b8790d43adee2c8e2455d205ceb0fe45948304cb1014489cdd407f59"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+            "sha256": "121e8746d28e8a2bbc43256b9fda0e20822dde3153d7bbee07946d63f44a255c"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/authentication/module.test.ts",
+            "sha256": "7837e19bef7b39228c06bc36b0ddebc49ab87f862ec92f41a2665949d501333a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+            "sha256": "74e88346b08e7c3329249e397149105a435aac64eef3ac974afc5571e60f3116"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+            "sha256": "285232613575be71e7ff60cd31f9d1afb89297bac17c47f41a2f5ddb781bc501"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+            "sha256": "d2254af9b05dff119bc404e44c702a845ac1c451c518d8545ac95009543f7ce8"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/capacity/module.test.ts",
+            "sha256": "067f161461adee85c8c3f807dab32329515c1727a7376adc2bb7a26ef34b08ce"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+            "sha256": "e08d239dfda4ce9ec680e5c828b2e0fc38c6bbb8cc7edecea907160fbb561657"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+            "sha256": "1b322292d078534a8e527936cdae603d2ec15e5c7c9c7c4d04711c2e35526662"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/directory/module.test.ts",
+            "sha256": "240d5d37f9e577ab8a5189b18d628cbc311a8477f75daf34fec2906fe0865bd7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/event-log/module.test.ts",
+            "sha256": "e7dc6ab16c0da75ff9a105dcf28913f26e3dc89564aa467489ec00d8cf8f0e67"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+            "sha256": "79ada91306f9e19f2e465b4ef4c31fe611b49758d03c0c1944041f0a0cff8d37"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+            "sha256": "90229162dd5560a0a242b34e47b74f6c4e1027ce4608a5935e81fb227f5bf470"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "sha256": "c802cf02d5bb515eaa7202e38cb281a72b8c87f18441e036a13aedfa8d595a7d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "sha256": "4af44d612d2f5dc022bcaa4b5bee751e3a39cb46e640f96e893369feb276aaf1"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+            "sha256": "2322220c03eb5d9c5a8c0b066645e1dd03186cad4a3c7cf46a1b4dd802e1cd9b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+            "sha256": "cbc5e3fdcec8059807abb7295ad76d5ccbb62f9bea7719146f39740a871f2938"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+            "sha256": "16978738806bfaff562a967e896319f5a095b67550be24b160f945c71c3d6a14"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+            "sha256": "f7ba6dab57c12f556d34ef2ccc176ba95400b159c6cac79c895d259c9e1d80f8"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "sha256": "1de99c7c6375f8bba2d21b0cfec0262e32f17f12edc3a853aa6808ca81a88682"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+            "sha256": "9d5c7bd64ffea609d941702fb0d43a7fac2c66e527c247a9845d0e738921b17b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+            "sha256": "f70903f2c6d2fbf589e92a93efa6a1af85ddc36f105f8d641611f0970d84009a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+            "sha256": "f70b4a9344781dfd7d3f3805cf27ed95ca8bee5ba0e33ef1f5e571550c13984e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+            "sha256": "18982859e25eba505521bee2e5d4ed707dead2542b5f753b3ef682d2a0d370cc"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+            "sha256": "e868c7878a5f45021d3c822a1ed683d671765da075686a10bf77b8c714d3650e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+            "sha256": "0bc871b893f5573edd95766a0cc40f110a7a595b5a654b2fb8478bf168acf547"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+            "sha256": "c1afadb6394a36b4d66fb2c770150ff9a30ecfdf910c6a0d2adf49c608a7a932"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+            "sha256": "4a2edfce21902a28ffcef6b50208b7862d4a9d70dcaa31d78a0c2f930486289e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+            "sha256": "24d1bf216658dbd887eec8b8b859a7f87956156ab9bdeda94dd669442bdcaec6"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+            "sha256": "cae984dd4010d0ec42b0b9d967fb06d0ae6b0a235beb0dc93274b2fcb77a7638"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+            "sha256": "3de926a906d2baf6aa969aa2950176eecbe3ceb3d92e9e205b30078adb16a363"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+            "sha256": "4b8ce310b593894f90f39226da98b3a141331f3c74931edd472716ff320068c5"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+            "sha256": "b91033926581429dae61a969daf3bc3a7f2a54f62d7435fd44c1a98189563e4c"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+            "sha256": "4b983f12c4c936d9bcc3179a457644bb1042ed998e3358e8139945a8ef3fee86"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+            "sha256": "d6c78d7336b3eb80f70c6d2c1d62d4a7d65bddf44dcb36fea4472784debcf3de"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-document/module.test.ts",
+            "sha256": "35ffa637b982fc5b3855b631d0b376f1d4ef7983880367ef5a4a03b622dccd8e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+            "sha256": "b6d9fcdee95805de81284b095c960a296edd9b0bb95fb22fc31c198ad88e1726"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+            "sha256": "c2eaf9fac2a21e055049ae59313d7a960c73392cd96849aba65f3d6eac56bbfd"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+            "sha256": "7cad4a6b52f729df760114eeed93430a0ce866d026df6f7e09aebaf0ae674bd4"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-event/module.test.ts",
+            "sha256": "bd827dad8217e018a279b3b80ae73ac8190fd55597bc55995ba60706400a9df5"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-history/module.test.ts",
+            "sha256": "c01a5b04ea307b8fe2dbdbba24d8f97e548a93f31c5074e7b20090fc5f67e361"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+            "sha256": "67a61bf36940f82ce8fae20126a0dffdf687af4aa0aa33c2325cf7a01bd72193"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "sha256": "b2fabed00e7d80faffa1d22a1dd1d62b3cd3fb97b6390195007ff10d53b1bd18"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+            "sha256": "464547e07d09df60d953376f265a0d52816566ae1dcb9170ed00d71c25f4957d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/priority-band/module.test.ts",
+            "sha256": "23acc46803de6d3399c7641fbf792b21aad73e83e56537d8869aa5ea4a24fec8"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+            "sha256": "23a1f90dfdd6d95434ac5cd9cb92801ad22fbf1b15fbf34ad6f3abbad67070e7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/realtime/module.test.ts",
+            "sha256": "cf38d54a9e4ba11673b99e1fc97b376d854ca8a6876f084c5ff1bd8970e1f795"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+            "sha256": "18f7f051f837ad57bae7bbc47a58d4d883dbe28207c6f5e66c85968f11719d04"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+            "sha256": "364d458df06ca4c08333feec860bb9179e76de663d3430e82dadf86884ca7469"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+            "sha256": "e0f6b7bdd1fe1ef637ea7750cf77f09bddd604be4d1ecfee0a287cf89f2420bd"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+            "sha256": "9edd34ef8379a01d3aed07db879f828212f5afbb5774bfc1d483b93a21ffccbb"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+            "sha256": "e88c915da949ff05ae52049d8ce395098b289f5d6f187db42d651573f8f07a2f"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+            "sha256": "4c898bffb639a794937c72a2313a48ed5fcf8a19eafedf873f854eff13e400f6"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+            "sha256": "51cb2cd897bafa7f9495f9d263f8a154c29ac76920f427a9167640e11c890e65"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+            "sha256": "6c35a3eff5c6c378ec17e9e2a3e53709edad2294b35d1cdae74d393058060001"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+            "sha256": "a95503be13fcfd26a15142d28bf3b901c0e73b9ee4829248d8cc008e89ba2692"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+            "sha256": "51515ec91b00c8aa5ad08f4d47423a4308d3bb84cb7bf0c462d38a1ab66f49cc"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+            "sha256": "a8dcd45c4afd417c720f70636bdf0307628d10eca3e18a0a3d32b9b49dcabd01"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+            "sha256": "48a478449b74e6f456dad2f11f8b10104d2139e279349057634b81a6cd2dfa5e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/step/module.test.ts",
+            "sha256": "32a2062e728810ed0da93a3aae5ad19b28179c2287fc1dbe409f623f6b9a98a9"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+            "sha256": "2bb1aa36c702d7fb7681cbcbe02814ddc0e40d54733d1f552de0fafeacf5fb6b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+            "sha256": "5a69c295ed050e292934dc6bfaaf928e236542c57c9176b3d2fc1fa425a9900d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+            "sha256": "2fe209699b59802582f10d3afd279558bb45a5bcb1d32ed26ec345d9b1d3d5a6"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+            "sha256": "24bb2960e97cc176be7757aa657587e0f618aedac2a56c71f46d29a4a83657c3"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+            "sha256": "9840d7a87a4cadb0b4cec36f5fa752acf25536a7392a0e1d0420273cd3a3ceb2"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+            "sha256": "2bb49ddcd63d797e12deb160190b300425bdc3581112c155942075273e7bc973"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+            "sha256": "818edb7e2181a310ba81d092de16eb0309730f69b5da5b85ad4efecba8c2eac2"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/module.test.ts",
+            "sha256": "85f59beb8a317bcfbe35704673260c684c26c1182717e9713887bb469e9f3239"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+            "sha256": "e129c8b80b07d1411e4af51e6de4274bfabb27636db867faa03ef2ab77e4286b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+            "sha256": "a97c08b51402aeb9f0e4ff3d57099dc2118a37abf5a30c873aa732744fb32c18"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+            "sha256": "8f69b01ec5e03b705d7100daaef8c1e11d5b264f979a9d7eaaf1cba854a27d0a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "sha256": "f33eb14c69962ad3e176e17420cd983445cb0113df84d4658ec8081c242f8393"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+            "sha256": "bb79f99be0bc2c588764eeb504044d039df01277fdfa80276f0393aa08f663e9"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+            "sha256": "b9e0107687729c5299f43002e34356eec65510ac5bae71e0f9aeabf777bfe743"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+            "sha256": "6147b0729093eb8dcba1ce7c445880b6b463c98a137b7920f89d854b52bf0d12"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+            "sha256": "82c117c5b76071be1721b9f01473b793d579ce7f70f2e14e2e09a77af36c22b7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "sha256": "33f105803de34fd203ea025f8bd44bf4c474b7aca669f47e5f4583bb6315c6b9"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "sha256": "5065a426880c68e487e11105215be479a50e4e6107eb419ee03bd34f0ac8246c"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+            "sha256": "7b7f3e6344e64bb838876c863195c4e80cacdeb8e99fab5e1570035cdab05ccb"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-package/module.test.ts",
+            "sha256": "c09cc45eb6ee16051b437f6b91a92f2eda37dff33566aa32e96a5c187b425be7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+            "sha256": "9899c0f9c8d12a3a344fefb05daf21bcd8180bab81af074cb585d11135bca85b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/playwright-config.test.ts",
+            "sha256": "edc64ba5eac092b1c18bc288b3747deef85558bed0d1e13e908ec7a018cf22ef"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+            "sha256": "9fe7bcea51313523a9f221a922d4d6fa903bd95b7fdc20009bb98c19160db807"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/clock.test.ts",
+            "sha256": "74081d1800b74869a32ad74561437d94c877208b908cc1979cb6509ec1787fb6"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/credential-rules.test.ts",
+            "sha256": "957d3801ed5989f8ab70c71c33742475bc9adbab7c7bc995b4147276c8b1f666"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+            "sha256": "0084896ff81ca3bd19541686fd7d8e1365242fed32326d5316dcb428a1fe1549"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+            "sha256": "067a78d5f5c8dc96bcd4bd165d200d399fdc4fa0f5357cfab67d90d753cbde7a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+            "sha256": "f537ae13d795ac21b9a369ffdf95a994fe1c4fd31bdf96de98423b4d89ab773d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+            "sha256": "e6d32b629b08fb8533513117e1b1067d85281d914832b6579a4582bd1534c01c"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+            "sha256": "7827eb6ace734af4bf7c0309ac4794ea24bdbb3dee3a15f290253a0117f9d800"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/session-policies.test.ts",
+            "sha256": "84144a37855abf007a56361c13775ddf495017ac1f8e28169b2bc0f957361223"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+            "sha256": "9ab398e0d52331da3ecb15d71b7edf4ceb234cfb953fc9fe7becd2edf8dcceb7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+            "sha256": "48c4ca2c07d9cc1698e1a42a28bdd68029b7f88708c0373188f0f3beaf7fe1da"
+          },
+          {
+            "path": "libs/wbs/application/core/src/ports/stores.types.test.ts",
+            "sha256": "ead092a3557beba2c38d228856103e77dd922fcb05123876a9575bc54f55aabb"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/actual.test.ts",
+            "sha256": "ce7787a47c785d1e55bbc0a957c7e86bf29e1c5a447e7931a20bbdd27e5a5906"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+            "sha256": "9cccee1a8664db4100e8d0bec6a8580df58e6655697edb4eb55c8f68efd9c596"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/authorize.test.ts",
+            "sha256": "d7d7046b24ec063b2a8416df0c4e22485979a506445028f785615b60d78da699"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/broadcast.test.ts",
+            "sha256": "f0142a509f514105c674855cf038517e7e52a6b613ad344d7e3f3461acd4e519"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/command-normalizers.test.ts",
+            "sha256": "d7af64cd4311aece232286b15b637d4fdca28f21386a8ced4cd9c73bac11d62c"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/committed-fanout.test.ts",
+            "sha256": "67ad157fc5710ec07af942b76f6b826ff6a1212e238fd14298c21df315d49fdf"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/compensating.test.ts",
+            "sha256": "8be04c39551f11980e86a526dd1e25c50c6c9ceb0ed0e5398efcf10aa63ef7bc"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-arrange.test.ts",
+            "sha256": "46cacec03a1e5091e72304075e7aa6c24c58d022501b22bd4d40cde655bc5369"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+            "sha256": "32ce47afa69690e00bb0ea65ce702772e2763d0dbdcbbdf0da3523b279db4a77"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+            "sha256": "4c3656f30ee380768c40cf854c8ad0882d1bc6fcae6f5a56c870b0402574a910"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+            "sha256": "daa01bab891920f0a24bc66b77ea6fbbd2b85dad9e4bb7fa1cd651c828b83cd3"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-optimization.test.ts",
+            "sha256": "a30d381e39009c87d3aa815b76dc7e40c2a22141d4313651f6db413f6cf583b4"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-plan.test.ts",
+            "sha256": "a6153224a83f8de3f10479b525a51dead4c6257e6df75a75c0bc4318c7e164b4"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-readiness.test.ts",
+            "sha256": "5a4572db3e1a944c93bb33e85f7197eb6f74ac598b06621fc52b8625f8290bc2"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/connected-tree.test.ts",
+            "sha256": "43aff4bf7c6129d4c80039f67e9efff7d6e8035bc389734fc63451b0204c12d0"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/delivery-gate.test.ts",
+            "sha256": "9882d24cebb0ff61d90e6112e210b400263bfa35d598a320d160f512c27ccd99"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/dependency-context.test.ts",
+            "sha256": "3580e409260e9cded20a20dead897cba66825bb1440bd10a535feef335c2dd8d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+            "sha256": "3a255802b94768745f5a90b70fd9fa565a5490f28620ce87839af40545a2dd8d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/dependency-graph.test.ts",
+            "sha256": "12ffbfb7b0a59240251854d59c40b162d008a71040f5d681d80bc8e5b6fd7e9d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/directory-usage.test.ts",
+            "sha256": "b7210216baa244b570d1ef2665cda662f9d6bb9937001eb3b1d26a6fe7d28819"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+            "sha256": "db7a0387e29ff46cf55b84531885c6cd6427f045e5a9c2635393af230b0a25c0"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/estimate.test.ts",
+            "sha256": "303f6e4d4deb3b592e3c509bc1f4acd53aa44896fa18eda5f0ac313ccc8df0ad"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/freeze.test.ts",
+            "sha256": "56ff94499245c10f84bf5063180e680a29bbac1db8f10c052d59eb6aa94f5427"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/list-query.test.ts",
+            "sha256": "6cb052e2d36aeae16410c310e85f2543f359a6752771bd648d7cdb7553c6a17b"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/machine-grant.test.ts",
+            "sha256": "a8b9edfef83094d56f1ffffb492b986b5f31f24343e461271668264239b6f2c5"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/measure.test.ts",
+            "sha256": "1c6b8179097f80b1bbd66d3288223e6c19af6c0c4f86f2fc0240bb55e6896a51"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/node-readings.test.ts",
+            "sha256": "23741d972c0a9a783ecb0a4b9ce78087341cc324b6c2fc4e551db74da18fba2d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+            "sha256": "c84108f4811a408589b9052e0b013c50e9fa85fe36fea45dafd8829006c4257d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+            "sha256": "8b4d62ccc41204ddf68f9b1dadfdcffe3156962a29cbfde63059ba7b567a66d7"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/person-load.feature.test.ts",
+            "sha256": "d2560c4c128c474dc30b872176de740614775125ceb1836693230930c74eb478"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/plan-history.test.ts",
+            "sha256": "e98773d8f749547dc96d3bf1abef23d47cffa9f9773bc106928705d508d7db47"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "sha256": "175cdba56f20ba322f8d3c2a99559df47c4cdb01cf6f35de007d8ad9b46ea51a"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/progress.test.ts",
+            "sha256": "1d8f3a64e72c27ad5ce752af69d4bf694015c0456ca717c374c3d2809bd90e88"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/project.resource.test.ts",
+            "sha256": "86795b66c17b6aaf9e5637664a95ccee39f82eb9168be5f5ec476ba20ec78727"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/retention-timer.test.ts",
+            "sha256": "a5bce619b3bfdc844c1d400dfd1b05fdbdc366682f6da8f0b24f795efd236422"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+            "sha256": "b61b0bb4e23c184297204ee476e9a33053995da8992a6dc81523a3f753684893"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/schedule-parts.test.ts",
+            "sha256": "ad6658a1a9722dffaf9548cf43534cafe6007b601fc6eac0fca7d73f55a1ac91"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/scim-admission.test.ts",
+            "sha256": "b9ba1fbd95d4e1e6d901219317f17becdb5fb3450d3d1dda2f8c6afc45231a6d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/service-boundaries.test.ts",
+            "sha256": "66886ca923e640f37c52d36fa2749ff3e96f38cb76955c294430bd87f50a601d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+            "sha256": "0896160a2f47c30b2146c1905137a77265556368253d2531680bf0f0afdd7d98"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/shared-people.test.ts",
+            "sha256": "de7f7b43e3138e8d9e4f28fe4a5531f0c320ae9e258e845191fd4cda68967827"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/space.resource.test.ts",
+            "sha256": "3383f60401ae85f50c42fba2844a8da21e54bf30bf011622bc4c761077ac4426"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/work-item-page.test.ts",
+            "sha256": "7ad0a46e9aadcb0dd891a544a935c87e812c96d7cba238cac94ab9aae5eb62a0"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+            "sha256": "4d9d342edbbd36f4cf4b48469221accf82a7d49c7c45eea311b27333160a291e"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+            "sha256": "ad12ba3e50aed4ce0fd8a8b6660fe53996c4371003817b893a6c5caf2e7a7242"
+          },
+          {
+            "path": "libs/wbs/application/core/src/service/work-package-page.test.ts",
+            "sha256": "78ba15b7a25c39f7a1f71c9c907effe52d68fd53a46666cc05051abaf2e241e9"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+            "sha256": "434f0c047243dc77d6187023311a35e6314d2a6a0f835c10b3ca31b96c2f0fa2"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+            "sha256": "6716e717b4d0e81d793a07bca6ac295671ddc9bf635fb270a7a163110b147865"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/first-child-current.test.ts",
+            "sha256": "2fbe27e2621dfbf59b7f8d4e11f2031217471301f3a70af7827611784a9e5552"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+            "sha256": "eafa36df774c937a3478a0eac668b4e264c69feede99f8c43d796931587424aa"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/harness.test.ts",
+            "sha256": "674eec6f40a1fcea48fd20dbe1699fbc6a328967b87905c1a4971f3fdeabaa56"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+            "sha256": "5e6795e1e6c2bd136b848b58831d87ab5a0904a50800bd5495b12c9f8dac8e05"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+            "sha256": "80fa29c9a35a9ba6f28154951db9c41da3f7d79c8210d27e73d8aec83be21b52"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+            "sha256": "1e5dcc65384449902feca861417ee37fe777f210c5a40039a4236910a6150904"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+            "sha256": "ef86572beb6f1a97fccab28b9dddb2e4d91e24bc1337f82f3a239fa7b15e4da3"
+          },
+          {
+            "path": "libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+            "sha256": "8b6ff022344e1aae51483778380982534de665d6202424b3c74c904d24b8854d"
+          },
+          {
+            "path": "libs/wbs/application/core/src/use-cases/admission.test.ts",
+            "sha256": "2b4eeec4d9cf6af18a7a2aae0535ed6b74cb2e9b2df7571427649581f32a7f75"
+          }
+        ],
+        "receiptSha256": "5a81073e404c73f6be11d3d3b5bca9870f465be9e726e42468ee68a6f243bde2",
+        "logSha256": "f2f51c501c7d65d07964e0874db5b32f52685250b3025e32557f47b4664783b9"
+      },
+      "removed": [],
+      "added": [],
+      "sourceFiles": 168,
+      "totalTests": 2091,
+      "passed": 2060,
+      "failed": 31,
+      "assertions": 9580,
+      "qualification": "Same31failure identities as V62; selected new native history tests are SQLite tests outside this core roster. Aggregate assertion counts vary with unseeded property shrinking. This is an actual failed core run, not a gate certificate."
+    },
+    "types": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-types-v1.receipt.json",
+        "sha256": "82c33d2d34bf675a782b9fabb2b98adec2cb620bca44303af9a41821450ef88a",
+        "bytes": 1404,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": ""
+    },
+    "initialLint": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-lint-fix-v1.receipt.json",
+        "sha256": "56fe81588527f164dbaec4fcd9be1cf4063de83fbf6c80045d83f9b4d444279a",
+        "bytes": 1544,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-lint-fix-v1.log",
+        "sha256": "0067293e5b115f40fffc428c44a60730d6753622e435cae15708ace135f2b6c4",
+        "bytes": 470,
+        "mode": 384
+      },
+      "exit": 1,
+      "summary": "\n/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/historical-parent-undo.db.test.ts\n  195:5   error  Unexpected `await` of a non-Promise (non-\"Thenable\") value                                              @typescript-eslint/await-thenable\n  195:11  error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression\n\n✖ 2 problems (2 errors, 0 warnings)\n\n"
+    },
+    "lint": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-lint-final-v2.receipt.json",
+        "sha256": "a8bcec57477cc23eba9af2c83d3d6c7ece9105a5ee1e601e2fb256ee1e407ce6",
+        "bytes": 1531,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-lint-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": ""
+    },
+    "format": {
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-code-format-v1.receipt.json",
+        "sha256": "35fc7ddbd76ef6590a000bf4b56444e6f72d1c09f89919b21c9aa01c90cab6e4",
+        "bytes": 1610,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/historical-parent-code-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    "finiteEffects": {
+      "relative": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "canonicalPath": "/tmp/puni-combined-proposal-v1/control/historical-parent-undo-canonical-v1.ts",
+      "canonicalSha256": "0a27243ccfa51176817c8f5fc224cced137f3566a269eda95a89c47db8d11047",
+      "observations": [
+        {
+          "name": "missing-guard",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-missing-guard-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-missing-guard-v1.log",
+          "failed": [
+            "(fail) refuses genuine historical parent progress before deletion undo writes through runner [596.59ms]",
+            "(fail) refuses genuine historical parent progress before deletion undo writes through borrowed [519.14ms]"
+          ],
+          "summary": "\n\n 0 pass\n 2 filtered out\n 2 fail\n 24 expect() calls\nRan 2 tests across 1 file. [3.66s]\n"
+        },
+        {
+          "name": "late-guard",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-late-guard-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-late-guard-v1.log",
+          "failed": [
+            "(fail) refuses genuine historical parent progress before deletion undo writes through runner [572.37ms]",
+            "(fail) refuses genuine historical parent progress before deletion undo writes through borrowed [451.56ms]"
+          ],
+          "summary": "\n\n 0 pass\n 2 filtered out\n 2 fail\n 26 expect() calls\nRan 2 tests across 1 file. [3.58s]\n"
+        },
+        {
+          "name": "empty-history-refused",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-empty-history-refused-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/historical-parent-effect-empty-history-refused-v1.log",
+          "failed": [
+            "(fail) restores a genuine historical leaf-only deletion with exact progress time through undo redo undo [572.08ms]"
+          ],
+          "summary": "\n\n 0 pass\n 3 filtered out\n 1 fail\n 11 expect() calls\nRan 1 test across 1 file. [3.12s]\n"
+        }
+      ],
+      "restoredExactly": true
+    },
+    "postProofEmittedProductionMatches": true,
+    "staticQualification": "Three-file strict lint, current core/SQLite forced project-reference compiler and four-file source/provenance formatting pass. Initial lint found awaiting a matcher typed as void; replaced with actual promise observation and exact Error diagnostic assertion. No disable/cast added. Artifact/docs/OpenSpec/staged-state checks are owned by final state/checkpoint."
+  },
+  "pending": [
+    "Original7parent-progress,6legacy-command and2standalone restore guarantees remain under1.6.2a-c; no original test skipped, rewritten to a narrower promise or declared closed.",
+    "Current Memory history admission/reader and all adapter/scoped variants are not certified by these four genuine SQLite cases.",
+    "Exact original timestamp recovery for separate state-only old move recipes remains impossible from those recipes alone; do not invent metadata.",
+    "Actual current partial/method-local compound restore and broader Source rollback/closed-loan/cleanup checks remain separate; this application path relies on its genuine enclosing UoW.",
+    "Fresh core remains2060pass31fail9580assertions2091tests168source files with exactly the prior31failure names. Unseeded property shrinking changes aggregate assertion totals; no new core completion claim.",
+    "Source190/backend/frontend/API/MCP/client/install/host gates were not repeated in this slice. All original full-scope requirements remain active.",
+    "Requested Astra review remains unavailable until recorded Nov22 2026 10:09AM, timezone unspecified; no retry/spawn/substitute review."
+  ],
+  "publicActions": "No public commit/push/PR update/merge/deploy."
+}

@@ -1,0 +1,501 @@
+{
+  "schema": "puni-all-point-command-admission-verification-v1",
+  "recordedAt": "2026-11-20T05:48:00.351Z",
+  "problem": "A seven-kind allowlist left eight existing pair-addressed point kinds and leaf assignSubtree outside current resolver admission. Owned unbound writes were misclassified, and clears/no-op blockage or assignment could succeed against another type's step.",
+  "change": "Validate every normalized work-item step target structurally. The sole package-only setStepAllowance exemption retains its original scope; ordinary parent behavior remains its existing service contract. Rename the internal validator to validateReferences because it checks both identity ownership and current applicability. The fifteen point recipes are a typed complete record, while pair-only assignSubtree has separate cases.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-step-applicability.controller.db.test.ts",
+      "sha256": "fc403e0fa6f1d1d43836f1eb8068517075e4669260c7f9bab2a41523609c2f3d",
+      "bytes": 20733,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/command-references.ts",
+      "sha256": "6b30187bb16099d581eddeee161e19ebc5dae7edd49bd980f4a75366363b0049",
+      "bytes": 11864,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "sha256": "0a25707b6728f4056e2f9da0754a0565cb121e3c297e7b0b110050f953956928",
+      "bytes": 57416,
+      "mode": 436
+    }
+  ],
+  "assumptions": [
+    "The actual schema/normalizer/fixture inventory agrees on15pair/node kinds plus the two pair-only step commands assignSubtree and setStepAllowance; parent aggregation is not encoded as a leaf node.",
+    "The custom non-scheduling count measure is authored through the real directory HTTP route with a persisted organization grant. No fallback definitions are invented. Matrix frames now query all thirteen protected tables, but most are empty in these inapplicability fixtures; this does not certify all thirteen nonempty writer paths.",
+    "Resolved attempt start/end/remove retains the actual issued=1 reservation after removing the last attempt. No counter reset or fictitious current parent point is introduced."
+  ],
+  "verification": {
+    "api": {
+      "phase": "all-point-commands-api-control-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-api-control-v1.receipt.json",
+        "sha256": "c386890a68360499b4e8190c0ba7495f8f54fadfbf6ef4c6ecde4395ac8441d7",
+        "bytes": 1704,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-api-control-v1.log",
+        "sha256": "cfdd02da88c9528e1609a50ecaf923bd705e89c477283b9637c328405b676637",
+        "bytes": 26190,
+        "mode": 384
+      },
+      "pass": 170,
+      "fail": 0,
+      "assertions": 4537,
+      "files": 5,
+      "nativeDeadlineMs": 300000,
+      "qualification": "One bounded selected5file cohort;300s accommodates the observed207s assemblage. Individual60s tests and actual SQLite Source certificate policy are unchanged."
+    },
+    "afterProofs": {
+      "phase": "all-point-commands-after-proofs-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-after-proofs-v1.receipt.json",
+        "sha256": "c15f797d991e6844581ecfb919b106a2c2dfea3da2895200a527905289e621ac",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-after-proofs-v1.log",
+        "sha256": "48696a1d6069f829e6c57b9f95ec3ef370ff1e767dbb31281e2be2560db611ef",
+        "bytes": 11705,
+        "mode": 384
+      },
+      "pass": 103,
+      "fail": 0,
+      "assertions": 2384,
+      "qualification": "103cases are included in170; do not add counts.90pair/node matrix cases,2resolved controls,2prior atomic controls,1parent clear control,3leaf subtree cases,1parent aggregation,1package command,1inactive writer,2measure atomic cases."
+    },
+    "checks": [
+      {
+        "phase": "all-point-commands-final-types-v4",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-types-v4.receipt.json",
+          "sha256": "736a5a00f74c7d9462aa275bcbb2816da33d866a1d306302aa31342d61e44bba",
+          "bytes": 1360,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-types-v4.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-commands-final-lint-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-lint-v2.receipt.json",
+          "sha256": "cd40c632ce9ab4081023a7a96a4325cbfbb12bbd7a74ee8396c8c398bed811fa",
+          "bytes": 1554,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-lint-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-commands-final-format-code-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-format-code-v2.receipt.json",
+          "sha256": "9631d99f84e942c28e18972d401c01d40074bd434591d18ebac0511c526c9781",
+          "bytes": 1565,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-final-format-code-v2.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-command-inventory-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-command-inventory-v1.receipt.json",
+          "sha256": "c9dc84edc872bf3b0778037d8671df4ec52444b31e2da8567be4d3b6a105670f",
+          "bytes": 1273,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-command-inventory-v1.log",
+          "sha256": "9302947e58de62b0ccd8afb0286295fb017244bfa16d13b85475866d891e211a",
+          "bytes": 174,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-coverage-type-proof-v3",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v3.receipt.json",
+          "sha256": "454d0c0203433e281142bd303c75f518da388b95101d286e4a1ed4906fb5499f",
+          "bytes": 1286,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v3.log",
+          "sha256": "a015a43e16af7a05d00e1005da0a3879b43db7db4bf490b41ab265812d54a9bf",
+          "bytes": 70,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-dispatch-proof-completion-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-proof-completion-v2.receipt.json",
+          "sha256": "328ff8b9365d049fccbb8e58078cb981d1fe9cb3a1475e835fe1d994d961a211",
+          "bytes": 1305,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-proof-completion-v2.log",
+          "sha256": "d7f80bd82f8fc52cd3b33a2fdd0954d9e6cee129ea4b0c34126f9ba254d0361a",
+          "bytes": 146,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-reference-rename-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-reference-rename-v1.receipt.json",
+          "sha256": "1fb90e618ddf503267cf3c05bd76a1f6387604c17d847e119d7c1bdedba93787",
+          "bytes": 1268,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-reference-rename-v1.log",
+          "sha256": "e9baeed1511e4fc7dca736d2936abdcb42211b27759e0971bb2451fcb10faee8",
+          "bytes": 116,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "all-point-commands-retirement-audit-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-retirement-audit-v1.receipt.json",
+          "sha256": "dcfca7fcc25abfcb88fa19dcace6feab9a767af31cc84a0b1d9f2d08821e66b2",
+          "bytes": 1298,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-retirement-audit-v1.log",
+          "sha256": "63c109fe07fb6b5dcdb99d3bee2c4b7a49934513f412c7ea41a90ffeff0dba3d",
+          "bytes": 274,
+          "mode": 384
+        }
+      }
+    ],
+    "core": {
+      "phase": "current-core-source-only-v14",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v14.receipt.json",
+        "sha256": "a7b32c1ac352e55f51e8271019c44c75aaf6454b61800d58d669aab6c2b8403d",
+        "bytes": 14593,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v14.log",
+        "sha256": "086f8648f73957b64f34500c63f505906119f7779fecd3cf730950b8ede47a9a",
+        "bytes": 261302,
+        "mode": 384
+      },
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v14.json",
+        "sha256": "7285478c7449d10db05288ab011844a58a884bec64bb89c236f47bb548eceb54",
+        "bytes": 43283,
+        "mode": 384
+      },
+      "pass": 2056,
+      "fail": 27,
+      "assertions": 9487,
+      "tests": 2083,
+      "sourceFiles": 168,
+      "addedFailureNames": [],
+      "removedFailureNames": [],
+      "qualification": "All27prior names persist. Core/API cohorts precede exact validator symbol rename and proof comments; expected renamed runtime outputs match and103case after-control runs on the final source."
+    }
+  },
+  "commandInventory": {
+    "path": "/tmp/puni-combined-proposal-v1/control/all-point-command-inventory-v1.json",
+    "sha256": "d58b49cef1a11741225ee2d039fb6927cbbc08a0722e5878b4b764fbbbfcf4b4",
+    "bytes": 2512,
+    "mode": 384
+  },
+  "typeCoverageProof": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v3.json",
+      "sha256": "6199e4cb9d316ea5b8959d086ae48813861abe35bc63ffd8fd17733b1a4a3464",
+      "bytes": 815,
+      "mode": 384
+    },
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-omission-v3.receipt.json",
+      "sha256": "c1e34c10032abeeba1a3919cb1e904a20f506d4758f16a236c7bd433f69ef944",
+      "bytes": 1355,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-omission-v3.log",
+      "sha256": "e44cd3046857023a5408a534b8bc532c9749480c0ca8084ea061d21af1c691fc",
+      "bytes": 685,
+      "mode": 384
+    },
+    "sourceMutated": false,
+    "compilerError": "TS2741 missing startAttempt recipe; exactly one compiler diagnostic",
+    "qualification": "A compile-time fixture completeness check, not a production refusal/authority proof. The initial candidate copy needed its own rootDir and the second driver accidentally rewrote its native-helper import; both preparations are retained failures."
+  },
+  "proofs": {
+    "manifest": {
+      "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-effects-v2.json",
+      "sha256": "84508a42fa606af99df30bfee59714c5f67fe05cc151ed1a4b128cda6932df17",
+      "bytes": 2925,
+      "mode": 384
+    },
+    "independentFaults": 4,
+    "selectedFailures": 4,
+    "observations": [
+      {
+        "id": "dispatch",
+        "title": "current pair inapplicable measure clear rolls back the preceding rename and all facts",
+        "boundary": "Omitting work-item step dispatch accepts the inapplicable measure clear200 instead of422 and persists the preceding rename/history in the actual SQLite frame.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-dispatch-v1.receipt.json",
+          "sha256": "8f983366b90267676a53e08d3e1916984cc2c17b158cdd0f4eae241481ecbf02",
+          "bytes": 1505,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-dispatch-v1.log",
+          "sha256": "b81f36de9bc344211e44c915dae76a33d84bdc1ffa80c01a9397f8d29325f78f",
+          "bytes": 10082,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "seven-kind-revert",
+        "title": "current pair clearMeasure distinguishes an owned unbound step from absent and foreign steps",
+        "boundary": "Reverting to the old seven-kind allowlist returns unknown404 instead of owned-unresolved422. Classification evidence only.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-seven-kind-revert-v1.receipt.json",
+          "sha256": "9887e89cd1de99796d2fd43df0c353130a17c6e959d94b7fb006a59729028bcc",
+          "bytes": 1528,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-seven-kind-revert-v1.log",
+          "sha256": "acd8d9c41aaed60e05489499383c3787225026bc882401d7b2e4deceb1a770e8",
+          "bytes": 1613,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "package-exemption",
+        "title": "current package allowance remains a package command without a work item target",
+        "boundary": "Removing the package-only exemption falsely demands a work item and refuses a lawful package allowance400 instead of200.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-package-exemption-v1.receipt.json",
+          "sha256": "5cc657ade112845f31a227fa2b7247a0b615c5c344ae2b0719831fa2c77e058d",
+          "bytes": 1515,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-package-exemption-v1.log",
+          "sha256": "4760e7841853786e9eafcfa61d41ff96ff05d6c37e98b389cb0b76af195b8935",
+          "bytes": 1307,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      },
+      {
+        "id": "parent-aggregation",
+        "title": "current assignSubtree preserves parent aggregation and resolved leaf replacement",
+        "boundary": "Refusing all rolled-up targets blocks lawful parent subtree aggregation409 instead of200; healthy controls assign the two observed children and replace one leaf without changing its sibling.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-parent-aggregation-v2.receipt.json",
+          "sha256": "88c9685fb611181b252a3409b01c52164a072ddeb7bfde82ef349bbbb1fce17b",
+          "bytes": 1519,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-fault-parent-aggregation-v2.log",
+          "sha256": "492821fb58ac27c39d6c99517e8ed8978356885855bc99f8b7c65a54a80b9617",
+          "bytes": 1313,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true
+      }
+    ],
+    "emissions": [
+      {
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/command-references.ts",
+          "sha256": "6b30187bb16099d581eddeee161e19ebc5dae7edd49bd980f4a75366363b0049",
+          "bytes": 11864,
+          "mode": 436
+        },
+        "canonicalMatchedAfterExactSymbolRename": true,
+        "emittedSha256": "db5ba3d2066c1be6fde2bcc9a49b074fa9294f64e7c94cd629fac2e0b5c93c97"
+      },
+      {
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+          "sha256": "0a25707b6728f4056e2f9da0754a0565cb121e3c297e7b0b110050f953956928",
+          "bytes": 57416,
+          "mode": 436
+        },
+        "canonicalMatchedAfterExactSymbolRename": true,
+        "emittedSha256": "b97213c64206c7614cb54d06b523c682d9c2170d4d21d03334fec13cdbb2841d"
+      }
+    ],
+    "qualification": "The first driver incorrectly expected an object-diff plus marker for the scalar package status assertion. Its actual single native failure received400 instead of200. That already terminal receipt and the prior two successful negatives are inspected and reused; only the previously unexecuted parent fault runs here. Source bytes match the original before and after; no timeout-based restart or proof repetition.",
+    "typeCoverage": {
+      "artifact": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v3.json",
+        "sha256": "6199e4cb9d316ea5b8959d086ae48813861abe35bc63ffd8fd17733b1a4a3464",
+        "bytes": 815,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-omission-v3.receipt.json",
+        "sha256": "c1e34c10032abeeba1a3919cb1e904a20f506d4758f16a236c7bd433f69ef944",
+        "bytes": 1355,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-omission-v3.log",
+        "sha256": "e44cd3046857023a5408a534b8bc532c9749480c0ca8084ea061d21af1c691fc",
+        "bytes": 685,
+        "mode": 384
+      },
+      "qualification": "A private candidate with startAttempt omitted produces exactly one TS2741. The candidate alone uses rootDir /tmp; production source and normal compiler configuration remain unchanged."
+    }
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v3.json",
+    "sha256": "acb5b1ee9ef190127f08d424644589e7c305813f0dc9a1eab8bcfb05a369473a",
+    "bytes": 1852427,
+    "mode": 384
+  },
+  "retainedLegacyController": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "sha256": "d4ee9d24d9d9a747ac3ad39ee383902dab294404fd6c2da33611bbfde70948f0",
+    "bytes": 78152,
+    "mode": 436
+  },
+  "priorAttempts": {
+    "attempts": [
+      {
+        "phase": "all-point-commands-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-red-v1.receipt.json",
+          "sha256": "df33c36e128105a37bcf8556ab78d6aee0975b11214391b36d5afda78089a4ca",
+          "bytes": 1358,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-red-v1.log",
+          "sha256": "0804359ee5100f11ba3ca099aa40f624ea29280e0f5dc9849073a9ea1abdba2f",
+          "bytes": 48632,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "all-point-commands-extra-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-extra-red-v1.receipt.json",
+          "sha256": "f2a23a3f91bdd5df5519c006ff4e8f9814c3ea1127e15038e5c98f74383575a3",
+          "bytes": 1500,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-commands-extra-red-v1.log",
+          "sha256": "4d1c55211efd9521a5a58eb82482b9c63a78d52216018c9b756b9bd3d6e50437",
+          "bytes": 15725,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "all-point-coverage-type-proof-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v1.receipt.json",
+          "sha256": "b1936f8a93506e55f70cd9409afb68795d6f70d76fc4353e98b2848bf9a297ff",
+          "bytes": 1288,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v1.log",
+          "sha256": "a6db1783aba82aa87dd3b3e741285fc89c7689d3f055cf92e47f1e826e1cb236",
+          "bytes": 1398,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "all-point-coverage-type-proof-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v2.receipt.json",
+          "sha256": "1c7ee6f2bee3cd26222707ccf4f8a7c1ccc3bb86987fdcb8fb275445d2683b14",
+          "bytes": 1287,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-coverage-type-proof-v2.log",
+          "sha256": "7542ee75383f8cd6f0004b62579e90c5ff62edba357d0c1eb35fe0ab5bc8bf7c",
+          "bytes": 148,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "all-point-dispatch-proofs-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-proofs-v1.receipt.json",
+          "sha256": "b975962e5a6f53479bda73adc79f6bac25b67f934a1fadff91d910dc183daf60",
+          "bytes": 1276,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/all-point-dispatch-proofs-v1.log",
+          "sha256": "a199124970b552758f8ffd6f10e36e63296facc6c4eb33f3a9e4672b8e6c9d41",
+          "bytes": 1530,
+          "mode": 384
+        },
+        "exitCode": 1
+      }
+    ],
+    "qualification": "95case initial red73pass22fail and8selected additional red4pass4fail establish missing dispatch. First proof driver matched object-diff syntax against a scalar400 assertion, so it stopped despite the valid native failure. The corrected completion reused the three terminal observed receipts and ran only the unexecuted parent fault; no native proof repeated or restarted after an observation timeout."
+  },
+  "pending": [
+    "All fifteen pair/node point kinds and leaf-targeted assignSubtree now share current scoped target validation. This is application admission, not completion of direct service/native port closure, all13 nonempty fact-family admission/concurrency/lifetime certification, replay or every applicability-changing path.",
+    "The real blockage writer remains inactive. False/no-op blockage intent has current applicability coverage; actual creation still refuses409 and rolls back the preceding rename. No activation flag, receipt or substitute Source is supplied.",
+    "Parent aggregation remains its existing service operation; full mixed-type subtree assignment semantics, other aggregate operations, claims and both typed/external endpoint directions remain required.",
+    "The old mixed54-case SQLite controller, all15original historical guarantees and frozen producer bytes remain intact. Removed-step replay and first/last-child history mapping are not complete.",
+    "The explicit source-only core suite remains failed2056pass27fail with unchanged names. Full frontend/browser/visual, all93E2E compiler/runtime, actual installed CLI/PUNI/Bun inventory/toolchain, immutable exact-SHA host gates/integration/release are not established by this backend slice.",
+    "Astra quota remains unavailable until recordedNovember22,2026 10:09AM timezoneunspecified; queue general structural dispatch/package exemption, parent/leaf aggregation, no-op versus inactive blockage and typed complete fixtures. No retry/substitute review."
+  ]
+}

@@ -4,6 +4,7 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const endpoint of ['single', 'batch']) {
   describe(`delete sparse preservation through ${endpoint} command`, () => {
@@ -16,26 +17,22 @@ for (const endpoint of ['single', 'batch']) {
         await h.register('outsider');
         h.organization('org');
         h.organization('foreign');
-        h.member('org', 'owner', 'member');
-        h.member('org', 'viewer', 'viewer');
-        h.member('foreign', 'outsider', 'member');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
+        h.member('org', 'viewer', 'viewer', ['org-viewer']);
+        h.member('foreign', 'outsider', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('foreign', 'outsider', ['organization.create_project']);
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/projects', {
-          name: 'Preserve sparse nodes',
-        });
-        expect(created.status).toBe(200);
-        const projectId = (created.body as { project: { id: string } }).project.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE project_id = ? ORDER BY position,id')
-          .all(projectId) as { id: string }[];
+        const workPackageId = await createFixturePackage(h, 'owner', 'Preserve sparse nodes');
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
-        if (first === undefined) throw new Error('project has no fixture steps');
+        if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(
-          "INSERT INTO work_item (id,project_id,name,position,revision,readiness,hold) VALUES ('parent',?,'Parent',1,0,'ready','on_hold')",
-          [projectId],
+          "INSERT INTO work_item (id,work_package_id,name,position,revision,readiness,hold) VALUES ('parent',?,'Parent',1,0,'ready','on_hold')",
+          [workPackageId],
         );
         h.sqlite.run(
           'INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,2,3)',
@@ -51,8 +48,8 @@ for (const endpoint of ['single', 'batch']) {
             ['parent', step.id],
           );
         h.sqlite.run(
-          "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('moving',?,'Moving',2,0),('unrelated',?,'Unrelated',3,0)",
-          [projectId, projectId],
+          "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('moving',?,'Moving',2,0),('unrelated',?,'Unrelated',3,0)",
+          [workPackageId, workPackageId],
         );
         h.sqlite.run(
           'INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,2)',
@@ -60,7 +57,7 @@ for (const endpoint of ['single', 'batch']) {
         );
         const tables = [
           'work_item',
-          'project',
+          'work_package',
           'step_parallel',
           'estimate',
           'actual',
@@ -88,19 +85,31 @@ for (const endpoint of ['single', 'batch']) {
         try {
           const commands = { commands: [{ kind: 'deleteWorkItem', ...deletion }] };
           expect(
-            (await h.call('viewer', 'POST', `/api/projects/${projectId}/commands`, commands))
-              .status,
+            (
+              await h.call(
+                'viewer',
+                'POST',
+                `/api/work-packages/${workPackageId}/commands`,
+                commands,
+              )
+            ).status,
           ).toBe(403);
           expect(
-            (await h.call('outsider', 'POST', `/api/projects/${projectId}/commands`, commands))
-              .status,
+            (
+              await h.call(
+                'outsider',
+                'POST',
+                `/api/work-packages/${workPackageId}/commands`,
+                commands,
+              )
+            ).status,
           ).toBe(404);
           expect(
-            (await h.call('owner', 'POST', '/api/projects/missing/commands', commands)).status,
+            (await h.call('owner', 'POST', '/api/work-packages/missing/commands', commands)).status,
           ).toBe(404);
           expect(
             (
-              await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+              await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
                 commands: [{ kind: 'deleteWorkItem', ...deletion, workItemId: 'missing' }],
               })
             ).status,
@@ -111,7 +120,7 @@ for (const endpoint of ['single', 'batch']) {
         const answer = await h.call(
           'owner',
           'POST',
-          `/api/projects/${projectId}/commands`,
+          `/api/work-packages/${workPackageId}/commands`,
           endpoint === 'batch'
             ? {
                 commands: [
@@ -138,7 +147,7 @@ for (const endpoint of ['single', 'batch']) {
         h.sqlite.run("DELETE FROM step_parallel WHERE work_item_id = 'parent'");
         expect(
           (
-            await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+            await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
               commands: [{ kind: 'deleteWorkItem', ...deletion }],
             })
           ).status,
@@ -158,25 +167,22 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
         activateTestStepBlockages(h.sqlite.filename);
         await h.register('owner');
         h.organization('org');
-        h.member('org', 'owner', 'member');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
         h.bind('owner', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/projects', { name: 'Delete replay' });
-        expect(created.status).toBe(200);
-        const projectId = (created.body as { project: { id: string } }).project.id;
-        const step = h.sqlite
-          .query('SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1')
-          .get(projectId) as { id: string } | null;
-        if (step === null) throw new Error('fixture step absent');
+        const workPackageId = await createFixturePackage(h, 'owner', 'Delete replay');
+        const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+        if (step === undefined) throw new Error('fixture step absent');
         for (const id of ['root', 'unrelated'])
           h.sqlite.run(
-            'INSERT INTO work_item (id,project_id,name,position,revision) VALUES (?,?,?,1,0)',
-            [id, projectId, id],
+            'INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES (?,?,?,1,0)',
+            [id, workPackageId, id],
           );
         if (operation === 'redo-cascade')
           h.sqlite.run(
-            "INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES ('child',?,'Child','root',1,0)",
-            [projectId],
+            "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('child',?,'Child','root',1,0)",
+            [workPackageId],
           );
         const edit =
           operation === 'undo-create'
@@ -192,20 +198,20 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
         const replay = operation.startsWith('redo') ? 'redo' : 'undo';
         expect(
           (
-            await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+            await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
               commands: replay === 'undo' ? [edit, patch] : [patch, edit],
             })
           ).status,
         ).toBe(200);
         if (replay === 'redo')
-          expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(
-            200,
-          );
+          expect(
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status,
+          ).toBe(200);
         const authored =
           operation === 'undo-create' || operation === 'undo-duplicate'
             ? (h.sqlite
-                .query('SELECT id FROM work_item WHERE project_id = ? AND name = ?')
-                .get(projectId, operation === 'undo-create' ? 'Authored' : 'root (copy)') as {
+                .query('SELECT id FROM work_item WHERE work_package_id = ? AND name = ?')
+                .get(workPackageId, operation === 'undo-create' ? 'Authored' : 'root (copy)') as {
                 id: string;
               } | null)
             : { id: operation === 'redo-cascade' ? 'child' : 'root' };
@@ -237,7 +243,7 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
         }
         const tables = [
           'work_item',
-          'project',
+          'work_package',
           'step_parallel',
           'estimate',
           'actual',
@@ -256,8 +262,8 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
           tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
         const before = snapshot();
         const journalBefore = h.sqlite
-          .query('SELECT * FROM command_journal WHERE project_id = ?')
-          .all(projectId);
+          .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+          .all(workPackageId);
         expect(journalBefore).toHaveLength(1);
         const appliedNames: string[] = [];
         // Preserve real repository writes while observing that the first replay patch ran before refusal.
@@ -281,7 +287,7 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
             : undefined;
         let answer: Awaited<ReturnType<typeof h.call>>;
         try {
-          answer = await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`);
+          answer = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`);
         } finally {
           patchRead.mockRestore();
           sparseRead?.mockRestore();
@@ -305,16 +311,20 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
           expect(answer.status).toBe(500);
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toEqual(journalBefore);
         } else {
           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toHaveLength(0);
           expect(
-            (await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`)).status,
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`)).status,
           ).toBe(409);
         }
       } finally {
@@ -330,19 +340,16 @@ it('promote delete and redo retain surviving child sparse policy', async () => {
     activateTestStepBlockages(h.sqlite.filename);
     await h.register('owner');
     h.organization('org');
-    h.member('org', 'owner', 'member');
+    h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org', 'owner', ['organization.create_project']);
     h.bind('owner', 'org');
     h.activate();
-    const created = await h.call('owner', 'POST', '/api/projects', { name: 'Promote policy' });
-    expect(created.status).toBe(200);
-    const projectId = (created.body as { project: { id: string } }).project.id;
-    const step = h.sqlite
-      .query('SELECT id FROM step WHERE project_id = ? LIMIT 1')
-      .get(projectId) as { id: string } | null;
-    if (step === null) throw new Error('fixture step absent');
+    const workPackageId = await createFixturePackage(h, 'owner', 'Promote policy');
+    const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+    if (step === undefined) throw new Error('fixture step absent');
     h.sqlite.run(
-      "INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES ('root',?,'Root',NULL,1,0),('child',?,'Child','root',1,0),('unrelated',?,'Unrelated',NULL,2,0)",
-      [projectId, projectId, projectId],
+      "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('root',?,'Root',NULL,1,0),('child',?,'Child','root',1,0),('unrelated',?,'Unrelated',NULL,2,0)",
+      [workPackageId, workPackageId, workPackageId],
     );
     for (const owner of ['child', 'unrelated'])
       h.sqlite.run('INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,1)', [
@@ -354,7 +361,7 @@ it('promote delete and redo retain surviving child sparse policy', async () => {
       .all();
     expect(
       (
-        await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+        await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
           commands: [{ kind: 'deleteWorkItem', workItemId: 'root', strategy: 'promote' }],
         })
       ).status,
@@ -365,8 +372,12 @@ it('promote delete and redo retain surviving child sparse policy', async () => {
     expect(
       h.sqlite.query('SELECT * FROM step_parallel ORDER BY work_item_id,step_id').all(),
     ).toEqual(policy);
-    expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
-    expect((await h.call('owner', 'POST', `/api/projects/${projectId}/redo`)).status).toBe(200);
+    expect((await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status).toBe(
+      200,
+    );
+    expect((await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/redo`)).status).toBe(
+      200,
+    );
     expect(
       h.sqlite.query('SELECT * FROM step_parallel ORDER BY work_item_id,step_id').all(),
     ).toEqual(policy);

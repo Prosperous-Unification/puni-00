@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { permitsExternalDependencies } from '@wbs/core/ports/external-dependency-authoring';
 import { afterEach, expect, test } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
@@ -21,7 +21,7 @@ afterEach(async () => {
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-writer-authority-'));
   const path = join(directory, 'source.db');
-  runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -43,7 +43,7 @@ test('borrowed authority sees staged writer state and expires after settlement',
   await source.uow.run((scope) => {
     retained = scope.stores.externalDependencyAuthoring;
     expect(permitsExternalDependencies(retained)).toBe(false);
-    source.db.run('DELETE FROM cross_project_dependency_activation');
+    source.db.run('DELETE FROM cross_work_package_dependency_activation');
     expect(() => permitsExternalDependencies(retained)).toThrow(
       'invalid dependency activation marker',
     );
@@ -75,7 +75,7 @@ test('borrowed authorities remain bound to their source when another writer is a
   const first = fixture().source;
   const second = fixture().source;
   await first.uow.run(async (firstScope) => {
-    first.db.run('DELETE FROM cross_project_dependency_activation');
+    first.db.run('DELETE FROM cross_work_package_dependency_activation');
     await second.uow.run((secondScope) => {
       expect(permitsExternalDependencies(secondScope.stores.externalDependencyAuthoring)).toBe(
         false,
@@ -97,12 +97,12 @@ for (const [fault, statement, message] of [
   ],
   [
     'malformed authority',
-    "UPDATE cross_project_dependency_activation SET state='ENABLED'",
+    "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
     'enabled dependency authority has no exact receipt',
   ],
   [
     'missing receipt schema',
-    'DROP TABLE cross_project_dependency_activation_receipt',
+    'DROP TABLE cross_work_package_dependency_activation_receipt',
     'invalid dependency activation schema',
   ],
 ] as const)

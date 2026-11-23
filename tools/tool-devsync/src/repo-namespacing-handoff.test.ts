@@ -162,6 +162,7 @@ async function legacySourceOccurrences(): Promise<{
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
                         'tools/tool-deploy/src/migrations.ts',
+                        'tools/tool-devsync/src/initial-access-admission.ts',
                         'tools/tool-git-hooks/src/hooks/corpus-version-lint.ts',
                       ].includes(path)
                     ? 'production proof or revision transition'
@@ -220,7 +221,18 @@ test('current Nx commands select existing qualified projects', async () => {
 test('the production index checker resolves current Markdown links and anchors', () => {
   // Proof: replacing the findings index link with `current.md#missing` made this actual-candidate
   // check exit 1 with `Markdown anchor absent ... #missing` (2026-09-14).
-  expect(checkIndexes).not.toThrow();
+  const globalConfig = process.env['GIT_CONFIG_GLOBAL'];
+  const systemConfig = process.env['GIT_CONFIG_SYSTEM'];
+  try {
+    process.env['GIT_CONFIG_GLOBAL'] = '/dev/null';
+    process.env['GIT_CONFIG_SYSTEM'] = '/dev/null';
+    expect(checkIndexes).not.toThrow();
+  } finally {
+    if (globalConfig === undefined) delete process.env['GIT_CONFIG_GLOBAL'];
+    else process.env['GIT_CONFIG_GLOBAL'] = globalConfig;
+    if (systemConfig === undefined) delete process.env['GIT_CONFIG_SYSTEM'];
+    else process.env['GIT_CONFIG_SYSTEM'] = systemConfig;
+  }
   // Budget measured 2026-09-27 (docs/test-budgets.md): 10.1s idle; on the loaded run it
   // timed out at its old 30-second limit, so the new one is at least twice that.
 }, 60_000);
@@ -383,12 +395,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       // Proof: the exhaustive-coverage integration case's copied repository fixture added one
       // recursive selector (`apps/**/*.ts`); the 44/321 pin failed on the observed 45/322
       // corpus (2026-10-12).
-      'current recursive selector': 45,
+      'current recursive selector': 50,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 89,
-      'production proof or revision transition': 18,
-      'test fixture or proof': 109,
+      'production proof or revision transition': 19,
+      'test fixture or proof': 111,
     },
     coverage: {
       dockerfiles: [
@@ -666,8 +678,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Restoring the observed digest passed (2026-10-16).
     // The copied exhaustive-coverage fixture added lib: ['ES5'] on its existing
     // apps/**/*.ts selector line; only that trimmed context changed (2026-10-29).
-    digest: '49b513893d7514e7556162f8c8eefadaad34bc760996e8ed044e78584cd4af2a',
-    occurrences: 324,
+    // Eight added contexts were reviewed against main: five recursive selectors in
+    // the installed PUNI fixture, one immutable migration-layout reader and two
+    // tests of that historical layout. The old live pin failed before this update.
+    // Proof: an injected legacy root in an unrelated source failed as UNCLASSIFIED;
+    // removing that owned fault restored the live corpus (2026-11-22).
+    digest: 'e27f86c9e2224236a5da325714b5b381b5bdd82d88797a9a0a3ca03d791cb53c',
+    occurrences: 332,
     unclassified: [],
   });
 });

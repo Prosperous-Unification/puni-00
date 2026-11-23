@@ -68,7 +68,7 @@ function monthNamed(oneBased: number, given: string): string {
  * **The components are read out of the string and the string is never parsed
  * into a moment.** `new Date('2026-06-01')` is midnight **UTC**, and
  * `getDate()` on it answers in the reader's own zone — so every date on the
- * plan would print a day early for everybody west of Greenwich. A project's
+ * plan would print a day early for everybody west of Greenwich. A work package's
  * dates are calendar days: they have no time, no zone, and nothing to convert.
  * {@link shortInstant} is the other function, for the things that really are
  * moments.
@@ -145,7 +145,7 @@ function offYear(year: number): string {
  * it rather than assuming it.
  *
  * Instants are the things that really happened at a point in time: when a
- * project was created, when somebody last edited it. A work item's dates are
+ * work package was created, when somebody last edited it. A work item's dates are
  * not instants; see {@link shortIsoDate}.
  *
  * @throws {MalformedDayError} for an epoch that is not a time at all.
@@ -203,7 +203,7 @@ export interface PrintedDay {
  * calendar, and whatever the caller falls back to where it is not.
  *
  * The fallback is passed in rather than computed here because it is two
- * different sentences — a workday offset while the project has no start date,
+ * different sentences — a workday offset while the work package has no start date,
  * an em-dash when the schedule could not be computed at all — and both belong
  * to the component that knows which is which.
  */

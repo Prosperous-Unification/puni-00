@@ -23,8 +23,8 @@ export interface LegacyActivationRequest {
   /** False rehearses the whole transaction and rolls it back. */
   readonly isApplied: boolean;
   /**
-   * Deletes the `event_sequencer` and `event_log` rows of `project:<id>` streams whose project
-   * row no longer exists, before reconciliation. Project deletion leaves them behind, and
+   * Deletes the `event_sequencer` and `event_log` rows of retained `project:<id>` and current
+   * `work-package:<id>` streams whose physical work package row no longer exists, before reconciliation. Work package deletion leaves them behind, and
    * reconciliation otherwise refuses them as unresolved streams.
    */
   readonly isPruningRetainedStreams: boolean;
@@ -37,9 +37,9 @@ export interface GrantedMembership {
   readonly role: 'super_admin' | 'member';
 }
 
-/** One legacy `project.solution_slug` pair moved into `project_solution`. */
+/** One legacy `workPackage.solution_slug` pair moved into `work_package_solution`. */
 export interface MovedSolution {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly slug: string;
   readonly url: string;
 }
@@ -90,7 +90,7 @@ export type LegacyActivationOutcome =
  * Activates organization isolation on a store that has none yet: one legacy organization, the
  * named super-admin and every other user as `member`, every root mapped through
  * {@link OrganizationOwnershipRepository.backfillLegacyOwnership}, legacy solution pairs moved
- * into `project_solution`, legacy identity pairs copied by {@link backfillExternalIdentities},
+ * into `work_package_solution`, legacy identity pairs copied by {@link backfillExternalIdentities},
  * then the same three reconciliation queries the ownership preflight reports, and finally the
  * marker. All of it in one `BEGIN IMMEDIATE` on `db`, which the caller must hold exclusively;
  * a rehearsal runs every step and rolls back.
@@ -100,7 +100,7 @@ export type LegacyActivationOutcome =
  * tenant isolation"). Recovery is an organization-aware release or forward repair.
  *
  * With {@link LegacyActivationRequest.isPruningRetainedStreams} it first deletes the event
- * streams of deleted projects, which reconciliation would otherwise refuse.
+ * streams of deleted work packages, which reconciliation would otherwise refuse.
  *
  * Not covered here, and still the operator's: old organization-unaware processes must have
  * drained (afterwards their root inserts map to nothing), the MCP credential epoch and
@@ -197,6 +197,7 @@ async function activateWithin(
   const unmappedRoots = await ownership.findUnmappedRoots();
   const catalogNameDrift = await ownership.findCatalogNameDrift();
   const ownershipConflicts = await ownership.findOwnershipConflicts();
+  // Historical pre-rename evidence; quoted project wording retained verbatim.
   // Proof: 2026-10-20, with this check removed `refuses and rolls back over a root planted
   // after the backfill` and `refuses an event stream that resolves to no project` both exited 0,
   // committing the marker over the unmapped tag and the unresolved stream.
@@ -254,29 +255,29 @@ function readGrantedMemberships(tx: Transaction, organizationId: string): Grante
 }
 
 /**
- * Moves every legacy `project.solution_slug` pair into `project_solution`, so a single
- * representation remains after activation (task 3.5). A half pair fails `project_solution`'s
+ * Moves every legacy `workPackage.solution_slug` pair into `work_package_solution`, so a single
+ * representation remains after activation (task 3.5). A half pair fails `work_package_solution`'s
  * NOT NULL and rolls everything back.
  */
 function moveLegacySolutions(db: Drizzle, organizationId: string): MovedSolution[] {
   const moved = db
-    .all<{ projectId: unknown; slug: unknown; url: unknown }>(
-      sql`SELECT id AS projectId, solution_slug AS slug, solution_url AS url FROM project
+    .all<{ workPackageId: unknown; slug: unknown; url: unknown }>(
+      sql`SELECT id AS workPackageId, solution_slug AS slug, solution_url AS url FROM work_package
         WHERE solution_slug IS NOT NULL OR solution_url IS NOT NULL ORDER BY id`,
     )
-    .map(({ projectId, slug, url }) => {
+    .map(({ workPackageId, slug, url }) => {
       // Raw SQL rows arrive unknown; a half or non-text pair is corrupt trusted state.
-      if (typeof projectId !== 'string' || typeof slug !== 'string' || typeof url !== 'string')
-        throw new Error(`project ${String(projectId)} has a partial legacy solution pair`);
-      return { projectId, slug, url };
+      if (typeof workPackageId !== 'string' || typeof slug !== 'string' || typeof url !== 'string')
+        throw new Error(`work package ${String(workPackageId)} has a partial legacy solution pair`);
+      return { workPackageId, slug, url };
     });
   db.run(
-    sql`INSERT INTO project_solution (project_id, organization_id, slug, url)
-      SELECT id, ${organizationId}, solution_slug, solution_url FROM project
+    sql`INSERT INTO work_package_solution (work_package_id, organization_id, slug, url)
+      SELECT id, ${organizationId}, solution_slug, solution_url FROM work_package
       WHERE solution_slug IS NOT NULL OR solution_url IS NOT NULL`,
   );
   db.run(
-    sql`UPDATE project SET solution_slug = NULL, solution_url = NULL
+    sql`UPDATE work_package SET solution_slug = NULL, solution_url = NULL
       WHERE solution_slug IS NOT NULL OR solution_url IS NOT NULL`,
   );
   return moved;
@@ -299,19 +300,40 @@ function readIdentityKeys(tx: Transaction): string[] {
 }
 
 /**
- * Deletes every `project:<id>` stream whose project row is gone, returning their names. A
- * stream naming a live project, or any other subscription, is never touched.
+ * Deletes retained `project:<id>` and current `work-package:<id>` streams whose physical work
+ * package row is gone, returning sorted unique original names. Inventory grants no replay access.
+ * A live work package, even if unmapped, and any unknown subscription are never touched.
  */
 function pruneRetainedStreams(db: Drizzle): string[] {
   const retained = db
     .all<{ subscription: unknown }>(
+      // Proof: 2026-11-12, `prune-project` and `prune-work-package` omitted each prefix.
+      // `explicit activation prunes sorted unique known orphans and preserves both live histories`
+      // first failed rehearsal success/report at 185:39 with that namespace's three orphan keys.
+      // Each RED had 4 assertions; restored GREEN had 10 (6 filtered).
+      // Proof: `preserve-live-project` and `preserve-live-work-package` removed each live-key
+      // equality. The same test first failed that rehearsal's prunedStreams report with the live key.
+      // RED4/restored GREEN10 assertions, 6 filtered; later live-row assertions were unreached in RED.
+      // Proof: `unknown-work_package`, `unknown-workPackage` and `unknown-work-package-lookalike`
+      // each widened this selector. Independently named tests
+      // `activation rolls back cleanup for unknown key work_package:unknown`,
+      // `activation rolls back cleanup for unknown key workPackage:unknown`, and
+      // `activation rolls back cleanup for unknown key work-package-lookalike:unknown`
+      // first failed refusal outcome at 213:40 by applying successfully (RED2/restored GREEN3,
+      // 6 filtered). The later rollback equality was unreached in RED; no independent claim for it.
+      // All seven faults above recorded original native 1/null then restored 0/null on 2026-11-12.
+      // Accepted evidence: openspec/changes/wbs-work-packages/verification-activation-namespaces.json.
+      // Historical pre-rename evidence; quoted project wording retained verbatim.
       // Proof: 2026-10-20, with the NOT EXISTS guard removed `prunes only streams whose project
       // is gone, then activates` (store) and `prunes a deleted project's retained stream only
       // with --apply` (be-01 CLI) each saw the live project's stream pruned too.
       sql`SELECT subscription FROM (
           SELECT subscription FROM event_sequencer UNION SELECT subscription FROM event_log)
-        WHERE substr(subscription, 1, 8) = 'project:'
-          AND NOT EXISTS (SELECT 1 FROM project WHERE 'project:' || project.id = subscription)
+        WHERE (substr(subscription, 1, 8) = 'project:'
+            OR substr(subscription, 1, 13) = 'work-package:')
+          AND NOT EXISTS (SELECT 1 FROM work_package
+            WHERE 'project:' || work_package.id = subscription
+              OR 'work-package:' || work_package.id = subscription)
         ORDER BY subscription`,
     )
     .map(({ subscription }) => {

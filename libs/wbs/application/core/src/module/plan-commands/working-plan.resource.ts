@@ -1,3 +1,5 @@
+import type { SettingScope } from '@wbs/domain';
+
 import type { ActualStore } from '../../ports/actual-store';
 import type { BudgetStore } from '../../ports/budget-store';
 import type { DependencyStore } from '../../ports/dependency-store';
@@ -5,18 +7,20 @@ import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
+import type { SettingTarget } from '../../ports/setting-store';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
 import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
+import { guardStepCatalogue } from '../../step-catalogue/step-catalogue';
 import { createWorkingPlanDirectory } from './working-plan-directory.resource';
 import { createWorkingPlanEdges } from './working-plan-edges.resource';
 import { cloneWorkItem, createWorkingPlanRows } from './working-plan-rows.resource';
 import { createWorkingPlanSubtrees } from './working-plan-subtrees.resource';
 import { createWorkingPlanValues } from './working-plan-values.resource';
 
-/** One project's lazily retained reads, owned by one admitted command batch. */
+/** One work package's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
   readonly stores: PlanTransactionalStores;
   /** Strictly reloads local identities after raw incident staging; never accepts remote rows. */
@@ -36,45 +40,47 @@ export interface WorkingPlan {
  * authoritative affected identities before returning, so the command service
  * graph can use these stores for the full lifetime of its admitted batch.
  */
-export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan {
+export function createWorkingPlan(scope: Scope, workPackageId: string): WorkingPlan {
   let isClosed = false;
   const assertOpen = (): void => {
-    if (isClosed) throw new Error(`Working plan for ${projectId} is closed`);
+    if (isClosed) throw new Error(`Working plan for ${workPackageId} is closed`);
   };
-  const assertProject = (requestedProjectId: string): void => {
+  const assertWorkPackage = (requestedWorkPackageId: string): void => {
     assertOpen();
-    if (requestedProjectId !== projectId) {
-      throw new Error(`Working plan for ${projectId} cannot read project ${requestedProjectId}`);
+    if (requestedWorkPackageId !== workPackageId) {
+      throw new Error(
+        `Working plan for ${workPackageId} cannot read work package ${requestedWorkPackageId}`,
+      );
     }
   };
 
   const workItems = retainedRows(
-    () => scope.stores.workItems.listByProject(projectId),
+    () => scope.stores.workItems.listByWorkPackage(workPackageId),
     cloneWorkItem,
     assertOpen,
   );
   const estimates = retainedRows(
-    () => scope.stores.estimates.listByProject(projectId),
+    () => scope.stores.estimates.listByWorkPackage(workPackageId),
     cloneRecord,
     assertOpen,
   );
   const actuals = retainedRows(
-    () => scope.stores.actuals.listByProject(projectId),
+    () => scope.stores.actuals.listByWorkPackage(workPackageId),
     cloneRecord,
     assertOpen,
   );
   const measures = retainedRows(
-    () => scope.stores.measures.listByProject(projectId),
+    () => scope.stores.measures.listByWorkPackage(workPackageId),
     cloneRecord,
     assertOpen,
   );
   const progress = retainedRows(
-    () => scope.stores.progress.listByProject(projectId),
+    () => scope.stores.progress.listByWorkPackage(workPackageId),
     cloneRecord,
     assertOpen,
   );
   const dependencies = retainedRows(
-    () => scope.stores.dependencies.listByProject(projectId),
+    () => scope.stores.dependencies.listByWorkPackage(workPackageId),
     cloneRecord,
     assertOpen,
   );
@@ -90,12 +96,12 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     await workItems.replaceAndPlace(
       requestedIds,
       insertedIds,
-      () => scope.stores.workItems.listByIds(projectId, requestedIds),
-      (newIds) => scope.stores.workItems.listPlacements(projectId, newIds),
+      () => scope.stores.workItems.listByIds(workPackageId, requestedIds),
+      (newIds) => scope.stores.workItems.listPlacements(workPackageId, newIds),
       ({ id }) => id,
       (row) => {
-        if (row.projectId !== projectId) {
-          throw new Error(`targeted work item ${row.id} is outside project ${projectId}`);
+        if (row.workPackageId !== workPackageId) {
+          throw new Error(`targeted work item ${row.id} is outside work package ${workPackageId}`);
         }
         if (!requested.has(row.id)) {
           throw new Error(`targeted work item ${row.id} was not requested for refresh`);
@@ -104,8 +110,8 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     );
     await estimates.replaceGroupsAndPlace(
       requestedIds,
-      () => scope.stores.estimates.listByWorkItems(projectId, requestedIds),
-      (newIds) => scope.stores.estimates.listPlacements(projectId, newIds),
+      () => scope.stores.estimates.listByWorkItems(workPackageId, requestedIds),
+      (newIds) => scope.stores.estimates.listPlacements(workPackageId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('estimate', workItemId, requested);
@@ -113,8 +119,8 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     );
     await actuals.replaceGroupsAndPlace(
       requestedIds,
-      () => scope.stores.actuals.listByWorkItems(projectId, requestedIds),
-      (newIds) => scope.stores.actuals.listPlacements(projectId, newIds),
+      () => scope.stores.actuals.listByWorkItems(workPackageId, requestedIds),
+      (newIds) => scope.stores.actuals.listPlacements(workPackageId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('actual', workItemId, requested);
@@ -122,8 +128,8 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     );
     await measures.replaceGroupsAndPlace(
       requestedIds,
-      () => scope.stores.measures.listByWorkItems(projectId, requestedIds),
-      (newIds) => scope.stores.measures.listPlacements(projectId, newIds),
+      () => scope.stores.measures.listByWorkItems(workPackageId, requestedIds),
+      (newIds) => scope.stores.measures.listPlacements(workPackageId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('measure', workItemId, requested);
@@ -131,25 +137,27 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     );
     await progress.replaceGroupsAndPlace(
       requestedIds,
-      () => scope.stores.progress.listByWorkItems(projectId, requestedIds),
-      (newIds) => scope.stores.progress.listPlacements(projectId, newIds),
+      () => scope.stores.progress.listByWorkItems(workPackageId, requestedIds),
+      (newIds) => scope.stores.progress.listPlacements(workPackageId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('progress', workItemId, requested);
       },
     );
     await dependencies.replaceIncident(
-      () => scope.stores.dependencies.listByWorkItems(projectId, requestedIds),
+      () => scope.stores.dependencies.listByWorkItems(workPackageId, requestedIds),
       ({ predecessorId, successorId }) =>
         requested.has(predecessorId) || requested.has(successorId),
       ({ id }) => id,
       (edge) => {
-        if (edge.projectId !== projectId) {
-          throw new Error(`targeted dependency ${edge.id} is outside project ${projectId}`);
+        if (edge.workPackageId !== workPackageId) {
+          throw new Error(
+            `targeted dependency ${edge.id} is outside work package ${workPackageId}`,
+          );
         }
         if (!requested.has(edge.predecessorId) && !requested.has(edge.successorId)) {
           throw new Error(
-            `targeted dependency ${edge.id} touches no refreshed work item in project ${projectId}`,
+            `targeted dependency ${edge.id} touches no refreshed work item in work package ${workPackageId}`,
           );
         }
       },
@@ -175,51 +183,65 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
   const checkedWorkItems = {
     ...retainedWorkItems,
-    listByProject: async (requestedProjectId: string) => {
-      assertProject(requestedProjectId);
-      return retainedWorkItems.listByProject(requestedProjectId);
+    listTreeByWorkPackage: async (requestedWorkPackageId: string) => {
+      assertWorkPackage(requestedWorkPackageId);
+      const rows = await scope.stores.workItems.listTreeByWorkPackage(requestedWorkPackageId);
+      assertOpen();
+      return rows;
     },
-    listByIds: async (requestedProjectId: string, ids: readonly string[]) => {
-      assertProject(requestedProjectId);
-      return retainedWorkItems.listByIds(requestedProjectId, ids);
+    listByWorkPackage: async (requestedWorkPackageId: string) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return retainedWorkItems.listByWorkPackage(requestedWorkPackageId);
     },
-    listPlacements: async (requestedProjectId: string, ids: readonly string[]) => {
-      assertProject(requestedProjectId);
-      return retainedWorkItems.listPlacements(requestedProjectId, ids);
+    listByIds: async (requestedWorkPackageId: string, ids: readonly string[]) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return retainedWorkItems.listByIds(requestedWorkPackageId, ids);
+    },
+    listPlacements: async (requestedWorkPackageId: string, ids: readonly string[]) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return retainedWorkItems.listPlacements(requestedWorkPackageId, ids);
     },
   };
-  const retainedEstimates: EstimateStore = createWorkingPlanValues(
-    () => scope.stores.estimates,
-    {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return estimates.all();
+  const retainedEstimates: EstimateStore = {
+    ...createWorkingPlanValues(
+      () => scope.stores.estimates,
+      {
+        all: async (requestedWorkPackageId) => {
+          assertWorkPackage(requestedWorkPackageId);
+          return estimates.all();
+        },
+        byWorkItems: async (requestedWorkPackageId, ids) => {
+          assertWorkPackage(requestedWorkPackageId);
+          return byWorkItem(await estimates.all(), ids);
+        },
+        placements: async (requestedWorkPackageId, ids) => {
+          assertWorkPackage(requestedWorkPackageId);
+          return placementsOfGroups(await estimates.all(), ids, ({ workItemId }) => workItemId);
+        },
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return byWorkItem(await estimates.all(), ids);
-      },
-      placements: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return placementsOfGroups(await estimates.all(), ids, ({ workItemId }) => workItemId);
-      },
+      assertOpen,
+      refreshRows,
+    ),
+    async readTarget(workItemId, stepId) {
+      assertOpen();
+      const target = await scope.stores.estimates.readTarget(workItemId, stepId);
+      assertOpen();
+      return target;
     },
-    assertOpen,
-    refreshRows,
-  );
+  };
   const retainedActuals: ActualStore = createWorkingPlanValues(
     () => scope.stores.actuals,
     {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
+      all: async (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
         return actuals.all();
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
+      byWorkItems: async (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
         return byWorkItem(await actuals.all(), ids);
       },
-      placements: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
+      placements: async (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
         return placementsOfGroups(await actuals.all(), ids, ({ workItemId }) => workItemId);
       },
     },
@@ -230,16 +252,16 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     ...createWorkingPlanValues(
       () => scope.stores.measures,
       {
-        all: async (requestedProjectId) => {
-          assertProject(requestedProjectId);
+        all: async (requestedWorkPackageId) => {
+          assertWorkPackage(requestedWorkPackageId);
           return measures.all();
         },
-        byWorkItems: async (requestedProjectId, ids) => {
-          assertProject(requestedProjectId);
+        byWorkItems: async (requestedWorkPackageId, ids) => {
+          assertWorkPackage(requestedWorkPackageId);
           return byWorkItem(await measures.all(), ids);
         },
-        placements: async (requestedProjectId, ids) => {
-          assertProject(requestedProjectId);
+        placements: async (requestedWorkPackageId, ids) => {
+          assertWorkPackage(requestedWorkPackageId);
           return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
         },
       },
@@ -247,9 +269,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       refreshRows,
     ),
     // Definitions are directory state, not plan values: read through, never retained.
-    definitionsFor: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return await scope.stores.measures.definitionsFor(requestedProjectId);
+    definitionsFor: async (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return await scope.stores.measures.definitionsFor(requestedWorkPackageId);
     },
   };
   // Read through, never retained: a tokens write here also writes or removes
@@ -259,9 +281,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   // measures when a tokens trio writes or retires the legacy token estimate`
   // (working-plan.test.ts) read the stale legacy figure; watched 2026-10-23.
   const retainedMeasureEstimates: MeasureEstimateStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return await scope.stores.measureEstimates.listByProject(requestedProjectId);
+    listByWorkPackage: async (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return await scope.stores.measureEstimates.listByWorkPackage(requestedWorkPackageId);
     },
     set: async (estimate, stamp) => {
       assertOpen();
@@ -283,9 +305,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   // Read through, never retained: a budget write moves its work item's
   // revision (as every satellite write does), so the row is refreshed.
   const retainedBudgets: BudgetStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return await scope.stores.budgets.listByProject(requestedProjectId);
+    listByWorkPackage: async (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return await scope.stores.budgets.listByWorkPackage(requestedWorkPackageId);
     },
     set: async (budget, stamp) => {
       assertOpen();
@@ -301,16 +323,16 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   const retainedProgress: StepProgressStore = createWorkingPlanValues(
     () => scope.stores.progress,
     {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
+      all: async (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
         return progress.all();
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
+      byWorkItems: async (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
         return byWorkItem(await progress.all(), ids);
       },
-      placements: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
+      placements: async (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
         return placementsOfGroups(await progress.all(), ids, ({ workItemId }) => workItemId);
       },
     },
@@ -319,14 +341,14 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
   const retainedDependencies: DependencyStore = createWorkingPlanEdges(
     () => scope.stores.dependencies,
-    projectId,
+    workPackageId,
     {
-      all: async (requestedProjectId) => {
-        assertProject(requestedProjectId);
+      all: async (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
         return dependencies.all();
       },
-      byWorkItems: async (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
+      byWorkItems: async (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
         const requested = new Set(ids);
         return (await dependencies.all()).filter(
           ({ predecessorId, successorId }) =>
@@ -340,47 +362,48 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   /**
    * Typed links pass through to the batch scope: every read sees preceding
    * writes in that transaction, with no retained snapshot to refresh. The
-   * wrapper still enforces the working plan's lifetime and project boundary.
+   * wrapper still enforces the working plan's lifetime and work package boundary.
    *
-   * Proof: bypassing the project, closed-plan, remove-owner, or bulk-owner
+   * Proof: bypassing the work package, closed-plan, remove-owner, or bulk-owner
    * check separately made the matching negative in `passes typed links through
-   * the batch and refuses cross-project and closed access` resolve; each
+   * the batch and refuses cross-work-package and closed access` resolve; each
    * watched failing on 2026-09-27.
    */
-  // Proof: without the project partition, the external-write refresh test hit
+  // Proof: without the work package partition, the external-write refresh test hit
   // its raw-store tripwire: retained owner refresh requested a remote identity.
   // Proof: owner-refresh-partition bypass failed `refreshes only retained owner rows`'s selected assertion
   // (service consumer; watched 2026-10-22).
   const refreshTypedEndpoints = (
     rows: readonly {
-      predecessor: { projectId: string; workItemId: string };
-      successor: { projectId: string; workItemId: string };
+      predecessor: { workPackageId: string; workItemId: string };
+      successor: { workPackageId: string; workItemId: string };
     }[],
   ) =>
     refreshRows([
       ...new Set(
         rows
           .flatMap((row) => [row.predecessor, row.successor])
-          .filter((endpoint) => endpoint.projectId === projectId)
+          .filter((endpoint) => endpoint.workPackageId === workPackageId)
           .map((endpoint) => endpoint.workItemId),
       ),
     ]);
   const typedDependencies: TypedDependencyStore = {
     hasDeletingEndpoint: (row) => {
-      assertProject(row.projectId);
+      assertWorkPackage(row.workPackageId);
       return scope.stores.typedDependencies.hasDeletingEndpoint(row);
     },
     get incidents(): TypedDependencyStore['incidents'] {
       throw new Error('incident staging requires raw admitted stores');
     },
-    // Proof: removing the open check or requested-project checks separately made `passes typed links through the batch and refuses cross-project and closed access` resolve forbidden/closed incident calls (2026-10-22).
-    listIncident: (requestedProjectIds) => {
+    // Proof: removing the open check or requested-work-package checks separately made `passes typed links through the batch and refuses cross-work-package and closed access` resolve forbidden/closed incident calls (2026-10-22).
+    listIncident: (requestedWorkPackageIds) => {
       assertOpen();
-      for (const requestedProjectId of requestedProjectIds) assertProject(requestedProjectId);
-      return scope.stores.typedDependencies.listIncident(requestedProjectIds);
+      for (const requestedWorkPackageId of requestedWorkPackageIds)
+        assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.typedDependencies.listIncident(requestedWorkPackageIds);
     },
-    listByProject: (requestedProjectId) => {
-      assertProject(requestedProjectId);
+    listByWorkPackage: (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
       // Proof: returning the pre-edit empty set made `sees the first typed relationship
       // when a later batch command closes a cycle` receive 200 instead of 409; watched 2026-09-27.
       // Proof: returning stale FF after an SS update made `reads the committed SS
@@ -388,20 +411,20 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       // Returning stale FS after an FF update made `lets a later command read
       // the committed FF type after an edit` receive the captured ID and endpoints
       // with FS instead of FF (2026-09-28).
-      return scope.stores.typedDependencies.listByProject(requestedProjectId);
+      return scope.stores.typedDependencies.listByWorkPackage(requestedWorkPackageId);
     },
     add: async (row, stamp) => {
-      assertProject(row.projectId);
+      assertWorkPackage(row.workPackageId);
       await scope.stores.typedDependencies.add(row, stamp);
       await refreshTypedEndpoints([row]);
     },
     update: async (row, stamp) => {
-      assertProject(row.projectId);
-      const previous = (await scope.stores.typedDependencies.listByProject(projectId)).find(
+      assertWorkPackage(row.workPackageId);
+      const previous = (await scope.stores.typedDependencies.listByWorkPackage(workPackageId)).find(
         (current) => current.id === row.id,
       );
       if (previous === undefined)
-        throw new Error(`typed dependency ${row.id} is outside project ${projectId}`);
+        throw new Error(`typed dependency ${row.id} is outside work package ${workPackageId}`);
       await scope.stores.typedDependencies.update(row, stamp);
       // Proof: skipping this refresh made `undoes and redoes a typed update with
       // its exact ID and endpoints` receive 409 instead of 200; watched 2026-09-27.
@@ -409,19 +432,21 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     },
     remove: async (id, stamp) => {
       assertOpen();
-      const rows = await scope.stores.typedDependencies.listByProject(projectId);
+      const rows = await scope.stores.typedDependencies.listByWorkPackage(workPackageId);
       const previous = rows.find((row) => row.id === id);
       if (previous === undefined) {
-        throw new Error(`typed dependency ${id} is outside project ${projectId}`);
+        throw new Error(`typed dependency ${id} is outside work package ${workPackageId}`);
       }
       await scope.stores.typedDependencies.remove(id, stamp);
       await refreshTypedEndpoints([previous]);
     },
     removeAllFor: async (workItemIds, stamp) => {
       assertOpen();
-      const admitted = await scope.stores.workItems.listByIds(projectId, workItemIds);
+      const admitted = await scope.stores.workItems.listByIds(workPackageId, workItemIds);
       if (new Set(admitted.map(({ id }) => id)).size !== new Set(workItemIds).size) {
-        throw new Error(`typed dependency removal has a work item outside project ${projectId}`);
+        throw new Error(
+          `typed dependency removal has a work item outside work package ${workPackageId}`,
+        );
       }
       const removed = await scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
       await refreshTypedEndpoints(removed);
@@ -441,13 +466,13 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
    * (`“Strip” has changed since then.`); watched 2026-10-12.
    */
   const attempts: StepNodeAttemptStore = {
-    listByProject: (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return scope.stores.attempts.listByProject(requestedProjectId);
+    listByWorkPackage: (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.attempts.listByWorkPackage(requestedWorkPackageId);
     },
-    listByWorkItems: (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return scope.stores.attempts.listByWorkItems(requestedProjectId, ids);
+    listByWorkItems: (requestedWorkPackageId, ids) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.attempts.listByWorkItems(requestedWorkPackageId, ids);
     },
     listOfWorkItem: (workItemId) => {
       assertOpen();
@@ -476,9 +501,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       await scope.stores.attempts.restore(attempt, stamp);
       await refreshRows([attempt.workItemId]);
     },
-    listIssued: (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return scope.stores.attempts.listIssued(requestedProjectId, ids);
+    listIssued: (requestedWorkPackageId, ids) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.attempts.listIssued(requestedWorkPackageId, ids);
     },
     // A mark moves no revision, so there is no row to refresh.
     raiseIssued: (marks) => {
@@ -494,19 +519,19 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   const assertOwner = async (workItemId: string): Promise<void> => {
     assertOpen();
     const owner = await scope.stores.workItems.findById(workItemId);
-    if (owner?.projectId !== projectId) {
-      throw new Error(`work item ${workItemId} is outside project ${projectId}`);
+    if (owner?.workPackageId !== workPackageId) {
+      throw new Error(`work item ${workItemId} is outside work package ${workPackageId}`);
     }
   };
   /** Scope-bound facts preserve the transactional read and row revision after writes. */
   const blockages: StepBlockageStore = {
-    listByProject: (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return scope.stores.blockages.listByProject(requestedProjectId);
+    listByWorkPackage: (requestedWorkPackageId) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.blockages.listByWorkPackage(requestedWorkPackageId);
     },
-    listByWorkItems: (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return scope.stores.blockages.listByWorkItems(requestedProjectId, ids);
+    listByWorkItems: (requestedWorkPackageId, ids) => {
+      assertWorkPackage(requestedWorkPackageId);
+      return scope.stores.blockages.listByWorkItems(requestedWorkPackageId, ids);
     },
     set: async (blockage, stamp) => {
       await assertOwner(blockage.workItemId);
@@ -554,6 +579,70 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get stepCatalogue() {
+      assertOpen();
+      return guardStepCatalogue(scope.stores.stepCatalogue, assertOpen);
+    },
+    get settings() {
+      assertOpen();
+      const settings = scope.stores.settings;
+      function readTarget(
+        address: { readonly level: 'organization'; readonly id: string },
+        organizationId: string | null,
+      ): Promise<Extract<SettingTarget, { readonly kind: 'organization' }> | null>;
+      function readTarget(
+        address: { readonly level: 'space'; readonly id: string },
+        organizationId: string | null,
+      ): Promise<Extract<SettingTarget, { readonly kind: 'space' }> | null>;
+      function readTarget(
+        address: { readonly level: 'project'; readonly id: string },
+        organizationId: string | null,
+      ): Promise<Extract<SettingTarget, { readonly kind: 'project' }> | null>;
+      function readTarget(
+        address: { readonly level: 'work_package'; readonly id: string },
+        organizationId: string | null,
+      ): Promise<Extract<SettingTarget, { readonly kind: 'work_package' }> | null>;
+      function readTarget(
+        address: SettingScope,
+        organizationId: string | null,
+      ): Promise<SettingTarget | null>;
+      async function readTarget(
+        address: SettingScope,
+        organizationId: string | null,
+      ): Promise<SettingTarget | null> {
+        assertOpen();
+        const target = await settings.readTarget(address, organizationId);
+        assertOpen();
+        return target;
+      }
+      return {
+        readTarget,
+        packageIds: async (...args: Parameters<typeof settings.packageIds>) => {
+          assertOpen();
+          const ids = await settings.packageIds(...args);
+          assertOpen();
+          return ids;
+        },
+        touchPackages: async (...args: Parameters<typeof settings.touchPackages>) => {
+          assertOpen();
+          const changed = await settings.touchPackages(...args);
+          assertOpen();
+          return changed;
+        },
+        capture: async (...args: Parameters<typeof settings.capture>) => {
+          assertOpen();
+          const snapshot = await settings.capture(...args);
+          assertOpen();
+          return snapshot;
+        },
+        write: async (...args: Parameters<typeof settings.write>) => {
+          assertOpen();
+          const written = await settings.write(...args);
+          assertOpen();
+          return written;
+        },
+      };
+    },
     get externalDependencyAuthoring() {
       assertOpen();
       return scope.stores.externalDependencyAuthoring;
@@ -567,21 +656,52 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return scope.stores.livePlans;
     },
-    get projects() {
+    get workPackages() {
       assertOpen();
-      return scope.stores.projects;
+      return scope.stores.workPackages;
+    },
+    // Proof: omitting this admitted-port forwarding made both grant claim controller cases answer500 instead of403/200 (2026-11-09).
+    // Proof: bypassing this getter fence failed 'refuses to hand out its grant capability after plan close'; observed fault/restored pass, 2026-11-09.
+    get accessDecisions() {
+      assertOpen();
+      const decisions = scope.stores.accessDecisions;
+      if (decisions === undefined) return undefined;
+      return {
+        packageTargetOf: async (...args: Parameters<typeof decisions.packageTargetOf>) => {
+          assertOpen();
+          const target = await decisions.packageTargetOf(...args);
+          assertOpen();
+          return target;
+        },
+        effectiveRoleAt: async (...args: Parameters<typeof decisions.effectiveRoleAt>) => {
+          // Proof: bypassing the pre-call fence touched the grant port in 'refuses a retained effectiveRoleAt call'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          const effective = await decisions.effectiveRoleAt(...args);
+          // Proof: bypassing this post-await fence returned an answer in 'refuses a suspended effectiveRoleAt answer'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          return effective;
+        },
+        readablePackageIds: async (...args: Parameters<typeof decisions.readablePackageIds>) => {
+          // Proof: bypassing the pre-call fence touched the grant port in 'refuses a retained readablePackageIds call'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          const readable = await decisions.readablePackageIds(...args);
+          // Proof: bypassing this post-await fence returned an answer in 'refuses a suspended readablePackageIds answer'; fault/restored pass, 2026-11-09.
+          assertOpen();
+          return readable;
+        },
+      };
     },
     get directory() {
       assertOpen();
       return retainedDirectory;
     },
-    // A claim, a directory command and a capacity statement in a project batch
+    // A claim, a directory command and a capacity statement in a work package batch
     // read the organization's cap in this same transaction
     // (`wbs-organization-limits` L10); the gauge keeps no rows to retain.
     // Proof, each watched 2026-10-22 with this getter left out: every activated
     // claim of claim-limit.controller.db.test.ts threw "a bound claim was added
     // under scoped access without organization limits" (1 pass, 11 fail); `promotes
-    // inside a project batch under the cap and refuses it at the cap`
+    // inside a work package batch under the cap and refuses it at the cap`
     // (agent-person-limit.controller.db.test.ts) answered 500 "an agent person
     // was added under scoped access without organization limits" (13 pass, 1 fail);
     // every activated statement case of capacity-limit.controller.db.test.ts
@@ -634,32 +754,37 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     attempts,
     blockages,
     claims: {
-      listByProject: (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.listByProject(requestedProjectId);
+      // Occupancy can name other packages. The held writer still owns the grant read.
+      mayReadWorkPackageWithin: (...args) => {
+        assertOpen();
+        return scope.stores.claims.mayReadWorkPackageWithin(...args);
       },
-      listStampedByIds: (requestedProjectId, ids) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.listStampedByIds(requestedProjectId, ids);
+      listByWorkPackage: (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.listByWorkPackage(requestedWorkPackageId);
       },
-      listStampedByProject: (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.listStampedByProject(requestedProjectId);
+      listStampedByIds: (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.listStampedByIds(requestedWorkPackageId, ids);
       },
-      findById: (requestedProjectId, claimId) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.findById(requestedProjectId, claimId);
+      listStampedByWorkPackage: (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.listStampedByWorkPackage(requestedWorkPackageId);
       },
-      observeProject: (requestedProjectId, access) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.observeProject(requestedProjectId, access);
+      findById: (requestedWorkPackageId, claimId) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.findById(requestedWorkPackageId, claimId);
       },
-      occupancyOf: (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.occupancyOf(requestedProjectId);
+      observeWorkPackage: (requestedWorkPackageId, access) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.observeWorkPackage(requestedWorkPackageId, access);
+      },
+      occupancyOf: (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.occupancyOf(requestedWorkPackageId);
       },
       // Unfenced and uncached (`wbs-shared-occupancy` S4): the organization's
-      // other projects are what this read is for, and the batch's own
+      // other work packages are what this read is for, and the batch's own
       // connection answers its earlier claims and every committed one.
       organizationOccupancyOf: (resourceIds) => {
         assertOpen();
@@ -699,25 +824,25 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         await scope.stores.claims.moveAll(fromWorkItemId, toWorkItemId, stamp);
         await refreshRows([fromWorkItemId, toWorkItemId]);
       },
-      // A renewal is the person's, across projects, and moves no revision or
+      // A renewal is the person's, across work packages, and moves no revision or
       // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
       renewLeases: (personId, runId, now) => {
         assertOpen();
         return scope.stores.claims.renewLeases(personId, runId, now);
       },
-      expiredLeasesOf: (requestedProjectId, at) => {
-        assertProject(requestedProjectId);
-        return scope.stores.claims.expiredLeasesOf(requestedProjectId, at);
+      expiredLeasesOf: (requestedWorkPackageId, at) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.expiredLeasesOf(requestedWorkPackageId, at);
       },
-      projectsWithExpiredLeases: (at, limit) => {
+      workPackagesWithExpiredLeases: (at, limit) => {
         assertOpen();
-        return scope.stores.claims.projectsWithExpiredLeases(at, limit);
+        return scope.stores.claims.workPackagesWithExpiredLeases(at, limit);
       },
     },
     demands: {
-      listByProject: (requestedProjectId) => {
-        assertProject(requestedProjectId);
-        return scope.stores.demands.listByProject(requestedProjectId);
+      listByWorkPackage: (requestedWorkPackageId) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.demands.listByWorkPackage(requestedWorkPackageId);
       },
       set: async (workItemId, resourceId, units, stamp) => {
         await assertOwner(workItemId);
@@ -730,25 +855,25 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     },
     stepParallels: {
       // Proof: spreading the real SQLite class dropped prototype methods;
-      // mounted borrowed-scope regression failed on listByProject (prototype-red.txt).
-      listByProject: (requestedProjectId) => {
-        // Proof: independently omitting project or lifetime checks resolved the
+      // mounted borrowed-scope regression failed on listByWorkPackage (prototype-red.txt).
+      listByWorkPackage: (requestedWorkPackageId) => {
+        // Proof: independently omitting work package or lifetime checks resolved the
         // mounted foreign/closed read negatives (mutation-list-*-guard.txt).
-        assertProject(requestedProjectId);
-        return scope.stores.stepParallels.listByProject(requestedProjectId);
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.stepParallels.listByWorkPackage(requestedWorkPackageId);
       },
-      listByWorkItems: (requestedProjectId, ids) => {
+      listByWorkItems: (requestedWorkPackageId, ids) => {
         // Proof: omitted scope guard resolved foreign/closed reads; stale empty
         // evidence committed the preceding batch patch (first-child mutation logs).
-        assertProject(requestedProjectId);
-        return scope.stores.stepParallels.listByWorkItems(requestedProjectId, ids);
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.stepParallels.listByWorkItems(requestedWorkPackageId, ids);
       },
       set: async (parallel, stamp) => {
         // Proof: omitted owner check accepted the mounted foreign-scope write
         // (mutation-set-owner-guard.txt); the closed call also refuses here.
         await assertOwner(parallel.workItemId);
         await scope.stores.stepParallels.set(parallel, stamp);
-        // Proof: omitted refresh left the warmed listByProject revision stale
+        // Proof: omitted refresh left the warmed listByWorkPackage revision stale
         // against SQLite (mutation-set-refresh.txt); findById is not this cache.
         await refreshRows([parallel.workItemId]);
       },
@@ -757,7 +882,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         // (mutation-remove-owner-guard.txt); the mounted regression failed.
         await assertOwner(workItemId);
         await scope.stores.stepParallels.remove(workItemId, stepId, stamp);
-        // Proof: omitted refresh left the warmed listByProject revision stale
+        // Proof: omitted refresh left the warmed listByWorkPackage revision stale
         // against SQLite (mutation-remove-refresh.txt).
         await refreshRows([workItemId]);
       },

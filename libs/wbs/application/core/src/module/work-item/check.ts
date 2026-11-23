@@ -17,6 +17,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
   const bag = DiBag.createBuilder()
     .withInstalledModules([workItemModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       livePlans: DiBag.createProvider(() => requirements.livePlans, {
         factoryReturnKind: 'sync-value',
       }),
@@ -26,16 +29,19 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       capacityPreview: DiBag.createProvider(() => requirements.capacityPreview, {
         factoryReturnKind: 'sync-value',
       }),
-      projectReportSnapshot: DiBag.createProvider(() => requirements.projectReportSnapshot, {
-        factoryReturnKind: 'sync-value',
-      }),
+      workPackageReportSnapshot: DiBag.createProvider(
+        () => requirements.workPackageReportSnapshot,
+        {
+          factoryReturnKind: 'sync-value',
+        },
+      ),
       workItemStore: DiBag.createProvider(() => requirements.workItems, {
         factoryReturnKind: 'sync-value',
       }),
       stepParallelStore: DiBag.createProvider(() => requirements.stepParallels, {
         factoryReturnKind: 'sync-value',
       }),
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       estimateStore: DiBag.createProvider(() => requirements.estimates, {

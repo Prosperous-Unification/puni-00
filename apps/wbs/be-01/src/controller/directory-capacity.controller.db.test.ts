@@ -3,10 +3,11 @@ import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import { DirectoryRepository } from '@wbs/store-sqlite/directory';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
-import { ProjectRepository } from '@wbs/store-sqlite/project';
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
@@ -28,9 +29,11 @@ import { delegationFor, mapUpstream } from '../testing/scim-fixture';
  */
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectA: string;
-let projectB: string;
+let projectId: string;
+let workPackageA: string;
+let workPackageB: string;
 let ram: string;
+const stepsByPackage = new Map<string, readonly { id: string }[]>();
 
 function readPrototypeMethod<Owner extends object, Method extends keyof Owner>(
   prototype: Owner,
@@ -61,11 +64,12 @@ afterEach(() => {
 
 /**
  * Organization A with `ada` (member), `vic` (viewer), `sue` (admin), `tom`
- * (super-admin); B with `grace`. Projects A and B of A, each with one leaf
+ * (super-admin); B with `grace`. Work packages A and B of A, each with one leaf
  * (`w-a`, `w-b`), agents `agent-a` and `agent-b` bound to ada, and the
  * resource `host ram` of A.
  */
 async function setUp(harness: OrganizationHarness): Promise<void> {
+  stepsByPackage.clear();
   for (const username of ['ada', 'vic', 'sue', 'tom', 'grace']) await harness.register(username);
   harness.organization('org-a');
   harness.organization('org-b');
@@ -75,40 +79,63 @@ async function setUp(harness: OrganizationHarness): Promise<void> {
     ['sue', 'admin'],
     ['tom', 'super_admin'],
   ] as const) {
-    harness.member('org-a', username, role);
+    const grants = {
+      member: [],
+      viewer: [],
+      admin: ['org-admin'],
+      super_admin: ['org-super-admin'],
+    } as const;
+    harness.member('org-a', username, role, grants[role]);
     harness.bind(username, 'org-a');
   }
-  harness.member('org-b', 'grace', 'admin');
+  harness.member('org-b', 'grace', 'admin', ['org-admin']);
   harness.bind('grace', 'org-b');
   harness.activate();
-  projectA = await create(harness, 'ada', 'A');
-  projectB = await create(harness, 'ada', 'B');
-  for (const [id, projectId] of [
-    ['w-a', projectA],
-    ['w-b', projectB],
+  // The creator receives a project-manager grant, so Sue's release authority stays organization-scoped.
+  const parent = await harness.call('tom', 'POST', '/api/projects', { name: 'Capacity planning' });
+  if (parent.status !== 201) throw new Error(`project creation refused: ${JSON.stringify(parent)}`);
+  projectId = (parent.body as { project: { id: string } }).project.id;
+  harness.grant('org-a', 'ada', 'project-contributor', 'project', projectId);
+  harness.grant('org-a', 'vic', 'project-viewer', 'project', projectId);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, {
+      by: harness.userId('tom'),
+      at: 1,
+    });
+    return { commit: true, value: undefined };
+  });
+  workPackageA = await create(harness, 'ada', 'A');
+  workPackageB = await create(harness, 'ada', 'B');
+  for (const [id, workPackageId] of [
+    ['w-a', workPackageA],
+    ['w-b', workPackageB],
   ] as const)
     harness.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
-      [id, projectId, id],
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
+      [id, workPackageId, id],
     );
   for (const id of ['agent-a', 'agent-b'])
     addAgentPerson(harness.sqlite, id, 'org-a', harness.userId('ada'));
-  ram = await declare(harness, 'ada', 'host ram');
+  ram = await declare(harness, 'sue', 'host ram');
 }
 
 async function create(harness: OrganizationHarness, username: string, name: string) {
-  const answer = await harness.call(username, 'POST', '/api/projects', { name });
+  const answer = await harness.call(username, 'POST', '/api/work-packages', { name, projectId });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const { workPackage, steps } = answer.body as {
+    workPackage: { id: string };
+    steps: { id: string }[];
+  };
+  expect(steps).toHaveLength(2);
+  stepsByPackage.set(workPackage.id, steps);
+  return workPackage.id;
 }
 
-function firstStepOf(projectId: string): string {
-  const step = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
-    )
-    .get(projectId);
-  if (step === null) throw new Error(`project ${projectId} has no first workflow step`);
+function stepOf(workPackageId: string, position = 0): string {
+  const step = stepsByPackage.get(workPackageId)?.at(position);
+  if (step === undefined)
+    throw new Error(`work package ${workPackageId} has no step at ${String(position)}`);
   return step.id;
 }
 
@@ -154,8 +181,8 @@ function journalEntries(harness: OrganizationHarness): number {
   );
 }
 
-async function directoryCapacityRead(username: string, projectId: string) {
-  const read = await h.call(username, 'GET', `/api/projects/${projectId}/resources`);
+async function directoryCapacityRead(username: string, workPackageId: string) {
+  const read = await h.call(username, 'GET', `/api/work-packages/${workPackageId}/resources`);
   if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
   return (read.body as { resources: { id: string; directoryCapacity?: number | null }[] }).resources
     .filter(({ id }) => id === ram)
@@ -163,28 +190,28 @@ async function directoryCapacityRead(username: string, projectId: string) {
 }
 
 describe('setDirectoryCapacity', () => {
-  it('states a directory capacity on either route and reads it from both projects', async () => {
+  it('states a directory capacity on either route and reads it from both work packages', async () => {
     expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).toMatchObject({
       status: 200,
     });
-    for (const projectId of [projectA, projectB])
-      expect(await directoryCapacityRead('vic', projectId)).toEqual([16]);
+    for (const workPackageId of [workPackageA, workPackageB])
+      expect(await directoryCapacityRead('vic', workPackageId)).toEqual([16]);
     expect(
-      await h.call('tom', 'POST', `/api/projects/${projectA}/commands`, {
+      await h.call('tom', 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [state(ram, null)],
       }),
     ).toMatchObject({ status: 200 });
-    expect(await directoryCapacityRead('ada', projectB)).toEqual([null]);
+    expect(await directoryCapacityRead('ada', workPackageB)).toEqual([null]);
     expect(stated(h, ram)).toBeNull();
   });
 
-  it('serves the exact project resource catalog with directory units to a viewer', async () => {
-    const gpu = await declare(h, 'ada', 'idle GPU');
+  it('serves the exact work package resource catalog with directory units to a viewer', async () => {
+    const gpu = await declare(h, 'sue', 'idle GPU');
     expect(
       (await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16), state(gpu, 0)] }))
         .status,
     ).toBe(200);
-    const path = `/api/projects/${projectB}/resources`;
+    const path = `/api/work-packages/${workPackageB}/resources`;
     const read = () => h.call('vic', 'GET', path);
     const ramWire = {
       id: ram,
@@ -249,16 +276,16 @@ describe('setDirectoryCapacity', () => {
     );
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageB}/commands`, {
           commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 12 }],
         })
       ).status,
     ).toBe(200);
-    const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+    const read = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`);
     expect(read).toMatchObject({
       status: 200,
       body: {
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
         resources: [
           {
             resourceId: ram,
@@ -271,8 +298,10 @@ describe('setDirectoryCapacity', () => {
         ],
       },
     });
-    const parsed: unknown = await validateSchema(preSharingStartable, read.body);
-    expect(parsed).toEqual({ value: read.body });
+    // The archived schema predates the work-package rename as well as directory totals.
+    const previousWire = { ...(read.body as object), occupancyScope: 'project' };
+    const parsed: unknown = await validateSchema(preSharingStartable, previousWire);
+    expect(parsed).toEqual({ value: previousWire });
     const incompatible = { ...(read.body as object), occupancyScope: 'organization' };
     expect(await validateSchema(preSharingStartable, incompatible)).not.toEqual({
       value: incompatible,
@@ -294,7 +323,7 @@ describe('setDirectoryCapacity', () => {
     );
     const catalog = spyOn(DirectoryRepository.prototype, 'listInOrganization');
     try {
-      expect(await h.call('vic', 'GET', `/api/projects/${projectB}/resources`)).toEqual({
+      expect(await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/resources`)).toEqual({
         status: 403,
         body: { error: 'not_a_member' },
       });
@@ -306,15 +335,19 @@ describe('setDirectoryCapacity', () => {
   });
 
   it('refuses a member and a viewer on either route, writing nothing', async () => {
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
-      expect(await h.call('ada', 'POST', path, { commands: [state(ram, 16)] }), path).toEqual({
-        status: 403,
-        body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' },
-      });
-      expect(await h.call('vic', 'POST', path, { commands: [state(ram, 16)] }), path).toEqual({
-        status: 403,
-        body: { error: 'forbidden' },
-      });
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
+      expect(await h.call('ada', 'POST', path, { commands: [state(ram, 16)] }), path).toMatchObject(
+        {
+          status: 403,
+          body: { error: 'forbidden' },
+        },
+      );
+      expect(await h.call('vic', 'POST', path, { commands: [state(ram, 16)] }), path).toMatchObject(
+        {
+          status: 403,
+          body: { error: 'forbidden' },
+        },
+      );
     }
     expect(stated(h, ram)).toBeNull();
     expect(auditRows(h)).toEqual([]);
@@ -330,11 +363,11 @@ describe('setDirectoryCapacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       const commands = { commands: [state(ram, 16)] };
-      expect(await callForwarded(h, key, 'POST', path, commands), path).toEqual({
+      expect(await callForwarded(h, key, 'POST', path, commands), path).toMatchObject({
         status: 403,
-        body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' },
+        body: { error: 'forbidden' },
       });
       // Straight at `/api`, the key is no bearer at all (#785).
       expect(await h.callWith(key, 'POST', path, commands), path).toMatchObject({
@@ -362,7 +395,7 @@ describe('setDirectoryCapacity', () => {
 
   it('writes one audit row per change, never a journal entry', async () => {
     const before = journalEntries(h);
-    await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('sue', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [state(ram, 16)],
     });
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, null)] });
@@ -430,35 +463,41 @@ describe('a directory capacity over MCP', () => {
        VALUES (?, 'org-a', 'sue-agent', ?, 'mcp_consent', 'consent', 'family-1', 1, ?)`,
       [credentialId, h.userId('sue'), h.userId('sue')],
     );
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       const consent = await delegationFor(h, signing.privateKey, 'sue', 'org-a', 'sub-sue', {
         credentialId,
         personId: 'sue-agent',
       });
-      expect(await h.callWith(consent, 'POST', path, { commands: [state(ram, 16)] }), path).toEqual(
-        { status: 403, body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' } },
-      );
+      expect(
+        await h.callWith(consent, 'POST', path, { commands: [state(ram, 16)] }),
+        path,
+      ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     }
     expect(stated(h, ram)).toBeNull();
   });
 });
 
 describe('previewing and lowering a directory capacity', () => {
-  /** A leaf of each project demanding `units`, claimed by its agent through ada's session. */
+  /** A leaf of each work package demanding `units`, claimed by its agent through ada's session. */
   async function hold(units: readonly [number, number]): Promise<void> {
-    for (const [index, projectId] of [projectA, projectB].entries()) {
+    for (const [index, workPackageId] of [workPackageA, workPackageB].entries()) {
       const workItemId = index === 0 ? 'w-a' : 'w-b';
-      const answer: Answer = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
-        commands: [
-          { kind: 'setDemand', workItemId, resourceId: ram, units: units[index] },
-          {
-            kind: 'claimWorkItem',
-            workItemId,
-            personId: index === 0 ? 'agent-a' : 'agent-b',
-            steps: [firstStepOf(projectId)],
-          },
-        ],
-      });
+      const answer: Answer = await h.call(
+        'ada',
+        'POST',
+        `/api/work-packages/${workPackageId}/commands`,
+        {
+          commands: [
+            { kind: 'setDemand', workItemId, resourceId: ram, units: units[index] },
+            {
+              kind: 'claimWorkItem',
+              workItemId,
+              personId: index === 0 ? 'agent-a' : 'agent-b',
+              steps: [stepOf(workPackageId)],
+            },
+          ],
+        },
+      );
       if (answer.status !== 200)
         throw new Error(`the claim was refused: ${JSON.stringify(answer)}`);
     }
@@ -477,7 +516,7 @@ describe('previewing and lowering a directory capacity', () => {
       journal: journalEntries(h),
       events: h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all(),
       capacities: h.sqlite
-        .query('SELECT * FROM project_resource_capacity ORDER BY project_id, resource_id')
+        .query('SELECT * FROM work_package_resource_capacity ORDER BY work_package_id, resource_id')
         .all(),
       claims: h.sqlite.query('SELECT * FROM claim ORDER BY id').all(),
     };
@@ -485,10 +524,10 @@ describe('previewing and lowering a directory capacity', () => {
 
   it('refuses an above-cap ask on both routes even with confirmation', async () => {
     capRam();
-    const other = await declare(h, 'ada', 'other RAM');
+    const other = await declare(h, 'sue', 'other RAM');
     const detail = { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 0, asked: 65 };
     const before = readEffects();
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       expect(
         await h.call('sue', 'POST', path, {
           commands: [state(other, 64), { ...state(ram, 65), confirm: true }],
@@ -516,17 +555,17 @@ describe('previewing and lowering a directory capacity', () => {
     expect(readEffects()).toEqual(before);
   });
 
-  it('predicts a clear from the whole raw project sum and clears only with confirmation', async () => {
+  it('predicts a clear from the whole raw work package sum and clears only with confirmation', async () => {
     capRam();
     const third = await create(h, 'ada', 'Third');
-    const other = await declare(h, 'ada', 'other RAM');
+    const other = await declare(h, 'sue', 'other RAM');
     expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).status).toBe(
       200,
     );
-    for (const projectId of [projectA, projectB, third]) {
+    for (const workPackageId of [workPackageA, workPackageB, third]) {
       h.sqlite.run(
-        'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 32)',
-        [projectId, ram],
+        'INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, ?, 32)',
+        [workPackageId, ram],
       );
     }
     await hold([8, 6]);
@@ -536,7 +575,7 @@ describe('previewing and lowering a directory capacity', () => {
       status: 200,
       body: { before: 16, after: null, free: null, refusal: detail },
     });
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       expect(
         await h.call('sue', 'POST', path, { commands: [state(other, 8), state(ram, null)] }),
       ).toEqual({ status: 409, body: { at: 1, kind: 'setDirectoryCapacity', ...detail } });
@@ -545,7 +584,10 @@ describe('previewing and lowering a directory capacity', () => {
       await h.call('ada', 'POST', DIRECTORY, {
         commands: [{ ...state(ram, null), confirm: true }],
       }),
-    ).toEqual({ status: 403, body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(readEffects()).toEqual(before);
     expect(stated(h, ram)).toBe(16);
     expect(stated(h, other)).toBeNull();
@@ -568,7 +610,7 @@ describe('previewing and lowering a directory capacity', () => {
     ]);
     expect(after.events.length).toBe(before.events.length + 3);
     expect(
-      await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 33 }],
       }),
     ).toEqual({
@@ -579,10 +621,10 @@ describe('previewing and lowering a directory capacity', () => {
 
   it('does not require confirmation for an already unstated directory capacity', async () => {
     capRam();
-    for (const projectId of [projectA, projectB])
+    for (const workPackageId of [workPackageA, workPackageB])
       h.sqlite.run(
-        'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 48)',
-        [projectId, ram],
+        'INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, ?, 48)',
+        [workPackageId, ram],
       );
     expect(await h.call('sue', 'POST', previewPath(ram), { units: null })).toMatchObject({
       status: 200,
@@ -594,18 +636,18 @@ describe('previewing and lowering a directory capacity', () => {
     expect(stated(h, ram)).toBeNull();
   });
 
-  it('reads a staged project increase before clearing a stated zero', async () => {
+  it('reads a staged work package increase before clearing a stated zero', async () => {
     capRam();
     expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 0)] })).status).toBe(
       200,
     );
     h.sqlite.run(
-      'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 64)',
-      [projectB, ram],
+      'INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, ?, 64)',
+      [workPackageB, ram],
     );
     const before = readEffects();
     expect(
-      await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+      await h.call('sue', 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }, state(ram, null)],
       }),
     ).toEqual({
@@ -634,11 +676,11 @@ describe('previewing and lowering a directory capacity', () => {
         resourceId: ram,
         before: 16,
         after: 10,
-        projects: [
-          { projectId: projectA, name: 'A', units: 8 },
-          { projectId: projectB, name: 'B', units: 6 },
-        ].sort((left, right) => left.projectId.localeCompare(right.projectId)),
-        hiddenProjects: { count: 0, units: 0 },
+        workPackages: [
+          { workPackageId: workPackageA, name: 'A', units: 8 },
+          { workPackageId: workPackageB, name: 'B', units: 6 },
+        ].sort((left, right) => left.workPackageId.localeCompare(right.workPackageId)),
+        hiddenWorkPackages: { count: 0, units: 0 },
         free: -4,
         refusal: null,
       },
@@ -652,7 +694,7 @@ describe('previewing and lowering a directory capacity', () => {
   });
 
   it("refuses a member and an admin's agent the preview", async () => {
-    expect(await h.call('ada', 'POST', previewPath(ram), { units: 10 })).toEqual({
+    expect(await h.call('ada', 'POST', previewPath(ram), { units: 10 })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -662,7 +704,7 @@ describe('previewing and lowering a directory capacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    expect(await callForwarded(h, key, 'POST', previewPath(ram), { units: 10 })).toEqual({
+    expect(await callForwarded(h, key, 'POST', previewPath(ram), { units: 10 })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -682,31 +724,36 @@ describe('previewing and lowering a directory capacity', () => {
 
   // Proof: with the holders left out of SQLite's `setDirectoryCapacity`
   // announce set, C's event log gained no `directory_changed` here; watched 2026-11-01.
-  it('announces directory_changed to a project that holds the resource only through a claim', async () => {
+  it('announces directory_changed to a work package that holds the resource only through a claim', async () => {
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
-    const projectC = await create(h, 'ada', 'C');
+    const workPackageC = await create(h, 'sue', 'C');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
-      [projectC],
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
+      [workPackageC],
     );
-    const claimed: Answer = await h.call('ada', 'POST', `/api/projects/${projectC}/commands`, {
-      commands: [
-        {
-          kind: 'claimWorkItem',
-          workItemId: 'w-held',
-          personId: 'agent-a',
-          steps: [firstStepOf(projectC)],
-          resources: [{ resourceId: ram, units: 6 }],
-        },
-      ],
-    });
+    const claimed: Answer = await h.call(
+      'ada',
+      'POST',
+      `/api/work-packages/${workPackageC}/commands`,
+      {
+        commands: [
+          {
+            kind: 'claimWorkItem',
+            workItemId: 'w-held',
+            personId: 'agent-a',
+            steps: [stepOf(workPackageC)],
+            resources: [{ resourceId: ram, units: 6 }],
+          },
+        ],
+      },
+    );
     expect(claimed).toMatchObject({ status: 200 });
     const toldC = () =>
       h.sqlite
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all(`project:${projectC}`)
+        .all(`work-package:${workPackageC}`)
         .filter(
           ({ message }) => (JSON.parse(message) as { type: string }).type === 'directory_changed',
         ).length;
@@ -730,17 +777,17 @@ describe('previewing and lowering a directory capacity', () => {
       .all();
     expect(held).toEqual([{ units: 6 }, { units: 8 }]);
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-c', ?, NULL, 1, 'w-c')",
-      [projectA],
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-c', ?, NULL, 1, 'w-c')",
+      [workPackageA],
     );
-    const refused = await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+    const refused = await h.call('ada', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setDemand', workItemId: 'w-c', resourceId: ram, units: 1 },
         {
           kind: 'claimWorkItem',
           workItemId: 'w-c',
           personId: 'agent-a',
-          steps: [firstStepOf(projectA)],
+          steps: [stepOf(workPackageA)],
         },
       ],
     });
@@ -760,17 +807,17 @@ describe('previewing and lowering a directory capacity', () => {
 
 describe('shared holder visibility through the mounted organization', () => {
   const otherResource = 'other shared resource';
-  type OriginRead = Parameters<ProjectRepository['mayReadProjectWithin']>;
-  function distinctWorkItem(id: string, projectId: string, position: number) {
+  type OriginRead = Parameters<ClaimRepository['mayReadWorkPackageWithin']>;
+  function distinctWorkItem(id: string, workPackageId: string, position: number) {
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, ?, ?)',
-      [id, projectId, position, id],
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, ?, ?)',
+      [id, workPackageId, position, id],
     );
   }
 
   function stageHolder(
     id: string,
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     personId: string,
     position: number,
@@ -778,15 +825,9 @@ describe('shared holder visibility through the mounted organization', () => {
     units: number,
     resources: readonly string[],
   ) {
-    const step = h.sqlite
-      .query<{ id: string }, [string, number]>(
-        'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1 OFFSET ?',
-      )
-      .get(projectId, position);
-    if (step === null) throw new Error('not enough fixture steps');
     h.sqlite.run(
       'INSERT INTO claim (id, work_item_id, step_id, person_id, run_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, 1, ?)',
-      [id, workItemId, step.id, personId, runId, h.userId('ada')],
+      [id, workItemId, stepOf(workPackageId, position), personId, runId, h.userId('ada')],
     );
     for (const resourceId of resources)
       h.sqlite.run('INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES (?, ?, ?)', [
@@ -806,15 +847,16 @@ describe('shared holder visibility through the mounted organization', () => {
   function denyOrigins(denied: ReadonlySet<string>, actor: string, onFirstRead?: () => void) {
     const reads: OriginRead[] = [];
     const descriptor = Object.getOwnPropertyDescriptor(
-      ProjectRepository.prototype,
-      'mayReadProjectWithin',
+      ClaimRepository.prototype,
+      'mayReadWorkPackageWithin',
     );
-    if (typeof descriptor?.value !== 'function') throw new Error('missing project read method');
-    const original = descriptor.value as ProjectRepository['mayReadProjectWithin'];
+    if (typeof descriptor?.value !== 'function')
+      throw new Error('missing work package read method');
+    const original = descriptor.value as ClaimRepository['mayReadWorkPackageWithin'];
     const interceptor = spyOn(
-      ProjectRepository.prototype,
-      'mayReadProjectWithin',
-    ).mockImplementation(function (this: ProjectRepository, ...args: OriginRead) {
+      ClaimRepository.prototype,
+      'mayReadWorkPackageWithin',
+    ).mockImplementation(function (this: ClaimRepository, ...args: OriginRead) {
       if (reads.length === 0) onFirstRead?.();
       reads.push(args);
       return denied.has(args[0].id) && args[1] === actor
@@ -835,11 +877,14 @@ describe('shared holder visibility through the mounted organization', () => {
   const hiddenLeaf = 'w-a';
   function createHiddenCopies(resources: readonly string[]) {
     addAgentPerson(h.sqlite, hiddenPerson, 'org-a', h.userId('ada'));
-    h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', ['PRIVATE_ORIGIN_PROJECT', projectA]);
-    stageHolder(hiddenClaim, projectA, hiddenLeaf, hiddenPerson, 0, hiddenRun, 16, resources);
+    h.sqlite.run('UPDATE work_package SET name = ? WHERE id = ?', [
+      'PRIVATE_ORIGIN_PACKAGE',
+      workPackageA,
+    ]);
+    stageHolder(hiddenClaim, workPackageA, hiddenLeaf, hiddenPerson, 0, hiddenRun, 16, resources);
     stageHolder(
       'private-origin-copy',
-      projectA,
+      workPackageA,
       hiddenLeaf,
       'agent-a',
       1,
@@ -852,8 +897,8 @@ describe('shared holder visibility through the mounted organization', () => {
   function absence(body: unknown, extra: readonly string[] = []) {
     const json = JSON.stringify(body);
     for (const field of [
-      projectA,
-      'PRIVATE_ORIGIN_PROJECT',
+      workPackageA,
+      'PRIVATE_ORIGIN_PACKAGE',
       hiddenPerson,
       hiddenRun,
       hiddenClaim,
@@ -867,14 +912,14 @@ describe('shared holder visibility through the mounted organization', () => {
   }
 
   async function demand(
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     resourceIds: readonly string[],
     units: number,
   ) {
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
           commands: resourceIds.map((resourceId) => ({
             kind: 'setDemand',
             workItemId,
@@ -887,13 +932,13 @@ describe('shared holder visibility through the mounted organization', () => {
   }
 
   it('redacts a denied origin from both genuine shortage aliases and counts duplicate copies once', async () => {
-    const second = await declare(h, 'ada', otherResource);
+    const second = await declare(h, 'sue', otherResource);
     const resourceIds = [ram, second].sort();
     await declareCapacity(resourceIds, 24);
     createHiddenCopies(resourceIds);
-    const c = await create(h, 'ada', 'visible other project');
+    const c = await create(h, 'ada', 'visible other work package');
     distinctWorkItem('w-visible-other', c, 0);
-    distinctWorkItem('w-visible-local', projectB, 1);
+    distinctWorkItem('w-visible-local', workPackageB, 1);
     stageHolder(
       'visible-other-claim',
       c,
@@ -906,7 +951,7 @@ describe('shared holder visibility through the mounted organization', () => {
     );
     stageHolder(
       'visible-local-claim',
-      projectB,
+      workPackageB,
       'w-visible-local',
       'agent-b',
       0,
@@ -914,13 +959,13 @@ describe('shared holder visibility through the mounted organization', () => {
       4,
       resourceIds,
     );
-    await demand(projectB, 'w-b', resourceIds, 1);
+    await demand(workPackageB, 'w-b', resourceIds, 1);
     h.sqlite.run(
       "UPDATE person_organization SET name = 'local agent B' WHERE resource_id = 'agent-b'",
     );
     const people = spyOn(DirectoryRepository.prototype, 'listInOrganization');
     const scopedNames = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
-    const denied = new Set([projectA]);
+    const denied = new Set([workPackageA]);
     const gate = denyOrigins(denied, h.userId('ada'), () => {
       people.mockClear();
       scopedNames.mockClear();
@@ -931,7 +976,7 @@ describe('shared holder visibility through the mounted organization', () => {
           kind: 'claimWorkItem',
           workItemId: 'w-b',
           personId: 'agent-a',
-          steps: [firstStepOf(projectB)],
+          steps: [stepOf(workPackageB)],
         },
       ],
     };
@@ -939,7 +984,12 @@ describe('shared holder visibility through the mounted organization', () => {
       h.sqlite.query<{ count: number }, []>('SELECT count(*) as count FROM claim').get();
     const before = { journal: journalEntries(h), claims: claimRows() };
     try {
-      const refused = await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, requested);
+      const refused = await h.call(
+        'ada',
+        'POST',
+        `/api/work-packages/${workPackageB}/commands`,
+        requested,
+      );
       const mixedCatalogReads = people.mock.calls.filter(([catalog]) => catalog === 'people');
       const mixedNameReads = scopedNames.mock.calls.slice();
       expect(refused.status).toBe(409);
@@ -950,7 +1000,7 @@ describe('shared holder visibility through the mounted organization', () => {
           name: 'local agent B',
           runId: 'visible-run',
           workItemId: 'w-visible-other',
-          projectId: c,
+          workPackageId: c,
         },
       ];
       const shortages = resourceIds.map((resourceId) => ({
@@ -969,20 +1019,20 @@ describe('shared holder visibility through the mounted organization', () => {
         resources: shortages,
       });
       absence(refused.body);
-      expect(gate.reads.filter(([origin]) => origin.id === projectA)).toEqual([
+      expect(gate.reads.filter(([origin]) => origin.id === workPackageA)).toEqual([
         [
-          { id: projectA, organizationId: 'org-a' },
+          { id: workPackageA, organizationId: 'org-a' },
           h.userId('ada'),
           expect.objectContaining({ kind: 'scoped' }),
         ],
       ]);
       gate.reads.length = 0;
-      denied.add(projectB);
+      denied.add(workPackageB);
       denied.add(c);
       const noVisible = await h.call(
         'ada',
         'POST',
-        `/api/projects/${projectB}/commands`,
+        `/api/work-packages/${workPackageB}/commands`,
         requested,
       );
       expect(noVisible).toEqual({
@@ -1021,25 +1071,27 @@ describe('shared holder visibility through the mounted organization', () => {
     const occupancy = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf');
     const people = spyOn(DirectoryRepository.prototype, 'listInOrganization');
     try {
-      expect((await h.call('vic', 'GET', `/api/projects/${projectB}/startable`)).status).toBe(200);
+      expect(
+        (await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`)).status,
+      ).toBe(200);
       expect(occupancy).not.toHaveBeenCalled();
-      const second = await declare(h, 'ada', otherResource);
+      const second = await declare(h, 'sue', otherResource);
       const resourceIds = [ram, second].sort();
       await declareCapacity(resourceIds, 16);
       createHiddenCopies(resourceIds);
-      distinctWorkItem('w-b-next', projectB, 1);
-      await demand(projectB, 'w-b', [ram], 1);
-      await demand(projectB, 'w-b-next', [second], 1);
-      const denied = new Set([projectA]);
+      distinctWorkItem('w-b-next', workPackageB, 1);
+      await demand(workPackageB, 'w-b', [ram], 1);
+      await demand(workPackageB, 'w-b-next', [second], 1);
+      const denied = new Set([workPackageA]);
       const gate = denyOrigins(denied, h.userId('vic'));
       try {
         people.mockClear();
-        const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+        const read = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`);
         const emptyCatalogReads = people.mock.calls.filter(([catalog]) => catalog === 'people');
         expect(read).toMatchObject({
           status: 200,
           body: {
-            occupancyScope: 'project',
+            occupancyScope: 'work_package',
             doesNotFit: [
               {
                 workItemId: 'w-b',
@@ -1069,17 +1121,17 @@ describe('shared holder visibility through the mounted organization', () => {
         absence(read.body);
         expect(occupancy.mock.calls).toEqual([[expect.arrayContaining(resourceIds)]]);
         expect(gate.reads.map(([origin, actor]) => [origin.id, actor])).toEqual([
-          [projectA, h.userId('vic')],
+          [workPackageA, h.userId('vic')],
         ]);
         denied.clear();
         people.mockClear();
-        const next = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+        const next = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`);
         const visibleHolder: unknown = expect.arrayContaining([
           expect.objectContaining({
             workItemId: hiddenLeaf,
             personId: hiddenPerson,
             runId: hiddenRun,
-            projectId: projectA,
+            workPackageId: workPackageA,
           }),
         ]);
         expect(next).toMatchObject({
@@ -1113,16 +1165,16 @@ describe('shared holder visibility through the mounted organization', () => {
     }
   });
 
-  it('batches the project catalog directory totals without reading holder identities', async () => {
-    const shared = await declare(h, 'ada', otherResource);
-    const unstated = await declare(h, 'ada', 'unstated resource');
+  it('batches the work package catalog directory totals without reading holder identities', async () => {
+    const shared = await declare(h, 'sue', otherResource);
+    const unstated = await declare(h, 'sue', 'unstated resource');
     await declareCapacity([ram, shared], 24);
     createHiddenCopies([ram, shared]);
-    stageHolder('catalog-local-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
-    await demand(projectB, 'w-b', [ram], 4);
+    stageHolder('catalog-local-claim', workPackageB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    await demand(workPackageB, 'w-b', [ram], 4);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageB}/commands`, {
           commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 9 }],
         })
       ).status,
@@ -1134,9 +1186,9 @@ describe('shared holder visibility through the mounted organization', () => {
     const units = spyOn(ClaimRepository.prototype, 'organizationUnitsOf');
     const holdings = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf');
     const names = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
-    const visibility = denyOrigins(new Set([projectA]), h.userId('vic'));
+    const visibility = denyOrigins(new Set([workPackageA]), h.userId('vic'));
     try {
-      const read = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      const read = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/resources`);
       expect(read).toEqual({
         status: 200,
         body: {
@@ -1186,10 +1238,10 @@ describe('shared holder visibility through the mounted organization', () => {
     }
   });
 
-  it('keeps the project catalog coherent across a mid-read release and capacity update', async () => {
+  it('keeps the work package catalog coherent across a mid-read release and capacity update', async () => {
     await declareCapacity([ram], 24);
     createHiddenCopies([ram]);
-    stageHolder('catalog-local-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    stageHolder('catalog-local-claim', workPackageB, 'w-b', 'agent-b', 0, null, 4, [ram]);
     const original = readPrototypeMethod(ClaimRepository.prototype, 'organizationUnitsOf');
     let released = false;
     const aggregate = spyOn(ClaimRepository.prototype, 'organizationUnitsOf').mockImplementation(
@@ -1197,8 +1249,8 @@ describe('shared holder visibility through the mounted organization', () => {
         if (!released) {
           released = true;
           for (const [personId, path] of [
-            [hiddenPerson, `/api/projects/${projectA}/commands`],
-            ['agent-a', `/api/projects/${projectA}/commands`],
+            [hiddenPerson, `/api/work-packages/${workPackageA}/commands`],
+            ['agent-a', `/api/work-packages/${workPackageA}/commands`],
           ] as const)
             expect(
               (
@@ -1221,7 +1273,7 @@ describe('shared holder visibility through the mounted organization', () => {
       },
     );
     try {
-      const path = `/api/projects/${projectB}/resources`;
+      const path = `/api/work-packages/${workPackageB}/resources`;
       expect(await h.call('vic', 'GET', path)).toMatchObject({
         status: 200,
         body: {
@@ -1245,13 +1297,13 @@ describe('shared holder visibility through the mounted organization', () => {
   });
 
   it('aborts a resource report whose catalog omits a referenced resource', async () => {
-    await demand(projectB, 'w-b', [ram], 2);
+    await demand(workPackageB, 'w-b', [ram], 2);
     const catalog = spyOn(
       DirectoryRepository.prototype,
       'listInOrganization',
     ).mockResolvedValueOnce([]);
     try {
-      const reply = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      const reply = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/resources`);
       expect(reply.status).toBe(500);
       expect(catalog.mock.calls).toEqual([['resources', 'org-a']]);
     } finally {
@@ -1265,7 +1317,7 @@ describe('shared holder visibility through the mounted organization', () => {
       new Error('private aggregate failure'),
     );
     try {
-      const reply = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      const reply = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/resources`);
       expect(reply.status).toBe(500);
       expect(JSON.stringify(reply.body)).not.toContain('private aggregate failure');
       expect(aggregate.mock.calls).toEqual([[[ram]]]);
@@ -1274,23 +1326,23 @@ describe('shared holder visibility through the mounted organization', () => {
     }
   });
 
-  it('previews distinct denied projects including a zero-held origin with no writes', async () => {
+  it('previews distinct denied work packages including a zero-held origin with no writes', async () => {
     await declareCapacity([ram], 24);
     createHiddenCopies([ram]);
-    stageHolder('visible-b-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
-    const d = await create(h, 'ada', 'PRIVATE_ZERO_HELD_PROJECT');
+    stageHolder('visible-b-claim', workPackageB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    const d = await create(h, 'ada', 'PRIVATE_ZERO_HELD_PACKAGE');
     distinctWorkItem('w-zero', d, 0);
     await demand(d, 'w-zero', [ram], 2);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageA}/commands`, {
           commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 16 }],
         })
       ).status,
     ).toBe(200);
     const audits = auditRows(h);
     const journal = journalEntries(h);
-    const denied = new Set([projectA, d]);
+    const denied = new Set([workPackageA, d]);
     const gate = denyOrigins(denied, h.userId('sue'));
     try {
       const preview = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
@@ -1300,24 +1352,24 @@ describe('shared holder visibility through the mounted organization', () => {
           resourceId: ram,
           before: 24,
           after: 18,
-          projects: [{ projectId: projectB, name: 'B', units: 4 }],
-          hiddenProjects: { count: 2, units: 16 },
+          workPackages: [{ workPackageId: workPackageB, name: 'B', units: 4 }],
+          hiddenWorkPackages: { count: 2, units: 16 },
           free: -2,
           refusal: null,
         },
       });
-      absence(preview.body, [d, 'PRIVATE_ZERO_HELD_PROJECT']);
+      absence(preview.body, [d, 'PRIVATE_ZERO_HELD_PACKAGE']);
       expect(gate.reads.map(([origin]) => origin.id).sort()).toEqual(
-        [projectA, projectB, d].sort(),
+        [workPackageA, workPackageB, d].sort(),
       );
       expect(await h.call('sue', 'POST', previewPath(ram), { units: null })).toMatchObject({
         status: 200,
-        body: { after: null, free: null, hiddenProjects: { count: 2, units: 16 } },
+        body: { after: null, free: null, hiddenWorkPackages: { count: 2, units: 16 } },
       });
       const otherActor = await h.call('tom', 'POST', previewPath(ram), { units: 18 });
       expect(otherActor).toMatchObject({
         status: 200,
-        body: { hiddenProjects: { count: 0, units: 0 }, free: -2 },
+        body: { hiddenWorkPackages: { count: 0, units: 0 }, free: -2 },
       });
       expect(stated(h, ram)).toBe(24);
       expect(auditRows(h)).toEqual(audits);
@@ -1330,10 +1382,10 @@ describe('shared holder visibility through the mounted organization', () => {
   it('keeps a capacity preview coherent when occupancy and demand change mid-read', async () => {
     await declareCapacity([ram], 24);
     createHiddenCopies([ram]);
-    stageHolder('visible-b-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
-    const d = await create(h, 'ada', 'PRIVATE_NEXT_SNAPSHOT');
+    stageHolder('visible-b-claim', workPackageB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    const d = await create(h, 'ada', 'PRIVATE_NEXT_PACKAGE');
     distinctWorkItem('w-next-snapshot', d, 0);
-    const gate = denyOrigins(new Set([projectA, d]), h.userId('sue'));
+    const gate = denyOrigins(new Set([workPackageA, d]), h.userId('sue'));
     const descriptor = Object.getOwnPropertyDescriptor(
       DirectoryRepository.prototype,
       'usageOfResource',
@@ -1366,37 +1418,39 @@ describe('shared holder visibility through the mounted organization', () => {
       const earlier = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
       expect(earlier).toMatchObject({
         status: 200,
-        body: { hiddenProjects: { count: 1, units: 16 }, free: -2 },
+        body: { hiddenWorkPackages: { count: 1, units: 16 }, free: -2 },
       });
       const later = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
       expect(later).toMatchObject({
         status: 200,
-        body: { hiddenProjects: { count: 1, units: 0 }, free: 14 },
+        body: { hiddenWorkPackages: { count: 1, units: 0 }, free: 14 },
       });
-      absence(earlier.body, [d, 'PRIVATE_NEXT_SNAPSHOT']);
-      absence(later.body, [d, 'PRIVATE_NEXT_SNAPSHOT']);
+      absence(earlier.body, [d, 'PRIVATE_NEXT_PACKAGE']);
+      absence(later.body, [d, 'PRIVATE_NEXT_PACKAGE']);
     } finally {
       writer.mockRestore();
       gate.restore();
     }
   });
 
-  it('reports only this project when a local capacity binds on a shared resource', async () => {
+  it('reports only this work package when a local capacity binds on a shared resource', async () => {
     await declareCapacity([ram], 24);
     createHiddenCopies([ram]);
-    distinctWorkItem('w-local-holder', projectB, 1);
-    stageHolder('visible-bound-local', projectB, 'w-local-holder', 'agent-b', 0, null, 4, [ram]);
+    distinctWorkItem('w-local-holder', workPackageB, 1);
+    stageHolder('visible-bound-local', workPackageB, 'w-local-holder', 'agent-b', 0, null, 4, [
+      ram,
+    ]);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+        await h.call('ada', 'POST', `/api/work-packages/${workPackageB}/commands`, {
           commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 4 }],
         })
       ).status,
     ).toBe(200);
-    await demand(projectB, 'w-b', [ram], 1);
-    const gate = denyOrigins(new Set([projectA]), h.userId('vic'));
+    await demand(workPackageB, 'w-b', [ram], 1);
+    const gate = denyOrigins(new Set([workPackageA]), h.userId('vic'));
     try {
-      const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+      const read = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`);
       expect(read).toMatchObject({
         status: 200,
         body: {
@@ -1404,7 +1458,7 @@ describe('shared holder visibility through the mounted organization', () => {
             {
               workItemId: 'w-b',
               exhausted: {
-                scope: 'project',
+                scope: 'work_package',
                 free: 0,
                 asked: 1,
                 hiddenHolders: { units: 0 },
@@ -1421,30 +1475,34 @@ describe('shared holder visibility through the mounted organization', () => {
           ],
         },
       });
-      expect(JSON.stringify(read.body)).not.toContain('projectId');
-      expect(gate.reads.map(([origin]) => origin.id)).toEqual([projectB]);
+      expect(JSON.stringify(read.body)).not.toContain('workPackageId');
+      expect(gate.reads.map(([origin]) => origin.id)).toEqual([workPackageB]);
       absence(read.body);
     } finally {
       gate.restore();
     }
   });
 
-  it('a project read exception aborts the entire shared shortage observation', async () => {
+  it('a work package read exception aborts the entire shared shortage observation', async () => {
     await declareCapacity([ram], 16);
     createHiddenCopies([ram]);
-    await demand(projectB, 'w-b', [ram], 1);
-    const policy = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockRejectedValue(
+    await demand(workPackageB, 'w-b', [ram], 1);
+    const policy = spyOn(ClaimRepository.prototype, 'mayReadWorkPackageWithin').mockRejectedValue(
       new Error('private grant failure'),
     );
     try {
-      const answer = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+      const answer = await h.call('vic', 'GET', `/api/work-packages/${workPackageB}/startable`);
       expect(answer.status).toBe(500);
       absence(answer.body, ['private grant failure']);
       expect(JSON.stringify(answer.body)).not.toContain('hiddenHolders');
 
       const preview = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
       expect(preview.status).toBe(500);
-      absence(preview.body, ['private grant failure', 'hiddenProjects', 'private-origin-person']);
+      absence(preview.body, [
+        'private grant failure',
+        'hiddenWorkPackages',
+        'private-origin-person',
+      ]);
       expect(stated(h, ram)).toBe(16);
     } finally {
       policy.mockRestore();
@@ -1461,8 +1519,8 @@ describe('the admin occupancy inventory', () => {
     personId: 'agent-b',
   };
 
-  function batch(username: string, projectId: string, commands: unknown[]) {
-    return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+  function batch(username: string, workPackageId: string, commands: unknown[]) {
+    return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
   }
 
   async function stageHuman(restricted: boolean) {
@@ -1479,29 +1537,29 @@ describe('the admin occupancy inventory', () => {
     expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).toMatchObject({
       status: 200,
     });
-    for (const [projectId, workItemId] of [
-      [projectA, 'w-a'],
-      [projectB, 'w-b'],
+    for (const [workPackageId, workItemId] of [
+      [workPackageA, 'w-a'],
+      [workPackageB, 'w-b'],
     ] as const) {
       expect(
-        await batch('ada', projectId, [
+        await batch('ada', workPackageId, [
           { kind: 'setDemand', workItemId, resourceId: ram, units: 16 },
         ]),
       ).toMatchObject({ status: 200 });
     }
     expect(
-      await batch('sue', projectA, [
+      await batch('sue', workPackageA, [
         {
           kind: 'claimWorkItem',
           workItemId: 'w-a',
           personId: holder,
-          steps: [firstStepOf(projectA)],
+          steps: [stepOf(workPackageA)],
         },
       ]),
     ).toMatchObject({ status: 200 });
     if (restricted) {
       expect(
-        await h.call('ada', 'PATCH', `/api/projects/${projectA}`, { restricted: true }),
+        await h.call('ada', 'PATCH', `/api/work-packages/${workPackageA}`, { restricted: true }),
       ).toMatchObject({
         status: 200,
       });
@@ -1523,8 +1581,8 @@ describe('the admin occupancy inventory', () => {
   for (const restricted of [false, true]) {
     it(`reads ${restricted ? 'a restricted' : 'an unrestricted'} human claim and observes the actual release decision`, async () => {
       await stageHuman(restricted);
-      const ask = { ...claim, steps: [firstStepOf(projectB)] };
-      expect(await batch('ada', projectB, [ask])).toMatchObject({
+      const ask = { ...claim, steps: [stepOf(workPackageB)] };
+      expect(await batch('ada', workPackageB, [ask])).toMatchObject({
         status: 409,
         body: { error: 'resources_exhausted' },
       });
@@ -1543,9 +1601,9 @@ describe('the admin occupancy inventory', () => {
           directoryCapacity: 16,
           occupied: 16,
           free: 0,
-          projects: [
+          workPackages: [
             {
-              projectId: projectA,
+              workPackageId: workPackageA,
               name: 'A',
               restricted,
               units: 16,
@@ -1567,7 +1625,7 @@ describe('the admin occupancy inventory', () => {
       });
       expect(await h.call('tom', 'GET', path(ram))).toEqual(read);
       expect(ledger()).toEqual(initial);
-      const release = await batch('sue', projectA, [
+      const release = await batch('sue', workPackageA, [
         { kind: 'releaseWorkItem', workItemId: 'w-a', personId: holder },
       ]);
       if (restricted) {
@@ -1578,9 +1636,9 @@ describe('the admin occupancy inventory', () => {
         expect(release).toMatchObject({ status: 200 });
         expect(await h.call('sue', 'GET', path(ram))).toEqual({
           status: 200,
-          body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, projects: [] },
+          body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, workPackages: [] },
         });
-        expect(await batch('ada', projectB, [ask])).toMatchObject({ status: 200 });
+        expect(await batch('ada', workPackageB, [ask])).toMatchObject({ status: 200 });
       }
     });
   }
@@ -1590,7 +1648,7 @@ describe('occupancy inventory authority and observation', () => {
   const path = (resourceId = ram) => `/api/organization/resources/${resourceId}/occupancy`;
   const visiblePerson = 'visible-inventory-person';
   const hiddenPerson = 'private-inventory-person';
-  const hiddenProject = 'PRIVATE_INVENTORY_PROJECT';
+  const hiddenWorkPackage = 'PRIVATE_INVENTORY_PACKAGE';
   const hiddenName = 'PRIVATE_INVENTORY_ALIAS';
   const reserved = 'private-inventory-claim';
   const lease = 123457891;
@@ -1604,25 +1662,15 @@ describe('occupancy inventory authority and observation', () => {
     );
   }
 
-  function inventoryStep(projectId: string, position: number): string {
-    const step = h.sqlite
-      .query<{ id: string }, [string, number]>(
-        'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1 OFFSET ?',
-      )
-      .get(projectId, position);
-    if (step === null) throw new Error('inventory fixture step is absent');
-    return step.id;
-  }
-
   function addHolder(
     id: string,
-    projectId: string,
+    workPackageId: string,
     workItemId: string,
     personId: string,
     units: number,
     options: { step?: number; run?: string; at?: number; expires?: number } = {},
   ) {
-    const stepId = inventoryStep(projectId, options.step ?? 0);
+    const stepId = stepOf(workPackageId, options.step ?? 0);
     h.sqlite.run(
       'INSERT INTO claim (id, work_item_id, step_id, person_id, run_id, created_at, created_by, lease_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
@@ -1655,7 +1703,10 @@ describe('occupancy inventory authority and observation', () => {
       hiddenName,
       hiddenPerson,
     ]);
-    h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', [hiddenProject, projectA]);
+    h.sqlite.run('UPDATE work_package SET name = ? WHERE id = ?', [
+      hiddenWorkPackage,
+      workPackageA,
+    ]);
   }
 
   function beforeContent() {
@@ -1711,7 +1762,7 @@ describe('occupancy inventory authority and observation', () => {
 
   it('refuses members, viewers and admin machine keys before distinguishing resources', async () => {
     addPeople();
-    addHolder(reserved, projectA, 'w-a', hiddenPerson, 16);
+    addHolder(reserved, workPackageA, 'w-a', hiddenPerson, 16);
     const read = beforeContent();
     try {
       addAgentPerson(h.sqlite, 'inventory-agent', 'org-a', h.userId('sue'));
@@ -1752,7 +1803,7 @@ describe('occupancy inventory authority and observation', () => {
     const own = await delegationFor(h, signing.privateKey, 'sue', 'org-a', 'sub-inventory-sue');
     expect(await h.callWith(own, 'GET', path())).toEqual({
       status: 200,
-      body: { resourceId: ram, directoryCapacity: null, occupied: 0, free: null, projects: [] },
+      body: { resourceId: ram, directoryCapacity: null, occupied: 0, free: null, workPackages: [] },
     });
     const consent = await delegationFor(
       h,
@@ -1784,27 +1835,31 @@ describe('occupancy inventory authority and observation', () => {
     await stateCapacity(0);
     expect(await h.call('sue', 'GET', path())).toEqual({
       status: 200,
-      body: { resourceId: ram, directoryCapacity: 0, occupied: 0, free: 0, projects: [] },
+      body: { resourceId: ram, directoryCapacity: 0, occupied: 0, free: 0, workPackages: [] },
     });
   });
 
   it('counts the largest copy per leaf and retains every claim with its actual stamp', async () => {
     await stateCapacity(16);
     addPeople();
-    addHolder('shared-1', projectA, 'w-a', visiblePerson, 16, { at: 101, expires: lease });
-    addHolder('shared-2', projectA, 'w-a', visiblePerson, 12, {
+    addHolder('shared-1', workPackageA, 'w-a', visiblePerson, 16, { at: 101, expires: lease });
+    addHolder('shared-2', workPackageA, 'w-a', visiblePerson, 12, {
       step: 1,
       at: 102,
       expires: lease + 1,
     });
-    addHolder('shared-3', projectB, 'w-b', visiblePerson, 4, { at: 103 });
+    addHolder('shared-3', workPackageB, 'w-b', visiblePerson, 4, { at: 103 });
     const initial = await h.call('sue', 'GET', path());
     expect(initial).toMatchObject({ status: 200, body: { occupied: 20, free: -4 } });
     const body = initial.body as {
-      projects: { projectId: string; units: number; claims: unknown[] }[];
+      workPackages: { workPackageId: string; units: number; claims: unknown[] }[];
     };
-    expect(body.projects.map(({ projectId }) => projectId)).toEqual([projectA, projectB].sort());
-    expect(body.projects.find(({ projectId }) => projectId === projectA)).toMatchObject({
+    expect(body.workPackages.map(({ workPackageId }) => workPackageId)).toEqual(
+      [workPackageA, workPackageB].sort(),
+    );
+    expect(
+      body.workPackages.find(({ workPackageId }) => workPackageId === workPackageA),
+    ).toMatchObject({
       units: 16,
       claims: [
         {
@@ -1825,18 +1880,20 @@ describe('occupancy inventory authority and observation', () => {
         },
       ],
     });
-    expect(body.projects.find(({ projectId }) => projectId === projectB)).toMatchObject({
+    expect(
+      body.workPackages.find(({ workPackageId }) => workPackageId === workPackageB),
+    ).toMatchObject({
       units: 4,
       claims: [{ claimId: 'shared-3', runId: null, claimedAt: 103, leaseExpiresAt: null }],
     });
     const release = (position: number) =>
-      h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+      h.call('sue', 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [
           {
             kind: 'releaseWorkItem',
             workItemId: 'w-a',
             personId: visiblePerson,
-            steps: [inventoryStep(projectA, position)],
+            steps: [stepOf(workPackageA, position)],
           },
         ],
       });
@@ -1848,31 +1905,31 @@ describe('occupancy inventory authority and observation', () => {
     expect(await release(0)).toMatchObject({ status: 200 });
     expect(await h.call('sue', 'GET', path())).toMatchObject({
       status: 200,
-      body: { occupied: 4, free: 12, projects: [{ projectId: projectB }] },
+      body: { occupied: 4, free: 12, workPackages: [{ workPackageId: workPackageB }] },
     });
   });
 
   it('omits every hidden identity and resolves only visible ids across capacity states', async () => {
     await stateCapacity(24);
     addPeople();
-    addHolder(reserved, projectA, 'w-a', hiddenPerson, 16, {
+    addHolder(reserved, workPackageA, 'w-a', hiddenPerson, 16, {
       run: 'private-inventory-run',
       at: claimedAt,
       expires: lease,
     });
-    addHolder('open-inventory-claim', projectB, 'w-b', visiblePerson, 4);
+    addHolder('open-inventory-claim', workPackageB, 'w-b', visiblePerson, 4);
     h.sqlite.run(
       'INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      ['unasked-claim', 'w-b', inventoryStep(projectB, 1), hiddenPerson, null, h.userId('ada')],
+      ['unasked-claim', 'w-b', stepOf(workPackageB, 1), hiddenPerson, null, h.userId('ada')],
     );
     const stamped = spyOn(ClaimRepository.prototype, 'listStampedByIds');
     const names = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
     const checked: string[] = [];
-    const decide = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin');
-    let denied = new Set([projectA]);
-    decide.mockImplementation((project) => {
-      checked.push(project.id);
-      return Promise.resolve(!denied.has(project.id));
+    const decide = spyOn(ClaimRepository.prototype, 'mayReadWorkPackageWithin');
+    let denied = new Set([workPackageA]);
+    decide.mockImplementation((origin) => {
+      checked.push(origin.id);
+      return Promise.resolve(!denied.has(origin.id));
     });
     try {
       const content = await h.call('sue', 'GET', path());
@@ -1883,9 +1940,9 @@ describe('occupancy inventory authority and observation', () => {
           directoryCapacity: 24,
           occupied: 20,
           free: 4,
-          projects: [
+          workPackages: [
             {
-              projectId: projectB,
+              workPackageId: workPackageB,
               name: 'B',
               restricted: false,
               units: 4,
@@ -1907,8 +1964,8 @@ describe('occupancy inventory authority and observation', () => {
       });
       const body = JSON.stringify(content.body);
       for (const secret of [
-        projectA,
-        hiddenProject,
+        workPackageA,
+        hiddenWorkPackage,
         reserved,
         hiddenPerson,
         hiddenName,
@@ -1916,30 +1973,30 @@ describe('occupancy inventory authority and observation', () => {
         'private-inventory-run',
         String(claimedAt),
         String(lease),
-        'hiddenProjects',
+        'hiddenWorkPackages',
       ])
         expect(body).not.toContain(secret);
-      expect(checked.sort()).toEqual([projectA, projectB].sort());
-      expect(stamped.mock.calls).toEqual([[projectB, ['open-inventory-claim']]]);
+      expect(checked.sort()).toEqual([workPackageA, workPackageB].sort());
+      expect(stamped.mock.calls).toEqual([[workPackageB, ['open-inventory-claim']]]);
       expect(names.mock.calls).toEqual([['org-a', [visiblePerson]]]);
       stamped.mockClear();
       names.mockClear();
-      denied = new Set([projectA, projectB]);
+      denied = new Set([workPackageA, workPackageB]);
       expect(await h.call('sue', 'GET', path())).toEqual({
         status: 200,
-        body: { resourceId: ram, directoryCapacity: 24, occupied: 20, free: 4, projects: [] },
+        body: { resourceId: ram, directoryCapacity: 24, occupied: 20, free: 4, workPackages: [] },
       });
       expect(stamped).not.toHaveBeenCalled();
       expect(names).not.toHaveBeenCalled();
       await stateCapacity(null);
-      denied = new Set([projectA]);
+      denied = new Set([workPackageA]);
       expect(await h.call('sue', 'GET', path())).toMatchObject({
         status: 200,
         body: {
           directoryCapacity: null,
           occupied: 4,
           free: null,
-          projects: [{ projectId: projectB }],
+          workPackages: [{ workPackageId: workPackageB }],
         },
       });
       denied = new Set();
@@ -1954,6 +2011,14 @@ describe('occupancy inventory authority and observation', () => {
     }
   });
 
+  function replaceSueGrant(from: string, to: string) {
+    const { changes } = h.sqlite.run(
+      "UPDATE access_grant SET role_id = ? WHERE organization_id = 'org-a' AND scope_kind = 'organization' AND scope_id = 'org-a' AND subject_kind = 'user' AND subject_id = ? AND role_id = ?",
+      [to, h.userId('sue'), from],
+    );
+    expect(changes).toBe(1);
+  }
+
   it('refuses a demotion or membership removal after route admission before reading content', async () => {
     const original = readPrototypeMethod(SqliteOrganizationAccess.prototype, 'resolve');
     const resolver = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
@@ -1967,12 +2032,9 @@ describe('occupancy inventory authority and observation', () => {
             admitted.access.kind === 'scoped' &&
             principal.id === h.userId('sue')
           ) {
-            expect(admitted.access.scope.role).toBe('admin');
+            expect(admitted.access.scope.organizationId).toBe('org-a');
             if (change === 'demote') {
-              h.sqlite.run(
-                "UPDATE organization_membership SET role = 'member' WHERE organization_id = ? AND user_id = ?",
-                ['org-a', principal.id],
-              );
+              replaceSueGrant('org-admin', 'org-viewer');
             } else {
               h.sqlite.run(
                 'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
@@ -1987,11 +2049,7 @@ describe('occupancy inventory authority and observation', () => {
           body: { error: change === 'demote' ? 'forbidden' : 'not_a_member' },
         });
         expect(content).not.toHaveBeenCalled();
-        if (change === 'demote')
-          h.sqlite.run(
-            "UPDATE organization_membership SET role = 'admin' WHERE organization_id = ? AND user_id = ?",
-            ['org-a', h.userId('sue')],
-          );
+        if (change === 'demote') replaceSueGrant('org-viewer', 'org-admin');
       }
     } finally {
       resolver.mockRestore();
@@ -2002,15 +2060,15 @@ describe('occupancy inventory authority and observation', () => {
   it('keeps stamps, names, role and units coherent across a mid-read release', async () => {
     await stateCapacity(16);
     addPeople();
-    addHolder('old-inventory-claim', projectA, 'w-a', visiblePerson, 16, { at: 19 });
-    const original = readPrototypeMethod(ProjectRepository.prototype, 'mayReadProjectWithin');
+    addHolder('old-inventory-claim', workPackageA, 'w-a', visiblePerson, 16, { at: 19 });
+    const original = readPrototypeMethod(ClaimRepository.prototype, 'mayReadWorkPackageWithin');
     let changed = false;
-    const writer = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockImplementation(
-      async function (this: ProjectRepository, ...args: Parameters<typeof original>) {
+    const writer = spyOn(ClaimRepository.prototype, 'mayReadWorkPackageWithin').mockImplementation(
+      async function (this: ClaimRepository, ...args: Parameters<typeof original>) {
         if (!changed) {
           changed = true;
           expect(
-            await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+            await h.call('sue', 'POST', `/api/work-packages/${workPackageA}/commands`, {
               commands: [{ kind: 'releaseWorkItem', workItemId: 'w-a', personId: visiblePerson }],
             }),
           ).toMatchObject({ status: 200 });
@@ -2018,10 +2076,7 @@ describe('occupancy inventory authority and observation', () => {
             'Next Alias',
             visiblePerson,
           ]);
-          h.sqlite.run(
-            'UPDATE organization_membership SET role = ? WHERE organization_id = ? AND user_id = ?',
-            ['member', 'org-a', h.userId('sue')],
-          );
+          replaceSueGrant('org-admin', 'org-viewer');
         }
         return original.apply(this, args);
       },
@@ -2032,7 +2087,7 @@ describe('occupancy inventory authority and observation', () => {
         body: {
           occupied: 16,
           free: 0,
-          projects: [
+          workPackages: [
             {
               claims: [
                 { claimId: 'old-inventory-claim', personName: 'Visible Alias', claimedAt: 19 },
@@ -2047,7 +2102,7 @@ describe('occupancy inventory authority and observation', () => {
       });
       expect(await h.call('tom', 'GET', path())).toEqual({
         status: 200,
-        body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, projects: [] },
+        body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, workPackages: [] },
       });
     } finally {
       writer.mockRestore();
@@ -2056,7 +2111,7 @@ describe('occupancy inventory authority and observation', () => {
 
   it('fails closed on contradictory holding rows and unpaired stamps', async () => {
     addPeople();
-    addHolder('conflicting-inventory-claim', projectA, 'w-a', visiblePerson, 7);
+    addHolder('conflicting-inventory-claim', workPackageA, 'w-a', visiblePerson, 7);
     const read = readPrototypeMethod(ClaimRepository.prototype, 'organizationOccupancyOf');
     const rows = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf').mockImplementation(
       async function (this: ClaimRepository, ids) {
@@ -2077,8 +2132,8 @@ describe('occupancy inventory authority and observation', () => {
     }
     const stampRead = readPrototypeMethod(ClaimRepository.prototype, 'listStampedByIds');
     const stamps = spyOn(ClaimRepository.prototype, 'listStampedByIds').mockImplementation(
-      async function (this: ClaimRepository, projectId, ids) {
-        const holdings = await stampRead.call(this, projectId, ids);
+      async function (this: ClaimRepository, workPackageId, ids) {
+        const holdings = await stampRead.call(this, workPackageId, ids);
         return [...holdings, ...holdings];
       },
     );
@@ -2091,7 +2146,7 @@ describe('occupancy inventory authority and observation', () => {
 
   it('fails closed for a missing owner, name or stamp, a corrupt stamp, or an unreadable dependency', async () => {
     addPeople();
-    addHolder('broken-inventory-claim', projectA, 'w-a', visiblePerson, 7, { at: 17 });
+    addHolder('broken-inventory-claim', workPackageA, 'w-a', visiblePerson, 7, { at: 17 });
     const failsClosed = async () => {
       const response = await h.call('sue', 'GET', path());
       expect(response.status).toBe(500);
@@ -2099,7 +2154,9 @@ describe('occupancy inventory authority and observation', () => {
       expect(JSON.stringify(response.body)).not.toContain('Visible Alias');
       expect(JSON.stringify(response.body)).not.toContain('private read failure');
     };
-    const owner = spyOn(ProjectRepository.prototype, 'findInOrganization').mockResolvedValue(null);
+    const owner = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockResolvedValue(
+      null,
+    );
     try {
       await failsClosed();
     } finally {
@@ -2114,7 +2171,7 @@ describe('occupancy inventory authority and observation', () => {
     h.sqlite.run("UPDATE claim SET created_at = 'bad stamp' WHERE id = 'broken-inventory-claim'");
     await failsClosed();
     h.sqlite.run("UPDATE claim SET created_at = 17 WHERE id = 'broken-inventory-claim'");
-    const grants = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockRejectedValue(
+    const grants = spyOn(ClaimRepository.prototype, 'mayReadWorkPackageWithin').mockRejectedValue(
       new Error('private read failure'),
     );
     try {

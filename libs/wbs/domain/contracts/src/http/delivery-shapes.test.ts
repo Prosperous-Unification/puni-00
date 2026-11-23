@@ -4,10 +4,10 @@ import { clientFromShapes } from './client';
 import { documentFromShapes } from './document-from-shapes';
 import { httpShapes } from './shapes';
 
-const operation = 'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery';
+const operation = 'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery';
 test('exposes a typed saved-reference read through the shared client and OpenAPI', async () => {
   const client = clientFromShapes(httpShapes, (shape, input) => {
-    expect(shape.path).toBe('/api/projects/:id/work-items/:workItemId/refs/:refId/delivery');
+    expect(shape.path).toBe('/api/work-packages/:id/work-items/:workItemId/refs/:refId/delivery');
     expect(input.params).toEqual({ id: 'p', workItemId: 'w', refId: 'r' });
     return Promise.resolve({
       kind: 'json',
@@ -27,7 +27,9 @@ test('exposes a typed saved-reference read through the shared client and OpenAPI
   });
   const document = documentFromShapes(httpShapes);
   expect(
-    document.paths['/api/projects/{id}/work-items/{workItemId}/refs/{refId}/delivery']?.['get'],
+    document.paths['/api/work-packages/{id}/work-items/{workItemId}/refs/{refId}/delivery']?.[
+      'get'
+    ],
   ).toMatchObject({ operationId: operation });
 });
 

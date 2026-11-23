@@ -220,7 +220,7 @@ export function rollUpActuals(
  * otherwise.
  *
  * **One metric per call, and that is the decision.** `measures` is the whole
- * project's rows in all three units, and folding them together would mean
+ * work package's rows in all three units, and folding them together would mean
  * either three parallel maps threaded through one recursion or a fold whose
  * combine has to know which unit each pair of numbers is in. Both are ways of
  * writing "add tokens to hours" and having it typecheck. Filtering to a metric

@@ -27,9 +27,9 @@ export type SavedComparisonVariant =
     }
   | Exclude<CapturedVariant, { state: 'ready' | 'boundary-infeasible' }>;
 
-/** Captured identity labels remain readable after live projects, rows or steps are deleted. */
-export interface SavedComparisonProject {
-  readonly projectId: string;
+/** Captured identity labels remain readable after live work packages, rows or steps are deleted. */
+export interface SavedComparisonWorkPackage {
+  readonly workPackageId: string;
   readonly name: string;
   readonly abbreviation: string;
 }
@@ -37,16 +37,16 @@ export interface SavedComparisonProject {
 /** Exact pre-selection foreign positions on the captured common workday axis. */
 export interface SavedComparisonBoundary {
   readonly kind: 'connected-stage';
-  readonly projectId: string;
-  readonly format: 'connected-stage-v1';
+  readonly workPackageId: string;
+  readonly format: 'connected-stage-v1' | 'connected-stage-v2';
   readonly canonical: string;
   readonly originOrdinal: number;
   readonly fixed: readonly {
-    readonly projectId: string;
+    readonly workPackageId: string;
     readonly workItemId: string;
     readonly stepId: string | null;
-    readonly projectName: string;
-    readonly projectAbbreviation: string;
+    readonly workPackageName: string;
+    readonly workPackageAbbreviation: string;
     readonly workItemName: string;
     readonly stepName: string | null;
     readonly start: number;
@@ -55,7 +55,7 @@ export interface SavedComparisonBoundary {
 }
 
 /** Both observed objectives and the selected one describe this immutable stage only. */
-export interface SavedComparisonStage extends SavedComparisonProject {
+export interface SavedComparisonStage extends SavedComparisonWorkPackage {
   readonly engine: CapturedStage['engine'];
   readonly objective: CapturedStage['objective'];
   readonly observation: CapturedStage['observation'];
@@ -67,9 +67,10 @@ export interface SavedComparisonStage extends SavedComparisonProject {
   readonly boundary: SavedComparisonBoundary;
 }
 
-/** Per-side scope survives an empty diff; legacy formats never imply a capture mode. */
+/** Per-side dependency and parent evidence survive an empty diff without inferring unrecorded facts. */
 export interface SavedComparisonSide {
   readonly source: SavedPlanSideRef;
+  readonly parent: PlanSide['inputEvidence']['parent'];
   readonly schedule:
     | { readonly present: true; readonly algorithmId: string }
     | { readonly present: false; readonly absentReason: string };
@@ -78,47 +79,51 @@ export interface SavedComparisonSide {
     | { readonly kind: 'local' }
     | {
         readonly kind: 'connected';
-        readonly targetProjectId: string;
+        readonly targetWorkPackageId: string;
         readonly mode: SavedConnectedDependencyHistory['mode'];
         readonly placementState: SavedConnectedDependencyHistory['placementState'];
-        readonly projects: readonly SavedComparisonProject[];
-        readonly idleProjects: readonly SavedComparisonProject[];
+        readonly workPackages: readonly SavedComparisonWorkPackage[];
+        readonly idleWorkPackages: readonly SavedComparisonWorkPackage[];
         readonly stages: readonly SavedComparisonStage[];
       };
 }
 
 /**
- * Project an already resolved, integrity-verified side using frozen historical decoders only.
- * No capture, shelf, directory, settings or scheduler capability is accepted. The existing legacy resolver
- * retains its normalized v9 shape, so only explicitly captured input10 establishes local provenance. Throws for missing captured labels.
+ * Summarize an already resolved, integrity-verified side using frozen historical decoders only.
+ * No capture, shelf, directory, settings or scheduler capability is accepted.
+ * The verified original-version projection supplies explicit dependency and parent evidence:
+ * pre10 dependencies and original1–11 parents stay unrecorded; recorded facts remain distinct.
+ * @throws for missing captured labels; no live lookup substitutes for absent historical evidence.
  * Comparison HTTP responses require this summary on each side, including empty diffs.
  */
 export function summarizeSavedComparisonSide(
   side: PlanSide,
   source: SavedPlanSideRef,
 ): SavedComparisonSide {
-  return detachHistory(projectComparisonSide(side, source));
+  return detachHistory(deriveComparisonSide(side, source));
 }
 
-function projectComparisonSide(side: PlanSide, source: SavedPlanSideRef): SavedComparisonSide {
+function deriveComparisonSide(side: PlanSide, source: SavedPlanSideRef): SavedComparisonSide {
   const schedule = side.schedule.present
     ? { present: true as const, algorithmId: side.schedule.algorithmId }
     : { present: false as const, absentReason: side.schedule.absentReason };
-  const base = { source: { ...source }, schedule };
-  if (side.input.schemaVersion !== 10) return { ...base, provenance: { kind: 'legacy-unknown' } };
-  const history = side.input.dependencyHistory;
+  const base = { source: { ...source }, schedule, parent: { ...side.inputEvidence.parent } };
+  const dependencies = side.inputEvidence.dependencies;
+  if (dependencies.kind === 'unrecorded')
+    return { ...base, provenance: { kind: 'legacy-unknown' } };
+  const history = dependencies.history;
   if (history.kind === 'local') return { ...base, provenance: { kind: 'local' } };
   const evidence = side.schedule.present
     ? readSavedConnectedScheduleBody(side.schedule.body).connection
     : null;
-  const projects = history.projects.map(projectLabel);
+  const workPackages = history.workPackages.map(workPackageLabel);
   const stages =
     evidence === null
       ? []
       : evidence.stages.map((stage): SavedComparisonStage => {
-          const project = findProject(history, stage.projectId);
+          const workPackage = findWorkPackage(history, stage.workPackageId);
           return {
-            ...projectLabel(project),
+            ...workPackageLabel(workPackage),
             engine: stage.engine,
             objective: stage.objective,
             observation: stage.observation,
@@ -138,30 +143,37 @@ function projectComparisonSide(side: PlanSide, source: SavedPlanSideRef): SavedC
     ...base,
     provenance: {
       kind: 'connected',
-      targetProjectId: history.targetProjectId,
+      targetWorkPackageId: history.targetWorkPackageId,
       mode: history.mode,
       placementState: structuredClone(history.placementState),
-      projects,
-      idleProjects:
+      workPackages,
+      idleWorkPackages:
         evidence === null
           ? []
-          : evidence.idleProjects.map((projectId) => projectLabel(findProject(history, projectId))),
+          : evidence.idleWorkPackages.map((workPackageId) =>
+              workPackageLabel(findWorkPackage(history, workPackageId)),
+            ),
       stages,
     },
   };
 }
 
-function projectLabel(
-  project: SavedConnectedDependencyHistory['projects'][number],
-): SavedComparisonProject {
-  return { projectId: project.projectId, name: project.name, abbreviation: project.abbreviation };
+function workPackageLabel(
+  workPackage: SavedConnectedDependencyHistory['workPackages'][number],
+): SavedComparisonWorkPackage {
+  return {
+    workPackageId: workPackage.workPackageId,
+    name: workPackage.name,
+    abbreviation: workPackage.abbreviation,
+  };
 }
 
-function findProject(history: SavedConnectedDependencyHistory, projectId: string) {
-  const project = history.projects.find((member) => member.projectId === projectId);
-  // Proof: pure/provisional; removing this guard fails `refuses missing captured project labels` (project-label-guard.log.txt).
-  if (project === undefined) throw new Error(`Missing captured project label: ${projectId}`);
-  return project;
+function findWorkPackage(history: SavedConnectedDependencyHistory, workPackageId: string) {
+  const workPackage = history.workPackages.find((member) => member.workPackageId === workPackageId);
+  // Proof: pure/provisional; removing this guard fails `refuses missing captured workPackage labels` (work-package-label-guard.log.txt).
+  if (workPackage === undefined)
+    throw new Error(`Missing captured work package label: ${workPackageId}`);
+  return workPackage;
 }
 
 function summarizeVariant(variant: CapturedVariant): SavedComparisonVariant {
@@ -191,10 +203,10 @@ function summarizeBoundary(
   // Boundary: the frozen decoder proves each slice has exactly one numeric start and finish.
   const starts = Object.fromEntries(packet.starts);
   const finishes = Object.fromEntries(packet.finishes);
-  for (const [workItemId, projectId] of packet.ownership) {
-    if (projectId === stage.projectId) continue;
-    const project = findProject(history, projectId);
-    const row = project.workItems.find((candidate) => candidate.id === workItemId);
+  for (const [workItemId, workPackageId] of packet.ownership) {
+    if (workPackageId === stage.workPackageId) continue;
+    const workPackage = findWorkPackage(history, workPackageId);
+    const row = workPackage.workItems.find((candidate) => candidate.id === workItemId);
     // Proof: pure/provisional; removing this guard fails `refuses missing captured row labels` (row-label-guard.log.txt).
     if (row === undefined) throw new Error(`Missing captured row label: ${workItemId}`);
     for (const group of packet.slices.filter((candidate) => candidate.workItemId === workItemId)) {
@@ -202,7 +214,7 @@ function summarizeBoundary(
         const step =
           slice.stepId === null
             ? null
-            : project.steps.find((candidate) => candidate.id === slice.stepId);
+            : workPackage.steps.find((candidate) => candidate.id === slice.stepId);
         // Proof: pure/provisional; removing this guard fails `refuses missing captured step labels` (step-label-guard.log.txt).
         if (step === undefined)
           throw new Error(`Missing captured step label: ${String(slice.stepId)}`);
@@ -210,11 +222,11 @@ function summarizeBoundary(
         const start = starts[key];
         const finish = finishes[key];
         fixed.push({
-          projectId,
+          workPackageId,
           workItemId,
           stepId: slice.stepId,
-          projectName: project.name,
-          projectAbbreviation: project.abbreviation,
+          workPackageName: workPackage.name,
+          workPackageAbbreviation: workPackage.abbreviation,
           workItemName: row.name,
           stepName: step === null ? null : step.name,
           start,
@@ -225,7 +237,7 @@ function summarizeBoundary(
   }
   return {
     kind: 'connected-stage',
-    projectId: stage.projectId,
+    workPackageId: stage.workPackageId,
     format: stage.format,
     canonical: stage.stageBytes,
     originOrdinal: packet.originOrdinal,

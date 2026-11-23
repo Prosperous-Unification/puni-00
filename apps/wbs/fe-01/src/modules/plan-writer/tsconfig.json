@@ -9,6 +9,7 @@
     "../../components/wbs/editable-grid.ts",
     "../../components/wbs/live-editing.ts",
     // The refusal words a refused gesture is announced in.
-    "../../components/wbs/plan-refusal.ts"
+    "../../components/wbs/plan-refusal.ts",
+    "../../testing/stub-server.ts"
   ]
 }

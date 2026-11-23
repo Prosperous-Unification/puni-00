@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
@@ -20,8 +21,8 @@ let path: string;
 let db: Database;
 
 /**
- * A store at {@link BASELINE} shaped like dev: project `p` owned by `org-a`,
- * project `q` owned by nobody, legacy token estimates on both beside token and
+ * A store at {@link BASELINE} shaped like dev: work package `p` owned by `org-a`,
+ * work package `q` owned by nobody, legacy token estimates on both beside token and
  * hours facts, written with audit columns the way the outgoing release writes.
  */
 function seedBaseline(): void {
@@ -93,8 +94,11 @@ function single(workItemId: string, stepId: string, value: number, key: string |
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-estimate-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -111,7 +115,7 @@ beforeEach(() => {
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -208,7 +212,7 @@ describe(MIGRATION, () => {
 
   // Proof: with the keying trigger's UPDATE replaced by `SELECT 1`, this case
   // read q's trio unkeyed; watched 2026-10-23.
-  it('keys an unowned project’s trios when an organization takes it', () => {
+  it('keys an unowned work package’s trios when an organization takes it', () => {
     db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-a')");
     expect(trios()).toContainEqual(single('q-one', 'q-dev', 50, 'tokens'));
   });
@@ -220,7 +224,7 @@ describe(MIGRATION, () => {
       "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('p-two', 'p-dev', 'tokens', 1, 2, 3)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'measure estimates the legacy token estimate cannot hold exist',
     );
     db = openDatabase(path);
@@ -230,7 +234,7 @@ describe(MIGRATION, () => {
       "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('p-two', 'p-dev', 'cost', 1, 1, 1)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'measure estimates the legacy token estimate cannot hold exist',
     );
     db = openDatabase(path);
@@ -240,7 +244,9 @@ describe(MIGRATION, () => {
   it('rolls back over single-point trios alone, keeping every legacy row, and comes forward again', () => {
     const before = legacyRows();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -260,7 +266,7 @@ describe(MIGRATION, () => {
     ).toEqual([]);
     expect(legacyRows()).toEqual(before);
     db.close();
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     db = openDatabase(path);
     expect(trios()).toEqual([
       single('p-one', 'p-dev', 12000, 'tokens'),

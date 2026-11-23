@@ -1,25 +1,26 @@
 import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
 import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
-import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { inMemoryWorkPackages, workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 import { PlanEventService } from '../plan-event/plan-event.resource';
-import { ProjectService } from '../project/project.resource';
+import { WorkPackageService } from '../work-package/work-package.resource';
 import { installPlanHistory } from './check';
 import { PLAN_HISTORY_LABEL } from './contract';
 import { planHistoryModule } from './module';
 
 const requirements = () => ({
-  projects: new ProjectService({
+  workPackages: new WorkPackageService({
     dependencyContext: createLocalDependencyContext({
       ...inMemoryStores(),
-      projects: inMemoryProjects(),
+      workPackages: inMemoryWorkPackages(),
     }),
-    projects: inMemoryProjects(),
+    workPackages: inMemoryWorkPackages(),
     clock: testClock,
     broadcast: recordingBroadcaster(),
   }),
@@ -38,7 +39,7 @@ const completeHost = () =>
   DiBag.createBuilder()
     .withInstalledModules([planHistoryModule])
     .withServices({
-      projects: DiBag.createProvider(() => requirements().projects, {
+      workPackages: DiBag.createProvider(() => requirements().workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       planEvents: DiBag.createProvider(() => requirements().planEvents, {
@@ -48,33 +49,37 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan history module', () => {
-  it('answers not_found for a project nothing holds', async () => {
+  it('answers not_found for a work package nothing holds', async () => {
     const { history } = installPlanHistory(requirements());
 
-    expect(await history.read('no-such-project', {})).toEqual({
+    expect(await history.read('no-such-work-package', {})).toEqual({
       ok: false,
       reason: 'not_found',
     });
   });
 
-  it('reads the events of a project that exists', async () => {
-    const projectStore = inMemoryProjects();
-    const project = projectRow({ id: crypto.randomUUID() });
-    await projectStore.create(project, [], { at: 1, by: project.ownerId });
+  it('reads the events of a work package that exists', async () => {
+    const { workPackages: workPackageStore } = await createLegacyWorkPackageFixture(
+      'history-author',
+      'history-legacy',
+      'history-parent',
+    );
+    const workPackage = workPackageRow({ id: crypto.randomUUID(), projectId: 'history-parent' });
+    await workPackageStore.create(workPackage, [], { at: 1, by: 'history-author' });
     const { history } = installPlanHistory({
-      projects: new ProjectService({
+      workPackages: new WorkPackageService({
         dependencyContext: createLocalDependencyContext({
           ...inMemoryStores(),
-          projects: projectStore,
+          workPackages: workPackageStore,
         }),
-        projects: projectStore,
+        workPackages: workPackageStore,
         clock: testClock,
         broadcast: recordingBroadcaster(),
       }),
       planEvents: new PlanEventService(inMemoryPlanEvents()),
     });
 
-    expect(await history.read(project.id, {})).toEqual({ ok: true, value: [] });
+    expect(await history.read(workPackage.id, {})).toEqual({ ok: true, value: [] });
   });
 
   /**
@@ -123,7 +128,7 @@ describe('the Plan history module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([planHistoryModule])
       .withServices({
-        projects: DiBag.createProvider(() => requirements().projects, {
+        workPackages: DiBag.createProvider(() => requirements().workPackages, {
           factoryReturnKind: 'sync-value',
         }),
       }) as unknown as {

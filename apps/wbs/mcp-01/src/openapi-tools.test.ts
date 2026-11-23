@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { documentFromShapes, httpShapes } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
 import type { DerivedTool, HumanOnlyOperation, OpenApiDocument } from './openapi-tools';
@@ -44,19 +45,19 @@ const fixture = (): FixtureDocument => ({
     '/api/organization/active': { post: { operationId: 'postApiOrganizationActive' } },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
-    '/api/projects/': {
+    '/api/work-packages/': {
       get: {
-        operationId: 'getApiProjects',
+        operationId: 'getApiWorkPackages',
         parameters: [{ name: 'q', in: 'query', required: false, schema: { type: 'string' } }],
       },
     },
-    '/api/projects/{id}': {
+    '/api/work-packages/{id}': {
       get: {
-        operationId: 'getApiProjectsById',
+        operationId: 'getApiWorkPackagesById',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       },
     },
-    '/api/projects/{id}/bands/{stepId}': {
+    '/api/work-packages/{id}/bands/{stepId}': {
       put: {
         operationId: 'putBand',
         summary: 'Set a band',
@@ -105,7 +106,7 @@ describe('toolsFromDocument, on a fixture document', () => {
   it('names each tool after its operationId and keeps its method and path', () => {
     const band = byName(derive(fixture()), 'putBand');
     expect(band.method).toBe('put');
-    expect(band.path).toBe('/api/projects/{id}/bands/{stepId}');
+    expect(band.path).toBe('/api/work-packages/{id}/bands/{stepId}');
     expect(band.description).toContain('Set a band');
     expect(band.description).toContain('Bands are derived downstream.');
   });
@@ -116,8 +117,8 @@ describe('toolsFromDocument, on a fixture document', () => {
   // one tool silently shadowing the other.
   it('throws on an operation with no operationId rather than synthesising one', () => {
     const document = fixture();
-    delete document.paths['/api/projects/{id}']?.['get']?.operationId;
-    expect(() => derive(document)).toThrow(/GET \/api\/projects\/\{id\} has no operationId/);
+    delete document.paths['/api/work-packages/{id}']?.['get']?.operationId;
+    expect(() => derive(document)).toThrow(/GET \/api\/work-packages\/\{id\} has no operationId/);
   });
 
   it('emits no tool for any of D1’s three exclusion classes', () => {
@@ -129,7 +130,7 @@ describe('toolsFromDocument, on a fixture document', () => {
     expect(names).not.toContain('postInternalForward');
     expect(names).not.toContain('getApiOrganizationMemberships');
     expect(names).not.toContain('postApiOrganizationActive');
-    expect([...names].sort()).toEqual(['getApiProjects', 'getApiProjectsById', 'putBand']);
+    expect([...names].sort()).toEqual(['getApiWorkPackages', 'getApiWorkPackagesById', 'putBand']);
   });
 
   // Watched red for task 2.3. Drop the stale check and this passes with an
@@ -170,14 +171,14 @@ describe('toolsFromDocument, on a fixture document', () => {
   });
 
   it('leaves an optional query parameter optional', () => {
-    const list = byName(derive(fixture()), 'getApiProjects');
+    const list = byName(derive(fixture()), 'getApiWorkPackages');
     expect(list.locations).toEqual({ q: 'query' });
     expect(list.inputSchema.required).toBeUndefined();
   });
 
   it('refuses a parameter it cannot send instead of dropping it', () => {
     const document = fixture();
-    document.paths['/api/projects/{id}']?.['get']?.parameters?.push({
+    document.paths['/api/work-packages/{id}']?.['get']?.parameters?.push({
       name: 'x-tenant',
       in: 'header',
       schema: { type: 'string' },
@@ -187,7 +188,7 @@ describe('toolsFromDocument, on a fixture document', () => {
 
   it('refuses a name claimed by both a parameter and a body property', () => {
     const document = fixture();
-    const body = document.paths['/api/projects/{id}/bands/{stepId}']?.['put']?.requestBody;
+    const body = document.paths['/api/work-packages/{id}/bands/{stepId}']?.['put']?.requestBody;
     const properties = body?.content?.['application/json']?.schema?.properties;
     if (properties === undefined) throw new Error('the fixture lost its body schema');
     properties['id'] = { type: 'string' };
@@ -203,8 +204,8 @@ describe('toolsFromDocument, on a fixture document', () => {
   });
 
   it('says so when the document carries no prose, rather than inventing any', () => {
-    expect(byName(derive(fixture()), 'getApiProjectsById').description).toBe(
-      'GET /api/projects/{id} — the OpenAPI document carries no prose for this operation.',
+    expect(byName(derive(fixture()), 'getApiWorkPackagesById').description).toBe(
+      'GET /api/work-packages/{id} — the OpenAPI document carries no prose for this operation.',
     );
   });
 
@@ -241,6 +242,65 @@ describe('toolsFromDocument, on the generated document', () => {
   const document = readDocument();
   const tools = toolsFromDocument(document);
 
+  it('derives the current scoped move tool independently of the retained creation-document epoch', () => {
+    const derived = toolsFromDocument(documentFromShapes(httpShapes));
+    const moved = byName(derived, 'postApiWorkPackagesByIdMove');
+    expect({ name: moved.name, method: moved.method, path: moved.path }).toEqual({
+      name: 'postApiWorkPackagesByIdMove',
+      method: 'post',
+      path: '/api/work-packages/{id}/move',
+    });
+    expect(moved.inputSchema.properties).toEqual({
+      id: { type: 'string', minLength: 1 },
+      projectId: { type: 'string', minLength: 1 },
+    });
+    expect(moved.inputSchema.required).toEqual(['id', 'projectId']);
+    expect(moved.inputSchema.additionalProperties).toBe(false);
+  });
+
+  it('offers five engagement-project CRUD tools with optional first-package creation', () => {
+    expect(
+      tools
+        .filter((tool) => tool.path === '/api/projects' || tool.path === '/api/projects/{id}')
+        .map(({ name, method, path }) => ({ name, method, path })),
+    ).toEqual([
+      { name: 'postApiProjects', method: 'post', path: '/api/projects' },
+      { name: 'getApiProjects', method: 'get', path: '/api/projects' },
+      { name: 'getApiProjectsById', method: 'get', path: '/api/projects/{id}' },
+      { name: 'patchApiProjectsById', method: 'patch', path: '/api/projects/{id}' },
+      { name: 'deleteApiProjectsById', method: 'delete', path: '/api/projects/{id}' },
+    ]);
+    const creation = byName(tools, 'postApiProjects');
+    expect(creation.inputSchema.properties).toEqual({
+      name: { type: 'string', minLength: 1 },
+      workPackage: {
+        type: 'object',
+        properties: { name: { type: 'string', minLength: 1 } },
+        required: ['name'],
+        additionalProperties: false,
+      },
+    });
+    expect(creation.inputSchema.required).toEqual(['name']);
+    expect(creation.inputSchema.additionalProperties).toBe(false);
+  });
+  it('publishes the separate engagement-project settings read and write tools', () => {
+    expect(
+      tools
+        .filter((tool) => tool.path === '/api/projects/{id}/settings')
+        .map(({ name, method, path }) => ({ name, method, path })),
+    ).toEqual([
+      { name: 'getApiProjectsByIdSettings', method: 'get', path: '/api/projects/{id}/settings' },
+      {
+        name: 'patchApiProjectsByIdSettings',
+        method: 'patch',
+        path: '/api/projects/{id}/settings',
+      },
+    ]);
+    for (const name of ['getApiProjectsByIdSettings', 'patchApiProjectsByIdSettings']) {
+      expect(byName(tools, name).locations['id']).toBe('path');
+      expect(byName(tools, name).inputSchema.required).toContain('id');
+    }
+  });
   it('documents backend grant issuance while keeping it out of MCP tools', () => {
     expect(document.paths).toHaveProperty(
       ['/internal/mcp/machine-grants', 'post', 'operationId'],
@@ -281,29 +341,19 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('exposes the import document tool', () => {
-    // Proof: removing importProject from httpShapes made this production-generated
-    // lookup throw `no tool named postApiProjectsImport was derived`.
-    const importDocument = byName(tools, 'postApiProjectsImport');
+    // Proof: removing importWorkPackage from httpShapes made this production-generated
+    // lookup throw `no tool named postApiWorkPackagesImport was derived`.
+    const importDocument = byName(tools, 'postApiWorkPackagesImport');
     expect(importDocument.method).toBe('post');
-    expect(importDocument.path).toBe('/api/projects/import');
+    expect(importDocument.path).toBe('/api/work-packages/import');
     expect(importDocument.inputSchema).toMatchObject({
       type: 'object',
-      properties: {
-        document: { type: 'object' },
-        settings: { type: 'object' },
-        workItems: { type: 'array' },
-      },
+      properties: { projectId: { type: 'string', minLength: 1 }, document: {} },
       additionalProperties: false,
     });
     expect([...(importDocument.inputSchema.required ?? [])].sort()).toEqual([
-      'calendarMarkers',
-      'capacity',
-      'directory',
       'document',
-      'priorityBands',
-      'settings',
-      'steps',
-      'workItems',
+      'projectId',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
     expect(EXCLUDED_PATHS).toHaveLength(4);
@@ -319,30 +369,30 @@ describe('toolsFromDocument, on the generated document', () => {
     // `expected [] to have a length of 0` with sixteen names in it. Watched,
     // 2026-08-29.
     const names = tools.map((tool) => tool.name);
-    expect(names).toContain('postApiProjectsByIdCommands');
+    expect(names).toContain('postApiWorkPackagesByIdCommands');
     expect(names).toContain('postApiDirectoryCommands');
     expect(tools.filter((tool) => tool.path.startsWith('/api/work-items/'))).toHaveLength(0);
     for (const single of [
-      'postApiProjectsByIdWork-items',
+      'postApiWorkPackagesByIdWork-items',
       'postApiTeams',
       'patchApiTeamsById',
       'deleteApiTeamsById',
       'postApiPeople',
       'postApiTags',
       'postApiServices',
-      'putApiProjectsByIdTeamsByTeamIdCapacity',
-      'putApiProjectsByIdPriority-bands',
-      'postApiProjectsByIdFreeze',
+      'putApiWorkPackagesByIdTeamsByTeamIdCapacity',
+      'putApiWorkPackagesByIdPriority-bands',
+      'postApiWorkPackagesByIdFreeze',
     ]) {
       expect(names).not.toContain(single);
     }
     // The reads that share a path with an excluded write are still here.
-    expect(names).toContain('getApiProjectsByIdWork-items');
+    expect(names).toContain('getApiWorkPackagesByIdWork-items');
     expect(names).toContain('getApiTeams');
   });
 
   it('describes every command kind in the commands tool, so a model needs no other document', () => {
-    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const commands = byName(tools, 'postApiWorkPackagesByIdCommands');
     const list = commands.inputSchema.properties['commands'] as {
       items: {
         anyOf: {
@@ -368,7 +418,7 @@ describe('toolsFromDocument, on the generated document', () => {
     // **36 to 37 with `arrange-by-schedule`**: `arrangeBySchedule`, and this
     // pin caught it exactly as its paragraph above promises — the change was
     // run against `domain`, `core`, `contracts`, `store-sqlite`, `store-memory`
-    // and `be-01`, and `mcp-01` was the project that noticed. Its `describe`
+    // and `be-01`, and `mcp-01` was the work package that noticed. Its `describe`
     // reads "Put every sibling group in the order its bars start.", which is
     // what the loop below is checking is there to read.
     const expectedKinds = [
@@ -406,12 +456,12 @@ describe('toolsFromDocument, on the generated document', () => {
       'updateTypedDependency',
       'removeTypedDependency',
       'arrangeBySchedule',
-      'freezeProject',
-      'unfreezeProject',
+      'freezeWorkPackage',
+      'unfreezeWorkPackage',
       'unfreezeWorkItem',
       'setCapacity',
       // `wbs-resources`: the batch tool carries the five resource kinds; the
-      // project resource read is the one tool the change adds.
+      // work package resource read is the one tool the change adds.
       'setResourceCapacity',
       'setDemand',
       'setStepAllowance',
@@ -469,7 +519,7 @@ describe('toolsFromDocument, on the generated document', () => {
     // WBS 010.4.10: the list shapes stay, so the schema alone would still
     // invite several types; the description and the declared 400 are what say
     // otherwise to a model calling this tool.
-    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const commands = byName(tools, 'postApiWorkPackagesByIdCommands');
     const list = commands.inputSchema.properties['commands'] as {
       items: { anyOf: { description: string; properties: { kind: { const: string } } }[] };
     };
@@ -482,7 +532,7 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(patch.description).toContain('at most one type');
     expect(patch.description).toContain('work_item_takes_one_type');
     // The derived operation type omits responses; the generated document has them.
-    const pathItem = document.paths?.['/api/projects/{id}/commands'] as
+    const pathItem = document.paths?.['/api/work-packages/{id}/commands'] as
       { post?: { responses?: Record<string, unknown> } } | undefined;
     const responses = pathItem?.post?.responses;
     // Proof: with only the runtime 400 arm removed this still passed, the parser
@@ -492,7 +542,7 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it("tells a model a claim or release naming no person is the agent's own, and declares person_required", () => {
-    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const commands = byName(tools, 'postApiWorkPackagesByIdCommands');
     const list = commands.inputSchema.properties['commands'] as {
       items: { anyOf: { description: string; properties: { kind: { const: string } } }[] };
     };
@@ -509,7 +559,7 @@ describe('toolsFromDocument, on the generated document', () => {
         'a caller acting as its account (browser or MCP session without an agent, upstream token) must name one, else person_required',
       );
     }
-    const pathItem = document.paths?.['/api/projects/{id}/commands'] as
+    const pathItem = document.paths?.['/api/work-packages/{id}/commands'] as
       { post?: { responses?: Record<string, unknown> } } | undefined;
     // Proof: with `person_required` removed from the batch 400 arm in
     // work-item-shapes.ts this failed on the missing code; watched 2026-10-26.
@@ -520,7 +570,7 @@ describe('toolsFromDocument, on the generated document', () => {
     // `step-node-attempts` D3: Settings and a model read the zones the server accepts.
     const timezones = byName(tools, 'getApiTimezones');
     expect([timezones.method, timezones.path]).toEqual(['get', '/api/timezones']);
-    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const commands = byName(tools, 'postApiWorkPackagesByIdCommands');
     const list = commands.inputSchema.properties['commands'] as {
       items: {
         anyOf: { properties: { kind: { const: string }; stepNodeId?: { type: string } } }[];
@@ -533,9 +583,9 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('derives a path-parameter-only read the way the document declares it', () => {
-    const workItem = byName(tools, 'getApiProjectsByIdWork-itemsByWorkItemId');
+    const workItem = byName(tools, 'getApiWorkPackagesByIdWork-itemsByWorkItemId');
     expect(workItem.method).toBe('get');
-    expect(workItem.path).toBe('/api/projects/{id}/work-items/{workItemId}');
+    expect(workItem.path).toBe('/api/work-packages/{id}/work-items/{workItemId}');
     expect(workItem.inputSchema).toEqual({
       type: 'object',
       properties: { id: { type: 'string' }, workItemId: { type: 'string' } },
@@ -545,8 +595,8 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('keeps the whole-tree read callable with its id alone, full=true optional', () => {
-    const workItems = byName(tools, 'getApiProjectsByIdWork-items');
-    expect(workItems.path).toBe('/api/projects/{id}/work-items');
+    const workItems = byName(tools, 'getApiWorkPackagesByIdWork-items');
+    expect(workItems.path).toBe('/api/work-packages/{id}/work-items');
     expect(workItems.inputSchema).toEqual({
       type: 'object',
       properties: { id: { type: 'string' }, full: { const: 'true' } },
@@ -557,9 +607,9 @@ describe('toolsFromDocument, on the generated document', () => {
 
   it('carries node resource constraints through generated read descriptors for MCP', () => {
     for (const path of [
-      '/api/projects/{id}/work-items',
-      '/api/projects/{id}/work-items/{workItemId}',
-      '/api/projects/{id}/work-item-rows',
+      '/api/work-packages/{id}/work-items',
+      '/api/work-packages/{id}/work-items/{workItemId}',
+      '/api/work-packages/{id}/work-item-rows',
     ]) {
       const operation = document.paths?.[path]?.['get'] as { responses?: unknown } | undefined;
       const serialized = JSON.stringify(operation?.responses);
@@ -567,13 +617,13 @@ describe('toolsFromDocument, on the generated document', () => {
       expect(serialized).toContain('fromStepId');
       expect(serialized).toContain('fromWorkItemId');
     }
-    const rows = byName(tools, 'getApiProjectsByIdWork-item-rows');
+    const rows = byName(tools, 'getApiWorkPackagesByIdWork-item-rows');
     expect(rows.inputSchema.properties).toHaveProperty('fields');
   });
 
   it('derives the work-item page with every filter optional', () => {
-    const rows = byName(tools, 'getApiProjectsByIdWork-item-rows');
-    expect(rows.path).toBe('/api/projects/{id}/work-item-rows');
+    const rows = byName(tools, 'getApiWorkPackagesByIdWork-item-rows');
+    expect(rows.path).toBe('/api/work-packages/{id}/work-item-rows');
     expect(rows.inputSchema.required).toEqual(['id']);
     expect(Object.keys(rows.inputSchema.properties).sort()).toEqual([
       'cursor',
@@ -589,36 +639,56 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('exposes revision-bound step resolution as a read tool', () => {
-    const resolve = byName(tools, 'getApiProjectsByIdStep-references');
+    const resolve = byName(tools, 'getApiWorkPackagesByIdStep-references');
     expect(resolve.method).toBe('get');
-    expect(resolve.path).toBe('/api/projects/{id}/step-references');
+    expect(resolve.path).toBe('/api/work-packages/{id}/step-references');
     expect(resolve.inputSchema.required).toEqual(['id', 'reference', 'revision']);
   });
 
   it('derives a write with path parameters and a body from both sides', () => {
-    // The step patch: two path parameters and a body that renames the step,
-    // sets its estimate allowance, or both. Until `plan-commands` this read
-    // the estimate PUT, which is a batch command now.
-    const rename = byName(tools, 'patchApiProjectsByIdStepsByStepId');
-    expect(rename.method).toBe('patch');
-    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual([
-      'allowancePercent',
+    const values = byName(tools, 'patchWorkPackageStepValues');
+    expect(values.method).toBe('patch');
+    expect(Object.keys(values.inputSchema.properties).sort()).toEqual([
+      'allowanceBps',
       'estimateUnit',
       'id',
-      'name',
       'stepId',
     ]);
-    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'stepId']);
-    expect(rename.locations['stepId']).toBe('path');
-    expect(rename.locations['name']).toBe('body');
-    expect(rename.locations['allowancePercent']).toBe('body');
-    expect(rename.locations['estimateUnit']).toBe('body');
-    expect(rename.inputSchema.properties['estimateUnit']).toEqual({ type: 'string' });
-    expect(byName(tools, 'postApiProjectsByIdCommands').description).toContain('all or none');
+    expect([...(values.inputSchema.required ?? [])].sort()).toEqual(['id', 'stepId']);
+    expect(values.locations).toEqual({
+      id: 'path',
+      stepId: 'path',
+      estimateUnit: 'body',
+      allowanceBps: 'body',
+    });
+    expect(values.inputSchema.properties['estimateUnit']).toEqual({
+      enum: ['minutes', 'workdays'],
+    });
+    expect(byName(tools, 'postApiWorkPackagesByIdCommands').description).toContain('all or none');
+  });
+
+  it('derives bodyless person and service-team membership tools with required path identities', () => {
+    for (const method of ['post', 'delete'] as const)
+      for (const [kind, parameter, suffix] of [
+        ['people', 'personId', 'PeopleByPersonId'],
+        ['teams', 'teamId', 'TeamsByTeamId'],
+      ] as const) {
+        const membership = byName(tools, method + 'ApiSpacesById' + suffix);
+        expect(membership.method).toBe(method);
+        expect(membership.path).toBe('/api/spaces/{id}/' + kind + '/{' + parameter + '}');
+        expect(membership.locations).toEqual({ id: 'path', [parameter]: 'path' });
+        expect(Object.keys(membership.inputSchema.properties).sort()).toEqual(
+          ['id', parameter].sort(),
+        );
+        expect([...(membership.inputSchema.required ?? [])].sort()).toEqual(
+          ['id', parameter].sort(),
+        );
+        expect(membership.inputSchema.additionalProperties).toBe(false);
+      }
   });
 
   it('keeps the history filters optional and in the query string', () => {
-    const history = byName(tools, 'getApiProjectsByIdHistory');
+    const history = byName(tools, 'getApiWorkPackagesByIdHistory');
     expect(history.locations).toEqual({ id: 'path', workItemId: 'query', kind: 'query' });
     expect(history.inputSchema.required).toEqual(['id']);
   });
@@ -656,12 +726,12 @@ describe('the README names the tools that exist', () => {
 
     /*
       And the prose beside the names, which no schema checks. The README
-      describes the tool set in words — "the project and step routes" — and a
+      describes the tool set in words — "the work package and step routes" — and a
       sentence is where a rename survives a green gate.
 
-      Proof: that clause spelled back to "the project and role routes". This
+      Proof: that clause spelled back to "the work package and role routes". This
       failed on `expect(received).not.toMatch(expected)` with
-      `Received: "…undo, redo, the project and role routes, the export…"`.
+      `Received: "…undo, redo, the workPackage and role routes, the export…"`.
       Watched 2026-08-29.
     */
     expect(readme).not.toMatch(/\b(phase|phases|role|roles)\b/i);
@@ -698,7 +768,7 @@ describe('the README names the tools that exist', () => {
     const example = JSON.parse(fenced) as { commands: Record<string, unknown>[] };
 
     const variants = (
-      byName(tools, 'postApiProjectsByIdCommands').inputSchema.properties['commands'] as {
+      byName(tools, 'postApiWorkPackagesByIdCommands').inputSchema.properties['commands'] as {
         items: { anyOf: { properties: Record<string, unknown> & { kind: { const: string } } }[] };
       }
     ).items.anyOf;

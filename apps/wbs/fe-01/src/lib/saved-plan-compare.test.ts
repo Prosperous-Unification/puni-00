@@ -44,8 +44,8 @@ describe('the diff, by category', () => {
     // somebody means it to. `CATEGORY_RANK` is a `Record` over the union, so a
     // category added in `libs/wbs/domain/domain` is a typecheck failure here rather than a
     // difference that silently sorts to the end.
-    expect(CATEGORY_ORDER).toHaveLength(27);
-    expect(new Set(CATEGORY_ORDER).size).toBe(27);
+    expect(CATEGORY_ORDER).toHaveLength(28);
+    expect(new Set(CATEGORY_ORDER).size).toBe(28);
     expect(CATEGORY_ORDER[0]).toBe('added');
     expect(CATEGORY_ORDER.at(-1)).toBe('other');
   });
@@ -151,4 +151,30 @@ describe('how one side of a difference reads', () => {
     // takes down every other difference in the panel.
     expect(diffValueWords(() => 1)).toBe('a value');
   });
+});
+
+it('groups retired owner evidence after ownership and before service assignment', () => {
+  const retired: PlanDifferenceView = {
+    category: 'retired-field',
+    path: 'workPackage.ownerId',
+    left: null,
+    right: 'former-owner',
+  };
+  const ownership: PlanDifferenceView = {
+    category: 'ownership',
+    path: 'assignments[a:s:p]',
+    left: null,
+    right: {},
+  };
+  const service: PlanDifferenceView = {
+    category: 'service-assignment',
+    path: 'workItems[a].serviceId',
+    left: null,
+    right: 'service',
+  };
+  expect(groupByCategory([service, retired, ownership])).toEqual([
+    { category: 'ownership', differences: [ownership] },
+    { category: 'retired-field', differences: [retired] },
+    { category: 'service-assignment', differences: [service] },
+  ]);
 });

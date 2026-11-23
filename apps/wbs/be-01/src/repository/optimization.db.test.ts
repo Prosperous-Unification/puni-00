@@ -7,13 +7,12 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import type { CommittedDecision } from '../module/optimization/contract';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { openDatabase, openDrizzle } from './db';
 import { DrizzleEventLogStore, type EventLogTransactionalWrite } from './event-log';
 import { type Gate, OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
 import { createOptimizationRepository } from './optimization';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
 const dirs: string[] = [];
@@ -31,14 +30,18 @@ function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-adapter-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   const sql = openDatabase(path);
   try {
+    sql.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1)");
+    sql.run(
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('optimization-project','org-a','Optimization',1)",
+    );
     sql.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'owner', 'hash', 1)",
     );
     sql.run(
-      "INSERT INTO project (id, name, owner_id, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES ('p-1', 'plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')",
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES ('p-1', 'plan', 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')",
     );
   } finally {
     sql.close();
@@ -46,7 +49,7 @@ function fixture() {
   const db = openDrizzle(path);
   const log = new DrizzleEventLogStore(db, OPEN);
   const key = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     inputHash: 'input-a',
     contractVersion: CONTRACT,
     budgetMs: BUDGET,
@@ -78,15 +81,15 @@ describe('Optimization SQLite adapter', () => {
           competed = true;
           competitor = lane.enter(() =>
             Promise.resolve().then(() => {
-              expect(allocateEnabledGeneration(db, key.projectId, CONTRACT, 'input-b', 12)).toBe(
-                generation + 1,
-              );
               expect(
-                allocateEnabledGeneration(db, key.projectId, CONTRACT, key.inputHash, 13),
+                allocateEnabledGeneration(db, key.workPackageId, CONTRACT, 'input-b', 12),
+              ).toBe(generation + 1);
+              expect(
+                allocateEnabledGeneration(db, key.workPackageId, CONTRACT, key.inputHash, 13),
               ).toBe(generation + 2);
               db.run(
                 sql.raw(
-                  "INSERT INTO optimized_schedule_cache (project_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES ('p-1', 'input-a', 'pri', '7+0.1.0', 60000, 3, 'failed', 'timeout', 13)",
+                  "INSERT INTO optimized_schedule_cache (work_package_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES ('p-1', 'input-a', 'pri', '7+0.1.0', 60000, 3, 'failed', 'timeout', 13)",
                 ),
               );
             }),
@@ -191,7 +194,7 @@ describe('Optimization SQLite adapter', () => {
     let settled = false;
     try {
       const allocation = Promise.resolve(
-        repository.allocateGeneration(key.projectId, key.contractVersion, 'input-b', 11),
+        repository.allocateGeneration(key.workPackageId, key.contractVersion, 'input-b', 11),
       ).then((allocated) => {
         settled = true;
         return allocated;
@@ -257,7 +260,7 @@ describe('Optimization SQLite adapter', () => {
     });
     await entered.promise;
     const request = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri' as const,
@@ -291,7 +294,7 @@ describe('Optimization SQLite adapter', () => {
   it('keeps a live heartbeat outside an awaited source owner that rolls back', async () => {
     const { db, log, key, generation } = fixture();
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri' as const,
@@ -339,7 +342,7 @@ describe('Optimization SQLite adapter', () => {
   it('keeps a stored outcome and its event outside an awaited source owner', async () => {
     const { db, log, key, generation } = fixture();
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri' as const,
@@ -411,7 +414,7 @@ describe('Optimization SQLite adapter', () => {
     try {
       const queued = Promise.resolve(
         repository.enqueueRequest({
-          projectId: key.projectId,
+          workPackageId: key.workPackageId,
           contractVersion: key.contractVersion,
           generation,
           objective: 'pri',
@@ -437,7 +440,7 @@ describe('Optimization SQLite adapter', () => {
   it('keeps exact-token slot release outside an awaited source owner', async () => {
     const { db, log, key, generation } = fixture();
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri' as const,
@@ -484,7 +487,7 @@ describe('Optimization SQLite adapter', () => {
   it('keeps a launcher bind outside an awaited source owner', async () => {
     const { db, log, key, generation } = fixture();
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri' as const,
@@ -533,7 +536,7 @@ describe('Optimization SQLite adapter', () => {
   it('keeps a FIFO dequeue outside an awaited source owner', async () => {
     const { db, log, key, generation } = fixture();
     const seeded = await createOptimizationRepository(db, log, OPEN).enqueueRequest({
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective: 'pri',
@@ -602,21 +605,20 @@ describe('Optimization SQLite adapter', () => {
       release.resolve(undefined);
       await outer;
       expect((await sweep).finished).toBe(1);
-      expect(db.all(sql.raw('SELECT project_id FROM optimization_generation'))).toEqual([]);
+      expect(db.all(sql.raw('SELECT work_package_id FROM optimization_generation'))).toEqual([]);
     } finally {
       release.resolve(undefined);
       await outer;
     }
   });
 
-  it('refuses a member-ceiling Retry for a stored super-admin without writes', async () => {
+  it('refuses restricted Retry without a named package grant despite stored super-admin', async () => {
     const { db, log, key } = fixture();
     db.run(
       sql.raw(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
       ),
     );
-    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
     db.run(
       sql.raw(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
@@ -624,10 +626,15 @@ describe('Optimization SQLite adapter', () => {
     );
     db.run(
       sql.raw(
-        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
+        "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
       ),
     );
-    db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(sql.raw("UPDATE work_package SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(
+      sql.raw(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-read','org-a','organization','org-a','user','sam','org-super-admin','route',1)",
+      ),
+    );
     const snapshot = () =>
       ['solver_slot', 'optimization_generation', 'organization_audit', 'event_log'].map((table) =>
         db.all(sql.raw(`SELECT * FROM ${table} ORDER BY rowid`)),
@@ -641,10 +648,14 @@ describe('Optimization SQLite adapter', () => {
           ownerId: 'green',
           now: 21,
           attemptToken: () => 'outside-cap',
-          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'member' },
+          scoped: {
+            principal: { id: 'sam' },
+            organizationId: 'org-a',
+            actorId: 'sam',
+          },
         })
         .then(decisionOf),
-    ).toEqual({ kind: 'forbidden' });
+    ).toEqual({ kind: 'forbidden', permission: 'package.manage_settings' });
     expect(snapshot()).toEqual(before);
   });
 
@@ -655,7 +666,6 @@ describe('Optimization SQLite adapter', () => {
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
       ),
     );
-    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
     db.run(
       sql.raw(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
@@ -663,14 +673,19 @@ describe('Optimization SQLite adapter', () => {
     );
     db.run(
       sql.raw(
-        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
+        "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
       ),
     );
-    db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(sql.raw("UPDATE work_package SET restricted = 1 WHERE id = 'p-1'"));
+    db.run(
+      sql.raw(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('sam-retry','org-a','work_package','p-1','user','sam','package-manager','route',1)",
+      ),
+    );
     const gate = new WriteCoordinator();
     const repository = createOptimizationRepository(db, log, gate);
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -716,7 +731,11 @@ describe('Optimization SQLite adapter', () => {
           ownerId: 'green',
           now: 21,
           attemptToken: () => 'retry',
-          scoped: { organizationId: 'org-a', actorId: 'sam', role: 'super_admin' as const },
+          scoped: {
+            principal: { id: 'sam' },
+            organizationId: 'org-a',
+            actorId: 'sam',
+          },
         })
         .then(decisionOf),
     ).then((decision) => {
@@ -731,11 +750,9 @@ describe('Optimization SQLite adapter', () => {
     expect(db.all(sql.raw('SELECT attempt_token FROM solver_slot'))).toEqual([
       { attempt_token: 'retry' },
     ]);
-    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
-      { detail: '{"optimizer":"retry"}' },
-    ]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
   });
-  it('projects a cache miss before reserving the captured objectives', async () => {
+  it('work packages a cache miss before reserving the captured objectives', async () => {
     const { db, log, key } = fixture();
     const repository = createOptimizationRepository(db, log, OPEN);
     const observed = await repository.observeForAdmission(key, 10).then(decisionOf);
@@ -754,7 +771,7 @@ describe('Optimization SQLite adapter', () => {
     expect(observed.requests.map(({ objective }) => objective)).toContain('pri');
     const objective = 'pri' as const;
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective,
@@ -808,7 +825,7 @@ describe('Optimization SQLite adapter', () => {
     const { db, log, key, generation } = fixture();
     const repository = createOptimizationRepository(db, log, OPEN);
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -872,7 +889,7 @@ describe('Optimization SQLite adapter', () => {
     const repository = createOptimizationRepository(db, writer, OPEN);
     const admission = await repository
       .reserveSlot({
-        projectId: key.projectId,
+        workPackageId: key.workPackageId,
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -887,7 +904,7 @@ describe('Optimization SQLite adapter', () => {
     const failure = await repository
       .recordOutcome({
         claim: {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',
@@ -919,7 +936,7 @@ describe('Optimization SQLite adapter', () => {
     const repository = createOptimizationRepository(db, writer, OPEN);
     const admission = await repository
       .reserveSlot({
-        projectId: key.projectId,
+        workPackageId: key.workPackageId,
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -934,7 +951,7 @@ describe('Optimization SQLite adapter', () => {
     const failure = await repository
       .recordOutcome({
         claim: {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',

@@ -1,17 +1,59 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
-import { planDocumentResponse } from './plan-document-shapes';
-import { project, projectWithSteps } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
+import { stepShape } from './step-shapes';
+import { workPackage } from './work-package-response';
 
-const params = requestSchema(type({ id: 'string' }));
-// Proof: removing identity made the mounted unauthenticated project test receive 500 instead of 401.
+const metadata = {
+  id: 'string > 0',
+  organizationId: 'string > 0',
+  spaceId: type('string > 0').or('null'),
+  spacePosition: type('number.integer').or('null'),
+  name: 'string > 0',
+  revision: 'number.integer >= 0',
+  createdAt: 'number.integer',
+  updatedAt: 'number.integer | null',
+  createdBy: type('string > 0').or('null'),
+  workPackageCount: 'number.integer >= 0',
+} as const;
+const project = type(metadata);
+export const projectShell = type({
+  id: 'string > 0',
+  name: 'string > 0',
+  // Proof: omitting this composite closure made 'rejects partial malformed and hybrid known metadata instead of falling through to the shell arm'
+  // fail its partial-revision runtime issues assertion; canonical passed before/after (project-shapes.test.ts, 2026-11-14). No per-field proof.
+  'organizationId?': 'never',
+  'spaceId?': 'never',
+  'spacePosition?': 'never',
+  'revision?': 'never',
+  'createdAt?': 'never',
+  'updatedAt?': 'never',
+  'createdBy?': 'never',
+  'workPackageCount?': 'never',
+  'workPackages?': 'never',
+});
+const listedProject = project.or(projectShell);
+const detail = type({
+  ...metadata,
+  workPackages: type({ id: 'string > 0', name: 'string' }).array(),
+});
+const projectReply = responseSchema(type({ project }));
+const params = requestSchema(type({ id: 'string > 0' }));
+const nameBody = requestSchema(type({ name: 'string > 0' }));
+const createBody = requestSchema(
+  type({ name: 'string > 0', 'workPackage?': type({ name: 'string > 0' }) }),
+);
+const createdReply = responseSchema(
+  type({ project, 'workPackage?': 'never', 'steps?': 'never' }).or({
+    project,
+    workPackage,
+    steps: stepShape.array(),
+  }),
+);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
-// Proof: weakening write scope made the mounted opened test receive 404 instead of 403.
-// Removing identity made the complete production-route policy test receive 500 instead of 401
-// for postApiProjects; removing Origin made it receive 404 instead of 403 for patchApiProjectsById.
 const writePolicies = [
   { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
   { kind: 'identity', require: 'write-scope' },
@@ -21,316 +63,230 @@ const bodyMedia = [
   'application/x-www-form-urlencoded',
   'multipart/form-data',
 ] as const;
-const readRefusals = [
+const common = [
   {
     status: 400,
-    schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query' | 'invalid_params'" })),
+    schema: responseSchema(
+      type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body' | 'invalid_json'" }),
+    ),
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+  organizationRefusal,
+  organizationContextRefusal,
 ] as const;
-const writeRefusals = [
-  { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_params'" })) },
-  { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+const forbidden = {
+  status: 403,
+  schema: responseSchema(
+    type({
+      error: "'forbidden'",
+      permission: type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+    }),
+  ),
+} as const;
+const writing = [
+  ...common,
   {
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
+  forbidden,
 ] as const;
-const bodyRefusals = [
-  ...writeRefusals,
-  { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
-  { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
-] as const;
+const invalidBody = {
+  status: 422,
+  schema: responseSchema(type({ error: "'invalid_body'" })),
+} as const;
+const nameTaken = { status: 409, schema: responseSchema(type({ error: "'name_taken'" })) } as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
-const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
 
-/** Creates a project with its ordered starting steps; empty names remain legal. */
+const projectRevision = type({ id: 'string > 0', revision: 'number.integer >= 0' });
+
+/** E45 moves within the current organization after scoped visibility and both interim write decisions. */
+export const moveWorkPackage = defineEndpointShape({
+  method: 'POST',
+  path: '/api/work-packages/:id/move',
+  operationId: 'postApiWorkPackagesByIdMove',
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
+  params,
+  body: requestSchema(type({ projectId: 'string > 0' })),
+  bodyMedia,
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          workPackageId: 'string > 0',
+          projectId: 'string > 0',
+          revision: 'number.integer >= 0',
+          sourceProject: projectRevision,
+          targetProject: projectRevision,
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    ...writing,
+    invalidBody,
+    notFound,
+    {
+      status: 409,
+      schema: responseSchema(
+        type({
+          error: "'dependency_crosses_project'",
+          dependencyIds: type('string > 0').array(),
+        }),
+      ),
+    },
+  ],
+  document: { summary: 'Move a work package between projects of its current organization.' },
+});
+
+/** Creates an empty project or its complete first package under one current E41 owner. */
 export const createProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects',
   operationId: 'postApiProjects',
-  // Proof: removing this resource policy admitted project creation (200),
-  // failing the mounted mutation inventory; watched 2026-10-13.
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
-  // Proof: a tolerant body made the mounted undeclared-create test receive 200 instead of 422.
-  body: requestSchema(type({ name: 'string', 'abbreviation?': 'string' })),
+  body: createBody,
   bodyMedia,
-  responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
+  responses: [{ kind: 'json', status: 201, schema: createdReply }],
   refusals: [
-    ...bodyRefusals,
-    organizationRefusal,
-    organizationContextRefusal,
-    forbidden,
-    { status: 422, schema: responseSchema(type({ error: "'invalid_abbreviation'" })) },
+    ...writing,
+    invalidBody,
+    nameTaken,
     {
       status: 409,
       schema: responseSchema(type({ error: "'abbreviation_taken' | 'abbreviation_exhausted'" })),
     },
   ],
-  document: { summary: 'Create a project with its starting steps.' },
+  document: { summary: 'Create an engagement project with an optional first work package.' },
 });
-
-/**
- * Lists complete project settings with owner display names (spec `list-reads`).
- * With no query string: every readable project in the caller's recency order
- * and `nextCursor: null`, as before paging existed. With any of `q`,
- * `updatedSince`, `limit` or `cursor`: one page, newest update first, then id.
- * `updatedAt` and `nextCursor` are optional on the wire only so a newer client
- * can read an older be-01 mid-swap; every be-01 that knows them sends both.
- */
+/** Lists full project metadata or exact id/name shells derived from actual readable children. */
 export const listProjects = defineEndpointShape({
   method: 'GET',
   path: '/api/projects',
   operationId: 'getApiProjects',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
-  query: requestSchema(
-    type({
-      'q?': 'string',
-      'updatedSince?': 'string',
-      'limit?': 'string',
-      'cursor?': 'string',
-    }),
-  ),
   responses: [
     {
       kind: 'json',
       status: 200,
-      // Proof: optional ownerName or lastOpenedAt made the mounted list-metadata test receive
-      // 200 instead of 500; strict reply fields instead rejected its additive fields with 500.
-      schema: responseSchema(
-        type({
-          projects: project
-            .and({
-              ownerName: 'string',
-              lastOpenedAt: 'number | null',
-              'updatedAt?': 'number | null',
-            })
-            .array(),
-          'nextCursor?': 'string | null',
-        }),
-      ),
+      schema: responseSchema(type({ projects: listedProject.array() })),
     },
   ],
-  refusals: [...readRefusals, organizationRefusal, organizationContextRefusal],
-  document: {
-    summary: 'List projects; pass limit or q for a page, newest update first.',
-    description:
-      'Without parameters: every project in the caller’s own order. With any of q (name contains, case-insensitive), updatedSince (epoch ms, inclusive), limit (1-200, default 25) or cursor (a nextCursor from this list): one page ordered by last update, newest first. Follow nextCursor until it is null.',
-  },
+  refusals: common,
+  document: { summary: 'List engagement projects with readable child counts.' },
 });
-
-/** Records the caller's navigation without project write-access restrictions; write scope remains required. */
-export const recordProjectOpen = defineEndpointShape({
-  method: 'POST',
-  path: '/api/projects/:id/opened',
-  operationId: 'postApiProjectsByIdOpened',
-  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
-  params,
-  responses: [{ kind: 'empty', status: 204 }],
-  refusals: [
-    ...writeRefusals,
-    notFound,
-    organizationRefusal,
-    organizationContextRefusal,
-    { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
-  ],
-  document: { summary: 'Record this account opening a project.' },
-});
-
-/** The uncoded-step variant is also retained in the closed export 409 union. */
-const uncodedSteps = type({
-  error: "'uncoded_steps'",
-  steps: type({ id: 'string', name: 'string' }).array(),
-  command: 'string',
-});
-
-/** An older writer's uncoded steps, with the backfill command that makes them exportable. */
-export const uncodedStepsRefusal = { status: 409, schema: responseSchema(uncodedSteps) } as const;
-
-/** Closed 409 variants for structured export, including the version 9 preservation fence. */
-export const exportProject409 = {
-  status: 409,
-  schema: responseSchema(
-    uncodedSteps
-      .or({ error: "'engine_unavailable'", engine: "'optimized'" })
-      // Proof: removing this variant made both mounted sparse exports500 (mutation-response-schema.txt, 2026-10-17).
-      .or({ error: "'unsupported_step_parallelism'" }),
-  ),
-} as const;
-
-/** Exports the core tree without account-specific undo flags, as JSON or unquoted Markdown. */
-export const exportProject = defineEndpointShape({
-  method: 'GET',
-  path: '/api/projects/:id/export',
-  operationId: 'getApiProjectsByIdExport',
-  // Proof: signed-in alone made the mounted export-scope test receive 404 instead of 403.
-  policies: [
-    { kind: 'organization-resource', operation: 'read' },
-    { kind: 'identity', require: 'read-scope' },
-  ],
-  params,
-  query: requestSchema(type({ format: "'json' | 'markdown'" })),
-  responses: [
-    // Proof: omitting the core declaration made the mounted deadline-export test admit
-    // a row missing deadline: expected 500, received 200.
-    { kind: 'json', status: 200, schema: planDocumentResponse },
-    { kind: 'text', status: 200, contentType: 'text/markdown; charset=utf-8' },
-  ],
-  refusals: [
-    ...readRefusals,
-    notFound,
-    organizationRefusal,
-    organizationContextRefusal,
-    { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
-    { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
-    exportProject409,
-  ],
-  document: { summary: 'Export the project WBS and schedule as JSON or Markdown.' },
-});
-
-/** Reads project settings and ordered steps without a project ownership restriction. */
+/** Requires current project.read; a LIST-visible shell receives403 while invisible and absent IDs receive404. */
 export const readProject = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id',
   operationId: 'getApiProjectsById',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
-  responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...readRefusals, notFound, organizationRefusal, organizationContextRefusal],
-  document: { summary: 'Read a project and its steps.' },
+  responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ project: detail })) }],
+  refusals: [...common, forbidden, notFound],
+  document: { summary: 'Read an engagement project and its readable work packages.' },
 });
-
-/** Structural weight validation leaves the all-zero sum to ProjectService's semantic refusal. */
-// Proof: removing the lower bound changed the mounted structural-settings refusal
-// from invalid_body to bad_pert_weights. Shared descriptor validation rejects Infinity.
-const weight = type('number >= 0');
-/** Shape-only date admission preserves the service's bad_start_date for impossible calendar days. */
-// Proof: removing the date pattern changed that same test to bad_start_date.
-const day = type('string')
-  .matching(/^\d{4}-\d{2}-\d{2}$/)
-  .or('null');
-
-/** An empty object is a valid patch; omitted fields stay omitted and null clears nullable fields. */
-export const patchProject = defineEndpointShape({
+/** Renames under organization.create_project until the separately ordered project-permission cutover. */
+export const renameProject = defineEndpointShape({
   method: 'PATCH',
   path: '/api/projects/:id',
   operationId: 'patchApiProjectsById',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
-  // Proof: a tolerant patch admitted undeclared fields in the mounted nested-boundary test (422 → 200).
-  body: requestSchema(
-    type({
-      'name?': 'string',
-      'abbreviation?': 'string',
-      'restricted?': 'boolean',
-      'estimateMethod?': "'pert' | 'optimistic' | 'realistic' | 'pessimistic'",
-      'depReach?': "'whole-item' | 'anchor-slice'",
-      'pertWeights?': type({ optimistic: weight, realistic: weight, pessimistic: weight }),
-      'estimateRounding?': "'exact' | 'floor' | 'round' | 'ceil'",
-      'startDate?': day,
-      'solutionRef?': type({ slug: 'string > 0', url: 'string > 0' }).or('null'),
-      'optimizationEnabled?': 'boolean',
-      // Proof: accepting any engine string made the mounted structural-settings test receive 500, not 422.
-      'scheduleEngine?': "'fast' | 'optimized'",
-      'scheduleObjective?': "'pri' | 'time'",
-      // What derived budgets multiply the pessimistic point by
-      // (`wbs-measure-budgets` D38); range checked by the service.
-      'budgetFactor?': 'number',
-      // An IANA zone; the service checks it against the runtime's list, which
-      // `GET /api/timezones` serves (`step-node-attempts` D3).
-      'timezone?': 'string',
-    }),
-  ),
+  body: nameBody,
   bodyMedia,
-  responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ project })) }],
+  responses: [{ kind: 'json', status: 200, schema: projectReply }],
+  refusals: [...writing, invalidBody, nameTaken, notFound],
+  document: { summary: 'Rename an engagement project.' },
+});
+/** Refuses every actual child while disclosing only readable IDs; empty deletion preserves CP14. */
+export const deleteProject = defineEndpointShape({
+  method: 'DELETE',
+  path: '/api/projects/:id',
+  operationId: 'deleteApiProjectsById',
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
+  params,
+  responses: [{ kind: 'empty', status: 204 }],
   refusals: [
-    ...bodyRefusals,
+    ...writing,
     notFound,
-    organizationRefusal,
-    organizationContextRefusal,
-    forbidden,
+    {
+      status: 409,
+      schema: responseSchema(
+        type({ error: "'not_empty'", workPackageIds: type('string').array() }),
+      ),
+    },
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
+  ],
+  document: { summary: 'Delete an empty engagement project.' },
+});
+
+const settingProvenance = type({
+  level: "'organization' | 'space' | 'project' | 'work_package'",
+  id: 'string > 0',
+}).or({ level: "'default'" });
+const settingsReply = responseSchema(
+  type({
+    settings: {
+      timezone: { value: 'string', provenance: settingProvenance },
+      pertWeights: {
+        value: { optimistic: 'number >= 0', realistic: 'number >= 0', pessimistic: 'number >= 0' },
+        provenance: settingProvenance,
+      },
+      allowedWorkItemTypes: { value: type('string').array(), provenance: settingProvenance },
+      budgetFactor: { value: 'number > 0', provenance: settingProvenance },
+      calendarMarkers: type({
+        marker: {
+          id: 'string > 0',
+          date: 'string',
+          name: 'string',
+          color: 'string | null',
+          createdAt: 'number.integer',
+        },
+        provenance: settingProvenance,
+      }).array(),
+    },
+  }),
+);
+
+/** Resolves current project settings only after actual project.read admission. */
+export const readProjectSettings = defineEndpointShape({
+  method: 'GET',
+  path: '/api/projects/:id/settings',
+  operationId: 'getApiProjectsByIdSettings',
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
+  params,
+  responses: [{ kind: 'json', status: 200, schema: settingsReply }],
+  refusals: [...common, forbidden, notFound],
+  document: { summary: 'Read resolved project settings and actual provenance.' },
+});
+
+/** Writes or clears only this project budget override under project.manage_settings. */
+export const patchProjectSettings = defineEndpointShape({
+  method: 'PATCH',
+  path: '/api/projects/:id/settings',
+  operationId: 'patchApiProjectsByIdSettings',
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
+  params,
+  body: requestSchema(type({ '+': 'reject', budgetFactor: 'number | null' })),
+  bodyMedia,
+  responses: [{ kind: 'json', status: 200, schema: settingsReply }],
+  refusals: [
+    ...writing,
+    invalidBody,
+    notFound,
     {
       status: 422,
-      schema: responseSchema(
-        type({
-          error:
-            "'bad_start_date' | 'bad_pert_weights' | 'bad_budget_factor' | 'invalid_timezone' | 'invalid_abbreviation'",
-        }),
-      ),
+      schema: responseSchema(type({ error: "'invalid_value'", key: "'budgetFactor'" })),
     },
     {
       status: 409,
-      // `dependency_cycle`: a `depReach` change that would close a step-node cycle.
       schema: responseSchema(
-        type({
-          error:
-            "'optimizer_unavailable' | 'solution_taken' | 'dependency_cycle' | 'abbreviation_taken'",
-        }),
+        type({ error: "'not_overridable_here'", key: "'budgetFactor'", level: "'project'" }),
       ),
     },
   ],
-  document: {
-    summary: 'Update the addressed project’s settings.',
-    description:
-      'Send only the settings to change. budgetFactor (finite, above 0, at most 1000; 1 by default) multiplies the summed pessimistic estimates of a work item’s subtree into its derived budget per measure where no budget is stated; it moves no date. Refused 422 bad_budget_factor otherwise.',
-  },
-});
-
-// Proof: omitting boundary-infeasible made the generated client refuse its typed 409 as invalid_response (2026-10-22).
-const retryRefusal = responseSchema(
-  type({ code: "'stale-input-hash'", currentInputHash: 'string' })
-    .or({
-      code: "'not-retryable'",
-      state:
-        "'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'boundary-infeasible' | 'idle'",
-    })
-    .or({ code: "'already-running'" })
-    // Proof: removing this variant made the typed client classify its modeled
-    // 409 Retry refusal as invalid_response rather than a refusal.
-    .or({
-      code: "'schedule-input-unavailable'",
-      reason: "'engine_unavailable' | 'cycle' | 'calendar_range'",
-      projectId: 'string',
-    })
-    // Proof: removing this variant made mounted missing-calendar Retry fail response validation (500).
-    .or({
-      code: "'schedule-input-unavailable'",
-      reason: "'dependency_calendar_missing'",
-      projectId: 'string',
-      projects: type({ projectId: 'string', abbreviation: 'string', name: 'string' })
-        .array()
-        .readonly(),
-    }),
-);
-
-/** Retries one retained failed or corrupt optimizer variant against the current plan input. */
-export const retryProjectOptimization = defineEndpointShape({
-  method: 'POST',
-  path: '/api/projects/:id/optimization/retry',
-  operationId: 'postApiProjectsByIdOptimizationRetry',
-  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
-  params,
-  // Proof: widening objective to string made the production-path Retry test receive 409 instead of 422.
-  body: requestSchema(type({ objective: "'pri' | 'time'", inputHash: 'string' }), {
-    undeclaredKeys: 'delete',
-  }),
-  bodyMedia,
-  responses: [
-    {
-      kind: 'json',
-      status: 202,
-      schema: responseSchema(
-        type({ state: "'retrying'", generation: 'number', inputHash: 'string' }),
-      ),
-    },
-  ],
-  refusals: [
-    ...bodyRefusals,
-    notFound,
-    organizationRefusal,
-    organizationContextRefusal,
-    forbidden,
-    { status: 409, schema: retryRefusal },
-  ],
-  document: { summary: 'Retry one failed or corrupt optimized schedule.' },
+  document: { summary: 'Write the admitted project budget factor without a package-level alias.' },
 });

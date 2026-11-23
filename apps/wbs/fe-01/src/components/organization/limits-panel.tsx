@@ -280,7 +280,7 @@ export function LimitsReady({ limits }: { limits: OrganizationLimitsRead }): Rea
                   resource.countedFrom === 'directory'
                     ? 'Directory capacity'
                     : resource.countedFrom === 'projects'
-                      ? 'Project capacities'
+                      ? 'Work package capacities'
                       : undefined
                 }
                 used={resource.units}

@@ -155,7 +155,7 @@ for (const version of [6, 7] as const) {
     await refuse('schema pairing');
   });
 }
-test.each([8, 9, 10, 11])('refuses schema 1 with reference v%s', async (version) => {
+test.each([8, 9, 10, 11, 12, 13, 14])('refuses schema 1 with reference v%s', async (version) => {
   generate(7);
   reference['planDocumentVersion'] = version;
   save(true);
@@ -300,8 +300,8 @@ test('the process entrypoint refuses extra operands without reading files', () =
   expect(child.stderr.toString()).toContain('usage: twilight-burokrat validate-plan-tasks');
 });
 
-test('refuses plan document v12', async () => {
-  reference['planDocumentVersion'] = 12;
+test('refuses plan document v17', async () => {
+  reference['planDocumentVersion'] = 17;
   save(true);
   await refuse('planDocumentVersion');
 });

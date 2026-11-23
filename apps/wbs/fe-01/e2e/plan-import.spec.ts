@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, type Page, test } from '@playwright/test';
-import { importProject, type PlanDocumentRequest, preflightRequest } from '@wbs/contracts';
+import { type PlanDocumentRequest, planDocumentRequest, validateSchema } from '@wbs/contracts';
 
+import { selectOrdinaryProject } from './ordinary-context';
+import { expect, type Page, test } from './ordinary-test';
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 const ROWS = 13;
@@ -39,20 +40,25 @@ async function downloadPlan(page: Page): Promise<unknown> {
 }
 
 async function validatedPlan(downloaded: unknown): Promise<PlanDocumentRequest> {
-  const checked = await preflightRequest(importProject, { body: downloaded });
-  if (checked.kind !== 'ready') {
-    throw new Error(`downloaded plan failed generated preflight: ${JSON.stringify(checked)}`);
+  const checked = await validateSchema(planDocumentRequest, downloaded);
+  if (checked.issues !== undefined) {
+    throw new Error(
+      `downloaded plan failed archival validation: ${JSON.stringify(checked.issues)}`,
+    );
   }
-  return checked.input.body;
+  return checked.value;
 }
 
-async function projectCount(page: Page): Promise<number> {
-  const projects = fixtureSuccess('getApiProjects', await fixtureClient(page).getApiProjects({}))
-    .body.projects;
-  return projects.length;
+async function workPackageCount(page: Page): Promise<number> {
+  const workPackages = fixtureSuccess(
+    'getApiWorkPackages',
+    await fixtureClient(page).getApiWorkPackages({}),
+  ).body.workPackages;
+  return workPackages.length;
 }
 
 async function importFile(page: Page, document: PlanDocumentRequest): Promise<void> {
+  await selectOrdinaryProject(page);
   await page.getByLabel('Import JSON').setInputFiles({
     name: 'plan.json',
     mimeType: 'application/json',
@@ -86,7 +92,7 @@ test('downloads and imports a complete plan through the real chooser', async ({ 
 
   await importFile(page, document);
 
-  const picker = page.getByRole('combobox', { name: 'Project' });
+  const picker = page.getByRole('combobox', { name: 'Work package' });
   await expect(picker).toHaveValue(importedName);
   const summary = `Imported “${importedName}” with ${String(ROWS)} work items. Added 1 tag (${tagName}).`;
   await expect(page.locator('[data-toast-text]')).toHaveCount(1);
@@ -98,14 +104,14 @@ test('downloads and imports a complete plan through the real chooser', async ({ 
   ).toBeVisible();
 });
 
-test('keeps the project and count when a dangling dependency is refused', async ({ page }) => {
+test('keeps the work package and count when a dangling dependency is refused', async ({ page }) => {
   const seeded = await seededPlan(page, 'Plan import refusal');
   const downloaded = await validatedPlan(await downloadPlan(page));
   expect(downloaded.workItems.length).toBeGreaterThanOrEqual(ROWS);
   const row = downloaded.workItems.at(12);
   if (row === undefined) throw new Error('the downloaded plan has no workItems[12]');
   row.dependsOn[0] = 'missing-file-row';
-  const before = await projectCount(page);
+  const before = await workPackageCount(page);
 
   await importFile(page, downloaded);
 
@@ -113,8 +119,10 @@ test('keeps the project and count when a dangling dependency is refused', async 
   await expect(page.locator('[data-toast-text]')).toHaveText(
     'This plan export refers to something it does not contain (workItems[12].dependsOn[0]).',
   );
-  await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(seeded.projectName);
-  await expect.poll(() => projectCount(page)).toBe(before);
+  await expect(page.getByRole('combobox', { name: 'Work package' })).toHaveValue(
+    seeded.workPackageName,
+  );
+  await expect.poll(() => workPackageCount(page)).toBe(before);
   // Proof: bypassing `firstDependencyRefusal` made this receive the generic
   // `Plan JSON import failed (http_500).` instead of the exact typed path
   // (the sentence then read that way; it is now `The server could not import
@@ -128,6 +136,7 @@ test('words a broken file, then names and dates the re-import that replaces it',
   const seeded = await seededPlan(page, 'Plan import toasts');
   const downloaded = await validatedPlan(await downloadPlan(page));
   const toasts = page.locator('[data-toast-text]');
+  await selectOrdinaryProject(page);
   const chooser = page.getByLabel('Import JSON');
 
   await chooser.setInputFiles({
@@ -154,9 +163,9 @@ test('words a broken file, then names and dates the re-import that replaces it',
   await importFile(page, downloaded);
 
   const dated = new RegExp(
-    `^${escaped(seeded.projectName)} \\(imported \\d{1,2} [A-Z][a-z]{2}\\)$`,
+    `^${escaped(seeded.workPackageName)} \\(imported \\d{1,2} [A-Z][a-z]{2}\\)$`,
   );
-  const picker = page.getByRole('combobox', { name: 'Project' });
+  const picker = page.getByRole('combobox', { name: 'Work package' });
   await expect(picker).toHaveValue(dated);
   const importedName = await picker.inputValue();
   await expect(toasts).toHaveText([
@@ -179,6 +188,7 @@ test.describe('390x844 Plan actions sheet', () => {
       test: info.title,
     });
     await openSeededPlan(page, seeded);
+    await selectOrdinaryProject(page);
     // A phone folds the toolbar, `Add work item` with it, behind this button.
     await page.getByRole('button', { name: 'Plan actions' }).click();
     const sheet = page.getByRole('dialog', { name: 'Plan actions' });
@@ -225,6 +235,7 @@ test.describe('390x844 Plan actions sheet', () => {
 
 test('a standing toast is drawn above the keyboard shortcuts sheet', async ({ page }) => {
   await seededPlan(page, 'Plan import over the cheat sheet');
+  await selectOrdinaryProject(page);
   await page.locator('details[data-export] summary').click();
   await page.getByLabel('Import JSON').setInputFiles({
     name: 'broken.json',

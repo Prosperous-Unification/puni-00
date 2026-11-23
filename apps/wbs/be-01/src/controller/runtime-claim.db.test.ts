@@ -4,18 +4,19 @@ import { join } from 'node:path';
 
 import { assertRuntimeRejection } from '@wbs/conformance/runtime-command-conformance';
 import type { AuthenticatedUser, RuntimeCommandRequest, RuntimeReply } from '@wbs/contracts';
+import { readRuntimeReceiptScope } from '@wbs/contracts';
 import { servicesOver } from '@wbs/core/compose';
 import {
   createPlanCommandRunner,
   createRuntimeReceiver,
 } from '@wbs/core/module/plan-commands/composition';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
 import type { DependencyContext } from '@wbs/core/ports/dependency-context';
 import type { EditAdmission } from '@wbs/core/ports/edit-admission';
 import { NO_ADMISSION } from '@wbs/core/ports/edit-admission';
-import type { Broadcaster } from '@wbs/core/ports/project-event';
 import type { Scope } from '@wbs/core/ports/unit-of-work';
+import type { Broadcaster } from '@wbs/core/ports/work-package-event';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -30,13 +31,18 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
-  projectId: 'a1',
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+  },
+  workPackageId: 'a1',
   personId: 'agent',
 };
 const stamp = { at: 2, by: 'ada' };
@@ -72,26 +78,35 @@ async function seeded(shared = false) {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
+  expect(
+    sqlite.db.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND scope_id='a1' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
-  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
+  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent', stamp);
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  for (const id of ['dev', 'review'])
-    await source.stores.steps.add(
-      { id, projectId: 'a1', name: id, code: id, allowancePercent: 0, estimateUnit: 'workdays' },
-      stamp,
-    );
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [
+      ['dev', 'dev'],
+      ['review', 'review'],
+    ],
+    stamp,
+  );
   await source.stores.workItems.insert(
-    workItemRow({ id: 'leaf', projectId: 'a1', readiness: 'ready' }),
+    workItemRow({ id: 'leaf', workPackageId: 'a1', readiness: 'ready' }),
     [],
     stamp,
   );
   await source.stores.workItems.insert(
-    workItemRow({ id: 'other', projectId: 'a1', readiness: 'ready' }),
+    workItemRow({ id: 'other', workPackageId: 'a1', readiness: 'ready' }),
     [],
     stamp,
   );
@@ -103,7 +118,7 @@ async function seeded(shared = false) {
     broadcast,
     scheduler: fastScheduler,
   };
-  const delivered: CommittedProjectEvent[] = [];
+  const delivered: CommittedWorkPackageEvent[] = [];
   const runnerSource = {
     commandAccess: new SqliteCommandAccess(
       sqlite.db,
@@ -116,7 +131,7 @@ async function seeded(shared = false) {
     ),
     committedFanout: {
       now: () => 10,
-      deliverCommitted: (events: readonly CommittedProjectEvent[]) => {
+      deliverCommitted: (events: readonly CommittedWorkPackageEvent[]) => {
         delivered.push(...events);
         return Promise.resolve();
       },
@@ -141,30 +156,29 @@ async function seeded(shared = false) {
   const runner = createPlanCommandRunner(runnerSource, nodeDigest);
   if (shared) {
     sqlite.db.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
-    sqlite.db.run("UPDATE project SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
-    await source.stores.steps.add(
-      {
-        id: 'dev2',
-        projectId: 'a2',
-        name: 'dev2',
-        code: 'dev2',
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
+    sqlite.db.run("UPDATE work_package SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
+    sqlite.db.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('runtime-shared','org-a','Shared claims',1,'ada')",
+    );
+    sqlite.db.run("UPDATE work_package SET project_id='runtime-shared' WHERE id='a2'");
+    await bindRuntimeFixtureSteps(
+      source.stores.stepCatalogue,
+      'runtime-shared',
+      [['dev2', 'dev2']],
       stamp,
     );
     await source.stores.workItems.insert(
-      workItemRow({ id: 'leaf2', projectId: 'a2', readiness: 'ready' }),
+      workItemRow({ id: 'leaf2', workPackageId: 'a2', readiness: 'ready' }),
       [],
       stamp,
     );
-    for (const [projectId, workItemId, stepId] of [
+    for (const [workPackageId, workItemId, stepId] of [
       ['a1', 'leaf', 'dev'],
       ['a2', 'leaf2', 'dev2'],
     ] as const) {
       expect(
         await runner.runWithin(
-          projectId,
+          workPackageId,
           actor,
           [
             {
@@ -212,9 +226,9 @@ async function seeded(shared = false) {
     },
   });
   const snapshot = async () => ({
-    claims: await source.stores.claims.listByProject('a1'),
+    claims: await source.stores.claims.listByWorkPackage('a1'),
     ledger: await source.stores.runtimeCommands.inspectLedger(),
-    rows: await source.stores.workItems.listByProject('a1'),
+    rows: await source.stores.workItems.listByWorkPackage('a1'),
     journal: sqlite.db.all('SELECT * FROM command_journal'),
     progress: sqlite.db.all('SELECT * FROM step_progress'),
     events: sqlite.db.all('SELECT * FROM event_log'),
@@ -261,12 +275,12 @@ describe('conditional exact runtime claim', () => {
       basisAfter: (await state()).basis,
     });
     expect(accepted.acceptance.basisAfter).not.toBe(claimRequest.expectedBasis);
-    expect(await source.stores.claims.listByProject('a1')).toMatchObject([
+    expect(await source.stores.claims.listByWorkPackage('a1')).toMatchObject([
       { id: accepted.acceptance.claim.claimId, stepId: 'dev', runId: 'sess-42', personId: 'agent' },
     ]);
     expect(
       await source.stores.runtimeCommands.readBinding(
-        accepted.scope,
+        readRuntimeReceiptScope(accepted),
         accepted.acceptance.claim.claimId,
       ),
     ).toEqual(accepted.acceptance.claim);
@@ -407,10 +421,12 @@ describe('conditional exact runtime claim', () => {
       }),
     ).toEqual({ ok: false, reason: 'runtime_command_conflict' });
     sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
     expect(await runner.claimRuntime(context, claimRequest)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
     expect(await snapshot()).toEqual(before);
   });
@@ -470,11 +486,11 @@ describe('conditional exact runtime claim', () => {
         context.access,
       ),
     ).toMatchObject({ ok: true });
-    const previous = await source.stores.claims.listByProject('a1');
+    const previous = await source.stores.claims.listByWorkPackage('a1');
     const previousClaim = previous.at(0);
     if (previousClaim === undefined) throw new Error('previous claim missing');
     const accepted = value(await runner.claimRuntime(context, await request()));
-    const claims = await source.stores.claims.listByProject('a1');
+    const claims = await source.stores.claims.listByWorkPackage('a1');
     const exact = claims.find(({ stepId }) => stepId === 'dev');
     expect(exact).toBeDefined();
     if (exact === undefined) throw new Error('exact claim missing');
@@ -486,6 +502,7 @@ describe('conditional exact runtime claim', () => {
     const { runner, request, sqlite, source } = await seeded();
     const claimRequest = await request();
     sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
     ).toMatchObject({ ok: true });
@@ -510,7 +527,7 @@ describe('conditional exact runtime claim', () => {
         context.access,
       ),
     ).toMatchObject({ ok: true });
-    const held = (await source.stores.claims.listByProject('a1')).at(0);
+    const held = (await source.stores.claims.listByWorkPackage('a1')).at(0);
     if (held === undefined) throw new Error('ordinary claim missing');
     const claimRequest = await request();
     const before = await snapshot();
@@ -577,7 +594,8 @@ describe('conditional exact runtime claim', () => {
     ).toMatchObject({ ok: true });
     expect(await runner.claimRuntime(context, claimRequest)).toEqual({
       ok: false,
-      reason: 'person_not_bound',
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
     });
   });
 
@@ -615,11 +633,11 @@ describe('conditional exact runtime claim', () => {
     const accepted = await runner.claimRuntime(context, claimRequest);
     value(accepted);
     sqlite.db.run("UPDATE organization_membership SET role='super_admin' WHERE user_id='ada'");
-    sqlite.db.run("UPDATE project SET restricted=1 WHERE id='a1'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-super-admin' WHERE id='runtime-ada'");
     sqlite.db.run(
-      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('someone','someone','x',1)",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-replay','org-a','work_package','a1','user','ada','package-contributor','route',1)",
     );
-    sqlite.db.run("UPDATE project SET owner_id='someone' WHERE id='a1'");
+    sqlite.db.run("UPDATE work_package SET restricted=1 WHERE id='a1'");
     const audits = sqlite.db.all('SELECT * FROM organization_audit');
     blockCapture();
     const replayOnly = createPlanCommandRunner(
@@ -649,8 +667,8 @@ describe('conditional exact runtime claim', () => {
     const announce = runnerSource.publicServices.workItems.announceTreeNow.bind(
       runnerSource.publicServices.workItems,
     );
-    runnerSource.publicServices.workItems.announceTreeNow = async (projectId) => {
-      await announce(projectId);
+    runnerSource.publicServices.workItems.announceTreeNow = async (workPackageId) => {
+      await announce(workPackageId);
       throw new Error('reply delivery lost');
     };
     const throwing = createPlanCommandRunner(runnerSource, nodeDigest);
@@ -710,7 +728,8 @@ describe('conditional exact runtime claim', () => {
   });
 
   it('retains resource exhaustion detail from existing default demand semantics', async () => {
-    const { runner, request, source } = await seeded();
+    const { runner, request, source, sqlite } = await seeded();
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const created = await runner.runDirectoryWithin(
       actor,
       [{ kind: 'createResource', name: 'RAM', resourceKind: 'divisible', unitLabel: 'GB' }],
@@ -762,7 +781,7 @@ describe('conditional exact runtime claim', () => {
     expect(await runner.claimRuntime(context, claimRequest)).toEqual(refusal);
     expect(
       await source.stores.runtimeCommands.readAttemptBinding(
-        { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+        { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
         'store',
         'attempt-a',
       ),
@@ -794,12 +813,13 @@ describe('conditional exact runtime claim', () => {
       action: { ...original.action, execution: { ...original.action.execution } },
     };
     const identity = {
-      projectId: 'a1',
+      workPackageId: 'a1',
       personId: 'agent',
       actor: { ...actor },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
     };
     const entered = Promise.withResolvers<undefined>();
@@ -811,7 +831,7 @@ describe('conditional exact runtime claim', () => {
     });
     await entered.promise;
     const claiming = runner.claimRuntime(identity, mutable);
-    identity.projectId = 'b1';
+    identity.workPackageId = 'b1';
     identity.personId = 'unknown';
     identity.actor.id = 'unknown';
     identity.access.scope.organizationId = 'org-b';
@@ -834,7 +854,7 @@ describe('conditional exact runtime claim', () => {
     expect(accepted).toMatchObject({
       commandId: 'claim',
       actorId: 'ada',
-      scope: { projectId: 'a1', personId: 'agent', organizationId: 'org-a' },
+      scope: { workPackageId: 'a1', personId: 'agent', organizationId: 'org-a' },
       acceptance: {
         authority: original.authority,
         claim: {
@@ -873,9 +893,9 @@ describe('conditional exact runtime claim', () => {
                     ...scope.stores,
                     claims: new Proxy(scope.stores.claims, {
                       get(target, key) {
-                        if (key === 'listByProject')
-                          return async (projectId: string) =>
-                            (await target.listByProject(projectId)).map((claim) => ({
+                        if (key === 'listByWorkPackage')
+                          return async (workPackageId: string) =>
+                            (await target.listByWorkPackage(workPackageId)).map((claim) => ({
                               ...claim,
                               [field]: 'broken',
                             }));
@@ -918,7 +938,7 @@ describe('conditional exact runtime claim', () => {
         context.access,
       ),
     ).toMatchObject({ ok: true });
-    const parent = (await source.stores.claims.listByProject('a1')).find(
+    const parent = (await source.stores.claims.listByWorkPackage('a1')).find(
       ({ workItemId }) => workItemId === 'other',
     );
     if (parent === undefined) throw new Error('parent claim missing');

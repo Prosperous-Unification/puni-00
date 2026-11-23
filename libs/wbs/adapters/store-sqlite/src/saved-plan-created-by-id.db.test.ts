@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
 /**
  * `calendar_marker`, one table and one index added whole. It sits directly
@@ -22,12 +23,12 @@ const SAVED_PLAN = '20260903190000_add_saved_plan';
 // reverses everything applied after its target, newest first, so a rollback to
 // SAVED_PLAN reverses them before it reaches this file's own column.
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
  * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -74,7 +75,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -90,11 +91,13 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-created-by-id-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, PREFIX);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -113,7 +116,7 @@ function columnsOf(table: string): string[] {
   }
 }
 
-/** Two accounts, one project owned by the first, and a plan saved by the second. */
+/** Two accounts, one work package owned by the first, and a plan saved by the second. */
 function seed(): void {
   const db = openDatabase(path);
   try {
@@ -178,7 +181,9 @@ describe('saved_plan.created_by_id', () => {
     };
     expect(nullable()).toBe(0);
 
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+    expect(rollbackTo(path, migrations, SAVED_PLAN)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -248,7 +253,7 @@ describe('saved_plan.created_by_id', () => {
       WORK_ITEM_DEADLINE,
       READ_ORDER_INDEX,
       CALENDAR_MARKER,
-      PROJECT_SETTINGS,
+      WORK_PACKAGE_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
     ]);
@@ -259,7 +264,7 @@ describe('saved_plan.created_by_id', () => {
     expect(columnsOf('saved_plan')).toContain('created_by');
     expect(columnsOf('saved_plan')).not.toContain('created_by_id');
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(columnsOf('saved_plan')).toContain('created_by_id');
   });
 
@@ -327,12 +332,14 @@ describe('saved_plan.created_by_id', () => {
    *
    * A row written before this migration ran reads `NULL`, which means the same
    * thing a deleted creator means: no live account claims this plan, so the rule
-   * falls back to the project owner. Written as a rollback-then-insert-then-
+   * falls back to the work package owner. Written as a rollback-then-insert-then-
    * re-apply rather than by inserting a null directly, because that is the only
    * way to produce a row that genuinely predates the column.
    */
   it('leaves a row written before the column reading null', () => {
-    expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+    expect(rollbackTo(path, migrations, SAVED_PLAN)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -402,7 +409,7 @@ describe('saved_plan.created_by_id', () => {
       WORK_ITEM_DEADLINE,
       READ_ORDER_INDEX,
       CALENDAR_MARKER,
-      PROJECT_SETTINGS,
+      WORK_PACKAGE_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
     ]);
@@ -423,7 +430,7 @@ describe('saved_plan.created_by_id', () => {
       before.close();
     }
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
 
     expect(creatorOf('old')).toEqual({ created_by: 'Ada', created_by_id: null });
   });

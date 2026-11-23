@@ -4,14 +4,18 @@ import { join } from 'node:path';
 
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 
-import { openDatabase, openDrizzle } from './db';
+import { openDatabase } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { StepMeasureRepository } from './step-measure';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
+import { MIGRATIONS_FOLDER } from './testing/space-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023150000_key_step_measure';
 const BASELINE = '20261023140000_add_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
@@ -24,8 +28,8 @@ let path: string;
 let db: Database;
 
 /**
- * A store at {@link BASELINE} holding what dev holds: project `p` owned by
- * `org-a`, project `q` owned by nobody, and token estimates, token facts and
+ * A store at {@link BASELINE} holding what dev holds: work package `p` owned by
+ * `org-a`, work package `q` owned by nobody, and token estimates, token facts and
  * hours facts on both, written in the old shape with audit columns.
  */
 function seedBaseline(): void {
@@ -98,8 +102,11 @@ function measureId(organizationId: string, key: string): string {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-measure-key-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -125,7 +132,7 @@ afterEach(() => {
 
 function comeForward(): void {
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 }
 
@@ -146,8 +153,20 @@ describe(MIGRATION, () => {
 
   it('reads every existing fact back unchanged through the store', async () => {
     comeForward();
-    const repo = new StepMeasureRepository(openDrizzle(path), OPEN);
-    expect(await repo.listByProject('p')).toEqual([
+    db.run("INSERT INTO organization(id,name,created_at) VALUES ('org-b','B',1)");
+    db.run("INSERT INTO project_organization(resource_id,organization_id) VALUES ('q','org-b')");
+    db.close();
+    try {
+      applyHistoricalCatalogueFixture(path, dir, {
+        'org-a': { codes: {}, uncoded: { 'p-dev': { code: 'dev' }, 'p-qa': { code: 'qa' } } },
+        'org-b': { codes: {}, uncoded: { 'q-dev': { code: 'dev' } } },
+      });
+      runMigrations(path, MIGRATIONS_FOLDER);
+    } finally {
+      db = openDatabase(path);
+    }
+    const repo = new StepMeasureRepository(drizzle({ client: db }), OPEN);
+    expect(await repo.listByWorkPackage('p')).toEqual([
       { workItemId: 'p-one', stepId: 'p-dev', metric: 'hours_actual', value: 2.5, recordedAt: 8 },
       { workItemId: 'p-one', stepId: 'p-dev', metric: 'token_actual', value: 15000, recordedAt: 6 },
       {
@@ -159,7 +178,7 @@ describe(MIGRATION, () => {
       },
       { workItemId: 'p-one', stepId: 'p-qa', metric: 'hours_actual', value: 0, recordedAt: 9 },
     ]);
-    expect(await repo.listByProject('q')).toEqual([
+    expect(await repo.listByWorkPackage('q')).toEqual([
       { workItemId: 'q-one', stepId: 'q-dev', metric: 'token_actual', value: 300, recordedAt: 10 },
     ]);
   });
@@ -190,7 +209,7 @@ describe(MIGRATION, () => {
 
   // Proof: with the UPDATE in `project_organization_keys_measure_facts`
   // replaced by `SELECT 1`, this case read NULL for q's fact; watched 2026-10-23.
-  it('keys an unowned project’s facts when an organization takes it', () => {
+  it('keys an unowned work package’s facts when an organization takes it', () => {
     comeForward();
     db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
     db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-b')");
@@ -241,7 +260,7 @@ describe(MIGRATION, () => {
       "INSERT INTO step_measure (work_item_id, step_id, measure_id, value, recorded_at) VALUES ('p-one', 'p-dev', 'gpu', 3, 30)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('facts on defined measures exist');
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow('facts on defined measures exist');
     db = openDatabase(path);
     expect(
       db.query("SELECT COUNT(*) AS n FROM step_measure WHERE measure_id = 'gpu'").get(),
@@ -257,7 +276,9 @@ describe(MIGRATION, () => {
       .get();
     comeForward();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',

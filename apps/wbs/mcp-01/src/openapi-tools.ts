@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { readBodyInputs } from './openapi-body';
+
 /**
  * Derives MCP inputs from generated shared descriptors, never a hand-listed tool table.
  * Explicit external documents remain supported for fixtures. Missing names, input
@@ -14,6 +16,7 @@ export type InputLocation = 'path' | 'query' | 'body';
 
 /** Plain JSON Schema, which is what the low-level MCP `Server` wants (D5). */
 export interface ToolInputSchema {
+  readonly [keyword: string]: unknown;
   readonly type: 'object';
   readonly properties: Readonly<Record<string, unknown>>;
   readonly required?: readonly string[];
@@ -237,17 +240,19 @@ function toTool(method: HttpMethod, path: string, operation: OpenApiOperation): 
   }
 
   const body = operation.requestBody;
+  let bodyConstraints: Readonly<Record<string, unknown>> = {};
   if (body !== undefined) {
-    const schema = body.content?.['application/json']?.schema;
-    if (schema?.type !== 'object') {
-      throw new Error(
-        `${where} carries a request body with no application/json object schema, so its inputs cannot be derived.`,
-      );
-    }
-    for (const [property, propertySchema] of Object.entries(schema.properties ?? {})) {
+    const inputs = readBodyInputs(body.content?.['application/json']?.schema, where);
+    const hasUrlInputs = locations.size > 0;
+    for (const [property, propertySchema] of inputs.properties) {
       claim(property, propertySchema, 'body');
     }
-    for (const property of schema.required ?? []) {
+    // Whole-body constraints apply before URL fields are stripped for transport.
+    // Refuse opaque projection rather than advertise a weaker or impossible schema.
+    if (hasUrlInputs && Object.keys(inputs.constraints).length > 0)
+      throw new Error(`${where} cannot preserve body constraints alongside URL inputs.`);
+    bodyConstraints = inputs.constraints;
+    for (const property of inputs.required) {
       if (locations.get(property) !== 'body') {
         throw new Error(
           `${where} lists "${property}" as required in its body but does not declare it as a body property.`,
@@ -272,6 +277,10 @@ function toTool(method: HttpMethod, path: string, operation: OpenApiOperation): 
       body?.description === undefined ? undefined : `Request body: ${body.description}`,
     ),
     inputSchema: {
+      // Proof: omitting these constraints made both/neither catalogue alternatives
+      // valid in the actual SDK truth-table owner; exact restoration passed.
+      // See verification-mcp-catalogue-20261119.json for the bounded observations.
+      ...bodyConstraints,
       type: 'object',
       properties: Object.fromEntries(properties),
       ...(required.length > 0 ? { required: [...new Set(required)] } : {}),

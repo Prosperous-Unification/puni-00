@@ -4,8 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { type Drizzle, openConnection, openDatabase } from './db';
 import {
   toOptimizationGenerationRow,
   toOptimizedScheduleCacheRow,
@@ -19,8 +18,8 @@ import {
   solverQueue,
   solverSlot,
 } from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 /**
  * The negative injections of tasks.md 3.8, run against a real migrated file.
@@ -35,25 +34,16 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
  * constraint it names.
  */
 
-function tempDb(): { path: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), 'wbs-optimizer-rows-'));
-  return {
-    path: join(dir, 'test.db'),
-    cleanup: () => {
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
-
-function seedProject(path: string): void {
+function seedWorkPackage(path: string): void {
+  seedLegacyPackageParent(path, 'org', 'project');
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'project', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     db.close();
@@ -102,67 +92,86 @@ interface Injection {
 }
 
 function migrated(): { path: string; cleanup: () => void } {
-  const db = tempDb();
-  runMigrations(db.path, FOLDER);
-  seedProject(db.path);
-  return db;
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-optimizer-rows-'));
+  const path = join(directory, 'test.db');
+  const custody = { hasUnknownOwner: false };
+  const cleanup = (): void => {
+    rmSync(directory, { recursive: true });
+  };
+  try {
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+    seedWorkPackage(path);
+    return { path, cleanup };
+  } catch (cause) {
+    if (!custody.hasUnknownOwner) cleanup();
+    throw cause;
+  }
 }
 
 const GENERATION = `INSERT INTO optimization_generation
-  (project_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
+  (work_package_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
   VALUES ('p-1', '7+1.0.0', 1, 0, 'draning', 1)`;
 
 const CACHE_OBJECTIVE = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h1', 'prio', '7+1.0.0', 60000, 1, 'ok', '{}', NULL, 1)`;
 
 const CACHE_STATUS = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h2', 'pri', '7+1.0.0', 60000, 1, 'okay', '{}', NULL, 1)`;
 
 const CACHE_FAILURE_REASON = `INSERT INTO optimized_schedule_cache
-  (project_id, input_hash, objective, contract_version, budget_ms,
+  (work_package_id, input_hash, objective, contract_version, budget_ms,
    generation, status, result_json, failure_reason, created_at)
   VALUES ('p-1', 'h3', 'pri', '7+1.0.0', 60000, 1, 'failed', NULL, 'exploded', 1)`;
 
 const SLOT_OBJECTIVE = `INSERT INTO solver_slot
-  (project_id, contract_version, generation, objective, budget_ms, owner_id,
+  (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
    attempt_token, lifecycle, pid, started_at, heartbeat_at,
    cancel_requested_at, admitted_deadline_at)
   VALUES ('p-1', '7+1.0.0', 1, 'prio', 60000, 'own-1', 'tok-1', 'running', 4242, 1, 1, NULL, 61000)`;
 
 const SLOT_LIFECYCLE = `INSERT INTO solver_slot
-  (project_id, contract_version, generation, objective, budget_ms, owner_id,
+  (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
    attempt_token, lifecycle, pid, started_at, heartbeat_at,
    cancel_requested_at, admitted_deadline_at)
   VALUES ('p-1', '7+1.0.0', 1, 'pri', 60000, 'own-1', 'tok-1', 'startingg', NULL, 1, 1, NULL, 61000)`;
 
 const QUEUE_OBJECTIVE = `INSERT INTO solver_queue
-  (project_id, contract_version, objective, budget_ms, generation,
+  (work_package_id, contract_version, objective, budget_ms, generation,
    admitted_cancel_epoch, enqueued_at)
   VALUES ('p-1', '7+1.0.0', 'prio', 60000, 1, 0, 1)`;
 
 /** Reads every row of one table back through its own production validator. */
+function readRows(path: string, read: (db: Drizzle) => unknown): unknown {
+  const connection = openConnection(path);
+  try {
+    return read(connection.db);
+  } finally {
+    connection.close();
+  }
+}
+
 function readCache(path: string): unknown {
-  const db = openDrizzle(path);
-  return db.select().from(optimizedScheduleCache).all().map(toOptimizedScheduleCacheRow);
+  return readRows(path, (db) =>
+    db.select().from(optimizedScheduleCache).all().map(toOptimizedScheduleCacheRow),
+  );
 }
 
 function readGeneration(path: string): unknown {
-  const db = openDrizzle(path);
-  return db.select().from(optimizationGeneration).all().map(toOptimizationGenerationRow);
+  return readRows(path, (db) =>
+    db.select().from(optimizationGeneration).all().map(toOptimizationGenerationRow),
+  );
 }
 
 function readSlot(path: string): unknown {
-  const db = openDrizzle(path);
-  return db.select().from(solverSlot).all().map(toSolverSlotRow);
+  return readRows(path, (db) => db.select().from(solverSlot).all().map(toSolverSlotRow));
 }
 
 function readQueue(path: string): unknown {
-  const db = openDrizzle(path);
-  return db.select().from(solverQueue).all().map(toSolverQueueRow);
+  return readRows(path, (db) => db.select().from(solverQueue).all().map(toSolverQueueRow));
 }
 
 /**
@@ -262,27 +271,24 @@ describe('a stored optimizer enum', () => {
    * ran" rather than "the read blew up".
    */
   it('reads every well-formed row back unchanged', () => {
-    const db = tempDb();
+    const db = migrated();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path);
-
       const write = openDatabase(db.path);
       try {
         write.run(`INSERT INTO optimization_generation
-          (project_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
+          (work_package_id, contract_version, generation, cancel_epoch, admission_state, updated_at)
           VALUES ('p-1', '7+1.0.0', 1, 0, 'draining', 1)`);
         write.run(`INSERT INTO optimized_schedule_cache
-          (project_id, input_hash, objective, contract_version, budget_ms,
+          (work_package_id, input_hash, objective, contract_version, budget_ms,
            generation, status, result_json, failure_reason, created_at)
           VALUES ('p-1', 'h1', 'time', '7+1.0.0', 60000, 1, 'failed', NULL, 'oom', 1)`);
         write.run(`INSERT INTO solver_slot
-          (project_id, contract_version, generation, objective, budget_ms, owner_id,
+          (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
            attempt_token, lifecycle, pid, started_at, heartbeat_at,
            cancel_requested_at, admitted_deadline_at)
           VALUES ('p-1', '7+1.0.0', 1, 'time', 60000, 'own-1', 'tok-1', 'starting', NULL, 1, 1, NULL, 61000)`);
         write.run(`INSERT INTO solver_queue
-          (project_id, contract_version, objective, budget_ms, generation,
+          (work_package_id, contract_version, objective, budget_ms, generation,
            admitted_cancel_epoch, enqueued_at)
           VALUES ('p-1', '7+1.0.0', 'time', 60000, 1, 0, 1)`);
       } finally {
@@ -307,15 +313,12 @@ describe('a stored optimizer enum', () => {
    * successful cache row on read.
    */
   it('accepts the null failure reason of a row that did not fail', () => {
-    const db = tempDb();
+    const db = migrated();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path);
-
       const write = openDatabase(db.path);
       try {
         write.run(`INSERT INTO optimized_schedule_cache
-          (project_id, input_hash, objective, contract_version, budget_ms,
+          (work_package_id, input_hash, objective, contract_version, budget_ms,
            generation, status, result_json, failure_reason, created_at)
           VALUES ('p-1', 'h1', 'pri', '7+1.0.0', 60000, 1, 'ok', '{}', NULL, 1)`);
       } finally {

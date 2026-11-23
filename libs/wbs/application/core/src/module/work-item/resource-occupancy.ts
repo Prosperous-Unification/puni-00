@@ -1,15 +1,11 @@
-import {
-  mayStateDirectoryCapacityInOrganization,
-  occupancyByResource,
-  type OrganizationOccupancyRow,
-  type OrganizationScope,
-} from '@wbs/domain';
+import { occupancyByResource, type OrganizationOccupancyRow } from '@wbs/domain';
 
 import type { ClaimStore, StampedClaim } from '../../ports/claim-store';
 import type { DirectoryStore } from '../../ports/directory-store';
-import type { RefusedOrganizationAccess } from '../../ports/organization-access';
-import type { ProjectStore } from '../../ports/project-store';
-import { nameOccupancyHolder, projectVisibility, readHolderNames } from './shared-holders';
+import type { RefusedOrganizationAccess, ResourceAccess } from '../../ports/organization-access';
+import type { WorkPackageReadAccess } from '../../ports/work-package-report-store';
+import type { WorkPackageStore } from '../../ports/work-package-store';
+import { nameOccupancyHolder, readHolderNames, workPackageVisibility } from './shared-holders';
 
 interface HoldingClaim {
   claimId: string;
@@ -22,8 +18,8 @@ interface HoldingClaim {
   releasableBy: 'claimant_or_admin' | 'claimant';
 }
 
-interface HoldingProject {
-  projectId: string;
+interface HoldingWorkPackage {
+  workPackageId: string;
   name: string;
   restricted: boolean;
   units: number;
@@ -38,10 +34,15 @@ export type ResourceOccupancyRead =
         directoryCapacity: number | null;
         occupied: number;
         free: number | null;
-        projects: HoldingProject[];
+        workPackages: HoldingWorkPackage[];
       };
     }
-  | { readonly ok: false; readonly reason: 'forbidden' | 'not_found' }
+  | { readonly ok: false; readonly reason: 'not_found' }
+  | {
+      readonly ok: false;
+      readonly reason: 'forbidden';
+      readonly permission: 'organization.manage_directory';
+    }
   | RefusedOrganizationAccess;
 
 interface ResourceOccupancyStores {
@@ -50,7 +51,7 @@ interface ResourceOccupancyStores {
     'listInOrganization' | 'directoryCapacitiesOf' | 'personNamesInOrganization' | 'namesOf'
   >;
   readonly claims: Pick<ClaimStore, 'organizationOccupancyOf' | 'listStampedByIds'>;
-  readonly projects: Pick<ProjectStore, 'findInOrganization' | 'mayReadProjectWithin'>;
+  readonly workPackages: Pick<WorkPackageStore, 'findInOrganization'> & WorkPackageReadAccess;
 }
 
 /**
@@ -62,12 +63,12 @@ export async function readResourceOccupancy(
   capture: () => ResourceOccupancyStores | Promise<ResourceOccupancyStores>,
   resourceId: string,
   actorId: string,
-  scope: OrganizationScope,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
 ): Promise<ResourceOccupancyRead> {
-  // Proof: removing the role check returned HTTP 200 with another project's holding to a member.
-  if (!mayStateDirectoryCapacityInOrganization(scope.role))
-    return { ok: false, reason: 'forbidden' };
-  const { directory, projects, claims } = await capture();
+  const { scope } = access;
+  if (actorId !== scope.userId || actorId !== access.principal.id)
+    throw new Error('organization read actor differs from its admitted scope');
+  const { directory, workPackages, claims } = await capture();
   const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
     ({ id }) => id === resourceId,
   );
@@ -79,37 +80,45 @@ export async function readResourceOccupancy(
   // Proof: treating a stated zero as absent returned null in the mounted zero-capacity read.
   const directoryCapacity = capacity === undefined ? null : capacity.units;
   const rows = await claims.organizationOccupancyOf([resourceId]);
-  const byProject = groupHoldingClaims(rows, resourceId, scope.organizationId);
-  const access = { kind: 'scoped' as const, scope };
-  const mayRead = projectVisibility(projects, actorId, access);
-  const visible: { project: Omit<HoldingProject, 'claims'>; holdings: StampedClaim[] }[] = [];
+  const byWorkPackage = groupHoldingClaims(rows, resourceId, scope.organizationId);
+  const mayRead = workPackageVisibility(workPackages, actorId, access);
+  const visible: { workPackage: Omit<HoldingWorkPackage, 'claims'>; holdings: StampedClaim[] }[] =
+    [];
   let occupied = 0;
-  for (const [projectId, group] of [...byProject].sort(([left], [right]) =>
+  for (const [workPackageId, group] of [...byWorkPackage].sort(([left], [right]) =>
     compareIds(left, right),
   )) {
-    // Proof: substituting an origin for missing ownership returned a partial HTTP 200.
-    const project = await projects.findInOrganization(projectId, scope.organizationId);
-    if (project === null) throw new Error(`holding project ${projectId} has no verified owner`);
     // Proof: summing claim copies instead of each leaf's maximum returned 32 units instead of 20.
     const units = occupancyByResource(group).reduce((sum, holding) => sum + holding.occupied, 0);
-    const readable = await mayRead({ id: projectId, organizationId: scope.organizationId });
+    const readable = await mayRead({ id: workPackageId, organizationId: scope.organizationId });
     // Proof: a visible-only total lost 16 shared units. Counting all origins disclosed those units
     // when directory capacity was unstated.
     if (directoryCapacity !== null || readable) occupied += units;
-    // Proof: projecting the denied project exposed its private holder in the mounted body.
+    // Proof: projecting the denied work package exposed its private holder in the mounted body.
     if (!readable) continue;
+    // Proof: substituting an origin for missing ownership returned a partial HTTP 200.
+    const workPackage = await workPackages.findInOrganization(workPackageId, scope.organizationId);
+    if (workPackage === null)
+      throw new Error(`holding work package ${workPackageId} has no verified owner`);
     const ordered = group.toSorted((left, right) => compareIds(left.claimId, right.claimId));
     const ids = ordered.map(({ claimId }) => claimId);
     // Proof: fabricating missing stamps returned a partial HTTP 200.
-    const stamps = await claims.listStampedByIds(projectId, ids);
+    const stamps = await claims.listStampedByIds(workPackageId, ids);
     const stamped = new Map(stamps.map((stamp) => [stamp.id, stamp]));
     // Proof: allowing a duplicate stamp made a contradictory store response return HTTP 200.
     if (stamped.size !== ids.length || stamps.length !== ids.length)
-      throw new Error(`holding project ${projectId} has missing or duplicate claim stamps`);
+      throw new Error(
+        `holding work package ${workPackageId} has missing or duplicate claim stamps`,
+      );
     // Proof: collapsing details by leaf lost one of the two actual claim IDs.
     const holdings = ordered.map((row) => matchHoldingStamp(row, stamped.get(row.claimId)));
     visible.push({
-      project: { projectId, name: project.name, restricted: project.restricted, units },
+      workPackage: {
+        workPackageId,
+        name: workPackage.name,
+        restricted: workPackage.restricted,
+        units,
+      },
       holdings,
     });
   }
@@ -125,8 +134,8 @@ export async function readResourceOccupancy(
       directoryCapacity,
       occupied,
       free: directoryCapacity === null ? null : directoryCapacity - occupied,
-      projects: visible.map(({ project, holdings }) => ({
-        ...project,
+      workPackages: visible.map(({ workPackage, holdings }) => ({
+        ...workPackage,
         claims: holdings.map((stamp) => ({
           claimId: stamp.id,
           // Proof: substituting the person ID for a missing name returned a partial HTTP 200.
@@ -137,7 +146,7 @@ export async function readResourceOccupancy(
           claimedAt: stamp.claimedAt,
           leaseExpiresAt: stamp.leaseExpiresAt,
           // Proof: an unconditional claimant_or_admin label failed the restricted release scenario.
-          releasableBy: project.restricted ? 'claimant' : 'claimant_or_admin',
+          releasableBy: workPackage.restricted ? 'claimant' : 'claimant_or_admin',
         })),
       })),
     },
@@ -156,7 +165,7 @@ function groupHoldingClaims(
   resourceId: string,
   organizationId: string,
 ): Map<string, OrganizationOccupancyRow[]> {
-  const projects = new Map<string, OrganizationOccupancyRow[]>();
+  const workPackages = new Map<string, OrganizationOccupancyRow[]>();
   const seen = new Map<string, OrganizationOccupancyRow>();
   for (const row of rows) {
     // Proof: accepting a foreign-origin row made the mounted corrupt read return HTTP 200.
@@ -166,7 +175,7 @@ function groupHoldingClaims(
     if (previous !== undefined) {
       // Proof: ignoring contradictory claimants made the conflicting-row read return HTTP 200.
       if (
-        previous.projectId !== row.projectId ||
+        previous.workPackageId !== row.workPackageId ||
         previous.workItemId !== row.workItemId ||
         previous.personId !== row.personId ||
         previous.runId !== row.runId ||
@@ -176,11 +185,11 @@ function groupHoldingClaims(
       continue;
     }
     seen.set(row.claimId, row);
-    const group = projects.get(row.projectId) ?? [];
+    const group = workPackages.get(row.workPackageId) ?? [];
     group.push(row);
-    projects.set(row.projectId, group);
+    workPackages.set(row.workPackageId, group);
   }
-  return projects;
+  return workPackages;
 }
 
 /** A visible holding and its stamp must be two reads of the same claim. */

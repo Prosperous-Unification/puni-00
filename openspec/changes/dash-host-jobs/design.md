@@ -152,9 +152,24 @@ durable. Peak tmp disk is the largest sample, stated as a lower bound; disk outs
 the managed worktree is not covered and the record says so. The payload's exit code passes
 through; a signalled payload returns 128 + signal. The one exception is a payload the launcher
 ends at its type's `maxRuntimeMinutes`, which returns 124 (task 6.11); the launcher lifts the
-scope's `MemoryHigh`, sends SIGTERM to the session and SIGKILLs the whole scope after the settle
-budget (task 6.14). A telemetry failure mid-run and a ledger
-write failure are recorded apart from the payload's outcome.
+scope's `MemoryHigh`, sends SIGTERM to the session and, after the settle budget, asks its retained
+Bun keeper to SIGKILL the original native payload child (task 6.14). The keeper still joins its
+genuine native callback and numeric exit, writes the private FD4 status and awaits the controller
+ACK; the controller joins the actual keeper before the existing scope-leftover ending. A telemetry
+failure mid-run and a ledger write failure are recorded apart from the payload's outcome.
+
+_Merge compatibility amendment (2026-11-22)._ Private FD3 admits one `kill\n` only after
+startup/native acquisition and before `done`. A first late request is a no-op after genuine
+native completion; it preserves that status. Duplicate, startup and post-done requests refuse.
+Only a prefix of this exact word may span the two post-native exclusive FD3/FD4 observations;
+startup and truncated EOF remain strict. This avoids cgroup/session SIGKILL destroying the only
+status authority. Escaped descendants remain subject to the existing post-keeper cgroup ending.
+Unconfirmed control delivery refuses 70 and marks attribution incomplete even when qualified raw
+status permits a ledger 124 policy overlay. Existing session/container/tmp evidence independently
+authorizes settlement; control delivery failure grants none. Simultaneous delivery and native
+observation failures retain both original causes. The current source tests and historical C34
+archive remain separate evidence; see the current merge entry in verify.md and the CLI's
+`docs/gated-payload-proof.md`.
 
 _Amendment (task 6.23, 2026-11-19, assumption A-TMP-TELEMETRY-1 for Dany)._ The gate's own
 `apps/wbs/be-01/src/shared-people-host-restore-process.db.test.ts` makes a directory

@@ -230,9 +230,9 @@ export function SpacesPage({
                             </Link>
                           )}
                           <span className={NOTE_CLASS}>
-                            {space.projectCount === 1
-                              ? '1 project'
-                              : `${String(space.projectCount)} projects`}
+                            {space.workPackageCount === 1
+                              ? '1 work package'
+                              : `${String(space.workPackageCount)} work packages`}
                           </span>
                         </span>
                         {view.writable && renaming?.id !== space.id && (
@@ -258,7 +258,7 @@ export function SpacesPage({
                               onClick={() => {
                                 void write(
                                   () => spaces.deleteApiSpacesById({ params: { id: space.id } }),
-                                  `Deleted ${space.name}. Its projects are unchanged.`,
+                                  `Deleted ${space.name}. Its work packages are unchanged.`,
                                 );
                               }}
                             >

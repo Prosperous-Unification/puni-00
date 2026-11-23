@@ -540,7 +540,7 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
     inside the directory are removed with it; a file with a link outside it still blocks (6.16);
   - sampled every ten seconds and at exit: the counters, the tmp directory's allocated bytes
     (no link followed) and, for a containers bound, the labelled containers' `docker stats`.
-    The gated shell keeps the scope alive until the exit sample is stored, so even `true` gets
+    The selected Bun keeper keeps the scope alive until the exit sample is stored, so even `true` gets
     a gate and an exit sample. Peak tmp is the largest sample, a lower bound; disk outside
     `TMPDIR` is not covered. A subtree the walk may not read (EACCES or EPERM, such as the
     mode-0 `inaccessible` directory the gate's own be-01 test makes under `TMPDIR`) is skipped
@@ -956,3 +956,7 @@ release. When the shell lock cannot answer (an unreadable holder record or queue
 answer. `ops pool inspect` adds `concurrencyEligible`, `launcherCheckouts`, `guard`,
 `guardHolder`, `switching`, `modeRecords` and `legacyLock` (holder and waiters, or null once
 the guard is released).
+
+### Bun payload ownership qualification
+
+The private gated payload uses the same selected protected PUNI artifact and privately transmits the complete captured post-jobEnvironment snapshot to the payload. The keeper retains scope sampling through native direct-child completion and controller acknowledgement. Unknown callback/status/reader evidence retains ownership; numeric promises or FD4 EOF alone do not prove payload/descendant/resource settlement. A qualified payload status can survive subsequent actual keeper signal loss with helper/ACK/telemetry failure and incomplete attribution explicit; ACK EPIPE alone is insufficient. Independent reservations remain charged when their settlement evidence is unknown. [Gated payload verification](gated-payload-proof.md) records the private implementation, actual package/native qualifications and their limits; this does not switch the canonical host gate or a default.

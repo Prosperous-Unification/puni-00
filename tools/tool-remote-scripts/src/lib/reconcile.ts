@@ -87,7 +87,6 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
         'stored-vocabularies',
         'health-gate',
         'stored-vocabularies-after-stop',
-        'backfill-step-codes',
         'grant-alias',
         'render-route',
         'reload',

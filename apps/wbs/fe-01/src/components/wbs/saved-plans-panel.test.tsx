@@ -55,11 +55,13 @@ const compareReply = (diff: PlanDiffView): SavedPlanCompareReply => ({
     diff,
     left: {
       source: { kind: 'saved', savedPlanId: ROW.id },
+      parent: { kind: 'unrecorded' },
       schedule: { present: true, algorithmId: 'retired' },
       provenance: { kind: 'legacy-unknown' },
     },
     right: {
       source: { kind: 'current' },
+      parent: { kind: 'recorded', projectId: 'captured-parent' },
       schedule: { present: false, absentReason: 'pending' },
       provenance: { kind: 'legacy-unknown' },
     },
@@ -131,7 +133,7 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
   const deps: SavedPlanRoutes = {
     available: () => Promise.resolve(true),
     list,
-    subscribe: (_projectId, onChange) => {
+    subscribe: (_work_packageId, onChange) => {
       fire = onChange;
       return {
         unsubscribe: () => {
@@ -156,8 +158,8 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
       shelf = [...rows];
     },
     /**
-     * One frame on the project's stream. `changed` is the event's type as
-     * `subscribeToProject` reports it; none is a frame whose type is unknown.
+     * One frame on the work package's stream. `changed` is the event's type as
+     * `subscribeToWorkPackage` reports it; none is a frame whose type is unknown.
      */
     broadcast: (changed?: string | null) => fire?.(changed),
   };
@@ -213,7 +215,7 @@ describe('the saved-plans panel', () => {
 
   itDom('renders the shelf it read', async () => {
     const wiring = fakeDeps();
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
@@ -227,7 +229,7 @@ describe('the saved-plans panel', () => {
 
   itDom('saves under the name typed beside Save, and clears the field (F-061)', async () => {
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Name this plan' });
@@ -248,7 +250,7 @@ describe('the saved-plans panel', () => {
 
   itDom('puts a row on the comparison against the current plan (F-061)', async () => {
     const wiring = fakeDeps([NEWER, ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     expect(screen.getByLabelText<HTMLSelectElement>(COMPARE_PICKER).value).toBe(NEWER.id);
 
@@ -266,7 +268,7 @@ describe('the saved-plans panel', () => {
 
   itDom('deletes a row only once the delete is confirmed (F-061)', async () => {
     const wiring = fakeDeps([NEWER, ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: `Delete saved plan ${NEWER.name}` }));
@@ -295,7 +297,7 @@ describe('the saved-plans panel', () => {
 
   itDom('the delete question takes the focus, and Escape answers Keep (F-061)', async () => {
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const cross = screen.getByRole('button', { name: `Delete saved plan ${ROW.name}` });
@@ -326,7 +328,7 @@ describe('the saved-plans panel', () => {
     // whose effect did nothing would otherwise be rescued by the broadcast and
     // pass.
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     expect(screen.queryByText(NEWER.name)).toBeNull();
 
@@ -347,7 +349,7 @@ describe('the saved-plans panel', () => {
     // a collaborator saving a plan would move a picker nobody touched and swap
     // the comparison under the reader mid-read.
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     const picker: HTMLSelectElement = screen.getByLabelText(COMPARE_PICKER);
     expect(picker.value).toBe(ROW.id);
@@ -368,7 +370,7 @@ describe('the saved-plans panel', () => {
     // on an empty shelf would put a refusal sentence on screen for a choice the
     // reader was never given.
     const wiring = fakeDeps([]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     expect(screen.getByText('No plans saved yet.')).toBeTruthy();
@@ -387,7 +389,7 @@ describe('the saved-plans panel', () => {
     const list = vi.fn(() =>
       failing ? Promise.reject(new Error('boom')) : Promise.resolve(listReply([NEWER, ROW])),
     );
-    render(<SavedPlansPanelOver projectId="p1" routes={{ ...wiring.deps, list }} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={{ ...wiring.deps, list }} />);
     await flush();
     fireEvent.change(screen.getByLabelText(/^with/), { target: { value: ROW.id } });
     await flush();
@@ -411,7 +413,7 @@ describe('the saved-plans panel', () => {
 
   itDom('compares the newest saved plan against the current one by default', async () => {
     const wiring = fakeDeps([NEWER, ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     expect(wiring.compare).toHaveBeenCalledWith('p1', { saved: NEWER.id }, 'current');
@@ -423,7 +425,7 @@ describe('the saved-plans panel', () => {
     // diff indistinguishable from two equal plans. Refused at the picker, so the
     // request is never made.
     const wiring = fakeDeps([NEWER, ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     const calls = wiring.compare.mock.calls.length;
 
@@ -440,7 +442,7 @@ describe('the saved-plans panel', () => {
     // putting `savedPlanId` on its 422, and worth nothing unless it is rendered.
     const wiring = fakeDeps([ROW]);
     wiring.compare.mockResolvedValue(corruptReply());
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const alert = await screen.findByRole('alert');
@@ -464,7 +466,7 @@ describe('the saved-plans panel', () => {
         schedule: [],
       }),
     );
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     expect(screen.getByText('the first answer')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Compare again' })).toBeNull();
@@ -500,7 +502,7 @@ describe('the saved-plans panel', () => {
       a saved plan never changes. The banner said it had.
     */
       const wiring = fakeDeps([ROW]);
-      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
       await flush();
       expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: ROW.id }, 'current');
       const banner = () => screen.queryByText(/has changed since the comparison/);
@@ -546,7 +548,7 @@ describe('the saved-plans panel', () => {
     'an edit to the live plan, or an event it cannot name, is a plan change (F-100)',
     async () => {
       const wiring = fakeDeps([ROW]);
-      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
       await flush();
 
       // The live plan moves and the list does not: the same rows come back.
@@ -577,7 +579,7 @@ describe('the saved-plans panel', () => {
       // Both sides are checkpoints, and a checkpoint does not change: an edit to
       // the live plan is news about neither.
       const wiring = fakeDeps([NEWER, ROW]);
-      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
       await flush();
       fireEvent.change(screen.getByLabelText('with'), { target: { value: ROW.id } });
       await flush();
@@ -595,7 +597,7 @@ describe('the saved-plans panel', () => {
 
   itDom('says when a collaborator deleted a plan the comparison is about (F-100)', async () => {
     const wiring = fakeDeps([NEWER, ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: NEWER.id }, 'current');
 
@@ -620,7 +622,7 @@ describe('the saved-plans panel', () => {
         schedule: [],
       }),
     );
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     wiring.setShelf([NEWER, ROW]);
@@ -658,7 +660,7 @@ describe('the saved-plans panel', () => {
     */
     const wiring = fakeDeps([ROW]);
     wiring.compare.mockResolvedValue(goneReply(ROW.id));
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const alert = await screen.findByRole('alert');
@@ -669,13 +671,13 @@ describe('the saved-plans panel', () => {
     expect(alert.textContent).toContain('Pick another');
   });
 
-  itDom('a refusal naming no plan is about the project, and offers no pick', async () => {
+  itDom('a refusal naming no plan is about the work package, and offers no pick', async () => {
     // The other branch, and it is a different sentence rather than the same one
-    // with a gap: be-01 refused the project, which no choice among these
+    // with a gap: be-01 refused the work package, which no choice among these
     // pickers can fix, so inviting one would send the reader round a loop.
     const wiring = fakeDeps([ROW]);
     wiring.compare.mockResolvedValue(goneReply());
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const alert = await screen.findByRole('alert');
@@ -689,7 +691,7 @@ describe('the saved-plans panel', () => {
     // picker rather than at the same button again.
     const wiring = fakeDeps([ROW]);
     wiring.compare.mockResolvedValue(corruptReply());
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     const alert = await screen.findByRole('alert');
@@ -713,7 +715,7 @@ describe('the saved-plans panel', () => {
       return through gw-01.
     */
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: `Rename ${ROW.name}` }));
@@ -739,7 +741,7 @@ describe('the saved-plans panel', () => {
     // name would leave the row unidentifiable on a shelf whose whole job is
     // telling checkpoints apart; an unchanged one changes nothing.
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     for (const typed of ['   ', ROW.name]) {
@@ -756,7 +758,7 @@ describe('the saved-plans panel', () => {
 
   itDom('Escape leaves the name alone and sends nothing', async () => {
     const wiring = fakeDeps([ROW]);
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: `Rename ${ROW.name}` }));
@@ -776,7 +778,7 @@ describe('the saved-plans panel', () => {
     // gone, and the sentence and the refresh say so together.
     const wiring = fakeDeps([ROW]);
     wiring.rename.mockResolvedValue(renameGoneReply());
-    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    render(<SavedPlansPanelOver workPackageId="p1" routes={wiring.deps} />);
     await flush();
     const readsBefore = wiring.list.mock.calls.length;
 

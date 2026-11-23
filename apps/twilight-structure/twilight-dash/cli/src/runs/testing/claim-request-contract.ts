@@ -129,6 +129,15 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
         };
         const request = await assertBuilt(setup, input, setup.runs, noWrites, guard);
         expect(readRuntimeRequest(request.canonicalRequest)).toEqual(expectedRequest(setup));
+        expect(JSON.parse(request.canonicalRequest)).toMatchObject({
+          schemaVersion: 2,
+          scope: {
+            organizationId: setup.scope.organizationId,
+            workPackageId: setup.scope.projectId,
+            personId: setup.scope.personId,
+          },
+        });
+        expect(readRuntimeRequest(request.canonicalRequest).operation.schemaVersion).toBe(1);
         expect(request.stateEvidence).toEqual(input.stateEvidence);
         expect(request.stateEvidence).not.toBe(input.stateEvidence);
         expect(await setup.artifacts.readArtifact(input.stateEvidence)).toEqual(artifact);
@@ -156,7 +165,7 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
           ...setup.state,
           basis,
           authority: { kind: 'uninitialized' },
-          facts: { ...setup.state.facts, projectRevision: 9 },
+          facts: { ...setup.state.facts, workPackageRevision: 9 },
         };
         const input = { ...inputFor(setup), stateEvidence: await retainState(setup, state) };
         const request = await assertBuilt(setup, input);

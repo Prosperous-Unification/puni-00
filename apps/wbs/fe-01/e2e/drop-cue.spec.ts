@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import {
   fixtureClient,
   fixtureSuccess,
@@ -41,9 +41,9 @@ async function seedNested(page: Page, testName: string, worker: number): Promise
     ...(index === 0 ? { afterId: null } : { afterRef: `child${String(index - 1)}` }),
   }));
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await fixtureClient(page).postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await fixtureClient(page).postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: { commands },
     }),
   );

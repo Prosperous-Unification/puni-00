@@ -6,7 +6,7 @@ import { buildConnectedSolverRequest } from '@wbs/contracts/solver/build-connect
 import { encodeConnectedSuccess } from '@wbs/contracts/solver/connected-durable';
 import { clockOf } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
-import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
@@ -40,23 +40,33 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { buildServices, type OptimizerRuntime } from './services';
 import { testApp } from './testing/app-fixture';
 import { testLocalAuthService } from './testing/auth-fixture';
+import { refusingProjectRead } from './testing/project-fixture';
 import { trackReadObservations } from './testing/read-observation.fixture';
+import { refusingSpaceRead } from './testing/space-fixture';
+import { refusingWorkPackageObservation } from './testing/work-package-fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const close of cleanups.splice(0)) await close();
 });
 
+// The mounted route borrows once for the connected tree and once for the package timezone.
+const mountedTreeReads = 2;
+
 function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
   const errors: string[] = [];
   let bound: ReturnType<SqliteSource['bindLivePlans']> | undefined;
   const bind = source.bindLivePlans.bind(source);
   const services = buildServices({
+    createSpaceRead: () => refusingSpaceRead,
+    projectRead: refusingProjectRead,
+    createWorkPackageObservation: () => refusingWorkPackageObservation,
     source: {
       ...source,
       bindLivePlans: (options) => {
@@ -96,9 +106,9 @@ function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
       () => 12,
     ),
   });
-  const tree = async (mounted = app, projectId = 'a1') => {
+  const tree = async (mounted = app, workPackageId = 'a1') => {
     const response = await mounted.handle(
-      new Request(`http://localhost/api/projects/${projectId}/work-items`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/work-items`, {
         headers: { 'X-WBS-Expected-Organization': 'org-a' },
       }),
     );
@@ -118,6 +128,26 @@ function stream(bytes: string) {
     },
   });
 }
+function seedStep(
+  sqlite: ReturnType<typeof openDatabase>,
+  owner: string,
+  step: string,
+  position: number,
+) {
+  const project = 'project-' + owner;
+  sqlite.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,?,'project',?,'authored')",
+    [step, step, step, position, project],
+  );
+  sqlite.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,?,'authored')",
+    ['binding-' + step, project, step, position],
+  );
+  sqlite.run(
+    "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+    [owner, step],
+  );
+}
 async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated', held = false) {
   const folder = mkdtempSync(join(tmpdir(), 'connected-composition-'));
   const path = await openSpaceDatabase(folder);
@@ -125,27 +155,38 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
   const sqlite = openDatabase(path);
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
   sqlite.run(
-    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['connected-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
   );
-  sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
+  sqlite.run("UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-05'");
   sqlite.run("UPDATE organization SET shared_people=? WHERE id='org-a'", [
     mode === 'shared' ? 1 : 0,
   ]);
-  sqlite.run("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
+  sqlite.run(
+    "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
+  );
+  for (const owner of ['a1', 'a2', 'a3']) {
+    const project = 'project-' + owner;
+    sqlite.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+      [project, project],
+    );
+    sqlite.run('UPDATE work_package SET project_id=? WHERE id=?', [project, owner]);
+  }
   for (const id of ['a1', 'a2']) {
-    sqlite.run('INSERT INTO work_item(id,project_id,position,name) VALUES(?,?,10,?)', [id, id, id]);
-    sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,10)', [
-      id + '-s',
+    sqlite.run('INSERT INTO work_item(id,work_package_id,position,name) VALUES(?,?,10,?)', [
       id,
-      'Build',
+      id,
+      id,
     ]);
+    seedStep(sqlite, id, id + '-s', 10);
     sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,1,1,1)',
       [id, id + '-s'],
     );
   }
   sqlite.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
   const launched: ReservedSpawnRequest[] = [];
   const probe = Object.assign(trackReadObservations(), { writerReads: [] as number[] });
@@ -211,7 +252,7 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
   };
   const edit = async (days: number) => {
     const response = await composed.app.handle(
-      new Request('http://localhost/api/projects/a2/commands', {
+      new Request('http://localhost/api/work-packages/a2/commands', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({
@@ -258,7 +299,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       optimization: { variants: { time: { state: 'boundary-infeasible' } } },
     });
     const refused = await f.app.handle(
-      new Request('http://localhost/api/projects/a1/optimization/retry', {
+      new Request('http://localhost/api/work-packages/a1/optimization/retry', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({ inputHash: question.inputHash, objective: 'time' }),
@@ -296,7 +337,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     if (initial.kind !== 'connected' || initial.projection.placement.kind !== 'scheduled')
       throw Error('seed stage missing');
     const stage = initial.projection.placement.stages.find(
-      (selection) => selection.stage.projectId === 'a1',
+      (selection) => selection.stage.workPackageId === 'a1',
     )?.stage;
     if (stage === undefined) throw Error('seed target missing');
     const question = captureConnectedQuestion(stage, 'time', installed);
@@ -364,7 +405,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     const tree = await f.services.workItems.treeWithin('a1', access);
     if (tree === null || 'kind' in tree) throw Error('scheduled tree expected');
     expect(tree).toMatchObject({ optimization: { variants: { time: { state: 'ready' } } } });
-    const exported = await f.services.workItems.exportWithin('a1', access);
+    const exported = await f.services.workItems.exportWithin('a1', access, f.services.planExports);
     expect(exported.kind).toBe('connected');
     if (exported.kind !== 'connected') throw Error('connected export expected');
     expect(exported.tree).toEqual(tree);
@@ -372,12 +413,12 @@ for (const mode of ['isolated', 'shared'] as const) {
       const aggregate = await f.services.workItems.sharedTreesWithin('ada', access);
       expect(aggregate.kind).toBe('shared');
       if (aggregate.kind !== 'shared') throw Error('shared aggregate expected');
-      expect(aggregate.entries.find((entry) => entry.projectId === 'a1')?.tree).toEqual(tree);
+      expect(aggregate.entries.find((entry) => entry.workPackageId === 'a1')?.tree).toEqual(tree);
     }
     // Borrowed command reads must retain the same installed connected reader.
     await f.bound.uow.run(async (scope) => {
       const borrowed = servicesOver(scope.stores, {
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         dependencyContext: createLocalDependencyContext(scope.stores),
         clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
         broadcast: recordingBroadcaster(),
@@ -431,7 +472,7 @@ for (const fault of ['changed-question', 'calendar', 'throw'] as const) {
     f.source.db
       .insert(optimizationGeneration)
       .values({
-        projectId: 'a1',
+        workPackageId: 'a1',
         contractVersion: question.contractVersion,
         generation: 1,
         inputHash: question.inputHash,
@@ -442,7 +483,7 @@ for (const fault of ['changed-question', 'calendar', 'throw'] as const) {
     f.source.db
       .insert(solverQueue)
       .values({
-        projectId: 'a1',
+        workPackageId: 'a1',
         contractVersion: question.contractVersion,
         generation: 1,
         objective: 'time',
@@ -451,7 +492,7 @@ for (const fault of ['changed-question', 'calendar', 'throw'] as const) {
         enqueuedAt: 1,
       })
       .run();
-    if (fault === 'calendar') f.sqlite.run("UPDATE project SET start_date=NULL WHERE id='a2'");
+    if (fault === 'calendar') f.sqlite.run("UPDATE work_package SET start_date=NULL WHERE id='a2'");
     if (fault === 'throw') f.sqlite.run("UPDATE estimate SET realistic=-1 WHERE work_item_id='a2'");
     if (fault === 'changed-question')
       f.sqlite.run(
@@ -486,18 +527,18 @@ for (const mode of ['isolated', 'shared'] as const) {
   test(`cold mounted ${mode} connected tree admits only its detached target after read closure`, async () => {
     const f = await fixture(true, mode, true);
     // The predecessor is also enabled: a target read must not fan admission out to it.
-    f.sqlite.run("UPDATE project SET optimization_enabled=1 WHERE id='a2'");
+    f.sqlite.run("UPDATE work_package SET optimization_enabled=1 WHERE id='a2'");
     const observed = await f.bound.stores.livePlans?.read('a1', access);
     if (observed?.kind !== 'connected' || observed.projection.placement.kind !== 'scheduled')
       throw Error('expected connected stage capture');
     const stage = observed.projection.placement.stages.find(
-      (selection) => selection.stage.projectId === 'a1',
+      (selection) => selection.stage.workPackageId === 'a1',
     )?.stage;
     if (stage === undefined) throw Error('target stage missing');
     const observations = f.probe.observations;
     const first = await f.tree();
     expect(f.launched).toHaveLength(2);
-    expect(f.probe.observations - observations).toBe(1);
+    expect(f.probe.observations - observations).toBe(mountedTreeReads);
     expect(f.probe.writerReads.length).toBeGreaterThan(0);
     expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
     expect(first).toMatchObject({
@@ -505,7 +546,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     });
     expect(f.probe.borrowed).toBe(0);
     expect(f.launched).toHaveLength(2);
-    expect(f.launched.map((asked) => [asked.key.projectId, asked.objective]).sort()).toEqual([
+    expect(f.launched.map((asked) => [asked.key.workPackageId, asked.objective]).sort()).toEqual([
       ['a1', 'pri'],
       ['a1', 'time'],
     ]);
@@ -534,7 +575,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       },
     });
     await f.tree();
-    expect(f.launched.filter((asked) => asked.key.projectId === 'a1')).toHaveLength(2);
+    expect(f.launched.filter((asked) => asked.key.workPackageId === 'a1')).toHaveLength(2);
     expect(ledger()).toEqual(terminal);
     expect(f.errors).toEqual([]);
   });
@@ -543,7 +584,7 @@ for (const mode of ['isolated', 'shared'] as const) {
 test('configured connected live tree refuses missing admission while borrowed capture remains inert', async () => {
   const f = await fixture();
   const graph = servicesOver(f.bound.stores, {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     dependencyContext: createLocalDependencyContext(f.bound.stores),
     clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
@@ -561,7 +602,7 @@ test('configured connected live tree refuses missing admission while borrowed ca
       { by: 'ada', at: 12 },
     );
     const borrowed = servicesOver(scope.stores, {
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       dependencyContext: createLocalDependencyContext(scope.stores),
       clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
       broadcast: recordingBroadcaster(),
@@ -585,13 +626,13 @@ test('configured connected live tree refuses missing admission while borrowed ca
     const captured = await f.tree(mounted);
     expect(captured).toMatchObject({ optimization: { variants: { time: { state: 'idle' } } } });
     expect(captured.slices.map((slice) => slice.earliestStart)).toEqual([3]);
-    expect(await scope.stores.estimates.listByProject('a2')).toMatchObject([{ realistic: 3 }]);
+    expect(await scope.stores.estimates.listByWorkPackage('a2')).toMatchObject([{ realistic: 3 }]);
     expect(f.sqlite.query("SELECT realistic FROM estimate WHERE work_item_id='a2'").get()).toEqual({
       realistic: 1,
     });
     return { commit: false, value: undefined };
   });
-  expect(await f.bound.stores.estimates.listByProject('a2')).toMatchObject([{ realistic: 1 }]);
+  expect(await f.bound.stores.estimates.listByWorkPackage('a2')).toMatchObject([{ realistic: 1 }]);
   expect(f.launched).toEqual([]);
 });
 
@@ -599,7 +640,7 @@ for (const mode of ['isolated', 'shared'] as const) {
   test(`installed ${mode} non-public connected observations reserve no optimizer work`, async () => {
     const f = await fixture(true, mode);
     await f.services.workItems.tree('a1');
-    await f.services.workItems.exportWithin('a1', access);
+    await f.services.workItems.exportWithin('a1', access, f.services.planExports);
     await f.services.workItems.optimizationCapture('a1');
     await f.services.workItems.optimizationCaptureWithin('a1', access);
     if (mode === 'shared') await f.services.workItems.sharedTreesWithin('ada', access);
@@ -614,11 +655,11 @@ for (const fault of ['disabled', 'calendar', 'denied'] as const) {
   test(`mounted connected live ${fault} read allocates no optimizer work`, async () => {
     const f = await fixture();
     if (fault === 'disabled')
-      f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
-    if (fault === 'calendar') f.sqlite.run("UPDATE project SET start_date=NULL WHERE id='a2'");
+      f.sqlite.run("UPDATE work_package SET optimization_enabled=0 WHERE id='a1'");
+    if (fault === 'calendar') f.sqlite.run("UPDATE work_package SET start_date=NULL WHERE id='a2'");
     if (fault === 'denied') {
       const refused = await f.app.handle(
-        new Request('http://localhost/api/projects/a1/work-items', {
+        new Request('http://localhost/api/work-packages/a1/work-items', {
           headers: { 'X-WBS-Expected-Organization': 'org-b' },
         }),
       );
@@ -626,7 +667,7 @@ for (const fault of ['disabled', 'calendar', 'denied'] as const) {
     } else {
       if (fault === 'disabled') {
         const captureOnly = servicesOver(f.bound.stores, {
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           dependencyContext: createLocalDependencyContext(f.bound.stores),
           clock: clockOf({ now: () => 12, newId: () => crypto.randomUUID() }),
           broadcast: recordingBroadcaster(),
@@ -652,7 +693,7 @@ for (const fault of ['disabled', 'draining'] as const) {
       f.source.db
         .insert(optimizationGeneration)
         .values({
-          projectId: 'a1',
+          workPackageId: 'a1',
           contractVersion: question.contractVersion,
           generation: 1,
           inputHash: question.inputHash,
@@ -664,10 +705,10 @@ for (const fault of ['disabled', 'draining'] as const) {
     f.probe.onReleased = () => {
       f.probe.onReleased = () => undefined;
       if (fault === 'disabled')
-        f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
+        f.sqlite.run("UPDATE work_package SET optimization_enabled=0 WHERE id='a1'");
       else
         f.sqlite.run(
-          "UPDATE optimization_generation SET admission_state='draining' WHERE project_id='a1'",
+          "UPDATE optimization_generation SET admission_state='draining' WHERE work_package_id='a1'",
         );
     };
     expect(await f.tree()).toMatchObject({
@@ -684,35 +725,35 @@ async function displacedFixture() {
   f.sqlite.run(
     "UPDATE estimate SET optimistic=5,realistic=5,pessimistic=5 WHERE work_item_id='a1'",
   );
-  f.sqlite.run("UPDATE project SET schedule_engine='fast',optimization_enabled=0 WHERE id='a2'");
   f.sqlite.run(
-    "UPDATE project SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id='a3'",
+    "UPDATE work_package SET schedule_engine='fast',optimization_enabled=0 WHERE id='a2'",
   );
-  f.sqlite.run("INSERT INTO step(id,project_id,name,position) VALUES('c-s','a3','Build',10)");
+  f.sqlite.run(
+    "UPDATE work_package SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id='a3'",
+  );
+  seedStep(f.sqlite, 'a3', 'c-s', 10);
   f.sqlite.run("INSERT INTO service_team(id,name) VALUES('c-team','C capacity')");
   f.sqlite.run(
     "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES('c-team','org-a','C capacity')",
   );
   f.sqlite.run(
-    "INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES('a3','c-team',1)",
+    "INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES('a3','c-team',1)",
   );
   for (const [id, position, days] of [
     ['c-long', 10, 2],
     ['c-short', 20, 1],
   ] as const) {
-    f.sqlite.run('INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)', [
-      id,
-      'a3',
-      position,
-      id,
-    ]);
+    f.sqlite.run(
+      'INSERT INTO work_item(id,work_package_id,position,name,priority) VALUES(?,?,?,?,1)',
+      [id, 'a3', position, id],
+    );
     f.sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
       [id, 'c-s', days, days, days],
     );
     f.sqlite.run("INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,'c-team')", [id]);
     f.sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a','a1','a3','a1',?,'whole','whole','FS')",
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a','a1','a3','a1',?,'whole','whole','FS')",
       ['b-to-' + id, id],
     );
   }
@@ -723,7 +764,7 @@ async function displacedFixture() {
     return observed.projection.placement;
   };
   const initial = await capture();
-  const cStage = initial.stages.find((selection) => selection.stage.projectId === 'a3')?.stage;
+  const cStage = initial.stages.find((selection) => selection.stage.workPackageId === 'a3')?.stage;
   if (cStage === undefined) throw Error('C seed stage missing');
   const question = captureConnectedQuestion(cStage, 'pri', installed);
   const { stageBytes, ...identity } = question;
@@ -771,17 +812,19 @@ async function displacedFixture() {
     })
     .run();
   const selected = await capture();
-  const bStage = selected.stages.find((selection) => selection.stage.projectId === 'a1')?.stage;
+  const bStage = selected.stages.find((selection) => selection.stage.workPackageId === 'a1')?.stage;
   if (bStage === undefined) throw Error('B stage missing');
   expect(cStage.starts.get('c-long\u0000c-s')).toBe(6);
   expect(cStage.starts.get('c-short\u0000c-s')).toBe(8);
-  expect(selected.stages.find((selection) => selection.stage.projectId === 'a3')).toMatchObject({
-    chosen: {
-      chosen: 'optimized',
-      baselineValues: { priority: 17 },
-      optimizedValues: { priority: 16 },
+  expect(selected.stages.find((selection) => selection.stage.workPackageId === 'a3')).toMatchObject(
+    {
+      chosen: {
+        chosen: 'optimized',
+        baselineValues: { priority: 17 },
+        optimizedValues: { priority: 16 },
+      },
     },
-  });
+  );
   expect(selected.combined.slices.get('c-short\u0000c-s')?.earliestStart).toBe(6);
   expect(selected.combined.slices.get('c-long\u0000c-s')?.earliestStart).toBe(7);
   expect(bStage.starts.get('c-short\u0000c-s')).toBe(8);
@@ -801,7 +844,7 @@ test('displaced mounted live admission retains B pre-selection question after C 
   const f = await displacedFixture();
   const observations = f.probe.observations;
   const tree = await f.tree();
-  expect(f.probe.observations - observations).toBe(1);
+  expect(f.probe.observations - observations).toBe(mountedTreeReads);
   expect(tree).toMatchObject({
     optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
   });
@@ -811,7 +854,7 @@ test('displaced mounted live admission retains B pre-selection question after C 
   expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
     ['a1\u0000a1-s', 1],
   ]);
-  expect(f.launched.map((asked) => [asked.key.projectId, asked.objective]).sort()).toEqual([
+  expect(f.launched.map((asked) => [asked.key.workPackageId, asked.objective]).sort()).toEqual([
     ['a1', 'pri'],
     ['a1', 'time'],
   ]);
@@ -876,7 +919,7 @@ test('displaced mounted Retry accepts retained B hash and refuses final composit
   f.source.db
     .insert(optimizationGeneration)
     .values({
-      projectId: 'a1',
+      workPackageId: 'a1',
       contractVersion: question.contractVersion,
       generation: 1,
       inputHash: question.inputHash,
@@ -886,7 +929,7 @@ test('displaced mounted Retry accepts retained B hash and refuses final composit
     .run();
   const retry = (inputHash: string) =>
     f.app.handle(
-      new Request('http://localhost/api/projects/a1/optimization/retry', {
+      new Request('http://localhost/api/work-packages/a1/optimization/retry', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({ inputHash, objective: 'pri' }),
@@ -913,7 +956,7 @@ test('displaced mounted Retry accepts retained B hash and refuses final composit
   const asked = f.launched[0];
   if (asked.kind !== 'connected') throw Error('connected Retry missing');
   expect(asked.objective).toBe('pri');
-  expect(asked.key.projectId).toBe('a1');
+  expect(asked.key.workPackageId).toBe('a1');
   expect(asked.key.inputHash).toBe(question.inputHash);
   expect(canonicalConnectedStageInput(asked.stage)).toBe(question.stageBytes);
   const { stageBytes, ...identity } = question;
@@ -931,38 +974,36 @@ async function interleavingFixture() {
   f.sqlite.run('DELETE FROM external_dependency');
   f.sqlite.run('DELETE FROM estimate');
   f.sqlite.run('DELETE FROM work_item');
-  f.sqlite.run('DELETE FROM step');
+  f.sqlite.run("DELETE FROM work_package_step WHERE step_id IN ('a1-s','a2-s')");
+  f.sqlite.run("DELETE FROM step_binding WHERE step_id IN ('a1-s','a2-s')");
   f.sqlite.run(
-    "UPDATE project SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id IN ('a1','a2')",
+    "UPDATE work_package SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id IN ('a1','a2')",
   );
   f.sqlite.run(
-    "INSERT INTO project_rank(project_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',0,1,'ada'),('a1','org-a',0,1,'ada')",
+    "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',0,1,'ada'),('a1','org-a',0,1,'ada')",
   );
-  for (const project of ['a1', 'a2']) {
-    f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [project, project]);
+  for (const workPackage of ['a1', 'a2']) {
+    f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
     f.sqlite.run(
       "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
-      [project, project],
+      [workPackage, workPackage],
     );
     f.sqlite.run(
-      'INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES(?,?,1)',
-      [project, project],
+      'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
+      [workPackage, workPackage],
     );
-    const steps = project === 'a1' ? ['design', 'test'] : ['build'];
-    for (const [position, step] of steps.entries())
-      f.sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,?)', [
-        step,
-        project,
-        step,
-        position,
-      ]);
+    const steps = workPackage === 'a1' ? ['design', 'test'] : ['build'];
+    for (const [position, step] of steps.entries()) seedStep(f.sqlite, workPackage, step, position);
     for (const [position, suffix] of ['long', 'short'].entries()) {
-      const id = project + '-' + suffix;
+      const id = workPackage + '-' + suffix;
       f.sqlite.run(
-        'INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)',
-        [id, project, position, id],
+        'INSERT INTO work_item(id,work_package_id,position,name,priority) VALUES(?,?,?,?,1)',
+        [id, workPackage, position, id],
       );
-      f.sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, project]);
+      f.sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [
+        id,
+        workPackage,
+      ]);
       for (const step of steps) {
         const days = suffix === 'long' && step !== 'test' ? 2 : 1;
         f.sqlite.run(
@@ -979,7 +1020,7 @@ async function interleavingFixture() {
         ['a2', 'a1', 'build', 'test'],
       ])
         f.sqlite.run(
-          "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES(?,'org-a',?,?,?,?,'node','node',?,?,'FS')",
+          "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES(?,'org-a',?,?,?,?,'node','node',?,?,'FS')",
           [
             from + predecessor + to + successor,
             from,
@@ -1020,7 +1061,7 @@ async function interleavingFixture() {
         wireVersion: 5,
         scope: {
           kind: 'connected-stage',
-          projectId: stage.projectId,
+          projectId: stage.workPackageId,
           inputHash: question.inputHash,
           questionHash: question.questionHash,
         },
@@ -1058,7 +1099,7 @@ async function interleavingFixture() {
     return question;
   };
   const initial = await capture();
-  const a = initial.stages.find((selection) => selection.stage.projectId === 'a1');
+  const a = initial.stages.find((selection) => selection.stage.workPackageId === 'a1');
   if (a === undefined) throw Error('A stage missing');
   const aDays = {
     'a1-long\u0000design': 1,
@@ -1073,7 +1114,7 @@ async function interleavingFixture() {
     Object.fromEntries([...a.stage.starts].filter(([key]) => key.startsWith('a1-'))),
   );
   const afterA = await capture();
-  const b = afterA.stages.find((selection) => selection.stage.projectId === 'a2');
+  const b = afterA.stages.find((selection) => selection.stage.workPackageId === 'a2');
   if (b === undefined) throw Error('B stage missing');
   seed(b.stage, 'pri', { 'a2-long\u0000build': 4, 'a2-short\u0000build': 3 });
   seed(b.stage, 'time', { 'a2-long\u0000build': 3, 'a2-short\u0000build': 5 });
@@ -1084,7 +1125,7 @@ async function interleavingFixture() {
 test('mounted interleaving selects both durable Pri candidates once and retains stage identities', async () => {
   const f = await interleavingFixture();
   const selected = await f.capture();
-  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a1', 'a2']);
+  expect(selected.stages.map((selection) => selection.stage.workPackageId)).toEqual(['a1', 'a2']);
   expect(selected.stages.map((selection) => selection.chosen?.chosen)).toEqual([
     'optimized',
     'optimized',
@@ -1117,7 +1158,7 @@ test('mounted interleaving selects both durable Pri candidates once and retains 
   for (let repeat = 0; repeat < 2; repeat++) {
     const observations = f.probe.observations;
     const tree = await f.tree();
-    expect(f.probe.observations - observations).toBe(1);
+    expect(f.probe.observations - observations).toBe(mountedTreeReads);
     expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
       ['a1-long\u0000design', 1],
       ['a1-long\u0000test', 7],
@@ -1146,24 +1187,24 @@ for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasibl
     const f = await interleavingFixture();
     if (state === 'failed')
       f.sqlite.run(
-        "UPDATE optimized_schedule_cache SET status='failed',failure_reason='timeout',result_json=NULL WHERE project_id='a2' AND objective='pri'",
+        "UPDATE optimized_schedule_cache SET status='failed',failure_reason='timeout',result_json=NULL WHERE work_package_id='a2' AND objective='pri'",
       );
     else if (state === 'corrupt')
       f.sqlite.run(
-        "UPDATE optimized_schedule_cache SET result_json='{' WHERE project_id='a2' AND objective='pri'",
+        "UPDATE optimized_schedule_cache SET result_json='{' WHERE work_package_id='a2' AND objective='pri'",
       );
     else
       f.sqlite.run(
-        "DELETE FROM optimized_schedule_cache WHERE project_id='a2' AND objective='pri'",
+        "DELETE FROM optimized_schedule_cache WHERE work_package_id='a2' AND objective='pri'",
       );
     if (state === 'pending' || state === 'boundary-infeasible') {
       const response = await f.app.handle(
-        new Request('http://localhost/api/projects/a2/work-items', {
+        new Request('http://localhost/api/work-packages/a2/work-items', {
           headers: { 'X-WBS-Expected-Organization': 'org-a' },
         }),
       );
       expect(response.status).toBe(200);
-      expect(f.launched.map((asked) => [asked.key.projectId, asked.objective])).toEqual([
+      expect(f.launched.map((asked) => [asked.key.workPackageId, asked.objective])).toEqual([
         ['a2', 'pri'],
       ]);
       if (state === 'boundary-infeasible') {
@@ -1189,7 +1230,7 @@ for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasibl
       });
       const observations = f.probe.observations;
       await f.tree();
-      expect(f.probe.observations - observations).toBe(1);
+      expect(f.probe.observations - observations).toBe(mountedTreeReads);
       expect(f.launched).toHaveLength(1);
     }
     const tree = await f.tree(f.app, 'a2');
@@ -1205,10 +1246,11 @@ for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasibl
 for (const choice of ['fast', 'disabled', 'time'] as const) {
   test(`mounted interleaving ${choice} B retains configured selection and A foreign starts`, async () => {
     const f = await interleavingFixture();
-    if (choice === 'fast') f.sqlite.run("UPDATE project SET schedule_engine='fast' WHERE id='a2'");
+    if (choice === 'fast')
+      f.sqlite.run("UPDATE work_package SET schedule_engine='fast' WHERE id='a2'");
     else if (choice === 'disabled')
-      f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a2'");
-    else f.sqlite.run("UPDATE project SET schedule_objective='time' WHERE id='a2'");
+      f.sqlite.run("UPDATE work_package SET optimization_enabled=0 WHERE id='a2'");
+    else f.sqlite.run("UPDATE work_package SET schedule_objective='time' WHERE id='a2'");
     const selected = await f.capture();
     expect(selected.combined).toEqual(f.afterA.combined);
     expect(selected.stages[0]?.chosen?.chosen).toBe('optimized');
@@ -1230,21 +1272,21 @@ for (const choice of ['fast', 'disabled', 'time'] as const) {
 
 test('mounted interleaving held member has no stage or optimization request', async () => {
   const f = await interleavingFixture();
-  f.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE project_id='a2'");
+  f.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE work_package_id='a2'");
   const selected = await f.capture();
-  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a1']);
+  expect(selected.stages.map((selection) => selection.stage.workPackageId)).toEqual(['a1']);
   expect([...selected.combined.slices.keys()].some((key) => key.startsWith('a2-'))).toBe(false);
   const tree = await f.tree();
   expect(tree.slices.some((slice) => slice.id.startsWith('a2-'))).toBe(false);
-  expect(f.launched.every((asked) => asked.key.projectId === 'a1')).toBe(true);
+  expect(f.launched.every((asked) => asked.key.workPackageId === 'a1')).toBe(true);
   expect(f.errors).toEqual([]);
 });
 
 test('mounted interleaving rank precedes bytewise ID in the single stage pass', async () => {
   const f = await interleavingFixture();
-  f.sqlite.run("UPDATE project_rank SET position=-1 WHERE project_id='a2'");
+  f.sqlite.run("UPDATE work_package_rank SET position=-1 WHERE work_package_id='a2'");
   const selected = await f.capture();
-  expect(selected.stages.map((selection) => selection.stage.projectId)).toEqual(['a2', 'a1']);
+  expect(selected.stages.map((selection) => selection.stage.workPackageId)).toEqual(['a2', 'a1']);
   expect(selected.stages.map((selection) => selection.optimization?.variants.pri.state)).toEqual([
     'idle',
     'idle',
@@ -1252,3 +1294,56 @@ test('mounted interleaving rank precedes bytewise ID in the single stage pass', 
   expect(selected.combined).toEqual(f.initial.combined);
   expect(f.launched).toEqual([]);
 });
+
+for (const cohort of ['isolated-connected', 'shared-connected', 'shared-local'] as const) {
+  test(`mounted ${cohort} export refuses an unreadable retained member opaquely for both media`, async () => {
+    const f = await fixture(false, cohort === 'isolated-connected' ? 'isolated' : 'shared');
+    f.sqlite.run("UPDATE work_package SET optimization_enabled=0,schedule_engine='fast'");
+
+    if (cohort === 'shared-local') {
+      f.sqlite.run("DELETE FROM external_dependency WHERE id='edge'");
+      f.sqlite.run("INSERT INTO person(id,name) VALUES('export-person','Export person')");
+      f.sqlite.run(
+        "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('export-person','org-a','Export person')",
+      );
+      f.sqlite.run(
+        "INSERT INTO assignment(work_item_id,step_id,person_id) VALUES('a1','a1-s','export-person'),('a2','a2-s','export-person')",
+      );
+      f.sqlite.run(
+        "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,created_by) VALUES('a2','org-a',1,1,'ada'),('a1','org-a',2,1,'ada')",
+      );
+      const captured = await f.services.planExports.readExport('a1', access);
+      expect(captured.kind).toBe('shared');
+      if (captured.kind !== 'shared' || captured.chain.kind !== 'scheduled')
+        throw Error('shared influence fixture did not capture a scheduled chain');
+      expect(captured.chain.influencers.map((member) => member.workPackageId)).toContain('a2');
+    }
+    const exported = (id: string, format: 'json' | 'markdown') =>
+      f.app.handle(
+        new Request(`http://localhost/api/work-packages/${id}/export?format=${format}`, {
+          headers: { 'X-WBS-Expected-Organization': 'org-a' },
+        }),
+      );
+    for (const format of ['json', 'markdown'] as const)
+      expect((await exported('a1', format)).status).toBe(200);
+    // This real fixture actor retains only target package.read; the hidden sibling remains in the capture topology.
+    f.sqlite.run("DELETE FROM access_grant WHERE subject_kind='user' AND subject_id='ada'");
+    f.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('export-target-reader','org-a','work_package','a1','user','ada','package-viewer','route',1)",
+    );
+    for (const format of ['json', 'markdown'] as const) {
+      const denied = await exported('a1', format);
+      const absent = await exported('absent-export-package', format);
+      expect(denied.status).toBe(404);
+      expect(absent.status).toBe(404);
+      expect(await denied.json()).toEqual({ error: 'not_found' });
+      expect(await absent.json()).toEqual({ error: 'not_found' });
+    }
+    f.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('export-organization-reader','org-a','organization','org-a','user','ada','package-viewer','route',1)",
+    );
+    for (const format of ['json', 'markdown'] as const)
+      expect((await exported('a1', format)).status).toBe(200);
+    expect(f.launched).toEqual([]);
+  });
+}

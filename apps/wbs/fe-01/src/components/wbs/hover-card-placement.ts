@@ -180,7 +180,7 @@ export interface BesideAnchorRect {
  * reason: jsdom measures every box as zero, so the arithmetic can only be
  * asserted where the measurements are handed to it. That it is really wired to
  * the listbox's own rectangle is asserted through the production call path in
- * `project-page.test.tsx`, where the card's box is stubbed for the same
+ * `work-package-page.test.tsx`, where the card's box is stubbed for the same
  * reason.
  *
  * Proof: the flip replaced by a clamp to the viewport's right edge — `a narrow

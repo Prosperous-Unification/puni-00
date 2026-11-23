@@ -8,11 +8,11 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { expect, test } from 'bun:test';
 import { SignJWT } from 'jose';
 
-import { runMigrations } from '../../repository/migrate';
 import { admitDependencyClient } from '../../runtime/dependency-client';
 import { testApp } from '../../testing/app-fixture';
+import { migrateOrganizationCatalogueFixture } from '../../testing/organization-catalogue-fixture';
 
-// Bun's header constructor overload is shadowed by this project's DOM library.
+// Bun's header constructor overload is shadowed by this work package's DOM library.
 const CookieSocket = WebSocket as unknown as new (
   url: string,
   options: Bun.WebSocketOptions,
@@ -28,7 +28,7 @@ const capable = {
 test('internal gateway admission authenticates first and freshly refuses incompatible upgrades', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'gateway-dependency-'));
   const path = join(directory, 'plan.db');
-  runMigrations(path, new URL('../../../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(path);
   const connection = openConnection(path);
   let inspections = 0;
   const app = testApp({
@@ -54,8 +54,10 @@ test('internal gateway admission authenticates first and freshly refuses incompa
   const gateway = Bun.spawn(
     [
       process.execPath,
-      new URL('../../../../gw-01/src/testing/cross-project-delivery-gateway.ts', import.meta.url)
-        .pathname,
+      new URL(
+        '../../../../gw-01/src/testing/cross-work-package-delivery-gateway.ts',
+        import.meta.url,
+      ).pathname,
       `http://localhost:${String(backendPort)}`,
       'k'.repeat(32),
       'x'.repeat(32),

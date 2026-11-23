@@ -36,12 +36,16 @@ export function onboardingRoutes(onboarding: Onboarding, clock: Pick<Clock, 'now
         const name = body.name.trim();
         if (name.length === 0 || name.length > 120)
           return { ok: false, status: 400, body: { error: 'invalid_body' } };
-        const answer = await onboarding.createOrganization(principal.id, name, {
-          at: clock.now(),
-          by: principal.id,
+        const actorId = principal.id;
+        const answer = await onboarding.createOrganization(principal, name, {
+          actor: actorId,
+          stamp: { at: clock.now(), by: actorId },
+          auditId: crypto.randomUUID(),
         });
         if (!answer.ok) {
           switch (answer.refusal) {
+            case 'insufficient_scope':
+              return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
             case 'onboarding_inactive':
               return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
             case 'email_verification_required':

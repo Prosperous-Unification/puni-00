@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 /** Reversed ahead of {@link SAVED_PLAN}: it adds a column to the table below. */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
@@ -27,7 +28,7 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 /**
  * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
  * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
  * was newest.
@@ -76,7 +77,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -92,11 +93,13 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, INITIAL_ACCESS_OFFERS);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -116,7 +119,7 @@ function columnsOf(table: string): string[] {
   }
 }
 
-function seedProject(): void {
+function seedHistoricalProject(): void {
   const db = openDatabase(path);
   try {
     db.run(`INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1000)`);
@@ -168,7 +171,9 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
-    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+    expect(rollbackTo(path, migrations, LOOKUP_INDEXES)).toEqual([
+      INITIAL_ACCESS_OFFERS,
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -249,7 +254,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toEqual([]);
     expect(columnsOf('saved_plan_body')).toEqual([]);
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
 
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
@@ -284,12 +289,12 @@ describe('the saved-plan migration', () => {
    *
    * `steps-schema-rename` is the precedent: a `REFERENCES` clause SQLite had not
    * applied, and the check written for it passed against the broken database.
-   * So this writes a header and a body, deletes the project, and reads both
+   * So this writes a header and a body, deletes the work package, and reads both
    * tables back — and asserts the delete itself was not blocked, which is the
    * half a `RESTRICT` would fail and a missing constraint would pass.
    */
-  it('deletes header and body with the project, and does not block the delete', () => {
-    seedProject();
+  it('deletes header and body with the work package, and does not block the delete', () => {
+    seedHistoricalProject();
     seedSavedPlan();
     expect(countOf('saved_plan')).toBe(1);
     expect(countOf('saved_plan_body')).toBe(1);
@@ -309,7 +314,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('deletes a body with its header', () => {
-    seedProject();
+    seedHistoricalProject();
     seedSavedPlan();
 
     const db = openDatabase(path);
@@ -323,7 +328,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('refuses half a schedule', () => {
-    seedProject();
+    seedHistoricalProject();
     const db = openDatabase(path);
     try {
       // A hash and a length but no algorithm identity and no absent reason: the
@@ -343,7 +348,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('refuses a body of an unknown kind', () => {
-    seedProject();
+    seedHistoricalProject();
     seedSavedPlan();
     const db = openDatabase(path);
     try {
@@ -362,7 +367,7 @@ describe('the saved-plan migration', () => {
    * orphan or erase a permanent record.
    *
    * Asserted by naming an account that does not exist rather than by deleting
-   * one: `project.owner_id` is `NOT NULL` and references `users`, so no project
+   * one: `project.owner_id` is `NOT NULL` and references `users`, so no work package
    * with a saved plan can outlive its owner's row in the first place, and a
    * delete-then-read test would be measuring that constraint instead of this
    * one. Foreign keys are on for every connection `openDatabase` hands out
@@ -370,7 +375,7 @@ describe('the saved-plan migration', () => {
    * would refuse the row below.
    */
   it('stores a creator no account row backs', () => {
-    seedProject();
+    seedHistoricalProject();
     const db = openDatabase(path);
     try {
       db.run(
@@ -391,7 +396,7 @@ describe('the saved-plan migration', () => {
           `INSERT INTO saved_plan (
              id, project_id, name, created_by, created_at,
              input_schema_version, input_bytes, input_sha256, schedule_absent_reason
-           ) VALUES ('sp4', 'no-such-project', 'orphan', 'Ada', 1000, 1, 3, 'deadbeef', 'pending')`,
+           ) VALUES ('sp4', 'no-such-work-package', 'orphan', 'Ada', 1000, 1, 3, 'deadbeef', 'pending')`,
         ),
       ).toThrow(/FOREIGN KEY constraint failed/);
     } finally {

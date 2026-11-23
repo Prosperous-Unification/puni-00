@@ -5005,6 +5005,88 @@ exact stdout check now drops the prune's `Total:` line.
   whole three-run series then fits above 23.62 GB, given the images and whatever else a gate
   leaves, is not yet measured.
 
+## Current merge compatibility: retained native child kill (2026-11-22)
+
+The integrated runtime-bound ending now keeps the Bun status authority alive. The ordinary
+session SIGTERM remains unchanged. After its grace, the controller sends one private FD3
+`kill\n`; the keeper SIGKILLs only its original acquired native child. Genuine native callback,
+numeric exit correspondence, FD4 status, final telemetry, controller ACK and actual keeper join
+remain required. Existing scope-leftover ending runs after keeper retirement. No public command,
+selected-prefix fallback or new resource-settlement authority is introduced.
+
+The first running kill is consumed once. A first kill after genuine native completion is a
+no-op that preserves the actual status. Startup, duplicate and post-done kills refuse. Only the
+prefix of `kill` may span the post-native exclusive FD3/FD4 phase observation; startup and EOF
+remain strict, and truncated or other prefixes still refuse. A failed kill write cannot return 124:
+the existing protocol-failure path refuses 70 and marks attribution incomplete. A ledger 124 is a
+runtime policy overlay after qualified raw status, not successful delivery or resource authority.
+Actual session, container and tmp evidence independently governs settlement.
+
+The original v165 job-run RED is retained: 60 pass, 17 skip, 2 fail; missing/failing-systemctl runtime
+cases hit the mandatory unqualified-status refusal 70. The current no-leftover fixtures now exec
+the stubborn native payload and preserve both expected 124/released/raw SIGKILL positives. A
+separate actual escaped descendant retains the failed post-keeper scope-kill diagnostic and
+blocked tmp charge, rather than changing either original clean-release expectation.
+
+| Current protected phase                                              | Fresh output                                                                                                                                                                       |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dash-private-kill-v172-red                                           | New running/late/fragmented positive tests each failed 125 against the old helper, expecting 137/37/37                                                                             |
+| dash-private-kill-v179-restored-green                                | All 13 current phase/delivery/ordering tests pass after exact core restoration                                                                                                     |
+| dash-private-kill-v181-full-job-run                                  | 63 inner pass, 17 skip, 0 fail; 386 assertions; genuine namespace outer 1 pass                                                                                                     |
+| dash-private-kill-v181-existing-guards                               | 104 pass, 0 fail: 65 codec/composition/control and 39 unchanged proof-oracle cases                                                                                                 |
+| dash-private-kill-v181-full-native                                   | 59 pass, 1 skip, 0 fail across actual payload/native authority/job observation/private-kill owners; source-bundle 674cf809a9b585ce59ceee1ea757cbdb40f95ae2b9fb9611a6d0cd1bca9e3219 |
+| dash-private-kill-v181-full-launchers                                | 41 inner pass, 0 fail; 223 assertions; genuine namespace outer 1 pass                                                                                                              |
+| dash-private-kill-v183-dual-cause-green                              | Four delivery/ordering scenarios pass; combined cause identities retained                                                                                                          |
+| dash-private-kill-v181-format / lint                                 | Eight changed current source/test files pass                                                                                                                                       |
+| dash-private-kill-v179-dash-types / v181-lib-types / v180-tool-types | Dash spec and lib plus tool-devsync spec noEmit pass                                                                                                                               |
+
+The v181 launcher owner also passed 41 inner tests/223 assertions and its genuine user/mount/PID
+namespace outer test. All owners are terminal with native 0, stopped-and-reaped native custody,
+closed descriptors and protected original-input validation. After these full owners, the only
+production addition was construction of an AggregateError for simultaneous delivery/native
+observation failures. The focused v183 owner passed all 4 kill delivery/ordering cases, retaining
+both exact original cause identities and each single-cause identity. It did not rerun the full
+job-run owner for this cause-construction-only change.
+
+| Scoped injected fault                                                                 | Actual failing assertion                                                                               |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| v174 admission removed                                                                | running 125, expected 137                                                                              |
+| v174 one-kill latch removed; v178 same fault during ACK                               | duplicate-running 137 and duplicate-late 37, each expected 125                                         |
+| v176 startup kill swallowed, before start and before FD5 EOF separately               | actual admitted child 37, expected startup 125                                                         |
+| v174 post-done kill admitted                                                          | 37, expected 125                                                                                       |
+| v174 genuine-native late no-op removed                                                | original child kill called, expected zero calls                                                        |
+| v174 post-native kill-prefix preservation removed                                     | fragmented kill 125, expected 37                                                                       |
+| v174 kill-delivery protocol latch omitted                                             | caller returned policy 124, expected refusal 70 after genuine raw 137 and helper join                  |
+| v182b old cause precedence under simultaneous real delivery/native observation faults | Only original kill cause retained; expected both exact causes/count 2, observed missing leader/count 1 |
+| v178 scope kill injected before keeper retirement                                     | actual premature-kill witness present, expected absent                                                 |
+
+Each production mutation was finite and restored to the exact recorded core beforeimage. The
+startup v174 timeout attempts, temporary v177 runner failure and v182 wrong raw-frame
+fixture premise are retained but earn no independent proof credit; v176 and v178 provide their explicit assertion failures. These current
+observations do not replace or extend the accepted historical C34 canonical identities. Original
+FD4/native/numeric/malformed/group-signal controls remain separate. The user-systemd bus is
+unavailable locally; 12 real-scope job cases and one actual systemd payload case are skipped.
+Five container cases lack the required busybox image. The fake scope seam uses actual processes
+but ENV membership, not a real cgroup; its keeper-exit tripwire proves ordering only. Installed
+PUNI qualification, real user scopes and formal Astra review remain separate requirements.
+
+Final v184 checks passed after the cause-only correction: twelve-file format, eight-source
+ESLint, Dash lib/spec and tool-devsync spec noEmit, and scoped `openspec validate dash-host-jobs
+--json` (valid 1, failed 0). OpenSpec still reports 19 advisory warnings and 1 archive
+INFO; the latter names the existing missing gate-host target, so this is not archive acceptance.
+The final verification-note addition was separately formatted/checked as v188.
+
+The final R2 predicate rename, `retainKillPrefix` to `allowsKillPrefix`, changes exactly the
+parameter and its reference. The v187 identifier bridge records equal normalized nontrivia
+tokens under that sole rename, with no emitted-byte identity claim. Scoped helper format/lint
+and Dash lib noEmit passed afterward. Full runtime owners were not repeated for this identifier-only
+change; the final file pins and bridge retain the exact relationship to their source epoch.
+
+Protected receipts and validation hashes are under
+`/tmp/puni-combined-proposal-v1/control/dash-private-kill-*`; the final named-file/hash handoff
+binds commands, pins, failures and observed custody. No protected original input files, historical captures,
+package pins or private Git index were changed by this owner.
+
 ## 2026-11-22 a one-second backup container lost the inspect race (task 6.28)
 
 Branch `fix/dash-attribution-ended-containers-20261122` from `main` 142c91669; laptop,
@@ -5153,3 +5235,15 @@ with `GATE_EXIT=1` from the since-fixed `twilight-burokrat:test` fixture and wit
 `unverified: container ended or was unreadable before its bound was read` lines for the same
 backup containers, so the same host, backup and job type separate the two Dash versions. Log: `~/gate-calibrate-cold-2026-11-22b-h2.log` on
 h2puni; the record feeds `ops job propose --type gate` after the two warm runs of the series.
+
+## Delivery integration with main, 2026-11-22
+
+Main `4142dcdc06c90c7329b92892e27c2b88bea87405` is reconciled with delivery
+checkpoint `913394f1a6f7d19bd27d8983e921b58a6078ece4`. The only conflict was
+the two appended verification sections; both existing sections remain verbatim.
+Astra reviewed the merged watcher call and private kill/custody composition.
+The four container/audit/record/proposal owners passed 79 cases. The complete
+job-run owner passed 68 cases and its real Linux namespace wrapper; 12 real
+user-scope cases skipped because this machine has no systemd user bus. Scoped
+lint, production types, formatting and full OpenSpec validation passed. These
+local checks do not establish a host gate or release readiness.

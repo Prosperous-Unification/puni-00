@@ -52,7 +52,7 @@ const FORBIDDEN_EXPORTS: readonly { file: string; names: readonly string[]; is: 
     // failed with `connect is …` and `httpDirectoryApi is …`. d4 — `import type * as wbs`,
     // `wbs.DirectoryApi` failed with `+ …: DirectoryApi is a broad HTTP client`.
     file: 'src/lib/wbs-api.ts',
-    names: ['ProjectApi', 'DirectoryApi', 'httpProjectApi', 'httpDirectoryApi'],
+    names: ['WorkPackageApi', 'DirectoryApi', 'httpWorkPackageApi', 'httpDirectoryApi'],
     is: 'a broad HTTP client',
   },
   {
@@ -84,10 +84,10 @@ const FORBIDDEN_EXPORTS: readonly { file: string; names: readonly string[]; is: 
     is: 'a repository port',
   },
   {
-    // Proof: 2026-09-27, p2 — `export type Leak = ProjectCatalogRoutes` in use-plan-import.ts
-    // failed with `+ …: ProjectCatalogRoutes is a repository port`.
-    file: 'src/modules/project/contract.ts',
-    names: ['ProjectCatalogRoutes'],
+    // Proof: 2026-09-27, p2 — `export type Leak = WorkPackageCatalogRoutes` in use-plan-import.ts
+    // failed with `+ …: WorkPackageCatalogRoutes is a repository port`.
+    file: 'src/modules/work-package/contract.ts',
+    names: ['WorkPackageCatalogRoutes'],
     is: 'a repository port',
   },
   {
@@ -111,8 +111,8 @@ const FORBIDDEN_EXPORTS: readonly { file: string; names: readonly string[]; is: 
     is: 'a resource-service',
   },
   {
-    file: 'src/modules/project/composition.ts',
-    names: ['projectServicesOver'],
+    file: 'src/modules/work-package/composition.ts',
+    names: ['workPackageServicesOver'],
     is: 'a composition root',
   },
 ];
@@ -123,7 +123,7 @@ function forbiddenFile(path: string): string | undefined {
   // Proof: 2026-09-25, d9 — `import { DiBag } from 'di-bag'` in page-nav.tsx failed with
   // `+ …: 'di-bag' is a bag`, `DiBag is a bag` and `createBuilder is a bag`.
   if (/(^|\/)node_modules\/di-bag\//.test(path)) return 'a bag';
-  if (path === 'apps/wbs/fe-01/src/lib/project-stream.ts') return 'a socket';
+  if (path === 'apps/wbs/fe-01/src/lib/work-package-stream.ts') return 'a socket';
   // Proof: 2026-09-25, d10 — importing `createDirectory` from the directory resource file failed with
   // `+ …: '@/modules/directory/directory.resource' is a resource-service` and
   // `+ …: createDirectory is a resource-service`.
@@ -166,12 +166,12 @@ const FORBIDDEN_GLOBALS: readonly { names: readonly string[]; is: string }[] = [
  */
 const CONTEXT_TYPES: readonly { file: string; name: string }[] = [
   { file: 'src/runtime/application-runtime.ts', name: 'ApplicationServices' },
-  // Proof: 2026-09-27, p3 — `SessionRuntime` given `readonly projectClient?: ProjectApi` failed
-  // with `+ "SessionRuntime.projectClient is a broad HTTP client"`.
+  // Proof: 2026-09-27, p3 — `SessionRuntime` given `readonly workPackageClient?: WorkPackageApi` failed
+  // with `+ "SessionRuntime.workPackageClient is a broad HTTP client"`.
   { file: 'src/runtime/session-runtime.ts', name: 'SessionRuntime' },
-  // Proof: 2026-09-25, c1 — `ProjectRuntime` given `readonly client: ProjectApi` failed with
-  // `+ "ProjectRuntime.client is a broad HTTP client"`.
-  { file: 'src/modules/project/contract.ts', name: 'ProjectRuntime' },
+  // Proof: 2026-09-25, c1 — `WorkPackageRuntime` given `readonly client: WorkPackageApi` failed with
+  // `+ "WorkPackageRuntime.client is a broad HTTP client"`.
+  { file: 'src/modules/work-package/contract.ts', name: 'WorkPackageRuntime' },
   { file: 'src/app-router.tsx', name: 'SignedInRegion' },
 ];
 
@@ -180,8 +180,8 @@ const CONTEXT_TYPES: readonly { file: string; name: string }[] = [
  * task that owns removing it. The check refuses any route not listed here, and
  * any route listed here that no longer exists, so this list only shrinks.
  */
-// Proof: 2026-09-25, o1 — `SignedInRegion.projectApi` narrowed to `undefined` failed with
-// `- "SignedInRegion.projectApi is a broad HTTP client"`: a paid-off route fails until struck.
+// Proof: 2026-09-25, o1 — `SignedInRegion.workPackageApi` narrowed to `undefined` failed with
+// `- "SignedInRegion.workPackageApi is a broad HTTP client"`: a paid-off route fails until struck.
 const OWED: readonly string[] = [
   // The resource beneath `remembered`, for `src/lib/remembered.ts` alone: task 12's accepted debt.
   'ApplicationServices.preferences is a resource-service',
@@ -373,7 +373,7 @@ function deliveryRoutes(judge: Judge, files: readonly string[]): readonly string
           ts.isNamespaceImport(parent);
         if (
           // Proof: 2026-09-25, d16 — `export * as wbs from '@/lib/wbs-api'` failed with four added lines,
-          // `DirectoryApi`, `ProjectApi`, `httpDirectoryApi` and `httpProjectApi` each `is a broad HTTP client`;
+          // `DirectoryApi`, `WorkPackageApi`, `httpDirectoryApi` and `httpWorkPackageApi` each `is a broad HTTP client`;
           // it is caught here with d17 and d20, and the `export * as` widening below catches it too, so
           // removing either one alone lets nothing through (the planner's rehearsal; not re-run in
           // this attempt). d17 — `import * as wbs …; export { wbs };`
@@ -394,7 +394,7 @@ function deliveryRoutes(judge: Judge, files: readonly string[]): readonly string
       const wholeSymbol =
         whole && specifier !== undefined ? checker.getSymbolAtLocation(specifier) : undefined;
       // Proof: 2026-09-25, d19 — `export const load = () => import('@/lib/wbs-api');` failed with the four
-      // lines `DirectoryApi`, `ProjectApi`, `httpDirectoryApi`, `httpProjectApi` is a broad HTTP client.
+      // lines `DirectoryApi`, `WorkPackageApi`, `httpDirectoryApi`, `httpWorkPackageApi` is a broad HTTP client.
       if (wholeSymbol !== undefined) {
         for (const exported of checker.getExportsOfModule(wholeSymbol))
           judgeSymbol(exported, exported.name);
@@ -443,7 +443,7 @@ function deliveryRoutes(judge: Judge, files: readonly string[]): readonly string
       }
       if (
         // Proof: 2026-09-25, d15 — `export * from '@/lib/wbs-api'` in page-nav.tsx failed with four added
-        // lines, `DirectoryApi`, `ProjectApi`, `httpDirectoryApi` and `httpProjectApi` is a broad HTTP client.
+        // lines, `DirectoryApi`, `WorkPackageApi`, `httpDirectoryApi` and `httpWorkPackageApi` is a broad HTTP client.
         ts.isExportDeclaration(node) &&
         (node.exportClause === undefined || ts.isNamespaceExport(node.exportClause))
       ) {
@@ -489,7 +489,7 @@ function contextRoutes(judge: Judge): readonly string[] {
 describe('delivery reaches no infrastructure', () => {
   it('refuses every route but the ones still owed', () => {
     const files = deliveryFiles();
-    expect(files).toContain('src/components/wbs/project-page.tsx');
+    expect(files).toContain('src/components/wbs/work-package-page.tsx');
     const program = applicationProgram([
       ...files,
       ...FORBIDDEN_EXPORTS.map(({ file }) => file),

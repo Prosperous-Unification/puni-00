@@ -1,0 +1,402 @@
+{
+  "schema": "puni-current-memory-http-verification-v1",
+  "recordedAt": "2026-11-21T04:19:07.370Z",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v99.json",
+    "sha256": "ba50a11c60a90cbb8a4b55b99393d5266e910f9839f6eac1e28b1eaffcf2f036",
+    "bytes": 11773,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-before-v1.json",
+    "sha256": "ed916456e6deffac189a5916f0cf6411a5499aea85508dc5c89250f97c6112a7",
+    "bytes": 90798,
+    "mode": 384
+  },
+  "changes": [
+    {
+      "relative": "apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+      "previous": {
+        "sha256": "81a2fb275e4209a66b5938244e057d832b0a47108945506ba33c608c50b3b42c",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+        "sha256": "f993b3adccf04642ace269785b827b45c5a7409b3339bdd5a9ab7eddbf7c0c37",
+        "bytes": 79121,
+        "mode": 436
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "entity-memory-http-baseline-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-baseline-v1.receipt.json",
+        "sha256": "d7e544b804251e2cd92b0d5921d5d4ede94b4361b18ed36c97ba0a5defe63689",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-baseline-v1.log",
+        "sha256": "0b0eb6294eaf362a7be42d8ac7bc2026aedc330453985c4e70c324fe94020765",
+        "bytes": 13367,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-memory-http-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/controller/work-package.controller.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-format-v1.receipt.json",
+        "sha256": "b3bdf5b1f135bc03db1aa2798dc1a1abcdf8eea548c558f630331113af865e6e",
+        "bytes": 1359,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-format-v1.log",
+        "sha256": "65e9092dbc678d5387945e1e74ef005965b3026ed088c356745450e515fb1830",
+        "bytes": 68,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-memory-http-current-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-current-v1.receipt.json",
+        "sha256": "c9f1077cd2eabeefe54a4f9887b511ba93d3b7cd176ba1a4d6368730acc950aa",
+        "bytes": 1348,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-current-v1.log",
+        "sha256": "0f5f22b3aec689c530217cd86d45c793d5a9703f37f344e22ab30d9e6419bb9e",
+        "bytes": 7958,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-memory-http-types-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-memory-http-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-types-v1.receipt.json",
+        "sha256": "367c0c11f73c2ce5f105ba09b5e63c14b87fd6b00ef9056762aed0a4a7103b9e",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-memory-http-lint-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/controller/work-package.controller.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-lint-v1.receipt.json",
+        "sha256": "b974a447529fcbaff898afddfc0421987879f775fe0c6ba19d44e3e14c7cb83f",
+        "bytes": 1332,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-uncoded-old-http-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "--tsconfig-override=/tmp/puni-legacy-producer-v1/tree/tsconfig.base.json",
+          "test",
+          "/tmp/puni-legacy-producer-v1/tree/apps/wbs/be-01/src/controller/project.controller.test.ts",
+          "--test-name-pattern",
+          "refuses a JSON export while a step is uncoded",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-old-http-v1.receipt.json",
+        "sha256": "bbed77e604038d66cc064f34b10162165710486e3b3c8bf63830e64908d5c83a",
+        "bytes": 1585,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-old-http-v1.log",
+        "sha256": "b639ad4b4dac5dfdbf6e93437b6e8e26f60c20bab0a71a138507ae988a4de6d0",
+        "bytes": 311,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-uncoded-current-guard-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "--test-name-pattern",
+          "uncoded",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-current-guard-v1.receipt.json",
+        "sha256": "1bfb37a8d6e81e4dd0dc39552c428b94ee3842cdad61d7278f2a82e59413d628",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-current-guard-v1.log",
+        "sha256": "c5430063b194dd7f18ccfedd20eba45741fe605ae6c6a89266efd36ef1782f13",
+        "bytes": 380,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-uncoded-guard-fault-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "--test-name-pattern",
+          "uncoded",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-guard-fault-v1.receipt.json",
+        "sha256": "90cb22050f503be2297dd6f720f53a356804d253d6eb9133d72ce355ac1f9345",
+        "bytes": 1414,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-guard-fault-v1.log",
+        "sha256": "ec869a6f27b94b5ad9d20aa474b8ae7f357a44577f28bf686c85cdcd75e8d827",
+        "bytes": 1895,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-memory-http-source-audit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v40.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-source-audit-v1.receipt.json",
+        "sha256": "bfa76c3cb3a2d6fd60de944bb63f28a01e9ebbdafab579f1a35428559a72512a",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-memory-http-source-audit-v1.log",
+        "sha256": "6b1543a82a36235c2287be16666baa528af17f1daa5382cf8e900116cff00877",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-uncoded-current-guard-after-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "--test-name-pattern",
+          "uncoded",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-current-guard-after-v2.receipt.json",
+        "sha256": "afe96fe059b7a47b2bb326a6bd67a84780c8e5540b6c7a02d9c2cfe46c16b736",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-current-guard-after-v2.log",
+        "sha256": "5c025a83cb45de514a8ba62dca9794fb6756f7b3c7732e94e37a2bd53849e9b5",
+        "bytes": 380,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "initial": {
+      "pass": 51,
+      "fail": 5,
+      "assertions": 244,
+      "tests": 56,
+      "files": 1
+    },
+    "current": {
+      "pass": 56,
+      "fail": 1,
+      "assertions": 269,
+      "tests": 57,
+      "files": 1
+    },
+    "oldHttp": {
+      "pass": 1,
+      "fail": 0,
+      "assertions": 2,
+      "tests": 1,
+      "files": 1,
+      "filtered": 55
+    },
+    "currentGuard": {
+      "pass": 2,
+      "fail": 0,
+      "assertions": 2,
+      "tests": 2,
+      "files": 1,
+      "filtered": 95
+    },
+    "fault": {
+      "pass": 0,
+      "fail": 2,
+      "assertions": 1,
+      "tests": 2,
+      "files": 1,
+      "filtered": 95
+    },
+    "compilerEntries": 309,
+    "lintFiles": 1,
+    "sourceAuditFiles": 6088
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v40.json",
+    "sha256": "fec70e10431ddbf4a24e89fc85eaa49328969c73fae3a70ce3ddebfdbc7d8ce4",
+    "bytes": 1873157,
+    "mode": 384
+  },
+  "proof": {
+    "path": "/tmp/puni-combined-proposal-v1/control/uncoded-guard-fault-v1.state.json",
+    "sha256": "de7b049087e6d678cebec5cb42ad6f27d598b7f2fdf5fceab712017302510b55",
+    "bytes": 329,
+    "mode": 384
+  },
+  "predecessor": {
+    "head": "c8018843e6ff6827f7d97b67ff986cc717656578",
+    "trackedDiff": [],
+    "inputs": {
+      "path": "/tmp/puni-combined-proposal-v1/control/entity-uncoded-old-http-inputs-v1.json",
+      "sha256": "4d9f222b3e861b7eae4c76b3bbbf161c0b748f4ad2f5d2d8c6b15fb163d3b091",
+      "bytes": 870,
+      "mode": 384
+    },
+    "qualification": "Actual unchanged predecessor HTTP test and its own source/tsconfig paths, executed with current Bun and the existing shared installed dependency tree. One historical HTTP guarantee, not a frozen old release, full predecessor suite or complete current replay certificate."
+  },
+  "changesExplained": [
+    "The directory/calendar export fixture explicitly defines a project catalogue step under its actual registered actor before package birth and checks the inherited identity; no raw legacy starting row supplies current metadata.",
+    "Empty catalogue creation/read cases expect an explicit empty list. A new actual direct Memory HTTP creation/read case verifies the authored identity, code, controlling order, unit and exact allowance; it also checks that no extra definitions appeared.",
+    "The deadline-capture test compares the portable projection instead of the derived live row.steps field and explicitly checks live empty leaf inventories plus empty portable stepNodes. Existing late-tree spy controls remain. This zero-step case is not per-leaf document portability or document17/18 completion.",
+    "Every Memory Source allocated by this HTTP suite now closes after its owning test."
+  ],
+  "uncodedInvestigation": {
+    "currentArrangement": "The remaining test passes a raw legacy Step with code:null to current Source workPackages.create. Current birth intentionally materializes the actual catalogue instead of defining it from starting DTO rows, so that arrangement does not put an uncoded definition in the current export observation. The HTTP expectation still fails and remains present.",
+    "historicalHttp": "The exact uncoded HTTP case in the unchanged predecessor checkout passes its real409/body assertions. The old backfill instruction remains exact there.",
+    "currentGuard": "Both current serializer/captured-evidence tests pass. Omitting the actual code:null refusal branch makes both fail; the runtime module is restored byte/mode exact and both positive controls pass again.",
+    "next": "Replace the unsupported current fixture arrangement only with explicit genuine predecessor evidence and the correct historical observation/conversion owner. Preserve the named historical refusal and precedence. Do not create a current reader fallback, author definitions from old starting DTOs or delete the guarantee to make the suite green."
+  },
+  "discoveredDocumentGap": "Current spellStepNodes still enumerates the package step union for every leaf, while live rows now carry each leaf own inventory. Document17/18 and their typed/sparse/zero-step preservation and converter/import contracts remain required; the zero-step projection repair does not resolve this actual writer gap.",
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "limits": [
+    "Current HTTP cohort remains56/1, not green. Previous full ten-file API176/5 evidence predates these four fixture repairs and one new case; no inferred fresh broad total is claimed.",
+    "Original9requirements and15historical guarantees remain open. Full Source13-family/ownership/runtime, actual API/MCP/UI/settings/spaces, document17/18 and import/scheduler behavior remain required.",
+    "Full PUNI Optique aliases and Bun client inventory, installed/toolchain, browser/build/secrets/migration and exact-SHA host gates plus release remain required.",
+    "Astra unavailable until recorded2026-11-22 10:09AM, timezone unspecified. No retry/substitute/new agent; no public commit/push/PR/merge/deploy/install/activation.",
+    "No production Source/export runtime change. One controlled serializer guard fault ran and was restored. Prior core2124/0 and Memory793/0 are unchanged, not fresh complete reruns. Older empty SQL certificate custody remains unresolved and no Source SQL actor was restarted."
+  ],
+  "goalStatus": "active"
+}

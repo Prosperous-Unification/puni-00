@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
@@ -91,12 +92,13 @@ function argv(set: Setup, output: string, extra: string[] = []): string[] {
 
 const deps = {
   planEnrollment: () => Promise.resolve(),
+  helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../entrypoint.ts')),
   clock: { read: () => 0 },
   monotonic: { now: () => 0 },
   stdout: { write: () => true },
 };
 
-async function refusal(run: Promise<void>): Promise<string> {
+async function refusal(run: Promise<unknown>): Promise<string> {
   try {
     await run;
   } catch (cause) {

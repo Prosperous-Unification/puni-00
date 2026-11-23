@@ -1,7 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
 import { measureInk, NEUTRAL_CHROMA } from './measure-ink';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * The diverging priority ramp, measured by a browser in both palettes.
@@ -62,10 +61,10 @@ async function seedPlan(page: Page): Promise<void> {
   // Through the shared fixture and not the `+` directly: a create arms a
   // rename on the bar and that arming lands one round trip *after* the table
   // appears, so a fixture that clicks on into the plan can have the keyboard
-  // pulled back to the header mid-flight. `create-project.ts` says the whole
+  // pulled back to the header mid-flight. `create-work-package.ts` says the whole
   // of it. This file was written the day before that fixture existed and was
   // the one create site `d2024a3` did not reach.
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ROWS) {
     await addRow.click();

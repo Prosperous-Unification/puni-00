@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
- * The headroom read (`GET /api/projects/:id/budget-headroom`,
+ * The headroom read (`GET /api/work-packages/:id/budget-headroom`,
  * `wbs-measure-budgets` task 4.1) under organization isolation, over real
  * SQLite and the production organization access ({@link OrganizationHarness}).
- * Budgets and facts are written through the project batch; the read's figures
+ * Budgets and facts are written through the work package batch; the read's figures
  * are proven in core (`budget-command.test.ts`), so this file holds the route:
  * admission, the team filter, its refusals and the wire shape.
  */
@@ -22,19 +23,19 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project', 'project.manage_budgets']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project', 'project.manage_budgets']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
   own = await create('ada', 'A plan');
   foreign = await create('grace', 'B plan');
-  const first = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .get(own)?.id;
-  if (first === undefined) throw new Error('the project has no step');
+  const first = (await readFixturePackage(h, 'ada', own)).steps.at(0)?.id;
+  if (first === undefined) throw new Error('the work package has no step');
   dev = first;
   const built = await batch([
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -54,13 +55,11 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return await createFixturePackage(h, username, name);
 }
 
 async function batch(commands: readonly unknown[]) {
-  const answer = await h.call('ada', 'POST', `/api/projects/${own}/commands`, { commands });
+  const answer = await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, { commands });
   if (answer.status !== 200) throw new Error(`batch refused: ${JSON.stringify(answer)}`);
   return answer;
 }
@@ -81,7 +80,7 @@ describe('the headroom read', () => {
       { kind: 'setBudget', workItemId: leaf, measure: 'tokens', cap: 500, policy: 'advisory' },
       { kind: 'setMeasure', workItemId: leaf, stepId: dev, metric: 'tokens', value: 400 },
     ]);
-    const forMember = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom`);
+    const forMember = await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom`);
     expect(forMember.status).toBe(200);
     const onDev = (forMember.body as Headroom).steps.find(
       (step) => step.workItemId === leaf && step.stepId === dev,
@@ -113,7 +112,9 @@ describe('the headroom read', () => {
         },
       },
     });
-    expect(await h.call('vic', 'GET', `/api/projects/${own}/budget-headroom`)).toEqual(forMember);
+    expect(await h.call('vic', 'GET', `/api/work-packages/${own}/budget-headroom`)).toEqual(
+      forMember,
+    );
   });
 
   it('names a blocked strict cost budget on its key, tokens untouched', async () => {
@@ -137,7 +138,7 @@ describe('the headroom read', () => {
       { kind: 'setBudget', workItemId: parent, measure: 'cost', cap: 1000, policy: 'strict' },
       { kind: 'setBudget', workItemId: a, measure: 'tokens', cap: 50, policy: 'strict' },
     ]);
-    const answer = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom`);
     expect(answer.status).toBe(200);
     const onA = (answer.body as Headroom).steps.find(
       (step) => step.workItemId === a && step.stepId === dev,
@@ -174,7 +175,7 @@ describe('the headroom read', () => {
       rateCardDigest,
     });
     await batch([pricedTrio(a, 'card-a'), pricedTrio(b, 'card-b')]);
-    const answer = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom`);
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom`);
     const onA = (answer.body as Headroom).steps.find(
       (step) => step.workItemId === a && step.stepId === dev,
     );
@@ -204,12 +205,12 @@ describe('the headroom read', () => {
 
   it('refuses a stranger exactly as the startable read does', async () => {
     for (const tail of ['startable', 'budget-headroom']) {
-      const toForeign = await h.call('ada', 'GET', `/api/projects/${foreign}/${tail}`);
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
       expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('ada', 'GET', `/api/projects/missing/${tail}`)).toEqual(toForeign);
-      const stranger = await h.call('grace', 'GET', `/api/projects/${own}/${tail}`);
+      expect(await h.call('ada', 'GET', `/api/work-packages/missing/${tail}`)).toEqual(toForeign);
+      const stranger = await h.call('grace', 'GET', `/api/work-packages/${own}/${tail}`);
       expect({ tail, ...stranger }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('nell', 'GET', `/api/projects/${own}/${tail}`)).toEqual({
+      expect(await h.call('nell', 'GET', `/api/work-packages/${own}/${tail}`)).toEqual({
         status: 403,
         body: { error: 'no_active_organization' },
       });
@@ -221,7 +222,9 @@ describe('the headroom read', () => {
     h.sqlite.run(
       "INSERT INTO service_team_organization (resource_id, organization_id, name) VALUES ('tm-a', 'org-a', 'Platform')",
     );
-    expect(await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom?team=tm-a`)).toEqual({
+    expect(
+      await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom?team=tm-a`),
+    ).toEqual({
       status: 200,
       body: { steps: [] },
     });
@@ -230,7 +233,11 @@ describe('the headroom read', () => {
       leaf,
       'tm-a',
     ]);
-    const narrowed = await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom?team=tm-a`);
+    const narrowed = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${own}/budget-headroom?team=tm-a`,
+    );
     expect(narrowed.status).toBe(200);
     const steps = (narrowed.body as Headroom).steps;
     expect(steps.length).toBeGreaterThan(0);
@@ -241,13 +248,15 @@ describe('the headroom read', () => {
     );
     for (const team of ['tm-b', 'tm-nobody'])
       expect(
-        await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom?team=${team}`),
+        await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom?team=${team}`),
       ).toEqual({ status: 404, body: { error: 'unknown_team' } });
   });
 
   it('refuses a repeated team and an undeclared key', async () => {
     for (const query of ['team=tm-a&team=tm-a', 'teams=tm-a'])
-      expect(await h.call('ada', 'GET', `/api/projects/${own}/budget-headroom?${query}`)).toEqual({
+      expect(
+        await h.call('ada', 'GET', `/api/work-packages/${own}/budget-headroom?${query}`),
+      ).toEqual({
         status: 400,
         body: { error: 'invalid_query' },
       });
@@ -255,20 +264,20 @@ describe('the headroom read', () => {
 });
 
 describe('the headroom read before activation', () => {
-  it('reads any project deployment-wide under legacy access', async () => {
+  it('reads any work package deployment-wide under legacy access', async () => {
     h.close();
     h = OrganizationHarness.openComposed();
     await h.register('ada');
     await h.register('grace');
     const theirs = await create('ada', 'Legacy plan');
-    const made = await h.call('ada', 'POST', `/api/projects/${theirs}/commands`, {
+    const made = await h.call('ada', 'POST', `/api/work-packages/${theirs}/commands`, {
       commands: [
         { kind: 'createWorkItem', ref: 'W', name: 'W', parentId: null, afterId: null },
         { kind: 'setBudget', workItemRef: 'W', measure: 'tokens', cap: 10, policy: 'strict' },
       ],
     });
     expect(made.status).toBe(200);
-    const answer = await h.call('grace', 'GET', `/api/projects/${theirs}/budget-headroom`);
+    const answer = await h.call('grace', 'GET', `/api/work-packages/${theirs}/budget-headroom`);
     expect(answer.status).toBe(200);
     const steps = (answer.body as Headroom).steps;
     expect(steps.length).toBeGreaterThan(0);

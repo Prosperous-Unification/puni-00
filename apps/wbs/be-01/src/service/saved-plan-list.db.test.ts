@@ -9,18 +9,18 @@ import type { Connection } from '../repository/db';
 import { openConnection } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
-import { projectRow } from '../testing/project-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -33,14 +33,14 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
  * disk must still be listed, which is the only behaviour under which a corrupt
  * plan can be found and deleted rather than becoming a row nobody can reach.
  */
-describe("listing a project's saved plans", () => {
+describe("listing a work package's saved plans", () => {
   let dir: string;
   let path: string;
   let reader: Connection;
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -63,41 +63,29 @@ describe("listing a project's saved plans", () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-list-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({ id: 'p2', name: 'Somebody else', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-2',
-          projectId: 'p2',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'saved-plan-parent' }),
+      [],
+      wrote,
+    );
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({ id: 'p2', name: 'Somebody else', projectId: 'saved-plan-parent' }),
+      [],
       wrote,
     );
     await new WorkItemRepository(db, OPEN).insert(item('wi-1', 10), [], wrote);
@@ -121,8 +109,8 @@ describe("listing a project's saved plans", () => {
       now: () => at,
     });
 
-  const save = (id: string, at: number, name: string, projectId = 'p1') =>
-    service(id, at).save({ projectId, name, createdBy: 'Ada Lovelace', createdById: null });
+  const save = (id: string, at: number, name: string, workPackageId = 'p1') =>
+    service(id, at).save({ workPackageId, name, createdBy: 'Ada Lovelace', createdById: null });
 
   /**
    * A service that only ever reads. `newId` and `now` are still required, and
@@ -144,7 +132,7 @@ describe("listing a project's saved plans", () => {
     expect(rows[0].inputBytes).toBeGreaterThan(0);
   });
 
-  it('lists one project and not another', async () => {
+  it('lists one work package and not another', async () => {
     await save('sp-1', 1_756_000_000, 'ours');
     await save('sp-2', 1_756_000_001, 'theirs', 'p2');
 
@@ -172,7 +160,7 @@ describe("listing a project's saved plans", () => {
     expect((await service0.read('sp-1')).outcome).toBe('corrupt');
   });
 
-  it('answers an empty list for a project that has saved nothing', async () => {
+  it('answers an empty list for a work package that has saved nothing', async () => {
     const service0 = readerService();
 
     expect(await service0.list('p1')).toEqual([]);

@@ -1,9 +1,9 @@
 # Preferences
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.preferences","memberships":[{"kind":"path","path":"browser-storage.repository.test.ts"},{"kind":"path","path":"browser-storage.repository.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"fake-browser-storage.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"preference-keys.ts"},{"kind":"path","path":"preferences.feature.test.ts"},{"kind":"path","path":"preferences.feature.ts"},{"kind":"path","path":"preferences.resource.test.ts"},{"kind":"path","path":"preferences.resource.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/gantt-detail.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/project-settings-modal.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/remembered-layout.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/lib/remembered.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/lib/theme.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/application-runtime.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/application-services-context.tsx"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.frontend.preferences","memberships":[{"kind":"path","path":"browser-storage.repository.test.ts"},{"kind":"path","path":"browser-storage.repository.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"fake-browser-storage.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"preference-keys.ts"},{"kind":"path","path":"preferences.feature.test.ts"},{"kind":"path","path":"preferences.feature.ts"},{"kind":"path","path":"preferences.resource.test.ts"},{"kind":"path","path":"preferences.resource.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.fe-01.typecheck-module"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; externalConsumers names every production file outside the module that imports it, found by resolving imports on the planning date."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/gantt-detail.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.tsx"},{"kind":"path","path":"apps/wbs/fe-01/src/components/wbs/remembered-layout.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/lib/remembered.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/lib/theme.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/application-runtime.ts"},{"kind":"path","path":"apps/wbs/fe-01/src/runtime/application-services-context.tsx"}],"knowledgeLimit":"Only production importers are declared; test suites and the fixtures under apps/wbs/fe-01/src/testing that import this module are not tracked here."}} -->
 
 Everything this browser remembers for its reader: the palette they chose, whether the chart shows
-its detail, which project they had open, how wide each column was, which settings tab they were
+its detail, which work package they had open, how wide each column was, which settings tab they were
 on. Fifteen keys, and the one rule that governs all of them.
 
 The service is plain TypeScript and imports no React, which is rule F1 of the code organization
@@ -15,7 +15,7 @@ repository and the feature exclusively owns the resource.
 
 - The names of all fifteen keys, in `preference-keys.ts`, and nothing else names one.
 - The three stored shapes, and which key uses which: JSON for twelve of them, bare text for the
-  remembered project id and for the settings modal's open section.
+  remembered work package id and for the settings modal's open section.
 - The one refusal rule the whole app shares: a stored value that is no longer the expected type
   takes its key with it, and the caller's own default stands. This is deliberately not the
   "unknown is not OK" throw of rule R5 — the alternative is a page nobody can open until they
@@ -49,16 +49,16 @@ from its host, which is `apps/wbs/fe-01/src/runtime/application-runtime.ts`. Tha
 only instance: delivery reads `remembered` through `useApplicationServicesState` or, at the instant
 of an event, `useApplicationServicesReader`, and there is no module-load duplicate any more.
 `apps/wbs/fe-01/src/lib/remembered.ts` keeps the generic factory for the layout module, which
-builds a store per project id, resolves the runtime's `preferences` from its lifetime slot at every
+builds a store per work package id, resolves the runtime's `preferences` from its lifetime slot at every
 call, and is the reason `preferences` is a public export at all.
 
 ## Accepted debt
 
 `preferences`, the resource beneath `remembered`, is a public export of this module for one caller,
 `apps/wbs/fe-01/src/lib/remembered.ts`: its `remembered` factory builds the layout module's stores
-per project id, and a per-project key has no named answer in `preferences.feature.ts` to move behind.
+per work package id, and a per-work-package key has no named answer in `preferences.feature.ts` to move behind.
 Recorded as accepted debt rather than moved, with that one caller named; a feature of its own for
-the per-project layout stores retires it.
+the per-work-package layout stores retires it.
 
 ## Checks
 
@@ -66,9 +66,9 @@ The applicable target is `test:unit` in `apps/wbs/fe-01/project.json`, for
 `preferences.resource.test.ts`, `preferences.feature.test.ts` and `module.test.ts`. The adapter's
 own suite, `browser-storage.repository.test.ts`, names browser globals and therefore runs in the
 `test` target instead. The behaviour this extraction preserves is proved by the theme,
-layout, chart, settings and project page suites in that same target.
+layout, chart, settings and work package page suites in that same target.
 
-Its isolated type check is the `typecheck:module` target of the same project, which `typecheck`
+Its isolated type check is the `typecheck:module` target of the same work package, which `typecheck`
 depends on, recorded in the index above as `check.fe-01.typecheck-module`: `tsconfig.json` here
 extends `../tsconfig.module.json` and names what this module reaches beyond the shared list there.
 

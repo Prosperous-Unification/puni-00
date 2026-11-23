@@ -1,0 +1,810 @@
+{
+  "schema": "puni-resolved-plan-capture-v1",
+  "recordedAt": "2026-11-20T16:23:17.278Z",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "c76a80aa0fe0ec00d4c8b6ee4bc8903d8a16dd79dab29748368c88428d651a90",
+      "bytes": 88035,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+      "sha256": "c81d53ee493241acd3c7cf4a103f1b709bf4d2291b86ed3b5e69389a320ee782",
+      "bytes": 19759,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+      "sha256": "3e2fb737cea40cb473be6f8e593a5cc251efa5f06527c596c3db25d1bcf5a18a",
+      "bytes": 33426,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/saved-plan-capture-store.ts",
+      "sha256": "cb726593824c241d273f207798fbbd3c37f9f318c7b06f092a84b2a9af716f1a",
+      "bytes": 506,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/saved-plan-capture-values.ts",
+      "sha256": "d627e2532d552d4806a82627dfb4ef8d17f19b9da71cebc1473d8bebb1d077c3",
+      "bytes": 398,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+      "sha256": "1f5eaa3f2ad39e2bb91f99642d8219e156541d26ab7d265df7459692174328af",
+      "bytes": 3421,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/index.ts",
+      "sha256": "3a2d286d8cda9d28548ab358abdd7e32f77e890ab4c8f383fac14a4114e5d575",
+      "bytes": 11960,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/saved-plan-capture-values.ts",
+      "sha256": "3bd6e1f626a2385f5dbfcd39ebe4f091ecb37585c49b9008bce2ca6b887c1e24",
+      "bytes": 6029,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/leaf-step-order.ts",
+      "sha256": "5b8c8c146341419f04f7c52fe37a1ccd7b1afa396f906f3ec021b48184a6dc1c",
+      "bytes": 1400,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/leaf-step-order.test.ts",
+      "sha256": "ff1341746e8c799924e580a6f7fcf1cfb6243463492989a75a71c8ed57199943",
+      "bytes": 1115,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/resolved-plan-capture.test.ts",
+      "sha256": "9b663acbdadb4c6ff01247cccbb179b8ea7b6f6b47a01dbdf79465fd1bc6b32a",
+      "bytes": 6121,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/resolved-plan-capture.db.test.ts",
+      "sha256": "b1c2b39904183772536571041fe78f04639030c6cc5845ca805c1faf532d33f8",
+      "bytes": 13301,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/index.ts",
+      "sha256": "331f8955cc92f5d422c4a2400cfdd1105e2faf89f45b01a25d74a6b9852479f2",
+      "bytes": 12123,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "0df98d395c602a80fcf13107bec240c5c33259dc8ead6763bf1adc9600046c5c",
+      "bytes": 324907,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "205719f2e8b7851fa2109a944dd358645490dc248ece4cd4b6f53540591349d2",
+      "bytes": 358102,
+      "mode": 436
+    }
+  ],
+  "qualification": "Actual generic Source leaf-order capture progress, not complete SC9/SC16 or a whole Source/fact/access certificate. Memory and SQLite return required leafSteps beside ordinary rows. Source guards cover admission, the first-read continuation and delivery. Full intermediate/scoped/bound/borrowed arrangements remain required. Current writer12/document15/16 and uniform scheduler preparation remain pending explicit versioned integration.",
+  "changes": [
+    "Required ResolvedPlanInputReads extends historical/base PlanInputReads with actual leaf identity/order arrays, including zero-step leaves.",
+    "captureLeafStepOrders uses the ordinary census and refuses absent resolved rows/lists; ordinary captured work-item rows retain their prior shape.",
+    "Memory reads its detached original epoch and sequences a potentially synchronous tree refusal after the existing batch handlers attach. SQLite reuses the synchronous metadata helper inside its existing capture transaction.",
+    "Actual rival writes preserve coherent original rows/order and are observed by the next capture.",
+    "SQLite entry refuses connection acquisition after Source close; the first-await guard prevents later SELECTs; final delivery refuses close during the final directory read. Memory shared capture owner guards refuse in-flight delivery after close.",
+    "Current empty port and deliberate missing-capture fault fixtures carry explicit empty inventories; no catalogue authority is inferred and no historical input byte is rewritten."
+  ],
+  "verification": {
+    "controls": {
+      "name": "resolved-plan-capture-final-controls-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-controls-v1.receipt.json",
+        "sha256": "3e309c5e6e8cb34a508971a33ff397ce9ca8347a6ea9231a224cd8d229dfc8f9",
+        "bytes": 1584,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-controls-v1.log",
+        "sha256": "6667eb6285bb1fa3d7e99bd151fb9c81db10e30558928d155c25a1c36024aee4",
+        "bytes": 2031,
+        "mode": 384
+      },
+      "seconds": 11.542,
+      "pass": 17,
+      "fail": 0,
+      "assertions": 279,
+      "tests": 17,
+      "files": 4,
+      "elapsed": "11.51s"
+    },
+    "api": {
+      "name": "resolved-plan-capture-api-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-api-mcp-v1.receipt.json",
+        "sha256": "f21cc3b9c804e5a95d5fdff0405305a07168090760c6aa28a4535b7c9e988d61",
+        "bytes": 2583,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-api-mcp-v1.log",
+        "sha256": "1a07c4bb7af2e3c049e07f6c26307b31fea7a45f88f38794250e776270d2fd70",
+        "bytes": 33215,
+        "mode": 384
+      },
+      "seconds": 243.241,
+      "pass": 238,
+      "fail": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "elapsed": "243.20s"
+    },
+    "core": {
+      "name": "current-core-source-only-v25",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v25.receipt.json",
+        "sha256": "48e4c5ccaf70f4d45165c9f415f9d1731ac79a5523f7ea8c728a2805fa252adc",
+        "bytes": 14751,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v25.log",
+        "sha256": "974bca477f0b61334d19a9d628ecb8969cfc5ba0e7b8e918b707ec094329e376",
+        "bytes": 264118,
+        "mode": 384
+      },
+      "seconds": 86.391,
+      "pass": 2084,
+      "fail": 27,
+      "assertions": 9609,
+      "tests": 2111,
+      "files": 170,
+      "elapsed": "86.13s",
+      "qualification": "Same27V79failures; full170file core ran before one erased type re-export. Its Bun emission is identical; fresh54entry compiler and closed-feature boundary audit use the final export."
+    },
+    "faultCertificates": {
+      "name": "resolved-plan-capture-fault-certificates-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fault-certificates-v1.receipt.json",
+        "sha256": "32e9c68bca258eae4a1a3d54584762fa1331ed74fda2b3761c9132624bb52478",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fault-certificates-v1.log",
+        "sha256": "9bba63cf15f6794d18412801fe903869484d421f6ae4511d0313750fa197656b",
+        "bytes": 1736,
+        "mode": 384
+      },
+      "seconds": 23.732,
+      "pass": 12,
+      "fail": 0,
+      "assertions": 2071,
+      "tests": 12,
+      "files": 2,
+      "elapsed": "23.69s"
+    },
+    "sourceCertificates": [
+      {
+        "phase": "resolved-plan-capture-memory-certificate-v1",
+        "source": "memory",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 216,
+        "exclusions": [
+          {
+            "family": "capacity",
+            "caseId": "capacity.set:missing-reference",
+            "reason": "the memory capacity fixture does not hold work package or team reference sets",
+            "evidence": {
+              "sourceRevision": "52f961b5",
+              "assertion": "capacity set refuses missing work package and team references",
+              "observedFailure": "Expected  - 6\n+ Received  + 14"
+            }
+          },
+          {
+            "family": "priorityBands",
+            "caseId": "priorityBands.replace:missing-work-package",
+            "reason": "the memory priority-band fixture does not hold a work package reference set",
+            "evidence": {
+              "sourceRevision": "52f961b5",
+              "assertion": "priority-band replacement refuses a missing work package",
+              "observedFailure": "Expected  - 16\n+ Received  + 15"
+            }
+          }
+        ],
+        "absentFamilies": [
+          {
+            "family": "accessDecisions",
+            "reason": "Memory fixtures hold no access grants; the SQLite evaluator owns the decisions."
+          },
+          {
+            "family": "livePlans",
+            "reason": "Memory fixtures offer isolated stores without the SQLite shared snapshot reader."
+          },
+          {
+            "family": "spaces",
+            "reason": "the memory plan source installs no borrowed space store"
+          },
+          {
+            "family": "workPackageRanks",
+            "reason": "Memory fixtures do not install the SQLite organization rank writer."
+          }
+        ],
+        "name": "resolved-plan-capture-memory-certificate-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-memory-certificate-v1.receipt.json",
+          "sha256": "68150decf336e67b578804ebaf4c72bb87875d8b69d86e17dd5f31663f867679",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-memory-certificate-v1.log",
+          "sha256": "36b948dad7a2c7c6f4c8d0c542ce9302367b06b84869e8d6ff93f6edf8dc20e5",
+          "bytes": 10526,
+          "mode": 384
+        },
+        "seconds": 5.024,
+        "pass": 1,
+        "fail": 0,
+        "assertions": 5490,
+        "tests": 1,
+        "files": 1,
+        "elapsed": "4.99s"
+      },
+      {
+        "phase": "resolved-plan-capture-sqlite-certificate-v1",
+        "source": "sqlite",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 222,
+        "exclusions": [],
+        "absentFamilies": [],
+        "name": "resolved-plan-capture-sqlite-certificate-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-sqlite-certificate-v1.receipt.json",
+          "sha256": "7f968e65d458c1774d63f410e37ea6d7244a2a47196ff4538a0cdcd33e5a4973",
+          "bytes": 1464,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-sqlite-certificate-v1.log",
+          "sha256": "efb4a55b724aa74aecbecc5e8bc463849122f2c41ebf44eea6e9047bb55fcc18",
+          "bytes": 9689,
+          "mode": 384
+        },
+        "seconds": 169.127,
+        "pass": 1,
+        "fail": 0,
+        "assertions": 5964,
+        "tests": 1,
+        "files": 1,
+        "elapsed": "169.08s"
+      }
+    ],
+    "backendEntries": 54,
+    "checks": [
+      {
+        "name": "resolved-plan-capture-final-controls-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-controls-v1.receipt.json",
+          "sha256": "3e309c5e6e8cb34a508971a33ff397ce9ca8347a6ea9231a224cd8d229dfc8f9",
+          "bytes": 1584,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-controls-v1.log",
+          "sha256": "6667eb6285bb1fa3d7e99bd151fb9c81db10e30558928d155c25a1c36024aee4",
+          "bytes": 2031,
+          "mode": 384
+        },
+        "seconds": 11.542
+      },
+      {
+        "name": "resolved-plan-capture-api-mcp-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-api-mcp-v1.receipt.json",
+          "sha256": "f21cc3b9c804e5a95d5fdff0405305a07168090760c6aa28a4535b7c9e988d61",
+          "bytes": 2583,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-api-mcp-v1.log",
+          "sha256": "1a07c4bb7af2e3c049e07f6c26307b31fea7a45f88f38794250e776270d2fd70",
+          "bytes": 33215,
+          "mode": 384
+        },
+        "seconds": 243.241
+      },
+      {
+        "name": "resolved-plan-capture-final-types-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v3.receipt.json",
+          "sha256": "60ea29cdccb58ce71941a4156fc5c7789e1421d6addd2727bba196d28d16ae36",
+          "bytes": 1361,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v3.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 10.908
+      },
+      {
+        "name": "resolved-plan-capture-frontend-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-frontend-types-v1.receipt.json",
+          "sha256": "788225437c0eafae4e78baec1dbb4d1f85e883ad1257ec0d223a15b0e2124ac4",
+          "bytes": 1366,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-frontend-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 5
+      },
+      {
+        "name": "resolved-plan-capture-final-lint-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-lint-v1.receipt.json",
+          "sha256": "a03a1cb717ef3aa2916fcde2fcaa7555330180fb5f608b1b214681e876ce1a50",
+          "bytes": 1294,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 11.546
+      },
+      {
+        "name": "resolved-plan-capture-final-format-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-format-v1.receipt.json",
+          "sha256": "dfe157f44013f5c3f052257774c3d9e1f8518011b7df6cf658e8d02bb5dfc016",
+          "bytes": 1296,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        },
+        "seconds": 2.057
+      },
+      {
+        "name": "resolved-plan-capture-retirement-audit-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-retirement-audit-v1.receipt.json",
+          "sha256": "c6e72d79ee48c5904c92ac7b921596f218ef260475f326b6f0ac58eb471ffb46",
+          "bytes": 1305,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-retirement-audit-v1.log",
+          "sha256": "8f7d0946b45922dbd72501261f8011ee18ae614671568b1f2c270fea3d5b5318",
+          "bytes": 275,
+          "mode": 384
+        },
+        "seconds": 6.908
+      },
+      {
+        "name": "resolved-plan-capture-boundaries-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-boundaries-v1.receipt.json",
+          "sha256": "eafc403ffb5c0572175db6e66c4eb8c744b63c33988a63e69b887ef09ae9f489",
+          "bytes": 1448,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-boundaries-v1.log",
+          "sha256": "a79d408514e4df41f6f1b90ddf6ab29e3fda454259933329548f2d516a1bfd66",
+          "bytes": 270,
+          "mode": 384
+        },
+        "seconds": 14.689
+      },
+      {
+        "name": "resolved-plan-capture-proofs-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-proofs-v2.receipt.json",
+          "sha256": "c2780dfd50a0d4bdb1f521295fbebd54c7a401ddb41f16cc6731df375ea25804",
+          "bytes": 1284,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-proofs-v2.log",
+          "sha256": "e949e912526bf9fe9fbbb70fe43d793d72407dbc3dbfe764adb6bd1158589a03",
+          "bytes": 411,
+          "mode": 384
+        },
+        "seconds": 23.692
+      },
+      {
+        "name": "resolved-plan-capture-fault-certificates-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fault-certificates-v1.receipt.json",
+          "sha256": "32e9c68bca258eae4a1a3d54584762fa1331ed74fda2b3761c9132624bb52478",
+          "bytes": 1515,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fault-certificates-v1.log",
+          "sha256": "9bba63cf15f6794d18412801fe903869484d421f6ae4511d0313750fa197656b",
+          "bytes": 1736,
+          "mode": 384
+        },
+        "seconds": 23.732
+      },
+      {
+        "name": "resolved-plan-capture-memory-certificate-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-memory-certificate-v1.receipt.json",
+          "sha256": "68150decf336e67b578804ebaf4c72bb87875d8b69d86e17dd5f31663f867679",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-memory-certificate-v1.log",
+          "sha256": "36b948dad7a2c7c6f4c8d0c542ce9302367b06b84869e8d6ff93f6edf8dc20e5",
+          "bytes": 10526,
+          "mode": 384
+        },
+        "seconds": 5.024
+      },
+      {
+        "name": "resolved-plan-capture-sqlite-certificate-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-sqlite-certificate-v1.receipt.json",
+          "sha256": "7f968e65d458c1774d63f410e37ea6d7244a2a47196ff4538a0cdcd33e5a4973",
+          "bytes": 1464,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-sqlite-certificate-v1.log",
+          "sha256": "efb4a55b724aa74aecbecc5e8bc463849122f2c41ebf44eea6e9047bb55fcc18",
+          "bytes": 9689,
+          "mode": 384
+        },
+        "seconds": 169.127
+      }
+    ]
+  },
+  "effects": {
+    "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-effects-v3.json",
+    "sha256": "8b8fc1e36a94a1800700edc50c41eb3120559d028d8507f2f23a71cb486b383d",
+    "bytes": 8043,
+    "mode": 384
+  },
+  "commentEmission": {
+    "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-comment-emission-v1.json",
+    "sha256": "7d60fe1753e0866937a3f3ba3f27d571cb2f4ac0d8f01462630583bfa617394b",
+    "bytes": 278,
+    "mode": 384
+  },
+  "typeExportEmission": {
+    "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-core-export-before-v1.txt",
+    "qualification": "Final export checked byte-identical by the final roster writer."
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v13.json",
+    "sha256": "9f8756bfdc113170819d94b486340f6ea67fc45109362c7513afc9edc0d8961a",
+    "bytes": 1857406,
+    "mode": 384
+  },
+  "summaries": {
+    "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-summaries-v1.json",
+    "sha256": "9ba491dbee92fa66a4ec706bcdd1f32499aed6f844dfce0cf4d9d912c4589bbe",
+    "bytes": 5263,
+    "mode": 384
+  },
+  "retainedAttempts": [
+    {
+      "name": "resolved-plan-capture-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-red-v1.receipt.json",
+        "sha256": "b642258d3122d9b99c7b295788356d4da3a4edf8abbfe24b58fe37e0d7babfb7",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-red-v1.log",
+        "sha256": "c53295d9d5ba06ea718be94d6fae23ce60b00bfe78b192d15b975ef22f943923",
+        "bytes": 1914,
+        "mode": 384
+      },
+      "seconds": 3.362,
+      "qualification": "Memory test used an incorrect fixture import; SQLite reached the intended missing-field assertion. Not a two-adapter RED."
+    },
+    {
+      "name": "resolved-plan-capture-red-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-red-v2.receipt.json",
+        "sha256": "9d9f2e85e4338b32a772c53f79ad3ddbf23f2bd9d92b1948998987a8062b3d0d",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-red-v2.log",
+        "sha256": "1b745a31b17a8ce74e3db05dc80cfa8970265755c1f36c9174a7b1f8b3434208",
+        "bytes": 3039,
+        "mode": 384
+      },
+      "seconds": 3.363,
+      "qualification": "Both actual adapters failed required leafSteps assertions before implementation."
+    },
+    {
+      "name": "resolved-plan-capture-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-green-v1.receipt.json",
+        "sha256": "127364675b3babb8249240165f6d28eecf8e826f0032a9c299816fd4bc79fdf9",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-green-v1.log",
+        "sha256": "ccf7eb40e8af7044461a694d743590a9ffbe5b9db7df3d7bffe2f4add2003465",
+        "bytes": 1807,
+        "mode": 384
+      },
+      "seconds": 3.419,
+      "qualification": "Memory passed; SQLite leaf census order differed from an unstated cross-adapter ordering assumption. Exact per-leaf arrays are now compared by leaf identity."
+    },
+    {
+      "name": "resolved-plan-capture-green-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-green-v2.receipt.json",
+        "sha256": "b51602a2d8b270ca7048124c5b08bcdf24a3646a115cd748d06711f73383f3b3",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-green-v2.log",
+        "sha256": "b295a58a9ef76174a204bb9b430607ae723cd32ea497ac185f11c037a276a20a",
+        "bytes": 448,
+        "mode": 384
+      },
+      "seconds": 3.462,
+      "qualification": "Both initial actual capture controls pass."
+    },
+    {
+      "name": "resolved-plan-capture-fences-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fences-v1.receipt.json",
+        "sha256": "a465cd18f0d79c4df83d2e8a26ae299de1867ff4fcd200c37fb34660482d22a6",
+        "bytes": 1496,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-fences-v1.log",
+        "sha256": "e72f8946d461b16875b1d36ec14f9641a341f4fd715ac69c40091f1827561657",
+        "bytes": 3904,
+        "mode": 384
+      },
+      "seconds": 5.712,
+      "qualification": "New parallel tree call could throw synchronously before Promise.all attached handlers to an earlier rejection; moved after the batch. SQLite admitted post-close capture and reached corrupt values."
+    },
+    {
+      "name": "resolved-plan-capture-lifetime-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-red-v1.receipt.json",
+        "sha256": "3db306b9fce4ba7ecfaf1d34d349c065f4829d038f21752cc6f44a27821bf66e",
+        "bytes": 1513,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-red-v1.log",
+        "sha256": "c5adfb5cf2be1827dd61e7cd86fb7b984818db0076473a1e6966c0915a856be0",
+        "bytes": 1610,
+        "mode": 384
+      },
+      "seconds": 3.412,
+      "qualification": "After batch repair, Memory close control passed; SQLite still reached malformed values after Source close."
+    },
+    {
+      "name": "resolved-plan-capture-inflight-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-inflight-red-v1.receipt.json",
+        "sha256": "9ae4bbf8c3ea085a4e173e13eedc985a4e64f73dc6ccfd26747de111665fc510",
+        "bytes": 1507,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-inflight-red-v1.log",
+        "sha256": "a7bda1b81a15504f8a38ea1f1a31b693ecd72954d4847693ffa472b2d14968dd",
+        "bytes": 2896,
+        "mode": 384
+      },
+      "seconds": 3.463,
+      "qualification": "Both actual captures returned after Source closed during the first await."
+    },
+    {
+      "name": "resolved-plan-capture-lifetime-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-green-v1.receipt.json",
+        "sha256": "17cb04aca8f1d21857c2702e9ed0bb51dee385111224df4bc582a436b61ba5fc",
+        "bytes": 1584,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-green-v1.log",
+        "sha256": "80b763dbcf77653c046503f3ffa23321962a0c15530647bd1a506929c13ea6ae",
+        "bytes": 2906,
+        "mode": 384
+      },
+      "seconds": 5.323,
+      "qualification": "Memory fixture incorrectly attempted a guarded fixture mutation after Source close; the hasClosed oracle prevented this from being credited as a passing close test. Removed that invalid fixture action."
+    },
+    {
+      "name": "resolved-plan-capture-lifetime-green-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-green-v2.receipt.json",
+        "sha256": "405e1337787361cb551aa0e4de5405b6752c0f4821f3e35b35fb9a67120bafeb",
+        "bytes": 1584,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-lifetime-green-v2.log",
+        "sha256": "b46f58ff8ba0da06125181e8d874adae1962d256dcff3e9a9881c2e8d55c313f",
+        "bytes": 1685,
+        "mode": 384
+      },
+      "seconds": 5.238,
+      "qualification": "Original lifecycle/metadata controls and port shape pass."
+    },
+    {
+      "name": "resolved-plan-capture-format-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-format-v1.receipt.json",
+        "sha256": "5ded9264540372ccdea3feabce60b4d9bc8e4206382d6237ad6864ff7cfa3db4",
+        "bytes": 1280,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-format-v1.log",
+        "sha256": "6100b3b53752548b11223188fc660f125e482ba6560462bcf4c079e6f360869d",
+        "bytes": 2321,
+        "mode": 384
+      },
+      "seconds": 7.077,
+      "qualification": "Two arrayContaining assertions exposed any through the Bun matcher type; exact sorted arrays replace them. Existing parent guard needed a mechanical optional-chain form and a fresh same-owner deletion proof."
+    },
+    {
+      "name": "resolved-plan-capture-proofs-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-proofs-v1.receipt.json",
+        "sha256": "8e0869a81a4e5433f09b1a0669c47cc99fcd3f4fdeabb3bdc61cd8799f7896a6",
+        "bytes": 1285,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-proofs-v1.log",
+        "sha256": "08f0759a3c97dc789eeb56dd470aa0ca47d623071067ecbbce914695a582ca63",
+        "bytes": 2419,
+        "mode": 384
+      },
+      "seconds": 19.148,
+      "qualification": "Seven fault observations succeed, then entry-only removal still passes semantic-only close assertions because a later guard rejects. V2 strengthens the oracle with actual connection counts; this passing mutant is uncredited."
+    },
+    {
+      "name": "resolved-plan-capture-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-types-v2.receipt.json",
+        "sha256": "6b805d6f6cbb57ffc2a56f62d0e4734dc8b6f70821ee4f221edf83fa7c8ea758",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-types-v2.log",
+        "sha256": "bf300755f0b2314364941e67988516a8446c9876e3e19631d89efe5edbe2ae75",
+        "bytes": 558,
+        "mode": 384
+      },
+      "seconds": 5.909,
+      "qualification": "An explicitly empty capture port fixture lacked the new required field; it now declares an empty leaf inventory."
+    },
+    {
+      "name": "resolved-plan-capture-final-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v1.receipt.json",
+        "sha256": "d348e48eabbfc4b2b4e3d4694d0796d471b08adc29be90ff77843dffca16e6a3",
+        "bytes": 1364,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v1.log",
+        "sha256": "212d56f7b4ea34b8ce5f0cb72b85bad9317cd93d534b450b1e093559c437ff27",
+        "bytes": 2262,
+        "mode": 384
+      },
+      "seconds": 8.05,
+      "qualification": "Four errors came from two deliberate non-null missing-capture fault fixtures typed as legacy base reads. They now explicitly carry empty inventories matching their empty row census; the invalid existence response remains detectable."
+    },
+    {
+      "name": "resolved-plan-capture-final-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v2.receipt.json",
+        "sha256": "e08b5d4680a61e66bf389c22fd4133719faf71f6bd3aed6718a1e29c43e58b6d",
+        "bytes": 1363,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-final-types-v2.log",
+        "sha256": "b31f890d68dbec14fbba4f844c0a30c7f02fafc746322e23d278c87f22dbe9e1",
+        "bytes": 325,
+        "mode": 384
+      },
+      "seconds": 8.144,
+      "qualification": "The two fault fixture imports exposed a missing core type re-export; the erased export is added and its runtime emission is identical."
+    }
+  ],
+  "archive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  },
+  "originalCapture": {
+    "path": "/tmp/puni-combined-snapshot-trees-v1/report.json",
+    "sha256": "cbd4342cff479d2ec6bcb9d046b41533bd8a57fa39b6114007fbf1821ccda897",
+    "bytes": 9797,
+    "mode": 384
+  },
+  "remaining": [
+    "Complete SC9 saved input13/new local and external document versions with strict current leaf inventories, explicit predecessor interpretation, immutable original bodies and SC24 import reconciliation.",
+    "Wire actual current live/captured/connected/cycle/readings/resource/UI/fake consumers to complete per-leaf inventories; existing scheduler preparation still explicitly uniform.",
+    "Execute actual CP-SAT mixed-subtree and saved replay agreement; complete activation-backed connected labels/scheduling through real authority.",
+    "Complete the entire Source fact/access/atomicity contract, including remaining scoped/bound/borrowed/race/lifetime arrangements and intermediate owner boundaries. These selected generic capture fences and offered-case certificates do not close every owner scenario.",
+    "Preserve and complete all15 genuine predecessor guarantees and all13 fact-family matrices; repair all27 retained core failures and old qualified/raw-owner/parent capture fixtures without retiring their guarantees.",
+    "Complete project/space settings attachment, type-conflict and preflight rendering and full product/Playwright flows.",
+    "Complete every original PUNI Optique aliases/Bun client-script inventory/embedding/installed/toolchain/exact-SHA host/integration/release requirement.",
+    "Obtain Astra reviews when quota is available; recorded reset Nov22,2026 10:09AM timezone unspecified. No retry/spawn/substitute this turn."
+  ],
+  "unverified": [
+    "Saved13/document version cutover and live per-leaf consumers",
+    "Actual CP-SAT and activated connected integration",
+    "Complete Source owner/fact/access and original15history/all13fact guarantees",
+    "Full browser E2E",
+    "Exact-SHA host gate/build",
+    "Installed CLI/toolchain",
+    "Astra review",
+    "Integration/release"
+  ],
+  "operations": {
+    "allCheckActorsTerminal": true,
+    "noMutantsInstalled": true,
+    "protectedArchiveUnexecuted": true,
+    "noNodeModulesWrites": true,
+    "noActivation": true,
+    "noPublicCommitPushPrMergeDeployInstall": true
+  },
+  "retainedEvidenceWriter": {
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-evidence-v1.receipt.json",
+      "sha256": "43b75d12e42d3074bffff7bbd05fcc68baa935fc765d60179f73890e10717bb3",
+      "bytes": 1291,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/resolved-plan-capture-evidence-v1.log",
+      "sha256": "e1dbaed63771a438e31b1e9c39b338cf0ca4a90f82717f0ba1010429352a5aa0",
+      "bytes": 1835,
+      "mode": 384
+    },
+    "qualification": "First writer parsed only plural tests and rejected the singular one-test Source certificate summaries. Parser corrected to tests?; no product check or outcome changed."
+  }
+}

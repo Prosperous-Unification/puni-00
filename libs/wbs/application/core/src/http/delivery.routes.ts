@@ -8,7 +8,7 @@ import { bind, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
 /**
- * Authorizes the project, work item and saved reference before the gate may read the
+ * Authorizes the work package, work item and saved reference before the gate may read the
  * provider, and cancels that read when the request's signal aborts (a closed tab).
  */
 export function deliveryRoutes(

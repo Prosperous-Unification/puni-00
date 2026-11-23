@@ -4,18 +4,16 @@ import { join } from 'node:path';
 
 import type { CalendarMarker, WriteStamp } from '@wbs/core';
 import { automaticColor } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CalendarMarkerRepository } from './calendar-marker';
-import type { Connection } from './db';
 import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from './work-package';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -57,7 +55,7 @@ const AT = 1_700_000_000_000;
 function marker(overrides: Partial<CalendarMarker> = {}): CalendarMarker {
   return {
     id: crypto.randomUUID(),
-    projectId: 'p1',
+    workPackageId: 'p1',
     date: PAST_THE_WEEKEND,
     name: 'Site visit',
     color: null,
@@ -73,65 +71,53 @@ function marker(overrides: Partial<CalendarMarker> = {}): CalendarMarker {
  * total ordering's third key is the *database's* tie-break, so a stub that
  * sorted in TypeScript would prove the test's own `sort` rather than the
  * `ORDER BY` that ships. The refusals are here for the same reason — an absent
- * project is refused by a read inside the write's transaction, and what it is
+ * work package is refused by a read inside the write's transaction, and what it is
  * being kept from is a foreign key that throws.
  *
- * Two projects, because project isolation is a claim about a query and one
- * project cannot separate it from its wrong versions.
+ * Two work packages, because work package isolation is a claim about a query and one
+ * work package cannot separate it from its wrong versions.
  */
 describe('CalendarMarkerRepository', () => {
   let dir: string;
-  let conn: Connection;
+  let closeConnection: (() => void) | undefined;
+  const custody = { hasUnknownOwner: false };
   let markers: CalendarMarkerRepository;
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-repo-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    closeConnection = undefined;
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
-    );
-    const projects = new ProjectRepository(seed.db, OPEN);
-    await projects.create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Build',
-          position: 10,
-          code: 'build',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote,
-    );
-    await projects.create(
-      projectRow({ id: 'p2', name: 'Re-roof the barn', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-2',
-          projectId: 'p2',
-          name: 'Strip',
-          position: 10,
-          code: 'strip',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote,
-    );
-    seed.close();
-    conn = openConnection(path);
+    try {
+      await new UserRepository(seed.db, OPEN).create(
+        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+        wrote,
+      );
+      const workPackages = new WorkPackageRepository(seed.db, OPEN);
+      await workPackages.create(
+        workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+        [],
+        wrote,
+      );
+      await workPackages.create(
+        workPackageRow({ id: 'p2', name: 'Re-roof the barn', projectId: 'fixture-project' }),
+        [],
+        wrote,
+      );
+    } finally {
+      seed.close();
+    }
+    const conn = openConnection(path);
+    closeConnection = conn.close.bind(conn);
     markers = new CalendarMarkerRepository(conn.db, OPEN);
   });
 
   afterEach(() => {
-    conn.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeConnection?.();
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('round-trips a marker through create and list', async () => {
@@ -143,7 +129,7 @@ describe('CalendarMarkerRepository', () => {
   });
 
   it('stores a date outside the plan horizon exactly as given', async () => {
-    // Well past any bar this project's plan reaches. A marker is not a work
+    // Well past any bar this work package's plan reaches. A marker is not a work
     // item and schedules nothing, so there is no horizon for it to be inside.
     const made = marker({ date: '2031-12-31', name: 'Guarantee expires' });
     await markers.create(made);
@@ -175,11 +161,11 @@ describe('CalendarMarkerRepository', () => {
     expect((await markers.listFor('p1')).map((m) => m.date)).toEqual(['2026-08-24', '2026-09-07']);
   });
 
-  it('refuses a marker on a project nothing holds, and writes nothing', async () => {
-    const written = await markers.create(marker({ projectId: 'no-such-project' }));
+  it('refuses a marker on a work package nothing holds, and writes nothing', async () => {
+    const written = await markers.create(marker({ workPackageId: 'no-such-work-package' }));
 
     expect(written).toEqual({ ok: false, reason: 'not_found' });
-    expect(await markers.listFor('no-such-project')).toEqual([]);
+    expect(await markers.listFor('no-such-work-package')).toEqual([]);
   });
 
   it('refuses a repeated id and leaves the stored marker untouched', async () => {
@@ -267,10 +253,10 @@ describe('CalendarMarkerRepository', () => {
     expect(await markers.remove('p1', RENAMED)).toEqual({ ok: false, reason: 'not_found' });
   });
 
-  it("answers not_found for another project's marker, and never touches it", async () => {
+  it("answers not_found for another work package's marker, and never touches it", async () => {
     // `not_found` rather than `forbidden`, because the caller may not learn it
     // exists — the refusal table's own distinction.
-    const made = marker({ id: RENAMED, projectId: 'p2', name: 'Scaffolding up' });
+    const made = marker({ id: RENAMED, workPackageId: 'p2', name: 'Scaffolding up' });
     await markers.create(made);
 
     expect(await markers.rename('p1', RENAMED, 'Mine now')).toEqual({

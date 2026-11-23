@@ -8,13 +8,14 @@ import type {
   RuntimeCommandRequest,
   RuntimeReadRefusal,
   RuntimeReceipt,
+  RuntimeReceipt2,
   RuntimeReply,
 } from '@wbs/contracts';
 import { createRuntimeReceiver } from '@wbs/core/module/plan-commands/composition';
 import { canonicalRuntimeRequest } from '@wbs/core/module/plan-commands/runtime-request';
 import type { RuntimeContext } from '@wbs/core/module/plan-commands/runtime-state';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
@@ -22,13 +23,19 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
+import { reconstructRuntimeInstallation } from '../testing/runtime-installation-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
-  projectId: 'a1',
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+  },
+  workPackageId: 'a1',
   personId: 'agent',
 };
 const stamp = { at: 2, by: 'ada' };
@@ -54,26 +61,29 @@ async function seeded() {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
+  expect(
+    sqlite.db.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND scope_id='a1' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-key','org-a','organization','org-a','machine_credential','key-1','project-contributor','route',1)",
   );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
-  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
+  await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent', stamp);
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  await source.stores.steps.add(
-    {
-      id: 'dev',
-      projectId: 'a1',
-      name: 'Dev',
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays',
-    },
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [['dev', 'Dev']],
     stamp,
   );
-  await source.stores.workItems.insert(workItemRow({ id: 'leaf', projectId: 'a1' }), [], stamp);
+  await source.stores.workItems.insert(workItemRow({ id: 'leaf', workPackageId: 'a1' }), [], stamp);
   const receiver = createRuntimeReceiver(source.uow, nodeDigest);
   const ledger = await source.stores.runtimeCommands.inspectLedger();
   const acquisition = {
@@ -98,9 +108,9 @@ describe('admitted runtime authority', () => {
     const { receiver, source, ledger, acquisition } = await seeded();
     const first = await receiver.acquireRuntimeAuthority(context, acquisition);
     expect(receipt(first)).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       ledgerId: ledger.ledgerId,
-      scope: { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+      scope: { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
       commandId: 'first',
       actorId: 'ada',
       acceptance: { kind: 'authority', authority: { ownerId: 'owner-a', generation: 1 } },
@@ -126,7 +136,7 @@ describe('admitted runtime authority', () => {
     expect(state).toMatchObject({
       ok: true,
       value: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         ledgerId: ledger.ledgerId,
         authority: { kind: 'held', ownerId: 'owner-b', generation: 2 },
         claims: [],
@@ -147,14 +157,14 @@ describe('admitted runtime authority', () => {
     const { receiver, source, ledger } = await seeded();
     const before = await receiver.readRuntimeState(context, {});
     if (!before.ok) throw new Error('state refused');
-    expect(before.value.facts.projectRevision).toBe(1);
+    expect(before.value.facts.workPackageRevision).toBe(1);
     expect(before.value.basis).toBe(
       `rb1:${await nodeDigest.sha256(`["wbs-runtime-basis",1,"${ledger.ledgerId}","org-a","a1",1,[["leaf",0]]]`)}`,
     );
     const entered = Promise.withResolvers<undefined>();
     const release = Promise.withResolvers<undefined>();
     const writing = source.uow.run(async ({ stores }) => {
-      await stores.workItems.insert(workItemRow({ id: 'staged', projectId: 'a1' }), [], stamp);
+      await stores.workItems.insert(workItemRow({ id: 'staged', workPackageId: 'a1' }), [], stamp);
       entered.resolve(undefined);
       await release.promise;
       return { commit: false, value: undefined };
@@ -179,7 +189,11 @@ describe('admitted runtime authority', () => {
       settledBeforeRelease: false,
       state: before,
     });
-    await source.stores.workItems.insert(workItemRow({ id: 'z-leaf', projectId: 'a1' }), [], stamp);
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'z-leaf', workPackageId: 'a1' }),
+      [],
+      stamp,
+    );
     const after = await receiver.readRuntimeState(context, {});
     if (!after.ok) throw new Error('state refused');
     expect(after.value.facts.workItems.map(({ id }) => id)).toEqual(['leaf', 'z-leaf']);
@@ -248,19 +262,22 @@ describe('admitted runtime authority', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     expect(await receiver.acquireRuntimeAuthority(context, acquisition)).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
     expect(
       await receiver.lookupRuntimeReceipt(context, {
         commandId: 'first',
         expectedLedgerId: ledger.ledgerId,
       }),
-    ).toEqual({ ok: false, reason: 'forbidden' });
+    ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.write' });
     expect(await receiver.readRuntimeState(context, {})).toEqual({
       ok: false,
       reason: 'forbidden',
+      permission: 'package.write',
     });
   });
   it('requires write credential scope for acquisition while permitting authorized receipt reads', async () => {
@@ -299,7 +316,7 @@ describe('admitted runtime authority', () => {
   it('rolls back generation and all counts when the actual receipt INSERT fails late', async () => {
     const { receiver, source, sqlite, ledger, acquisition } = await seeded();
     sqlite.db.run(
-      "CREATE TRIGGER fail_runtime_acceptance BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT generation FROM runtime_authority WHERE organization_id='org-a' AND project_id='a1' AND person_id='agent')=1 AND (SELECT authority_count FROM runtime_ledger)=1 THEN RAISE(ABORT,'late receipt insert') ELSE RAISE(ABORT,'CAS was not staged') END; END",
+      "CREATE TRIGGER fail_runtime_acceptance BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT generation FROM runtime_authority WHERE organization_id='org-a' AND work_package_id='a1' AND person_id='agent')=1 AND (SELECT authority_count FROM runtime_ledger)=1 THEN RAISE(ABORT,'late receipt insert') ELSE RAISE(ABORT,'CAS was not staged') END; END",
     );
     const failure = await receiver.acquireRuntimeAuthority(context, acquisition).then(
       () => null,
@@ -310,7 +327,7 @@ describe('admitted runtime authority', () => {
     expect(
       await source.stores.runtimeCommands.readAuthority({
         organizationId: 'org-a',
-        projectId: 'a1',
+        workPackageId: 'a1',
         personId: 'agent',
       }),
     ).toBeNull();
@@ -341,34 +358,35 @@ describe('runtime authorization and request detachment', () => {
     );
     await assertRuntimeRejection(
       createRuntimeReceiver(sqlite.uow, nodeDigest).acquireRuntimeAuthority(context, acquisition),
-      'runtime project scope resolver is missing',
+      'runtime work package scope resolver is missing',
     );
     expect(await source.stores.runtimeCommands.inspectLedger()).toEqual(ledger);
   });
-  it('checks project, organization person, account binding and credential pin on every entry', async () => {
+  it('checks work package, organization person, account binding and credential pin on every entry', async () => {
     const { receiver, source, sqlite, acquisition, ledger } = await seeded();
     receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
     const check = async (current: RuntimeContext, reason: RuntimeReadRefusal['reason']) => {
-      expect(await receiver.acquireRuntimeAuthority(current, acquisition)).toEqual({
-        ok: false,
-        reason,
-      });
+      const refusal: RuntimeReadRefusal =
+        reason === 'person_not_bound'
+          ? { ok: false, reason: 'forbidden', permission: 'package.claim_for_others' }
+          : { ok: false, reason };
+      expect(await receiver.acquireRuntimeAuthority(current, acquisition)).toEqual(refusal);
       expect(
         await receiver.lookupRuntimeReceipt(current, {
           commandId: 'first',
           expectedLedgerId: ledger.ledgerId,
         }),
-      ).toEqual({ ok: false, reason });
-      expect(await receiver.readRuntimeState(current, {})).toEqual({ ok: false, reason });
+      ).toEqual(refusal);
+      expect(await receiver.readRuntimeState(current, {})).toEqual(refusal);
     };
-    await check({ ...context, projectId: 'b1' }, 'not_found');
+    await check({ ...context, workPackageId: 'b1' }, 'not_found');
     await check({ ...context, personId: 'missing' }, 'unknown_person');
     await source.stores.directory.addPerson(
       { id: 'foreign', name: 'Foreign', kind: 'agent' },
       [],
       stamp,
     );
-    await source.stores.directory.mapInOrganization('people', 'foreign', 'org-b', 'Foreign');
+    await source.stores.directory.mapInOrganization('people', 'foreign', 'org-b', 'Foreign', stamp);
     await source.stores.directory.patchPerson('foreign', { accountId: 'ada' }, stamp);
     await check({ ...context, personId: 'foreign' }, 'unknown_person');
     await source.stores.directory.patchPerson('agent', { accountId: null }, stamp);
@@ -376,9 +394,14 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const admin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        principal: { id: 'ada' },
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+      },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toMatchObject({ ok: true });
     // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18); a
@@ -407,7 +430,7 @@ describe('runtime authorization and request detachment', () => {
       stamp,
     );
     const mutable = {
-      projectId: 'a1',
+      workPackageId: 'a1',
       personId: 'agent',
       actor: {
         ...actor,
@@ -418,8 +441,14 @@ describe('runtime authorization and request detachment', () => {
         },
       },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: 'ada',
+          role: 'member' as const,
+        },
       },
     };
     const request = { ...acquisition };
@@ -433,7 +462,7 @@ describe('runtime authorization and request detachment', () => {
     await entered.promise;
     const acquiring = receiver.acquireRuntimeAuthority(mutable, request);
     const reading = receiver.readRuntimeState(mutable, { expectedLedgerId: ledger.ledgerId });
-    mutable.projectId = 'b1';
+    mutable.workPackageId = 'b1';
     mutable.personId = 'missing';
     mutable.actor.id = 'missing';
     mutable.actor.authentication.personId = 'missing';
@@ -445,7 +474,7 @@ describe('runtime authorization and request detachment', () => {
     await writer;
     expect(receipt(await acquiring)).toMatchObject({
       commandId: 'first',
-      scope: { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+      scope: { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
       actorId: 'ada',
       acceptance: { authority: { ownerId: 'owner-a', generation: 1 } },
     });
@@ -483,9 +512,14 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
     );
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     const admin: RuntimeContext = {
       ...context,
-      access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+      access: {
+        principal: { id: 'ada' },
+        kind: 'scoped',
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+      },
     };
     receipt(await receiver.acquireRuntimeAuthority(admin, acquisition));
     const entered = Promise.withResolvers<undefined>();
@@ -494,6 +528,7 @@ describe('runtime authorization and request detachment', () => {
       sqlite.db.run(
         "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
       );
+      sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
       entered.resolve(undefined);
       await release.promise;
       return { commit: true, value: undefined };
@@ -502,7 +537,11 @@ describe('runtime authorization and request detachment', () => {
     const replay = receiver.acquireRuntimeAuthority(admin, acquisition);
     release.resolve(undefined);
     await writer;
-    expect(await replay).toEqual({ ok: false, reason: 'person_not_bound' });
+    expect(await replay).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.claim_for_others',
+    });
   });
   it('preserves original acceptance actor when a different currently authorized admin reconciles it', async () => {
     const { receiver, sqlite, acquisition } = await seeded();
@@ -513,12 +552,16 @@ describe('runtime authorization and request detachment', () => {
     sqlite.db.run(
       "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','grace','admin',1)",
     );
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-grace','org-a','organization','org-a','user','grace','org-admin','route',1)",
+    );
     const admin: RuntimeContext = {
       ...context,
       actor: { id: 'grace', username: 'grace', scopes: ['read', 'write'] },
       access: {
+        principal: { id: 'grace' },
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'grace', role: 'admin' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'grace' },
       },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toEqual(first);
@@ -534,7 +577,7 @@ describe('runtime authorization and request detachment', () => {
 describe('runtime coherent inventory and trusted corruption', () => {
   it('reads only the requested person inventory and preserves ordinary claims and immutable bindings on takeover', async () => {
     const { receiver, source, acquisition } = await seeded();
-    const scope = { organizationId: 'org-a', projectId: 'a1', personId: 'agent' };
+    const scope = { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' };
     const claims = [
       {
         id: 'ordinary',
@@ -570,7 +613,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
       stamp,
     );
     for (const id of ['other-leaf', 'foreign-leaf'])
-      await source.stores.workItems.insert(workItemRow({ id, projectId: 'a1' }), [], stamp);
+      await source.stores.workItems.insert(workItemRow({ id, workPackageId: 'a1' }), [], stamp);
     expect(await source.stores.claims.add(claims, [], stamp, [])).toBe('written');
     const binding = {
       claimId: 'runtime',
@@ -585,7 +628,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
       },
     };
     await source.stores.runtimeCommands.insertBinding(scope, binding);
-    const before = await source.stores.claims.listByProject('a1');
+    const before = await source.stores.claims.listByWorkPackage('a1');
     receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
     receipt(
       await receiver.acquireRuntimeAuthority(context, {
@@ -606,7 +649,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
         ],
       },
     });
-    expect(await source.stores.claims.listByProject('a1')).toEqual(before);
+    expect(await source.stores.claims.listByWorkPackage('a1')).toEqual(before);
     expect(await source.stores.runtimeCommands.readBinding(scope, 'runtime')).toEqual(binding);
   });
   it('exposes actual live fields beside the original binding without rebinding after ordinary movement', async () => {
@@ -622,7 +665,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
     };
     expect(await source.stores.claims.add([claim], [], stamp, [])).toBe('written');
     await source.stores.runtimeCommands.insertBinding(
-      { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+      { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
       {
         claimId: 'bound',
         workItemId: 'leaf',
@@ -631,7 +674,11 @@ describe('runtime coherent inventory and trusted corruption', () => {
         execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'actual' },
       },
     );
-    await source.stores.workItems.insert(workItemRow({ id: 'moved', projectId: 'a1' }), [], stamp);
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'moved', workPackageId: 'a1' }),
+      [],
+      stamp,
+    );
     await source.stores.claims.moveAll('leaf', 'moved', stamp);
     expect(await receiver.readRuntimeState(context, {})).toMatchObject({
       ok: true,
@@ -651,7 +698,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
     'bytes',
     'scope-person',
     'scope-organization',
-    'scope-project',
+    'scope-work-package',
     'command',
     'ledger',
     'owner',
@@ -662,20 +709,20 @@ describe('runtime coherent inventory and trusted corruption', () => {
       const { receiver, sqlite, source, acquisition } = await seeded();
       receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
       const stored = await source.stores.runtimeCommands.readAcceptance(
-        { organizationId: 'org-a', projectId: 'a1', personId: 'agent' },
+        { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' },
         'first',
       );
       if (stored === null) throw new Error('accepted fixture missing');
       const parsed = JSON.parse(stored.canonicalRequest) as {
         operation: { ownerId: string };
-        scope: { personId: string; organizationId: string; projectId: string };
+        scope: { personId: string; organizationId: string; workPackageId: string };
         commandId: string;
         expectedLedgerId: string;
       };
       let acceptance = stored.receipt.acceptance;
       if (corruption === 'scope-person') parsed.scope.personId = 'changed';
       if (corruption === 'scope-organization') parsed.scope.organizationId = 'changed';
-      if (corruption === 'scope-project') parsed.scope.projectId = 'changed';
+      if (corruption === 'scope-work-package') parsed.scope.workPackageId = 'changed';
       if (corruption === 'command') parsed.commandId = 'changed';
       if (corruption === 'ledger') parsed.expectedLedgerId = 'changed';
       if (corruption === 'owner')
@@ -743,7 +790,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
   it('verifies complete retained claim/write request correspondence without treating generated historical facts as current state', async () => {
     const { receiver, source, acquisition } = await seeded();
     receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
-    const scope = { organizationId: 'org-a', projectId: 'a1', personId: 'agent' };
+    const scope = { organizationId: 'org-a', workPackageId: 'a1', personId: 'agent' };
     const authority = { ownerId: 'owner-a', generation: 1 };
     const execution = {
       storeId: 'store',
@@ -834,8 +881,8 @@ describe('runtime coherent inventory and trusted corruption', () => {
         action,
       });
       const requestDigest = await nodeDigest.sha256(canonicalRequest);
-      const retained: RuntimeReceipt = {
-        schemaVersion: 1,
+      const retained: RuntimeReceipt2 = {
+        schemaVersion: 2,
         ledgerId: acquisition.expectedLedgerId,
         scope,
         commandId,
@@ -844,7 +891,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
         acceptance,
       };
       await source.stores.runtimeCommands.insertAcceptance({
-        schemaVersion: 1,
+        schemaVersion: 2,
         scope,
         commandId,
         canonicalRequest,
@@ -887,7 +934,7 @@ describe('runtime coherent inventory and trusted corruption', () => {
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 describe('accepted runtime lifecycle', () => {
-  it('refuses down permanently after real acceptance even with all ordinary claims released', async () => {
+  it('the current catalogue refuses rollback of an authored step after real acceptance and claim release', async () => {
     const { receiver, source, sqlite, acquisition, dbPath } = await seeded();
     receipt(await receiver.acquireRuntimeAuthority(context, acquisition));
     const claims = [
@@ -903,7 +950,7 @@ describe('accepted runtime lifecycle', () => {
     ];
     expect(await source.stores.claims.add(claims, [], stamp, [])).toBe('written');
     await source.stores.claims.remove(claims, [], stamp);
-    expect(await source.stores.claims.listByProject('a1')).toEqual([]);
+    expect(await source.stores.claims.listByWorkPackage('a1')).toEqual([]);
     const readInstallation = () => ({
       migrations: sqlite.db.all('SELECT name,hash FROM __drizzle_migrations ORDER BY id'),
       schema: sqlite.db.all('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name'),
@@ -912,64 +959,16 @@ describe('accepted runtime lifecycle', () => {
       bindings: sqlite.db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
+    expect(rollbackTo(dbPath, migrations, '20261115130000_add_step_catalogue')).toEqual([
+      '20261118210000_add_step_retirements',
+      '20261118180000_add_resource_use_locations',
+    ]);
     const installed = readInstallation();
-    expect(installed.migrations.slice(-23)).toMatchObject([
-      { name: '20261022130000_add_organization_limits' },
-      { name: '20261022130100_widen_organization_audit_organization_limits' },
-      { name: '20261022140000_add_resource_provider' },
-      { name: '20261022140100_widen_organization_audit_compute_providers' },
-      { name: '20261022210000_add_project_abbreviations' },
-      { name: '20261022211000_add_external_dependencies' },
-      { name: '20261022212000_add_cross_project_dependency_activation' },
-      { name: '20261022213000_add_optimization_boundary_certificates' },
-      { name: '20261023100000_add_claim_lease' },
-      { name: '20261023140000_add_measure' },
-      { name: '20261023150000_key_step_measure' },
-      { name: '20261023160000_add_measure_estimate' },
-      { name: '20261023170000_add_work_item_budget' },
-      { name: '20261025120000_add_resource_use' },
-      { name: '20261025130000_add_resource_runtime' },
-      { name: '20261026120000_add_command_journal_person' },
-      { name: '20261026130000_widen_organization_audit_machine_tokens' },
-      { name: '20261028100000_add_agent_pool' },
-      { name: '20261028100100_widen_organization_audit_agent_pools' },
-      { name: '20261101100000_widen_organization_audit_directory_capacity' },
-      { name: '20261101100100_add_resource_directory_capacity' },
-      { name: '20261101120000_add_host_job_projection' },
-      { name: '20261102120000_add_access_grants' },
-    ]);
-    expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
-      '20261102120000_add_access_grants',
-      '20261101120000_add_host_job_projection',
-      '20261101100100_add_resource_directory_capacity',
-      '20261101100000_widen_organization_audit_directory_capacity',
-      '20261028100100_widen_organization_audit_agent_pools',
-      '20261028100000_add_agent_pool',
-      '20261026130000_widen_organization_audit_machine_tokens',
-      '20261026120000_add_command_journal_person',
-      '20261025130000_add_resource_runtime',
-      '20261025120000_add_resource_use',
-      '20261023170000_add_work_item_budget',
-      '20261023160000_add_measure_estimate',
-      '20261023150000_key_step_measure',
-      '20261023140000_add_measure',
-      '20261023100000_add_claim_lease',
-      '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
-      '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
-      '20261022140100_widen_organization_audit_compute_providers',
-      '20261022140000_add_resource_provider',
-      '20261022130100_widen_organization_audit_organization_limits',
-      '20261022130000_add_organization_limits',
-    ]);
-    const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -23));
-    expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
-      'runtime history',
+    expect(() =>
+      rollbackTo(dbPath, migrations, '20261115120000_add_step_migration_report'),
+    ).toThrow(
+      "step catalogue rollback requires migration-origin definition and legacy package 'dev'",
     );
-    expect(readInstallation()).toEqual(before);
-    runMigrations(dbPath, migrations);
     expect(readInstallation()).toEqual(installed);
     expect(
       await receiver.lookupRuntimeReceipt(context, {
@@ -978,16 +977,13 @@ describe('accepted runtime lifecycle', () => {
       }),
     ).toMatchObject({ ok: true });
   });
-  it('refuses the old pin after unused down/up before uninitialized scope or absence', async () => {
+  it('refuses the old pin after explicit current-schema reconstruction before uninitialized scope or absence', async () => {
     const { receiver, acquisition, dbPath } = await seeded();
     expect(await receiver.readRuntimeState(context, {})).toMatchObject({
       ok: true,
       value: { authority: { kind: 'uninitialized' } },
     });
-    expect(rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toContain(
-      '20261022121000_add_runtime_commands',
-    );
-    runMigrations(dbPath, migrations);
+    reconstructRuntimeInstallation(dbPath);
     expect(
       await receiver.readRuntimeState(context, { expectedLedgerId: acquisition.expectedLedgerId }),
     ).toEqual({ ok: false, reason: 'runtime_ledger_mismatch' });

@@ -6,7 +6,7 @@ import { forwardRef, type InputHTMLAttributes } from 'react';
  *
  * Hyphenated `data-*` props pass without being declared here, since TypeScript
  * does not check a JSX attribute whose name is not an identifier; that is how
- * WBS's tool hints and project facts (`data-hint`, `data-fact-lead`) ride on a
+ * WBS's tool hints and work-package facts (`data-hint`, `data-fact-lead`) ride on a
  * kit input without the kit knowing about either.
  */
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
@@ -19,7 +19,7 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement>;
  * that table's columns were sized around what a browser draws unaided.
  *
  * `w-full` is the registry's default and is kept, so this box fills whatever
- * it is put in. The places that need a narrower one — WBS's Find box and project
+ * it is put in. The places that need a narrower one — WBS's Find box and work-package
  * picker — pass a width class of their own rather than this component
  * growing a `size` variant nobody else would use.
  */

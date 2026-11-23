@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { readProjectResources } from './resource-shapes';
+import { readWorkPackageResources } from './resource-shapes';
 import { validateSchema } from './schema-shape';
 import { readStartableWork } from './startable-shapes';
 
@@ -50,7 +50,7 @@ test('reads the fit fields and refuses a leaf apart that claims to fit', async (
         free: 4,
       },
     ],
-    occupancyScope: 'project' as const,
+    occupancyScope: 'work_package' as const,
   };
   expect(await validateSchema(startable, current)).toEqual({ value: current });
   const contradicted = {
@@ -107,12 +107,12 @@ test('checks the new entry scope and directory as a complete pair', async () => 
     claimed: [],
     subtreeClaims: [],
     resources: [{ ...base, ...entry }],
-    occupancyScope: 'project',
+    occupancyScope: 'work_package',
   });
   const shared = { capacity: 4, occupied: 5, free: -1 };
   for (const entry of [
     {},
-    { occupancyScope: 'project', directory: null },
+    { occupancyScope: 'work_package', directory: null },
     { occupancyScope: 'organization', directory: shared },
   ]) {
     const wire = read(entry);
@@ -121,8 +121,8 @@ test('checks the new entry scope and directory as a complete pair', async () => 
   }
   for (const entry of [
     { directory: null },
-    { occupancyScope: 'project' },
-    { occupancyScope: 'project', directory: shared },
+    { occupancyScope: 'work_package' },
+    { occupancyScope: 'work_package', directory: shared },
     { occupancyScope: 'organization', directory: null },
     { occupancyScope: 'organization', directory: { ...shared, occupied: -5 } },
     { occupancyScope: 'organization', directory: { ...shared, free: '-1' } },
@@ -133,7 +133,7 @@ test('checks the new entry scope and directory as a complete pair', async () => 
 });
 
 test('reads earlier provider resources and checks supplied directory pairs', async () => {
-  const schema = readProjectResources.responses[0].schema;
+  const schema = readWorkPackageResources.responses[0].schema;
   const ram = {
     id: 'ram',
     name: 'host ram',

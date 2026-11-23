@@ -1,0 +1,24 @@
+{
+  "schema": "puni-genuine-memory-laundering-fixtures-v1",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "sourceLockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+  "derivedFromProducerSha256": "fc7cd47f0a037afe548b7a366ebdaf00a92eca069614acff6f2ba562067cfb3f",
+  "runtime": {
+    "version": "1.4.4",
+    "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+  },
+  "producer": "legacy-memory-laundering-producer.ts.txt",
+  "producerSha256": "5ac5c9992a8c12b9c47801fc42192cf2246d169ef7b78ed7f911b0abe366ae49",
+  "cases": {
+    "extra-qa": {
+      "file": "legacy-laundering-extra-qa.json.gz",
+      "sha256": "cc03a2caa21230f8ee7cb9b256137e4cbcad37d1d86e2ed5b3bda08d485643b7",
+      "gzipSha256": "0ee6a0372899985d141dcc9bbf3c7c0fdb2a098c6089d3e35fe251d962138748"
+    },
+    "mixed-progress-patch": {
+      "file": "legacy-laundering-mixed-progress-patch.json.gz",
+      "sha256": "253b6ddfdb3c42ceef5777ab9260de57788251169b608e9d7d1c51445bb837a0",
+      "gzipSha256": "ffcdbb7a98fc7502502898269dbc8e4a330998699f95f84c5346ed1b40752a00"
+    }
+  }
+}

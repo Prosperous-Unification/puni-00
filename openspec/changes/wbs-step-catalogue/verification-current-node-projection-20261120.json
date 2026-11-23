@@ -1,0 +1,519 @@
+{
+  "schema": "puni-wbs-current-node-projection-v1",
+  "recordedAt": "2026-11-20T19:28:52.836Z",
+  "previous": {
+    "path": "/tmp/puni-goal-continuation-20261120-v82.json",
+    "sha256": "83baf092a8fedeea1a538be4c02469490608a4ee98c1405229a9c06f58b417f5",
+    "bytes": 770407,
+    "mode": 384
+  },
+  "previousGoalTurn": {
+    "classification": "progress",
+    "qualification": "V82 integrated writer13/current own schedule preparation with actual Source tests and qualified faults. This continuation wires current tree node readings/resources and retains the remaining full scope."
+  },
+  "qualification": "Partial SC9/SC16 integration: current tree node readings/resources follow explicit own leaf order, including empty and held leaves. Shared graph interpretation is required and explicit. Actual proposed-edit cycle snapshots, execution/startable/claim inventories, complete Source ownership/history/UI/CLI release remain unfinished.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/current-node-projection.test.ts",
+      "sha256": "b22fb06e4f2b1a3e1273977c28053c40159b67e214c7e9c7ec93cb3933d7628e",
+      "bytes": 945,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/current-node-projection.db.test.ts",
+      "sha256": "df3743e47f2dd08b69fa57e0d7122f8f0c4cc74863286afeb56b3b44d01bf44e",
+      "bytes": 1095,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/execution-read.ts",
+      "sha256": "89d49e58e6395afe799d7acad89e79d4e9f6047f46fe5f7cb54769b92a7d8b16",
+      "bytes": 8565,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/prepare-import.ts",
+      "sha256": "594f0376dd39493684e5f44a92cc39af00250e9f504303c62f3a8ade241e85cf",
+      "bytes": 51938,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "sha256": "b87b315b1021e679e1040fab365f1be6603252797e85d8eececf8b12a6b0700f",
+      "bytes": 135318,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "b5615753528039fef8971b7299de49a1da42d8c503b001187eb32e17db5d6334",
+      "bytes": 578615,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+      "sha256": "fc21a0c2cb03f6c63dea1fa1c863fe7012d7f099870663045df01bd29534a3b4",
+      "bytes": 16689,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+      "sha256": "2265e791a6182f79e0671c302ffae5bade09577dcd7d170e5b5241156a5065c1",
+      "bytes": 14928,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/dependency-graph.test.ts",
+      "sha256": "29fffd08c7abd8f0ddc06270c2fe42d525ff674646b599daa9575418f3e1508b",
+      "bytes": 5875,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/dependency-graph.ts",
+      "sha256": "f567bb419e4070adea1fc1fe13717b1c14c95744b378f632ccbf90c75233a329",
+      "bytes": 11848,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/node-readings.ts",
+      "sha256": "03e3a642a890d29504ed9dfbc71ef721dec664022cf7be2cac028e9324ec91b4",
+      "bytes": 11183,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/current-node-projection.ts",
+      "sha256": "73044c73b5a422d64d69735c34b644f6c69b05dfcbc4a00cdc8beb8f6623c6ee",
+      "bytes": 4209,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/node-resources.test.ts",
+      "sha256": "df3e7002fcec7edf01ee97bbfb0969057e4b2e205a369c89c151d9a22762411e",
+      "bytes": 5688,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/node-resources.ts",
+      "sha256": "6343becbc57d9095e0bc61c66ea90e8f13e5e7ef40cb6309b3002d05f64201bb",
+      "bytes": 8939,
+      "mode": 436
+    }
+  ],
+  "implementation": {
+    "currentTree": "Same resolved tree rows supply node graph interpretation and resource inventories. Parents omit records, empty leaves expose {}, held leaves retain resources before schedule reduction. Actual progress values/timestamps remain unchanged through reads.",
+    "graph": "DependencyGraphState requires SliceStepOrder; slicing receives it explicitly. The constructed own-order cycle is found where uniform ordering misses it.",
+    "resources": "Required per-leaf map; extra parent/foreign owners, missing lists and repeated own identities throw. Own order is never sorted or replaced by package union.",
+    "nullOverride": "Only omitted graph interpretation retains the current explicit uniform snapshot mode. Malformed trusted null is forwarded and rejected by graph preparation, never replaced with uniform. A dedicated selector avoids the unsafe nullish-default lint suggestion.",
+    "actualSourceCases": "Sixteen Memory/SQLite direct current tree cases: readings/resources × opposite/distinct sets × held/unheld, with an empty leaf and parent. These are actual isolated services, not fabricated Source authority or activated connected HTTP certification.",
+    "remainingUniform": [
+      "ConnectedDependencyGraphReader current cycle snapshots and proposed structural overrides",
+      "WorkItemService.statusReadsOf",
+      "SQLite readExecutionIn",
+      "Original document15/16 import graph interpretation"
+    ],
+    "assumption": "Candidate cycle capture must acquire actual proposed type inventories, including new/restored rows and parent-to-leaf transitions. Existing leaf-only metadata cannot supply that by default. Existing execution/claim inventory unions also require the coordinated cutover."
+  },
+  "verification": {
+    "unit": {
+      "name": "current-node-projection-final-unit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-unit-v2.receipt.json",
+        "sha256": "8fe45ed3e34c10a567c0cdbc8ec587f2578aac1da04cfd5661cf435eae51641d",
+        "bytes": 1314,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-unit-v2.log",
+        "sha256": "9d71155dc7627a90be54c63db35eaebfabf40bbc8dd8f8ce9cc4336437fd0ec1",
+        "bytes": 88256,
+        "mode": 384
+      },
+      "pass": 789,
+      "fail": 3,
+      "assertions": 4215,
+      "tests": 792,
+      "files": 40,
+      "seconds": 31.27,
+      "failures": [
+        "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo"
+      ]
+    },
+    "api": {
+      "name": "current-node-projection-api-mcp-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-api-mcp-v2.receipt.json",
+        "sha256": "420c19b31bfbdd86b5d2d07f6cbc835502d16a6781a5c26ba894b18f79e09a38",
+        "bytes": 2587,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-api-mcp-v2.log",
+        "sha256": "e1c311eeefb2ccba64ac3c70b47b0cb9918875988ab8291450cdce31e8cb0d43",
+        "bytes": 33207,
+        "mode": 384
+      },
+      "pass": 238,
+      "fail": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "seconds": 238.26,
+      "failures": []
+    },
+    "core": {
+      "name": "current-core-source-only-v33",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v33.receipt.json",
+        "sha256": "271ae84d8b56ae3526d649248a8bf435fa64ba1a54e43e5dbf8ac9340b5e8761",
+        "bytes": 14837,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v33.log",
+        "sha256": "9a37040530245323a728df799488934352a513799222b49d3315c012d52dd806",
+        "bytes": 262615,
+        "mode": 384
+      },
+      "pass": 2095,
+      "fail": 24,
+      "assertions": 9530,
+      "tests": 2119,
+      "files": 171,
+      "seconds": 95.61,
+      "failures": [
+        "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "(fail) counting unit of work rejects unexpected store access and records rollback",
+        "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "(fail) the Plan import module > admits a small document over the graph installPlanImport wires",
+        "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ]
+    },
+    "correctedDiagnosticAssertions": [
+      "(fail) refuses a typed node endpoint absent from the full tree",
+      "(fail) rejects a required work package read returning another work package identity",
+      "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows"
+    ],
+    "retainedHistoricalUnitFailures": [
+      "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+      "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+      "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo"
+    ],
+    "checks": [
+      {
+        "name": "current-node-projection-final-types-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-types-v2.receipt.json",
+          "sha256": "9116bb409708eaa5b46867ebf506749ad67a5879266cc0bc92c10f28852cb2a3",
+          "bytes": 1367,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-frontend-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-frontend-types-v1.receipt.json",
+          "sha256": "6f6a6cc873c8251a3150e87bcd3193643151e8c0be7c0df6d6eff4a8fdf3df99",
+          "bytes": 1370,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-frontend-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-final-lint-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-lint-v2.receipt.json",
+          "sha256": "1ca513fa98d8ce423f631b0a9ae2d8265c218f6a51c6024771023b87b980dd10",
+          "bytes": 1310,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-lint-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-final-format-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-format-v2.receipt.json",
+          "sha256": "251de20662d4d404ec89be2ff6bdf89aa6f4b5cded3dc6b2fd61f30afac50074",
+          "bytes": 1322,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-final-format-v2.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-retirement-audit-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-retirement-audit-v2.receipt.json",
+          "sha256": "2cc9aad2567192da662b7a0cf539bc33b6580333ceef42186cff6d482351413f",
+          "bytes": 1309,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-retirement-audit-v2.log",
+          "sha256": "c73786e19bcf947a49f0c1f09e9a87f182891bb9dbec7ca90c31b981060ccbf7",
+          "bytes": 275,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-proofs-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-proofs-v2.receipt.json",
+          "sha256": "54af0315c875afcc898e19d0baf658bf4806bf23ff38be048d93fd530eb5b7b4",
+          "bytes": 1290,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-proofs-v2.log",
+          "sha256": "e9c5bdf0c3a3675e6722b793f6422e8a0026c676b787bdb14a5ac3f5288f7145",
+          "bytes": 512,
+          "mode": 384
+        }
+      },
+      {
+        "name": "current-node-projection-null-proof-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-null-proof-v1.receipt.json",
+          "sha256": "bc5e57c92efd77619b6d10bb55e382d4030c96cbf818c10a1702d5fb8b3f090f",
+          "bytes": 1302,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-null-proof-v1.log",
+          "sha256": "cb5305c33b60b2272f00da987e7fe9a3710f4fc91e193a4da78e85c6b5e0115d",
+          "bytes": 124,
+          "mode": 384
+        }
+      }
+    ],
+    "compilerEntries": 244,
+    "sourcePaths": 14,
+    "audit": {
+      "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v19.json",
+      "sha256": "d30bf292992cd8ada8ab60149480d628fde961a5d1c0b6bc7962f11d8f070925",
+      "bytes": 1862708,
+      "mode": 384
+    },
+    "unitRoster": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-unit-roster-v2.json",
+      "sha256": "5dcc974c7eb49d09cf9da16de49c3e1591dba6548b94fbbd8435661353264e2b",
+      "bytes": 2798,
+      "mode": 384
+    }
+  },
+  "proofs": {
+    "effects": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-effects-v2.json",
+      "sha256": "3ff5e0bad52e4c228737dfa9cbefdfea6027bb16798f41ab59249b050c272844",
+      "bytes": 5480,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "id": "graph-order",
+        "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-node-projection.db.test.ts",
+        "pattern": "current SQLite node readings",
+        "qualification": "Actual SQLite live node readings must use the explicit own graph order; forcing uniform loses waiting and ordered retained node identities.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-graph-order-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-graph-order-v2.log"
+      },
+      {
+        "id": "graph-cycle",
+        "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+        "test": "libs/wbs/application/core/src/service/dependency-graph.test.ts",
+        "pattern": "explicit own-order graph",
+        "qualification": "Constructed graph control proves the shared kernel finds a cycle that uniform interpretation misses. Actual prospective Source cycle capture remains unfinished.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-graph-cycle-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-graph-cycle-v2.log"
+      },
+      {
+        "id": "live-graph",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-node-projection.db.test.ts",
+        "pattern": "current SQLite node readings",
+        "qualification": "Actual current tree must hand its own inventories to the node graph rather than select uniform interpretation.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-live-graph-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-live-graph-v2.log"
+      },
+      {
+        "id": "resource-union",
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-node-projection.db.test.ts",
+        "pattern": "current SQLite node resources",
+        "qualification": "Actual resources must exclude unresolved QA and keep empty leaves empty, preserving each own order even for held work.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-union-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-union-v2.log"
+      },
+      {
+        "id": "resource-order",
+        "path": "libs/wbs/domain/domain/src/node-resources.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/current-node-projection.db.test.ts",
+        "pattern": "current SQLite node resources",
+        "qualification": "Sorting own resource identities loses the actual first leaf SC18 order.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-order-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-order-v2.log"
+      },
+      {
+        "id": "resource-missing",
+        "path": "libs/wbs/domain/domain/src/node-resources.ts",
+        "test": "libs/wbs/domain/domain/src/node-resources.test.ts",
+        "pattern": "missing own resource list",
+        "qualification": "Diagnostic proof: omission loses the named missing-list refusal to a later native TypeError; missing metadata remains refused.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-missing-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-missing-v2.log"
+      },
+      {
+        "id": "resource-parent",
+        "path": "libs/wbs/domain/domain/src/node-resources.ts",
+        "test": "libs/wbs/domain/domain/src/node-resources.test.ts",
+        "pattern": "extra parent resource list",
+        "qualification": "Admission proof: omission silently ignores an extra parent inventory.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-parent-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-parent-v2.log"
+      },
+      {
+        "id": "resource-foreign",
+        "path": "libs/wbs/domain/domain/src/node-resources.ts",
+        "test": "libs/wbs/domain/domain/src/node-resources.test.ts",
+        "pattern": "extra foreign resource list",
+        "qualification": "Admission proof: omission silently ignores an extra foreign inventory, independently of the parent control.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-foreign-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-foreign-v2.log"
+      },
+      {
+        "id": "resource-duplicate",
+        "path": "libs/wbs/domain/domain/src/node-resources.ts",
+        "test": "libs/wbs/domain/domain/src/node-resources.test.ts",
+        "pattern": "repeated own resource step identities",
+        "qualification": "Admission proof: omission lets Object.fromEntries silently overwrite repeated own identities.",
+        "receipt": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-duplicate-v2.receipt.json",
+        "log": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-resource-duplicate-v2.log"
+      }
+    ],
+    "canonical": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-proof-canonical-v2.json",
+      "sha256": "3dba5eeb5662c82580601aeabde15a131c24480102c87ea43d2d2bc709967fed",
+      "bytes": 612848,
+      "mode": 384
+    },
+    "nullFault": {
+      "name": "current-node-projection-fault-null-default-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-null-default-v1.receipt.json",
+        "sha256": "1b282e6710100bbe4114745715df37dd95c32dacfc0e2409b4f19986d7e75ce2",
+        "bytes": 1461,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-fault-null-default-v1.log",
+        "sha256": "11ff7e98e656ae67a59360925b054de455dc09809f7305e4a63e244e5a49df3e",
+        "bytes": 743,
+        "mode": 384
+      }
+    },
+    "nullCanonical": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-node-projection-null-canonical-v1.json",
+      "sha256": "a499c036275becc81f10c4b0e8caf6738106ceeece23b868de8decb1674950ec",
+      "bytes": 15358,
+      "mode": 384
+    },
+    "identicalEmission": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/dependency-graph.ts",
+        "sha256": "1ae4c22aa7fa5ace65b39be92213295cc308fd0329bad8ad79e6a3d5c7633d77"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "sha256": "36ae649e2c6d5cb245f76b4dbd36f15cc881a6c3fbd3fe6831a5172e7e25ffa4"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/node-resources.ts",
+        "sha256": "de244c99cd45ea0dc2db787b03f62ce1ed9f756d1afb4fede25a9d5d25742dfd"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+        "sha256": "0d55b7e6352773e405a7b1189ed38c4b23992d17ad1e593c7b30791a8401d192"
+      }
+    ],
+    "qualification": "Nine final omission/dependency faults plus a separate null-default fault. Every actor settled/stopped/reaped/closed before restoration. Missing-resource omission is diagnostic evidence; parent/foreign/repeated identities have independent admission negatives. Four final module emissions match their proof preimages. The cycle control is constructed kernel evidence, not actual prospective Source cycle admission."
+  },
+  "retainedAttempts": [
+    "First Source red lacked required statedAt in the authored progress fixture and is not credited for own-order behavior. Corrected setup reached QA unknown versus waiting and wrong node/resource order in red-v2.",
+    "Green-v1 retained an older work-package versus work package diagnostic mismatch; three exact old message assertions were corrected with every original refusal scenario retained.",
+    "The expanded 40-file cohort intentionally retains three historical parent-progress failures. No cases were excluded or skipped to report green.",
+    "Initial compiler errors exposed two other execution graph constructors; they now explicitly retain uniform interpretation pending their real owner/inventory cutover.",
+    "Initial lint refused awaited Bun rejection matchers and suggested a nullish default. Explicit promise outcomes preserve TypeError assertion; omission selection remains explicit and provably rejects null."
+  ],
+  "skippedOrUnverified": [
+    "Runtime browser E2E, full build, exact-SHA host gates, secrets/migration gate, whole Source conformance and actual CP-SAT were not run.",
+    "Activated connected HTTP, complete Source/fact/access/lifetime certification, all13 protected families, all15 genuine historical guarantees, older fixtures and settings/fake/UI integrations remain required.",
+    "Astra quota remains unavailable until recorded Nov22,2026 10:09AM, timezone unspecified; no retry, spawn or substitute review.",
+    "No archive execution, shared node_modules writes, activation, public commit, push, PR update, merge, deploy, install or frozen-history rewrite."
+  ],
+  "remaining": [
+    "Actual proposed-edit cycle graph capture must resolve future leafhood and actual direct types on its owned snapshot, including create/copy/delete/move/undo/redo.",
+    "Execution/status/startable/claim paths still need each leaf inventory and actual Source/HTTP compatibility tests; their current explicit uniform constructors are unfinished.",
+    "Document17/18, previous converters, SC24 import, Navigator/Burokrat consumption, real CP-SAT and activated connected integration remain.",
+    "All13 protected fact families, all15 genuine historical guarantees, complete Source owner/fact/access matrices, old raw-owner/qualified fixtures and space/project/settings/fake/UI/browser flows remain.",
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "protected": {
+    "archive": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+      "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+      "bytes": 8770,
+      "mode": 436
+    },
+    "sentinelAbsent": true,
+    "archiveExecuted": false,
+    "sharedNodeModulesWritten": false
+  }
+}

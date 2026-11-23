@@ -11,10 +11,15 @@ import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it, spyOn } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const T = 1_900_000_000_000;
 const opened: OrganizationHarness[] = [];
@@ -32,7 +37,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   harness.bind('ada', 'org-a');
   harness.activate();
   addAgentPerson(harness.sqlite, 'codex', 'org-a', harness.userId('ada'));
@@ -41,34 +46,41 @@ async function fixture(options: ComposedHarnessOptions = {}) {
     personId: 'codex',
     issuedBy: harness.userId('ada'),
   });
-  const projects: { projectId: string; stepId: string; workItemId: string }[] = [];
+  grantCredential(
+    harness.sqlite,
+    'org-a',
+    credential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
+  const workPackages: { workPackageId: string; stepId: string; workItemId: string }[] = [];
   for (const [index, name] of ['A', 'B', 'C', 'Unconnected'].entries()) {
-    const answer = await harness.call('ada', 'POST', '/api/projects', { name });
-    if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-    const plan = answer.body as { project: { id: string }; steps: { id: string }[] };
+    const workPackageId = await createFixturePackage(harness, 'ada', name);
+    const plan = await readFixturePackage(harness, 'ada', workPackageId);
     const step = plan.steps.at(0);
-    if (step === undefined) throw new Error('project omitted its first workflow step');
-    const project = {
-      projectId: plan.project.id,
+    if (step === undefined) throw new Error('work package omitted its first workflow step');
+    const workPackage = {
+      workPackageId,
       stepId: step.id,
       workItemId: `lease-row-${String(index)}`,
     };
-    projects.push(project);
-    harness.sqlite.run("UPDATE project SET start_date = '2026-10-05' WHERE id = ?", [
-      project.projectId,
+    workPackages.push(workPackage);
+    harness.sqlite.run("UPDATE work_package SET start_date = '2026-10-05' WHERE id = ?", [
+      workPackage.workPackageId,
     ]);
     harness.sqlite.run(
-      'INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)',
-      [project.workItemId, project.projectId, name],
+      'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+      [workPackage.workItemId, workPackage.workPackageId, name],
     );
     harness.sqlite.run(
       'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-      [project.workItemId, step.id],
+      [workPackage.workItemId, step.id],
     );
     if (index < 3)
       harness.sqlite.run(
         'INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)',
-        [project.workItemId, step.id, 'codex'],
+        [workPackage.workItemId, step.id, 'codex'],
       );
   }
   harness.sqlite.run(
@@ -77,7 +89,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   harness.sqlite.run(
     "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('lease-slot', 'org-a', 'slot')",
   );
-  const owner = projects[0];
+  const owner = workPackages[0];
   const issued = await requestGrant(harness, { kind: 'api_key', key: credential.key }, { now });
   expect(issued.status).toBe(200);
   const { grant } = (await issued.json()) as { grant: string };
@@ -85,7 +97,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   const claim = await harness.callWith(
     grant,
     'POST',
-    `/api/projects/${owner.projectId}/commands`,
+    `/api/work-packages/${owner.workPackageId}/commands`,
     {
       commands: [
         {
@@ -107,19 +119,19 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   seedDependencyAuthority(harness.databasePath());
   await harness.publicWrites().uow.run(async (scope) => {
     for (let index = 1; index < 3; index++) {
-      const predecessor = projects[index - 1];
-      const successor = projects[index];
+      const predecessor = workPackages[index - 1];
+      const successor = workPackages[index];
       await scope.stores.typedDependencies.add(
         {
           id: `lease-edge-${String(index)}`,
-          projectId: successor.projectId,
+          workPackageId: successor.workPackageId,
           predecessor: {
-            projectId: predecessor.projectId,
+            workPackageId: predecessor.workPackageId,
             workItemId: predecessor.workItemId,
             scope: 'whole',
           },
           successor: {
-            projectId: successor.projectId,
+            workPackageId: successor.workPackageId,
             workItemId: successor.workItemId,
             scope: 'whole',
           },
@@ -133,7 +145,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
   return {
     harness,
-    projects,
+    workPackages,
     owner,
     expire: () => {
       now = T + CLAIM_LEASE_MS + 1;
@@ -168,15 +180,17 @@ function recipients(harness: OrganizationHarness) {
       "SELECT message FROM event_log WHERE message LIKE '%elsewhere_changed%' ORDER BY subscription, seq",
     )
     .all()
-    .map(({ message }) => JSON.parse(message) as { projectId: string; causeProjectId: string });
+    .map(
+      ({ message }) => JSON.parse(message) as { workPackageId: string; causeWorkPackageId: string },
+    );
 }
 
 it('expires revoked claimant claims without human admission and records exactly connected recipients, then stays silent', async () => {
-  const { harness, projects, owner, expire } = await fixture({ withOptimizer: true });
+  const { harness, workPackages, owner, expire } = await fixture({ withOptimizer: true });
   const invalidated: string[] = [];
   const optimizer = spyOn(harness.publicOptimizer(), 'inputChanged').mockImplementation(
-    (projectId) => {
-      invalidated.push(projectId);
+    (workPackageId) => {
+      invalidated.push(workPackageId);
     },
   );
   const access = spyOn(harness.publicWrites().commandAccess, 'resolve').mockImplementation(() => {
@@ -186,27 +200,27 @@ it('expires revoked claimant claims without human admission and records exactly 
     harness.userId('ada'),
   ]);
   expire();
-  expect(await harness.publicCommands().releaseExpiredLeases(owner.projectId)).toBe(1);
+  expect(await harness.publicCommands().releaseExpiredLeases(owner.workPackageId)).toBe(1);
   expect(harness.sqlite.query('SELECT * FROM claim').all()).toEqual([]);
   expect(harness.sqlite.query('SELECT * FROM claim_occupancy').all()).toEqual([]);
-  const expected = projects
+  const expected = workPackages
     .slice(1, 3)
-    .map(({ projectId }) => ({
+    .map(({ workPackageId }) => ({
       type: 'elsewhere_changed',
-      projectId,
-      causeProjectId: owner.projectId,
+      workPackageId,
+      causeWorkPackageId: owner.workPackageId,
     }))
-    .sort((left, right) => left.projectId.localeCompare(right.projectId));
+    .sort((left, right) => left.workPackageId.localeCompare(right.workPackageId));
   expect(recipients(harness)).toEqual(expected);
   expect([...new Set(invalidated)].sort()).toEqual(
-    projects
+    workPackages
       .slice(0, 3)
-      .map(({ projectId }) => projectId)
+      .map(({ workPackageId }) => workPackageId)
       .sort(),
   );
   const after = snapshot(harness);
   invalidated.length = 0;
-  expect(await harness.publicCommands().releaseExpiredLeases(owner.projectId)).toBe(0);
+  expect(await harness.publicCommands().releaseExpiredLeases(owner.workPackageId)).toBe(0);
   expect(snapshot(harness)).toEqual(after);
   expect(invalidated).toEqual([]);
   optimizer.mockRestore();
@@ -221,15 +235,15 @@ it('rolls back claims, occupancy, history and every recipient when a later recip
     "CREATE TRIGGER fail_lease_recipient BEFORE INSERT ON event_log WHEN NEW.message LIKE '%elsewhere_changed%' AND (SELECT count(*) FROM event_log WHERE message LIKE '%elsewhere_changed%') = 1 BEGIN SELECT RAISE(ABORT, 'lease recipient insert failed'); END",
   );
   expect(
-    await refusal(harness.publicCommands().releaseExpiredLeases(owner.projectId)),
+    await refusal(harness.publicCommands().releaseExpiredLeases(owner.workPackageId)),
   ).toMatchObject({ cause: { message: 'lease recipient insert failed' } });
   expect(snapshot(harness)).toEqual(before);
 });
 
-it('leaves an absent project event-free', async () => {
+it('leaves an absent work package event-free', async () => {
   const { harness } = await fixture();
   const before = snapshot(harness);
-  expect(await harness.publicCommands().releaseExpiredLeases('missing-project')).toBe(0);
+  expect(await harness.publicCommands().releaseExpiredLeases('missing-work-package')).toBe(0);
   expect(snapshot(harness)).toEqual(before);
 });
 
@@ -255,12 +269,12 @@ it('releases its SQLite writer before waiting for a recipient push', async () =>
   });
   expire();
   hold = true;
-  const pending = harness.publicCommands().releaseExpiredLeases(owner.projectId);
+  const pending = harness.publicCommands().releaseExpiredLeases(owner.workPackageId);
   await reached;
   try {
-    harness.sqlite.run('UPDATE project SET name = ? WHERE id = ?', [
+    harness.sqlite.run('UPDATE work_package SET name = ? WHERE id = ?', [
       'independent writer',
-      owner.projectId,
+      owner.workPackageId,
     ]);
   } finally {
     release();
@@ -299,7 +313,7 @@ for (const fault of ['capture', 'owner', 'delivery'] as const) {
         await refusal(
           transaction.run(async (scope) => ({
             commit: true,
-            value: await scope.releaseExpiredLeases(owner.projectId, recordingBroadcaster()),
+            value: await scope.releaseExpiredLeases(owner.workPackageId, recordingBroadcaster()),
           })),
         )
       ).message,
@@ -327,7 +341,7 @@ it('closes retained lifecycle operations, Working plan reads and dependency capa
       endpointRefusal = refusal(
         Promise.resolve().then(() =>
           context.endpoints.readEndpoint({
-            projectId: owner.projectId,
+            workPackageId: owner.workPackageId,
             workItemId: owner.workItemId,
             scope: 'whole',
           }),
@@ -350,7 +364,7 @@ it('closes retained lifecycle operations, Working plan reads and dependency capa
       retained = scope;
       return {
         commit: true,
-        value: await scope.releaseExpiredLeases(owner.projectId, recordingBroadcaster()),
+        value: await scope.releaseExpiredLeases(owner.workPackageId, recordingBroadcaster()),
       };
     }),
   ).toBe(1);
@@ -362,13 +376,16 @@ it('closes retained lifecycle operations, Working plan reads and dependency capa
   )
     throw new Error('lifecycle fixture did not retain its capabilities');
   expect((await endpointRefusal).message).toBe(
-    'directory dependency context cannot access a project',
+    'directory dependency context cannot access a work package',
   );
   expect(
-    (await refusal(retained.releaseExpiredLeases(owner.projectId, recordingBroadcaster()))).message,
+    (await refusal(retained.releaseExpiredLeases(owner.workPackageId, recordingBroadcaster())))
+      .message,
   ).toContain('observation is closed');
   expect(
-    (await refusal(borrowed.stores.workItems.listByProject(owner.projectId))).message,
+    (await refusal(borrowed.stores.workItems.listByWorkPackage(owner.workPackageId))).message,
   ).toContain('closed');
-  expect(() => dependencies?.assertUsable(owner.projectId, 'claim-lease-sweep')).toThrow('closed');
+  expect(() => dependencies?.assertUsable(owner.workPackageId, 'claim-lease-sweep')).toThrow(
+    'closed',
+  );
 });

@@ -44,3 +44,27 @@ it('publishes a step code-only refresh through the delivered plan store', () => 
   expect(store.snapshot()).not.toBe(before);
   expect(store.snapshot().steps[0]?.code).toBe('BUILD');
 });
+
+it('a unit-only difference changes the step list in either direction', () => {
+  const days = { id: 'dev', name: 'Dev', estimateUnit: 'workdays' as const, allowancePercent: 0 };
+  const minutes = { ...days, estimateUnit: 'minutes' as const };
+  expect(sameSteps([days], [minutes])).toBe(false);
+  expect(sameSteps([minutes], [days])).toBe(false);
+});
+it('publishes a unit-only refresh through the delivered plan store', () => {
+  const store = createDeliveredPlan();
+  const step = { id: 'dev', name: 'Dev', estimateUnit: 'workdays' as const, allowancePercent: 0 };
+  const unchanged = {
+    staleResources: [],
+    treeFailure: null,
+    directory: null,
+    tree: null,
+    markers: null,
+    claims: null,
+  };
+  store.deliver({ ...unchanged, steps: [step] });
+  const before = store.snapshot();
+  store.deliver({ ...unchanged, steps: [{ ...step, estimateUnit: 'minutes' }] });
+  expect(store.snapshot()).not.toBe(before);
+  expect(store.snapshot().steps[0]?.estimateUnit).toBe('minutes');
+});

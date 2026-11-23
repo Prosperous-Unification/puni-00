@@ -1,102 +1,125 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  getWorkItems as getWorkItemsShape,
+  patchWorkPackage as patchWorkPackageShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /** Stored historical attempts precede the forecast; one completed row keeps its step slices. */
 async function seedAttemptChart(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, 'Gantt attempt marks');
-  await page.evaluate(async () => {
-    const projectId = localStorage.getItem('wbs.project');
-    if (projectId === null) throw new Error('no project to seed');
-    const patch = await fetch(`/api/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ startDate: '2026-08-10', timezone: 'Europe/Kyiv' }),
-    });
-    if (!patch.ok) throw new Error(`project patch failed: ${String(patch.status)}`);
-    const read = await fetch(`/api/projects/${projectId}/work-items`);
-    if (!read.ok) throw new Error(`plan read failed: ${String(read.status)}`);
-    const plan = (await read.json()) as { steps: { id: string; name: string }[] };
-    const dev = plan.steps.find((step) => step.name === 'Dev')?.id;
-    const qa = plan.steps.find((step) => step.name === 'QA')?.id;
-    if (dev === undefined || qa === undefined) throw new Error('missing default steps');
-    const instant = (time: string) => Date.parse(`2026-08-09T${time}:00+03:00`);
-    const commands: Record<string, unknown>[] = [
-      {
-        kind: 'createWorkItem',
-        ref: 'done',
-        parentId: null,
-        afterId: null,
-        name: 'Completed attempts',
+  await createWorkPackage(page, 'Gantt attempt marks');
+  await page.evaluate(
+    async ({ requestHeaders }) => {
+      const workPackageId = localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('no work package to seed');
+      const patch = await fetch(`/api/work-packages/${workPackageId}`, {
+        method: 'PATCH',
+        headers: {
+          ...Object.fromEntries(requestHeaders.patchWorkPackage),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({ startDate: '2026-08-10', timezone: 'Europe/Kyiv' }),
+      });
+      if (!patch.ok) throw new Error(`work package patch failed: ${String(patch.status)}`);
+      const read = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      if (!read.ok) throw new Error(`plan read failed: ${String(read.status)}`);
+      const plan = (await read.json()) as { steps: { id: string; name: string }[] };
+      const dev = plan.steps.find((step) => step.name === 'Dev')?.id;
+      const qa = plan.steps.find((step) => step.name === 'QA')?.id;
+      if (dev === undefined || qa === undefined) throw new Error('missing default steps');
+      const instant = (time: string) => Date.parse(`2026-08-09T${time}:00+03:00`);
+      const commands: Record<string, unknown>[] = [
+        {
+          kind: 'createWorkItem',
+          ref: 'done',
+          parentId: null,
+          afterId: null,
+          name: 'Completed attempts',
+        },
+        {
+          kind: 'createWorkItem',
+          ref: 'running',
+          parentId: null,
+          afterRef: 'done',
+          name: 'Running attempts',
+        },
+        ...['done', 'running'].flatMap((ref) =>
+          [dev, qa].map((stepId) => ({
+            kind: 'setEstimate',
+            workItemRef: ref,
+            stepId,
+            days: { optimistic: 0.5, realistic: 0.5, pessimistic: 0.5 },
+          })),
+        ),
+        { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('09:10') },
+        {
+          kind: 'endAttempt',
+          workItemRef: 'done',
+          stepId: dev,
+          at: instant('09:40'),
+          outcome: 'failed',
+        },
+        { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('10:00') },
+        {
+          kind: 'endAttempt',
+          workItemRef: 'done',
+          stepId: dev,
+          at: instant('10:20'),
+          outcome: 'failed',
+        },
+        { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('10:30') },
+        {
+          kind: 'endAttempt',
+          workItemRef: 'done',
+          stepId: dev,
+          at: instant('12:00'),
+          outcome: 'succeeded',
+          reference: 'run/success',
+        },
+        {
+          kind: 'setStatus',
+          workItemRef: 'done',
+          status: 'done',
+          on: '2026-08-10',
+          factStart: '2026-08-09',
+        },
+        { kind: 'startAttempt', workItemRef: 'running', stepId: dev, at: instant('09:00') },
+        {
+          kind: 'endAttempt',
+          workItemRef: 'running',
+          stepId: dev,
+          at: instant('09:02'),
+          outcome: 'cancelled',
+          reference: 'run/tick',
+        },
+        { kind: 'startAttempt', workItemRef: 'running', stepId: dev, at: instant('09:03') },
+      ];
+      const write = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+        method: 'POST',
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({ commands }),
+      });
+      if (!write.ok)
+        throw new Error(`attempt fixture failed: ${String(write.status)} ${await write.text()}`);
+    },
+    {
+      requestHeaders: {
+        patchWorkPackage: createOrdinaryHeaders(patchWorkPackageShape),
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
       },
-      {
-        kind: 'createWorkItem',
-        ref: 'running',
-        parentId: null,
-        afterRef: 'done',
-        name: 'Running attempts',
-      },
-      ...['done', 'running'].flatMap((ref) =>
-        [dev, qa].map((stepId) => ({
-          kind: 'setEstimate',
-          workItemRef: ref,
-          stepId,
-          days: { optimistic: 0.5, realistic: 0.5, pessimistic: 0.5 },
-        })),
-      ),
-      { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('09:10') },
-      {
-        kind: 'endAttempt',
-        workItemRef: 'done',
-        stepId: dev,
-        at: instant('09:40'),
-        outcome: 'failed',
-      },
-      { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('10:00') },
-      {
-        kind: 'endAttempt',
-        workItemRef: 'done',
-        stepId: dev,
-        at: instant('10:20'),
-        outcome: 'failed',
-      },
-      { kind: 'startAttempt', workItemRef: 'done', stepId: dev, at: instant('10:30') },
-      {
-        kind: 'endAttempt',
-        workItemRef: 'done',
-        stepId: dev,
-        at: instant('12:00'),
-        outcome: 'succeeded',
-        reference: 'run/success',
-      },
-      {
-        kind: 'setStatus',
-        workItemRef: 'done',
-        status: 'done',
-        on: '2026-08-10',
-        factStart: '2026-08-09',
-      },
-      { kind: 'startAttempt', workItemRef: 'running', stepId: dev, at: instant('09:00') },
-      {
-        kind: 'endAttempt',
-        workItemRef: 'running',
-        stepId: dev,
-        at: instant('09:02'),
-        outcome: 'cancelled',
-        reference: 'run/tick',
-      },
-      { kind: 'startAttempt', workItemRef: 'running', stepId: dev, at: instant('09:03') },
-    ];
-    const write = await fetch(`/api/projects/${projectId}/commands`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ commands }),
-    });
-    if (!write.ok)
-      throw new Error(`attempt fixture failed: ${String(write.status)} ${await write.text()}`);
-  });
+    },
+  );
   await page.reload();
   await expect(page.getByLabel('Name of 020')).toBeVisible();
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();

@@ -6,6 +6,7 @@ import {
   WorkItemService,
   type WorkItemServiceOptions,
 } from '@wbs/core/module/work-item/work-item.resource';
+import type { Permission } from '@wbs/domain/access-role';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 
@@ -14,13 +15,11 @@ import { bootBe01, type BootOptions, type RunningBe } from '../boot';
 import type { DelegationKeys } from '../config';
 import type { OidcRouteOptions } from '../controller/oidc-options';
 import { openDatabase } from '../repository/db';
-import { runMigrations } from '../repository/migrate';
 import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
 import type { EmailDeliveryConfig } from '../runtime/email-delivery-config';
 import { TEST_JWT_KEY } from './auth-fixture';
+import { migrateOrganizationCatalogueFixture } from './organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** The trusted origin every request from {@link BootedBrowserProcess} carries. */
 export const BOOTED_ORIGIN = 'http://localhost';
@@ -63,7 +62,7 @@ export class BootedBrowserProcess {
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let composed: { app: ReturnType<typeof buildApp>; options: AppOptions } | undefined;
     const running = await bootBe01(
       {
@@ -189,6 +188,28 @@ export class BootedBrowserProcess {
 
   member(organizationId: string, username: string, role: string): void {
     insertMembership(this.sqlite, organizationId, this.userId(username), role);
+  }
+
+  /** Explicit permissions for one fixture subject/scope; membership alone creates no grant. */
+  grantPermissions(
+    organizationId: string,
+    username: string,
+    permissions: readonly Permission[],
+  ): void {
+    const roleId = crypto.randomUUID();
+    this.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES (?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Named boot fixture permissions ' + roleId, organizationId],
+    );
+    for (const permission of permissions)
+      this.sqlite.run('INSERT INTO access_role_permission(role_id,permission) VALUES (?,?)', [
+        roleId,
+        permission,
+      ]);
+    this.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,?,'organization',?,'user',?,?,'route',1)",
+      [crypto.randomUUID(), organizationId, organizationId, this.userId(username), roleId],
+    );
   }
 
   activate(): void {

@@ -59,7 +59,7 @@ export interface MenuAction {
  * `data-fact` is about **the thing on screen** and opens at once
  * (`tool-hints-wait` is the change that split them, and `hint.ts` holds both
  * attributes). A row's ⋯ is a hint; the schedule cue is a fact, because what
- * it explains is the project's own state rather than the button's job.
+ * it explains is the work package's own state rather than the button's job.
  *
  * A union rather than two optional fields, so a trigger cannot carry both:
  * `HintLayer` resolves a node with both to the fact and the hint would be
@@ -158,6 +158,7 @@ export function menuShift(box: { left: number; right: number }, viewportWidth: n
   return 0;
 }
 
+/** Keeps complete labels inside the viewport gutters, including the menu's padding and borders. */
 const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '100%',
@@ -166,6 +167,9 @@ const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   flexDirection: 'column',
   alignItems: 'stretch',
   minWidth: 140,
+  width: 'max-content',
+  maxWidth: `calc(100vw - ${String(GUTTER_PX * 2)}px)`,
+  boxSizing: 'border-box',
   padding: 4,
   background: 'var(--popover)',
   color: 'var(--popover-foreground)',
@@ -184,7 +188,8 @@ const ITEM: CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   padding: '3px 6px',
   cursor: 'pointer',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 };
 
 /**

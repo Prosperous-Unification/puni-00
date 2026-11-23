@@ -1,7 +1,7 @@
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import type { StoredTypedDependency } from '@wbs/core';
 import type { TypedDependencyStore, WritingServices } from '@wbs/core';
-import { clockOf, grantAdmission } from '@wbs/core';
+import { authorize, clockOf, grantAdmission } from '@wbs/core';
 import { commandTransaction } from '@wbs/core/module/plan-commands/composition';
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
@@ -25,12 +25,60 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, test } from 'bun:test';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
 afterEach(async () => {
   await harness.closeComposed();
 });
+
+/**
+ * Parses the current project-create response before authoring catalogue fixtures.
+ * Proof: null-envelope and blank-ID faults after real project creation reached
+ * the precise refusals; removing each guard lost that refusal, and exact
+ * restoration recovered it before catalogue/package writes (2026-11-22).
+ * The actual creator grant, audit and composed close were also observed by
+ * `mounted external authoring stays dormant and rolls back an earlier successful command`.
+ */
+function projectIdOf(body: unknown): string {
+  if (typeof body !== 'object' || body === null || Array.isArray(body) || !('project' in body))
+    throw new Error('fixture project response is absent or malformed');
+  const project = body.project;
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    Array.isArray(project) ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id.trim() === ''
+  )
+    throw new Error('fixture project identity is absent or malformed');
+  return project.id;
+}
+
+const projectSteps = `(SELECT package.id AS work_package_id, definition.id, definition.name, binding.position
+  FROM work_package AS package JOIN project ON project.id=package.project_id
+  JOIN step_binding AS binding ON binding.organization_id=project.organization_id
+    AND binding.scope_kind='project' AND binding.scope_id=project.id AND binding.work_item_type_id IS NULL
+  JOIN step_definition AS definition ON definition.organization_id=binding.organization_id AND definition.id=binding.step_id)`;
+
+function restrictPredecessor(workPackageId: string, actorId: string): void {
+  harness.sqlite.transaction(() => {
+    expect(
+      harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [workPackageId])
+        .changes,
+    ).toBe(1);
+    expect(
+      harness.sqlite.run(
+        `DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation'
+    AND ((scope_kind='work_package' AND role_id='package-manager' AND scope_id=?)
+      OR (scope_kind='project' AND role_id='project-manager' AND scope_id=(SELECT project_id FROM work_package WHERE id=?)))`,
+        [actorId, workPackageId, workPackageId],
+      ).changes,
+    ).toBe(2);
+  })();
+}
 
 async function open(
   pushUrls?: string[],
@@ -57,7 +105,7 @@ async function open(
   if (!dormant) seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
@@ -83,51 +131,124 @@ async function open(
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  for (const name of ['Predecessor', 'Owner']) {
-    expect((await request('/api/projects', { name })).status).toBe(200);
-    const project = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+  async function createPackage(name: string, bindExistingSteps: boolean) {
+    const parent = await request('/api/projects', { name: name + ' parent' });
+    expect(parent.status).toBe(201);
+    const projectId = projectIdOf(await parent.json());
+    await harness.publicWrites().uow.run(async ({ stores }) => {
+      const stamp = { at: Date.now(), by: harness.userId('ada') };
+      if (bindExistingSteps) {
+        const definitions = harness.sqlite
+          .query<{ id: string; position: number }, []>(
+            "SELECT id,position FROM step_definition WHERE organization_id='org-a' AND code IN ('dev','qa') ORDER BY position",
+          )
+          .all();
+        expect(definitions).toHaveLength(2);
+        for (const { id, position } of definitions) {
+          const bound = await stores.stepCatalogue.bindStep(
+            'org-a',
+            {
+              bindingId: crypto.randomUUID(),
+              stepId: id,
+              scopeKind: 'project',
+              scopeId: projectId,
+              workItemTypeId: null,
+              position,
+            },
+            stamp,
+          );
+          expect(bound.ok).toBe(true);
+        }
+      } else await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, stamp);
+      return { commit: true, value: undefined };
+    });
+    expect((await request('/api/work-packages', { name, projectId })).status).toBe(200);
+    const workPackage = harness.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
       .get(name);
-    if (project === null) throw new Error('fixture project missing');
+    if (workPackage === null) throw new Error('fixture work package missing');
     expect(
       (
-        await request(`/api/projects/${project.id}/commands`, {
+        await request(`/api/work-packages/${workPackage.id}/commands`, {
           commands: [{ kind: 'createWorkItem', name: `${name} row` }],
         })
       ).status,
     ).toBe(200);
+    return projectId;
   }
-  const project = (name: string) => {
+  const predecessorProjectId = await createPackage('Predecessor', false);
+  const projectId = await createPackage('Owner', true);
+  const workPackage = (name: string) => {
     const found = harness.sqlite
-      .query<{ projectId: string; workItemId: string }, [string]>(
-        'SELECT project.id AS projectId, work_item.id AS workItemId FROM project JOIN work_item ON work_item.project_id=project.id WHERE project.name=?',
+      .query<{ workPackageId: string; workItemId: string }, [string]>(
+        'SELECT work_package.id AS workPackageId, work_item.id AS workItemId FROM work_package JOIN work_item ON work_item.work_package_id=work_package.id WHERE work_package.name=?',
       )
       .get(name);
     if (found === null) throw new Error('fixture endpoint missing');
     return found;
   };
-  const predecessor = project('Predecessor');
-  const owner = project('Owner');
+  const predecessor = workPackage('Predecessor');
+  const owner = workPackage('Owner');
   const principal = await harness.authenticatedCommandPrincipal(
     'ada',
     decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)),
   );
   const expectedAccess = {
+    principal: { id: principal.id },
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    scope: {
+      cap: null,
+      organizationId: 'org-a',
+      userId: principal.id,
+      role: 'super_admin' as const,
+    },
   };
   const input = {
     predecessor: { ...predecessor, scope: 'whole' as const },
     successor: { ...owner, scope: 'whole' as const },
     type: 'FS' as const,
   };
-  return { predecessor, owner, principal, expectedAccess, request, input };
+  return {
+    projectId,
+    predecessorProjectId,
+    createPackage,
+    predecessor,
+    owner,
+    principal,
+    expectedAccess,
+    request,
+    input,
+  };
+}
+
+async function defineProjectStep(
+  fixture: Awaited<ReturnType<typeof open>>,
+  projectId: string,
+  code: string,
+  name: string,
+  position: number,
+) {
+  const response = await fixture.request('/api/organization/step-bindings', {
+    scopeKind: 'project',
+    scopeId: projectId,
+    workItemTypeId: null,
+    position,
+    define: { code, name, position, defaultEstimateUnit: 'workdays', defaultAllowanceBps: 0 },
+  });
+  expect(response.status, await response.clone().text()).toBe(201);
+  const step = harness.sqlite
+    .query<{ id: string }, [string, string]>(
+      "SELECT step_id AS id FROM step_binding JOIN step_definition ON step_definition.id=step_id WHERE scope_kind='project' AND scope_id=? AND step_definition.code=?",
+    )
+    .get(projectId, code);
+  if (step === null) throw new Error('fixture project step absent');
+  return step.id;
 }
 
 async function foreignEndpoint() {
   await harness.register('grace');
   harness.organization('org-b');
-  harness.member('org-b', 'grace', 'super_admin');
+  harness.member('org-b', 'grace', 'super_admin', ['org-super-admin']);
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
     headers: {
@@ -152,23 +273,27 @@ async function foreignEndpoint() {
       },
       body: JSON.stringify(body),
     });
-  expect((await request('/api/projects', { name: 'Foreign' })).status).toBe(200);
-  const project = harness.sqlite
-    .query<{ id: string }, []>("SELECT id FROM project WHERE name='Foreign'")
+  const birth = await request('/api/projects', {
+    name: 'Foreign parent',
+    workPackage: { name: 'Foreign' },
+  });
+  expect(birth.status).toBe(201);
+  const workPackage = harness.sqlite
+    .query<{ id: string }, []>("SELECT id FROM work_package WHERE name='Foreign'")
     .get();
-  if (project === null) throw new Error('fixture foreign project missing');
+  if (workPackage === null) throw new Error('fixture foreign work package missing');
   expect(
     (
-      await request(`/api/projects/${project.id}/commands`, {
+      await request(`/api/work-packages/${workPackage.id}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Concealed foreign row' }],
       })
     ).status,
   ).toBe(200);
   const row = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-    .get(project.id);
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+    .get(workPackage.id);
   if (row === null) throw new Error('fixture foreign row missing');
-  return { projectId: project.id, workItemId: row.id };
+  return { workPackageId: workPackage.id, workItemId: row.id };
 }
 
 function effects() {
@@ -199,16 +324,19 @@ test('mounted external authoring stays dormant and rolls back an earlier success
     semantics: ['cross-project-dependencies-v1'],
   });
   const before = effects();
-  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [
-      {
-        kind: 'patchWorkItem',
-        workItemId: fixture.owner.workItemId,
-        patch: { name: 'Must roll back' },
-      },
-      { kind: 'addTypedDependency', ...fixture.input },
-    ],
-  });
+  const response = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { name: 'Must roll back' },
+        },
+        { kind: 'addTypedDependency', ...fixture.input },
+      ],
+    },
+  );
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({
     error: 'external_dependencies_inactive',
@@ -216,9 +344,12 @@ test('mounted external authoring stays dormant and rolls back an earlier success
     kind: 'addTypedDependency',
   });
   expect(effects()).toEqual(before);
-  const alone = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [{ kind: 'addTypedDependency', ...fixture.input }],
-  });
+  const alone = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+    },
+  );
   expect(alone.status).toBe(409);
   expect(await alone.json()).toEqual({
     error: 'external_dependencies_inactive',
@@ -242,13 +373,13 @@ async function semantic<T extends { readonly ok: boolean }>(
     readAnnouncements: () => AnnouncementSnapshot,
   ) => Promise<T>,
   inspectCollected?: (recordings: CollectedRecording[]) => void,
-  refusedProjectRead?: string,
-  failedGraphRead?: 'findCycle' | 'findStepReferences' | 'proposedCycle',
+  refusedWorkPackageRead?: string,
+  failedGraphRead?: 'findCycle' | 'proposedCycle',
   omitRecordedRevision = false,
   corruptStoredScope = false,
   restoredEndpointRefusal?: 'forbidden' | 'unknown_step',
-  endpointDelivery?: 'foreign-project' | 'wrong-identity',
-  stepDelivery?: 'step-identity' | 'step-project',
+  endpointDelivery?: 'foreign-work-package' | 'wrong-identity',
+  stepDelivery?: 'step-identity' | 'step-work-package',
   forbiddenSuccessor?: string,
 ): Promise<T> {
   const boundary = harness.publicWrites();
@@ -262,45 +393,58 @@ async function semantic<T extends { readonly ok: boolean }>(
     });
     if (!resolved.ok || resolved.access.kind !== 'scoped')
       throw new Error('fixture current authority refused');
-    const admitted = await scope.stores.projects.admitEditInOrganization(
-      fixture.owner.projectId,
-      'org-a',
-      fixture.principal.id,
-      { commands: ['addTypedDependency'] },
-      resolved.access.scope.role,
+    const workPackage = await scope.stores.workPackages.findInOrganization(
+      fixture.owner.workPackageId,
+      resolved.access.scope.organizationId,
     );
-    if (admitted === null || admitted === 'forbidden')
-      throw new Error('fixture owner admission refused');
-    const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
-    const projects =
-      refusedProjectRead === undefined
-        ? scope.stores.projects
-        : new Proxy(scope.stores.projects, {
+    if (workPackage === null) throw new Error('fixture owner admission refused');
+    const decision = await authorize(
+      scope.stores.accessDecisions,
+      resolved.access.principal,
+      {
+        kind: 'work_package',
+        chain: {
+          level: 'work_package',
+          organizationId: resolved.access.scope.organizationId,
+          spaceId: null,
+          projectId: workPackage.projectId,
+          workPackageId: workPackage.id,
+        },
+        restricted: workPackage.restricted,
+      },
+      'package.write',
+    );
+    if (!decision.ok) throw new Error('fixture owner admission refused');
+    const granted = grantAdmission(fixture.owner.workPackageId, fixture.principal.id);
+    const workPackages =
+      refusedWorkPackageRead === undefined
+        ? scope.stores.workPackages
+        : new Proxy(scope.stores.workPackages, {
             get(target, key) {
               if (key === 'findInOrganization')
-                return (projectId: string, organizationId: string) =>
-                  projectId === refusedProjectRead
+                return (workPackageId: string, organizationId: string) =>
+                  workPackageId === refusedWorkPackageRead
                     ? Promise.resolve(null)
-                    : target.findInOrganization(projectId, organizationId);
+                    : target.findInOrganization(workPackageId, organizationId);
               const member: unknown = Reflect.get(target, key);
               if (typeof member === 'function')
                 return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
               return member;
             },
           });
-    const endpointProjects =
+    const endpointWorkPackages =
       stepDelivery === undefined
-        ? projects
-        : new Proxy(projects, {
+        ? workPackages
+        : new Proxy(workPackages, {
             get(target, key) {
               if (key === 'stepsOf')
-                return async (projectId: string) =>
-                  (await target.stepsOf(projectId)).map((step) =>
-                    projectId !== fixture.predecessor.projectId
+                return async (workPackageId: string) =>
+                  (await target.stepsOf(workPackageId)).map((step) =>
+                    workPackageId !== fixture.predecessor.workPackageId
                       ? step
                       : stepDelivery === 'step-identity'
                         ? { ...step, id: 'wrong-step-identity' }
-                        : { ...step, projectId: fixture.owner.projectId },
+                        : { ...step, workPackageId: fixture.owner.workPackageId },
                   );
               const member: unknown = Reflect.get(target, key);
               return typeof member === 'function'
@@ -317,8 +461,8 @@ async function semantic<T extends { readonly ok: boolean }>(
                 return async (workItemId: string) => {
                   const row = await target.findById(workItemId);
                   if (row === null || workItemId !== fixture.predecessor.workItemId) return row;
-                  return endpointDelivery === 'foreign-project'
-                    ? { ...row, projectId: fixture.owner.projectId }
+                  return endpointDelivery === 'foreign-work-package'
+                    ? { ...row, workPackageId: fixture.owner.workPackageId }
                     : { ...row, id: 'wrong-delivered-identity' };
                 };
               const member: unknown = Reflect.get(target, key);
@@ -327,11 +471,11 @@ async function semantic<T extends { readonly ok: boolean }>(
               return member;
             },
           });
-    const plan = createWorkingPlan(scope, fixture.owner.projectId);
+    const plan = createWorkingPlan(scope, fixture.owner.workPackageId);
     const dependencies = createDependencyContext(
-      { ...scope.stores, projects: endpointProjects, workItems },
+      { ...scope.stores, workPackages: endpointWorkPackages, workItems },
       {
-        projectId: fixture.owner.projectId,
+        workPackageId: fixture.owner.workPackageId,
         actorId: fixture.principal.id,
         access: resolved.access,
         admission: granted.admission,
@@ -381,7 +525,7 @@ async function semantic<T extends { readonly ok: boolean }>(
                 endpoint: Parameters<DependencyContext['endpoints']['readEndpoint']>[0],
               ) => {
                 if (
-                  endpoint.projectId === forbiddenSuccessor &&
+                  endpoint.workPackageId === forbiddenSuccessor &&
                   endpoint.workItemId !== fixture.predecessor.workItemId
                 )
                   throw new Error('second successor owner facts were read');
@@ -418,7 +562,7 @@ async function semantic<T extends { readonly ok: boolean }>(
                 const read = await revisionContext.endpoints.readEndpoint(endpoint);
                 // Negative-only delivery fault: retain the real absent-row read and
                 // all other evidence, but demand propagation of this exact refusal.
-                return endpoint.projectId === fixture.owner.projectId &&
+                return endpoint.workPackageId === fixture.owner.workPackageId &&
                   !read.ok &&
                   read.reason === 'not_found'
                   ? { ok: false, reason: restoredEndpointRefusal }
@@ -428,7 +572,7 @@ async function semantic<T extends { readonly ok: boolean }>(
           };
     try {
       expect(
-        (await plan.stores.workItems.listByProject(fixture.owner.projectId)).length,
+        (await plan.stores.workItems.listByWorkPackage(fixture.owner.workPackageId)).length,
       ).toBeGreaterThan(0);
       const graph = boundary.batch(
         { stores: plan.stores },
@@ -442,11 +586,11 @@ async function semantic<T extends { readonly ok: boolean }>(
             ...plan.stores,
             typedDependencies: new Proxy(plan.stores.typedDependencies, {
               get(target, key) {
-                if (key === 'listByProject')
-                  return async (projectId: string) =>
-                    (await target.listByProject(projectId)).map((relationship) => ({
+                if (key === 'listByWorkPackage')
+                  return async (workPackageId: string) =>
+                    (await target.listByWorkPackage(workPackageId)).map((relationship) => ({
                       ...relationship,
-                      predecessor: { ...relationship.predecessor, projectId },
+                      predecessor: { ...relationship.predecessor, workPackageId },
                     }));
                 const member: unknown = Reflect.get(target, key);
                 if (typeof member === 'function')
@@ -489,7 +633,11 @@ async function semantic<T extends { readonly ok: boolean }>(
       inspectCollected?.(collected.recordings);
       if (collected.result.ok)
         await service.recordCollected(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           collected.recordings,
         );
       expect(broadcast.published).toEqual([]);
@@ -516,7 +664,7 @@ test('an explicitly admitted semantic SQLite graph records external revisions th
   const fixture = await open();
   const added = await observed(
     semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     ),
   );
   expect(added).toMatchObject({ ok: true });
@@ -529,9 +677,9 @@ test('an explicitly admitted semantic SQLite graph records external revisions th
   expect(relationship?.id).toBe(dependencyId);
   const journal = harness.sqlite
     .query<{ preconditions: string }, [string]>(
-      'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT preconditions FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (journal === null) throw new Error('semantic journal missing');
   const preconditions: unknown = JSON.parse(journal.preconditions);
   expect(preconditions).toMatchObject({
@@ -542,31 +690,30 @@ test('an explicitly admitted semantic SQLite graph records external revisions th
   });
 });
 
-test('admitted external evidence reads a restricted predecessor without granting predecessor edit authority', async () => {
+test('admitted external evidence refuses a restricted predecessor without its write grant', async () => {
   const fixture = await open();
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.projectId);
-  const refused = await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
-    commands: [
-      {
-        kind: 'patchWorkItem',
-        workItemId: fixture.predecessor.workItemId,
-        patch: { name: 'Forbidden predecessor edit' },
-      },
-    ],
-  });
+  restrictPredecessor(fixture.predecessor.workPackageId, fixture.principal.id);
+  const refused = await fixture.request(
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.predecessor.workItemId,
+          patch: { name: 'Forbidden predecessor edit' },
+        },
+      ],
+    },
+  );
   expect(refused.status).toBe(403);
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     ),
-  ).toMatchObject({ ok: true });
+  ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
   expect(
     harness.sqlite
       .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE id=?')
@@ -577,13 +724,17 @@ test('admitted external evidence reads a restricted predecessor without granting
 test('real SQLite external undo redo checks remote revisions and flips exact metadata', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('semantic typed add refused');
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -592,7 +743,11 @@ test('real SQLite external undo redo checks remote revisions and flips exact met
   expect(
     await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -607,7 +762,11 @@ test('real SQLite external undo redo checks remote revisions and flips exact met
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -617,11 +776,11 @@ test('real SQLite external undo redo checks remote revisions and flips exact met
 
 for (const defect of [
   'scoped-alias',
-  'malformed-project',
-  'blank-project',
-  'foreign-project',
+  'malformed-work-package',
+  'blank-work-package',
+  'foreign-work-package',
   'foreign-organization',
-  'wrong-row-project',
+  'wrong-row-work-package',
   'absent-row',
   'foreign-successor',
   'foreign-step',
@@ -629,55 +788,68 @@ for (const defect of [
 ] as const)
   test(`mounted ${defect} refuses before writes and conceals endpoint facts`, async () => {
     const fixture = await open();
-    const steps = harness.sqlite
-      .query<{ id: string; projectId: string }, []>(
-        'SELECT id, project_id AS projectId FROM step ORDER BY position',
-      )
-      .all();
-    const remoteStep = steps.find((step) => step.projectId === fixture.predecessor.projectId);
-    if (remoteStep === undefined) throw new Error('fixture remote step missing');
+    const remoteStepId =
+      defect === 'owner-step'
+        ? await defineProjectStep(
+            fixture,
+            fixture.predecessorProjectId,
+            'remote-only',
+            'Remote only',
+            30,
+          )
+        : undefined;
     const foreign = defect === 'foreign-organization' ? await foreignEndpoint() : null;
-    const malformed = ['scoped-alias', 'malformed-project', 'blank-project'].includes(defect);
+    const malformed = ['scoped-alias', 'malformed-work-package', 'blank-work-package'].includes(
+      defect,
+    );
     const endpoint =
       foreign === null
         ? defect === 'absent-row'
           ? { ...fixture.input.predecessor, workItemId: 'absent-row' }
-          : defect === 'malformed-project'
-            ? { ...fixture.input.predecessor, projectId: 7 }
-            : defect === 'blank-project'
-              ? { ...fixture.input.predecessor, projectId: '' }
-              : defect === 'wrong-row-project'
-                ? { ...fixture.input.predecessor, projectId: fixture.owner.projectId }
+          : defect === 'malformed-work-package'
+            ? { ...fixture.input.predecessor, workPackageId: 7 }
+            : defect === 'blank-work-package'
+              ? { ...fixture.input.predecessor, workPackageId: '' }
+              : defect === 'wrong-row-work-package'
+                ? { ...fixture.input.predecessor, workPackageId: fixture.owner.workPackageId }
                 : defect === 'scoped-alias'
-                  ? { projectId: fixture.predecessor.projectId, scope: 'whole', workItemRef: 'new' }
-                  : defect === 'foreign-project'
-                    ? { ...fixture.input.predecessor, projectId: 'absent' }
+                  ? {
+                      workPackageId: fixture.predecessor.workPackageId,
+                      scope: 'whole',
+                      workItemRef: 'new',
+                    }
+                  : defect === 'foreign-work-package'
+                    ? { ...fixture.input.predecessor, workPackageId: 'absent' }
                     : defect === 'foreign-step'
                       ? { ...fixture.input.predecessor, scope: 'node', stepId: 'absent' }
                       : fixture.input.predecessor
         : { ...foreign, scope: 'whole' };
     const successor =
       defect === 'owner-step'
-        ? { ...fixture.input.successor, scope: 'node', stepId: remoteStep.id }
+        ? { ...fixture.input.successor, scope: 'node', stepId: remoteStepId }
         : defect === 'foreign-successor'
-          ? { ...fixture.input.successor, projectId: fixture.predecessor.projectId }
+          ? { ...fixture.input.successor, workPackageId: fixture.predecessor.workPackageId }
           : fixture.input.successor;
     const before = effects();
-    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-      commands: [
-        {
-          kind: 'patchWorkItem',
-          workItemId: fixture.owner.workItemId,
-          patch: { name: 'Must roll back' },
-        },
-        { kind: 'addTypedDependency', predecessor: endpoint, successor, type: 'FS' },
-      ],
-    });
+    const response = await fixture.request(
+      `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+      {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.owner.workItemId,
+            patch: { name: 'Must roll back' },
+          },
+          { kind: 'addTypedDependency', predecessor: endpoint, successor, type: 'FS' },
+        ],
+      },
+    );
     expect(response.status).toBe(malformed ? 400 : 404);
     expect(await response.json()).toMatchObject({
       error: malformed ? 'invalid_typed_endpoint' : 'not_found',
-      at: 1,
-      kind: 'addTypedDependency',
+      ...(['foreign-work-package', 'foreign-organization'].includes(defect)
+        ? {}
+        : { at: 1, kind: 'addTypedDependency' }),
     });
     expect(effects()).toEqual(before);
   });
@@ -685,13 +857,13 @@ for (const defect of [
 test('real SQLite connected guard accepts step interleaving and refuses the reverse node cycle', async () => {
   const fixture = await open();
   const steps = harness.sqlite
-    .query<{ id: string; projectId: string; name: string }, []>(
-      'SELECT id, project_id AS projectId, name FROM step ORDER BY position',
+    .query<{ id: string; workPackageId: string; name: string }, []>(
+      `SELECT id, work_package_id AS workPackageId, name FROM ${projectSteps} ORDER BY position`,
     )
     .all();
-  const step = (projectId: string, name: string) => {
+  const step = (workPackageId: string, name: string) => {
     const found = steps.find(
-      (candidate) => candidate.projectId === projectId && candidate.name === name,
+      (candidate) => candidate.workPackageId === workPackageId && candidate.name === name,
     );
     if (found === undefined) throw new Error('fixture workflow step missing');
     return found.id;
@@ -700,18 +872,18 @@ test('real SQLite connected guard accepts step interleaving and refuses the reve
   const b = { ...fixture.owner, scope: 'node' as const };
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(b.projectId, fixture.principal.id, {
-        predecessor: { ...a, stepId: step(a.projectId, 'Dev') },
-        successor: { ...b, stepId: step(b.projectId, 'Dev') },
+      service.addTypedDependency(b.workPackageId, fixture.principal.id, {
+        predecessor: { ...a, stepId: step(a.workPackageId, 'Dev') },
+        successor: { ...b, stepId: step(b.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   const reverse = { ...fixture, owner: fixture.predecessor };
   const added = await semantic(reverse, (service) =>
-    service.addTypedDependency(a.projectId, fixture.principal.id, {
-      predecessor: { ...b, stepId: step(b.projectId, 'QA') },
-      successor: { ...a, stepId: step(a.projectId, 'QA') },
+    service.addTypedDependency(a.workPackageId, fixture.principal.id, {
+      predecessor: { ...b, stepId: step(b.workPackageId, 'QA') },
+      successor: { ...a, stepId: step(a.workPackageId, 'QA') },
       type: 'FS',
     }),
   );
@@ -720,9 +892,9 @@ test('real SQLite connected guard accepts step interleaving and refuses the reve
   const before = effects();
   expect(
     await semantic(reverse, (service) =>
-      service.updateTypedDependency(a.projectId, fixture.principal.id, added.value, {
-        predecessor: { ...b, stepId: step(b.projectId, 'Dev') },
-        successor: { ...a, stepId: step(a.projectId, 'Dev') },
+      service.updateTypedDependency(a.workPackageId, fixture.principal.id, added.value, {
+        predecessor: { ...b, stepId: step(b.workPackageId, 'Dev') },
+        successor: { ...a, stepId: step(a.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
@@ -734,7 +906,7 @@ test('real SQLite history refuses missing external revision metadata without par
   const fixture = await open();
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     ),
   ).toMatchObject({ ok: true });
   harness.sqlite
@@ -745,7 +917,7 @@ test('real SQLite history refuses missing external revision metadata without par
   const before = effects();
   const failure: unknown = await semantic(fixture, (service) =>
     service.undoWithin(
-      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: fixture.owner.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     ),
   ).then(
@@ -771,7 +943,11 @@ for (const defect of [
     const fixture = await open();
     expect(
       await semantic(fixture, (service) =>
-        service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+        service.addTypedDependency(
+          fixture.owner.workPackageId,
+          fixture.principal.id,
+          fixture.input,
+        ),
       ),
     ).toMatchObject({ ok: true });
     const revision = { ...fixture.predecessor, revision: 1 };
@@ -789,14 +965,18 @@ for (const defect of [
                 : { expected: [], from: [revision] };
     harness.sqlite
       .query(
-        "UPDATE command_journal SET preconditions=json_set(preconditions,'$.externalRevisions',json(?)) WHERE project_id=?",
+        "UPDATE command_journal SET preconditions=json_set(preconditions,'$.externalRevisions',json(?)) WHERE work_package_id=?",
       )
-      .run(JSON.stringify(externalRevisions), fixture.owner.projectId);
+      .run(JSON.stringify(externalRevisions), fixture.owner.workPackageId);
     const before = effects();
     const failure = await observed(
       semantic(fixture, (service) =>
         service.undoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       ),
@@ -820,13 +1000,13 @@ test('structural first-child creation hands a remote-owned pinned node to its fi
   const fixture = await open();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.predecessor.projectId);
+    .get(fixture.predecessor.workPackageId);
   if (step === null) throw new Error('fixture step missing');
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         ...fixture.input,
         predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
       }),
@@ -835,7 +1015,7 @@ test('structural first-child creation hands a remote-owned pinned node to its fi
   expect(
     await observed(
       semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
-        service.create(fixture.predecessor.projectId, fixture.principal.id, {
+        service.create(fixture.predecessor.workPackageId, fixture.principal.id, {
           parentId: fixture.predecessor.workItemId,
           afterId: null,
           name: 'Would make a pinned node a parent',
@@ -856,13 +1036,13 @@ test('mounted first-child creation publishes a remote-owned pinned node on the n
   const fixture = await open();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.predecessor.projectId);
+    .get(fixture.predecessor.workPackageId);
   if (step === null) throw new Error('fixture step missing');
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         ...fixture.input,
         predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
       }),
@@ -870,7 +1050,7 @@ test('mounted first-child creation publishes a remote-owned pinned node on the n
   ).toMatchObject({ ok: true });
 
   const response = await fixture.request(
-    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
     {
       commands: [
         {
@@ -895,7 +1075,7 @@ test('mounted first-child creation publishes a remote-owned pinned node on the n
 test('external predecessor deletion returns a modeled conflict without changing any table', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   const before = effects();
@@ -913,16 +1093,19 @@ test('external predecessor deletion returns a modeled conflict without changing 
     dependencyIds: [added.value],
   });
   expect(effects()).toEqual(before);
-  const mounted = await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
-    commands: [
-      {
-        kind: 'patchWorkItem',
-        workItemId: fixture.predecessor.workItemId,
-        patch: { name: 'Roll back this rename' },
-      },
-      { kind: 'deleteWorkItem', workItemId: fixture.predecessor.workItemId, strategy: 'cascade' },
-    ],
-  });
+  const mounted = await fixture.request(
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.predecessor.workItemId,
+          patch: { name: 'Roll back this rename' },
+        },
+        { kind: 'deleteWorkItem', workItemId: fixture.predecessor.workItemId, strategy: 'cascade' },
+      ],
+    },
+  );
   expect(mounted.status).toBe(409);
   expect(await mounted.json()).toMatchObject({
     error: 'referenced_by_external_dependency',
@@ -935,7 +1118,7 @@ test('external predecessor deletion returns a modeled conflict without changing 
 test('undo-create refuses a newly linked outgoing predecessor even when its local revision matches', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   // Force the local revision back to the create entry's expected value so the
@@ -948,7 +1131,11 @@ test('undo-create refuses a newly linked outgoing predecessor even when its loca
   expect(
     await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
       service.undoWithin(
-        { projectId: fixture.predecessor.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.predecessor.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -959,7 +1146,7 @@ test('undo-create refuses a newly linked outgoing predecessor even when its loca
 test('undo-create reports missing trusted incident IDs without changing tables or announcements', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   harness.sqlite
@@ -1014,7 +1201,7 @@ test('undo-create reports missing trusted incident IDs without changing tables o
         try {
           return await service.undoWithin(
             {
-              projectId: fixture.predecessor.projectId,
+              workPackageId: fixture.predecessor.workPackageId,
               userId: fixture.principal.id,
               personId: null,
             },
@@ -1046,21 +1233,25 @@ test('undo-create reports missing trusted incident IDs without changing tables o
 test('undo-create refuses a newly linked incoming successor even when its local revision matches', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   // Select the older create entry while keeping the real link: its later
   // ordinary successor-owned journal entry would otherwise be undone first.
   harness.sqlite
-    .query("DELETE FROM command_journal WHERE project_id=? AND kind='add_typed_dependency'")
-    .run(fixture.owner.projectId);
+    .query("DELETE FROM command_journal WHERE work_package_id=? AND kind='add_typed_dependency'")
+    .run(fixture.owner.workPackageId);
   harness.sqlite.query('UPDATE work_item SET revision=0 WHERE id=?').run(fixture.owner.workItemId);
   harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
   const before = effects();
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -1073,7 +1264,7 @@ for (const strategy of ['cascade', 'promote'] as const) {
     const fixture = await open();
     expect(
       (
-        await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${fixture.predecessor.workPackageId}/commands`, {
           commands: [
             { kind: 'createWorkItem', parentId: fixture.predecessor.workItemId, name: 'Child' },
           ],
@@ -1081,7 +1272,7 @@ for (const strategy of ['cascade', 'promote'] as const) {
       ).status,
     ).toBe(200);
     const added = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!added.ok) throw new Error('fixture link refused');
     const before = effects();
@@ -1107,7 +1298,7 @@ test('external successor deletion removes its owned incoming link and undo resto
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Retained owner row' }],
       })
     ).status,
@@ -1117,21 +1308,25 @@ test('external successor deletion removes its owned incoming link and undo resto
     .get();
   if (retained === null) throw new Error('retained row missing');
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   const dependencyId = added.value;
   const unrelated = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
       ...fixture.input,
       successor: { ...fixture.input.successor, workItemId: retained.id },
     }),
   );
   if (!unrelated.ok) throw new Error('unrelated fixture link refused');
   const local = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
       ...fixture.input,
-      predecessor: { projectId: fixture.owner.projectId, workItemId: retained.id, scope: 'whole' },
+      predecessor: {
+        workPackageId: fixture.owner.workPackageId,
+        workItemId: retained.id,
+        scope: 'whole',
+      },
     }),
   );
   if (!local.ok) throw new Error('local fixture link refused');
@@ -1156,7 +1351,7 @@ test('external successor deletion removes its owned incoming link and undo resto
   harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
   const undone = await semantic(fixture, (service) =>
     service.undoWithin(
-      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: fixture.owner.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     ),
   );
@@ -1172,7 +1367,7 @@ test('external successor deletion removes its owned incoming link and undo resto
   ).toEqual({ id: unrelated.value });
   const redone = await semantic(fixture, (service) =>
     service.redoWithin(
-      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: fixture.owner.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     ),
   );
@@ -1192,13 +1387,13 @@ test('external successor deletion undo refuses a concurrent predecessor revision
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Retained owner row' }],
       })
     ).status,
   ).toBe(200);
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture link refused');
   expect(
@@ -1219,7 +1414,11 @@ test('external successor deletion undo refuses a concurrent predecessor revision
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -1232,13 +1431,13 @@ for (const strategy of ['cascade', 'promote'] as const) {
     const fixture = await open();
     expect(
       (
-        await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
           commands: [{ kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Child' }],
         })
       ).status,
     ).toBe(200);
     const added = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!added.ok) throw new Error('fixture link refused');
     expect(
@@ -1264,7 +1463,7 @@ test('a connected move refuses making a remote-owned pinned node a parent', asyn
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.predecessor.workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Mover' }],
       })
     ).status,
@@ -1274,13 +1473,13 @@ test('a connected move refuses making a remote-owned pinned node a parent', asyn
     .get();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.predecessor.projectId);
+    .get(fixture.predecessor.workPackageId);
   if (mover === null || step === null) throw new Error('fixture move facts missing');
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         ...fixture.input,
         predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
       }),
@@ -1304,7 +1503,7 @@ test('last-child deletion refuses making a remote-owned descendant-step endpoint
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.predecessor.workPackageId}/commands`, {
         commands: [
           { kind: 'createWorkItem', name: 'Only child', parentId: fixture.predecessor.workItemId },
         ],
@@ -1316,13 +1515,13 @@ test('last-child deletion refuses making a remote-owned descendant-step endpoint
     .get();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.predecessor.projectId);
+    .get(fixture.predecessor.workPackageId);
   if (child === null || step === null) throw new Error('fixture descendant facts missing');
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         ...fixture.input,
         predecessor: { ...fixture.input.predecessor, scope: 'descendant-step', stepId: step.id },
       }),
@@ -1342,19 +1541,23 @@ test('last-child deletion refuses making a remote-owned descendant-step endpoint
 test('external removal and both replay directions preserve the same stable relationship identity', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!added.ok) throw new Error('fixture external add refused');
   expect(
     await semantic(fixture, (service) =>
-      service.removeTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value),
+      service.removeTypedDependency(fixture.owner.workPackageId, fixture.principal.id, added.value),
     ),
   ).toMatchObject({ ok: true });
   expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toEqual([]);
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -1365,7 +1568,11 @@ test('external removal and both replay directions preserve the same stable relat
   expect(
     await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -1383,10 +1590,8 @@ for (const operation of [
   'clear-estimate',
   'add-legacy',
   'remove-legacy',
-  'project-reach',
+  'work-package-reach',
   'step-add',
-  'step-remove',
-  'step-references',
   'typed-add',
   'typed-update',
   'typed-remove',
@@ -1398,7 +1603,7 @@ for (const operation of [
     const fixture = await open();
     expect(
       (
-        await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
           commands: [
             { kind: 'createWorkItem', name: 'Local parent', ref: 'parent' },
             { kind: 'createWorkItem', name: 'Local child', parentRef: 'parent' },
@@ -1408,24 +1613,28 @@ for (const operation of [
     ).toBe(200);
     const parent = harness.sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM work_item WHERE project_id=? AND name='Local parent'",
+        "SELECT id FROM work_item WHERE work_package_id=? AND name='Local parent'",
       )
-      .get(fixture.owner.projectId);
+      .get(fixture.owner.workPackageId);
     const child = harness.sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM work_item WHERE project_id=? AND name='Local child'",
+        "SELECT id FROM work_item WHERE work_package_id=? AND name='Local child'",
       )
-      .get(fixture.owner.projectId);
+      .get(fixture.owner.workPackageId);
     const step = harness.sqlite
       .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+        `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
       )
-      .get(fixture.owner.projectId);
+      .get(fixture.owner.workPackageId);
     if (parent === null || child === null || step === null)
       throw new Error('fixture connected consumer facts missing');
     expect(
       await semantic(fixture, (service) =>
-        service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+        service.addTypedDependency(
+          fixture.owner.workPackageId,
+          fixture.principal.id,
+          fixture.input,
+        ),
       ),
     ).toMatchObject({ ok: true });
     const relationship = harness.sqlite
@@ -1446,7 +1655,7 @@ for (const operation of [
     if (operation === 'replay-delete')
       expect(
         await semantic(fixture, (service) =>
-          service.create(fixture.owner.projectId, fixture.principal.id, {
+          service.create(fixture.owner.workPackageId, fixture.principal.id, {
             parentId: null,
             afterId: null,
             name: 'Replay-created leaf',
@@ -1460,12 +1669,7 @@ for (const operation of [
         ),
       ).toMatchObject({ ok: true });
     const before = effects();
-    const failedGraphRead =
-      operation === 'step-references'
-        ? 'findStepReferences'
-        : operation.startsWith('replay-')
-          ? 'proposedCycle'
-          : 'findCycle';
+    const failedGraphRead = operation.startsWith('replay-') ? 'proposedCycle' : 'findCycle';
     const failure = await observed(
       semantic<{ readonly ok: boolean }>(
         fixture,
@@ -1473,7 +1677,7 @@ for (const operation of [
           const actor = fixture.principal.id;
           switch (operation) {
             case 'create':
-              return service.create(fixture.owner.projectId, actor, {
+              return service.create(fixture.owner.workPackageId, actor, {
                 parentId: null,
                 afterId: null,
                 name: 'Never written',
@@ -1503,52 +1707,47 @@ for (const operation of [
               return service.addDependency(child.id, actor, fixture.owner.workItemId);
             case 'remove-legacy':
               return service.removeDependency(child.id, actor, fixture.owner.workItemId);
-            case 'project-reach':
-              return graph.projects.updateWithin(
-                fixture.owner.projectId,
+            case 'work-package-reach':
+              return graph.workPackages.updateWithin(
+                fixture.owner.workPackageId,
                 actor,
                 { depReach: 'anchor-slice' },
                 fixture.expectedAccess,
               );
             case 'step-add':
               return graph.steps.addWithin(
-                fixture.owner.projectId,
+                fixture.owner.workPackageId,
                 actor,
                 'Never written',
                 0,
                 undefined,
                 fixture.expectedAccess,
               );
-            case 'step-remove':
-            case 'step-references':
-              return graph.steps.removeWithin(
-                fixture.owner.projectId,
-                step.id,
-                actor,
-                true,
-                fixture.expectedAccess,
-              );
             case 'replay-move':
             case 'replay-delete':
             case 'replay-restore':
               return service.undoWithin(
-                { projectId: fixture.owner.projectId, userId: actor, personId: null },
+                { workPackageId: fixture.owner.workPackageId, userId: actor, personId: null },
                 fixture.expectedAccess,
               );
             case 'typed-add':
-              return service.addTypedDependency(fixture.owner.projectId, actor, {
+              return service.addTypedDependency(fixture.owner.workPackageId, actor, {
                 ...fixture.input,
                 type: 'SS',
               });
             case 'typed-update':
               return service.updateTypedDependency(
-                fixture.owner.projectId,
+                fixture.owner.workPackageId,
                 actor,
                 relationship.id,
                 { ...fixture.input, type: 'SS' },
               );
             case 'typed-remove':
-              return service.removeTypedDependency(fixture.owner.projectId, actor, relationship.id);
+              return service.removeTypedDependency(
+                fixture.owner.workPackageId,
+                actor,
+                relationship.id,
+              );
           }
         },
         undefined,
@@ -1566,24 +1765,26 @@ for (const operation of [
 async function ownerRow(fixture: Awaited<ReturnType<typeof open>>, name: string): Promise<string> {
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', name }],
       })
     ).status,
   ).toBe(200);
   const row = harness.sqlite
     .query<{ id: string }, [string, string]>(
-      'SELECT id FROM work_item WHERE project_id=? AND name=?',
+      'SELECT id FROM work_item WHERE work_package_id=? AND name=?',
     )
-    .get(fixture.owner.projectId, name);
+    .get(fixture.owner.workPackageId, name);
   if (row === null) throw new Error('fixture owner row missing');
   return row.id;
 }
 
-function workflowStep(projectId: string, name: string): string {
+function workflowStep(workPackageId: string, name: string): string {
   const step = harness.sqlite
-    .query<{ id: string }, [string, string]>('SELECT id FROM step WHERE project_id=? AND name=?')
-    .get(projectId, name);
+    .query<{ id: string }, [string, string]>(
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? AND name=?`,
+    )
+    .get(workPackageId, name);
   if (step === null) throw new Error('fixture workflow step missing');
   return step.id;
 }
@@ -1593,7 +1794,7 @@ async function localBranch(fixture: Awaited<ReturnType<typeof open>>, name: stri
   const children: string[] = [];
   for (const suffix of ['first', 'second']) {
     const created = await semantic(fixture, (service) =>
-      service.create(fixture.owner.projectId, fixture.principal.id, {
+      service.create(fixture.owner.workPackageId, fixture.principal.id, {
         name: `${name} ${suffix}`,
         parentId: parent,
         afterId: null,
@@ -1606,8 +1807,8 @@ async function localBranch(fixture: Awaited<ReturnType<typeof open>>, name: stri
 }
 
 // Proof: bypassing typedRefusal's connected cycle consumer admitted the closing edge;
-// a reciprocal-project shortcut instead refused the valid interleaving (2026-10-22).
-test('admitted distinct tasks interleave projects until a local edge closes the remote cycle', async () => {
+// a reciprocal-work-package shortcut instead refused the valid interleaving (2026-10-22).
+test('admitted distinct tasks interleave work packages until a local edge closes the remote cycle', async () => {
   const fixture = await open();
   const a = fixture.predecessor;
   const b = fixture.owner;
@@ -1615,22 +1816,22 @@ test('admitted distinct tasks interleave projects until a local edge closes the 
   const c = await ownerRow(reverse, 'Distinct returning task');
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(b.projectId, fixture.principal.id, {
-        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
-        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+      service.addTypedDependency(b.workPackageId, fixture.principal.id, {
+        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.workPackageId, 'Dev') },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   expect(
     await semantic(reverse, (service) =>
-      service.addTypedDependency(a.projectId, fixture.principal.id, {
-        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+      service.addTypedDependency(a.workPackageId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'QA') },
         successor: {
-          projectId: a.projectId,
+          workPackageId: a.workPackageId,
           workItemId: c,
           scope: 'node',
-          stepId: workflowStep(a.projectId, 'QA'),
+          stepId: workflowStep(a.workPackageId, 'QA'),
         },
         type: 'FS',
       }),
@@ -1639,14 +1840,14 @@ test('admitted distinct tasks interleave projects until a local edge closes the 
   const before = effects();
   expect(
     await semantic(reverse, (service) =>
-      service.addTypedDependency(a.projectId, fixture.principal.id, {
+      service.addTypedDependency(a.workPackageId, fixture.principal.id, {
         predecessor: {
-          projectId: a.projectId,
+          workPackageId: a.workPackageId,
           workItemId: c,
           scope: 'node',
-          stepId: workflowStep(a.projectId, 'QA'),
+          stepId: workflowStep(a.workPackageId, 'QA'),
         },
-        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
@@ -1661,20 +1862,20 @@ test('admitted remote scopes expand all four pairs under their own trees and ste
   const remote = { ...fixture, owner: fixture.predecessor };
   const a = await localBranch(remote, 'Remote');
   const b = await localBranch(fixture, 'Owner');
-  const aStep = workflowStep(remote.owner.projectId, 'QA');
-  const bStep = workflowStep(fixture.owner.projectId, 'Dev');
+  const aStep = workflowStep(remote.owner.workPackageId, 'QA');
+  const bStep = workflowStep(fixture.owner.workPackageId, 'Dev');
   expect(aStep).not.toBe(bStep);
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         predecessor: {
-          projectId: remote.owner.projectId,
+          workPackageId: remote.owner.workPackageId,
           workItemId: a.parent,
           scope: 'descendant-step',
           stepId: aStep,
         },
         successor: {
-          projectId: fixture.owner.projectId,
+          workPackageId: fixture.owner.workPackageId,
           workItemId: b.parent,
           scope: 'descendant-step',
           stepId: bStep,
@@ -1688,15 +1889,15 @@ test('admitted remote scopes expand all four pairs under their own trees and ste
     for (const right of b.children) {
       expect(
         await semantic(remote, (service) =>
-          service.addTypedDependency(remote.owner.projectId, fixture.principal.id, {
+          service.addTypedDependency(remote.owner.workPackageId, fixture.principal.id, {
             predecessor: {
-              projectId: fixture.owner.projectId,
+              workPackageId: fixture.owner.workPackageId,
               workItemId: right,
               scope: 'node',
               stepId: bStep,
             },
             successor: {
-              projectId: remote.owner.projectId,
+              workPackageId: remote.owner.workPackageId,
               workItemId: left,
               scope: 'node',
               stepId: aStep,
@@ -1717,17 +1918,17 @@ test('admitted subtree move closes a real remote descendant cycle and rolls back
   const moving = fixture.owner.workItemId;
   expect(
     await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
-      service.addTypedDependency(fixture.predecessor.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.predecessor.workPackageId, fixture.principal.id, {
         predecessor: {
-          projectId: fixture.owner.projectId,
+          workPackageId: fixture.owner.workPackageId,
           workItemId: branch.parent,
           scope: 'descendant-step',
-          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+          stepId: workflowStep(fixture.owner.workPackageId, 'QA'),
         },
         successor: {
           ...fixture.predecessor,
           scope: 'node',
-          stepId: workflowStep(fixture.predecessor.projectId, 'Dev'),
+          stepId: workflowStep(fixture.predecessor.workPackageId, 'Dev'),
         },
         type: 'FS',
       }),
@@ -1735,16 +1936,16 @@ test('admitted subtree move closes a real remote descendant cycle and rolls back
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         predecessor: {
           ...fixture.predecessor,
           scope: 'node',
-          stepId: workflowStep(fixture.predecessor.projectId, 'QA'),
+          stepId: workflowStep(fixture.predecessor.workPackageId, 'QA'),
         },
         successor: {
           ...fixture.owner,
           scope: 'node',
-          stepId: workflowStep(fixture.owner.projectId, 'Dev'),
+          stepId: workflowStep(fixture.owner.workPackageId, 'Dev'),
         },
         type: 'FS',
       }),
@@ -1768,20 +1969,20 @@ test('admitted subtree move closes a real remote descendant cycle and rolls back
 });
 
 // Proof: independently bypassing the clear-estimate structural cycle consumer,
-// step-removal cycle condition, and project-reach cycle condition made each
+// step-removal cycle condition, and work-package-reach cycle condition made each
 // corresponding real SQLite transition succeed instead of refuse (2026-10-22).
-for (const transition of ['clear-estimate', 'step-remove', 'project-reach'] as const)
+for (const transition of ['clear-estimate', 'work-package-reach'] as const)
   test(`admitted ${transition} moves a legacy anchor into a real remote cycle and rolls back`, async () => {
     const fixture = await open();
     const a = fixture.owner;
     const b = fixture.predecessor;
     const c = await ownerRow(fixture, 'Legacy successor');
-    const dev = workflowStep(a.projectId, 'Dev');
-    const qa = workflowStep(a.projectId, 'QA');
+    const dev = workflowStep(a.workPackageId, 'Dev');
+    const qa = workflowStep(a.workPackageId, 'QA');
     expect(
       await semantic(fixture, (_service, graph) =>
-        graph.projects.updateWithin(
-          a.projectId,
+        graph.workPackages.updateWithin(
+          a.workPackageId,
           fixture.principal.id,
           { depReach: 'anchor-slice' },
           fixture.expectedAccess,
@@ -1804,17 +2005,17 @@ for (const transition of ['clear-estimate', 'step-remove', 'project-reach'] as c
     ).toMatchObject({ ok: true });
     expect(
       await semantic({ ...fixture, owner: b }, (service) =>
-        service.addTypedDependency(b.projectId, fixture.principal.id, {
-          predecessor: { projectId: a.projectId, workItemId: c, scope: 'node', stepId: qa },
-          successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+        service.addTypedDependency(b.workPackageId, fixture.principal.id, {
+          predecessor: { workPackageId: a.workPackageId, workItemId: c, scope: 'node', stepId: qa },
+          successor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'Dev') },
           type: 'FS',
         }),
       ),
     ).toMatchObject({ ok: true });
     expect(
       await semantic(fixture, (service) =>
-        service.addTypedDependency(a.projectId, fixture.principal.id, {
-          predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
+        service.addTypedDependency(a.workPackageId, fixture.principal.id, {
+          predecessor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'QA') },
           successor: { ...a, scope: 'node', stepId: qa },
           type: 'FS',
         }),
@@ -1825,17 +2026,9 @@ for (const transition of ['clear-estimate', 'step-remove', 'project-reach'] as c
       switch (transition) {
         case 'clear-estimate':
           return service.clearEstimate(a.workItemId, fixture.principal.id, dev);
-        case 'step-remove':
-          return graph.steps.removeWithin(
-            a.projectId,
-            dev,
-            fixture.principal.id,
-            true,
-            fixture.expectedAccess,
-          );
-        case 'project-reach':
-          return graph.projects.updateWithin(
-            a.projectId,
+        case 'work-package-reach':
+          return graph.workPackages.updateWithin(
+            a.workPackageId,
             fixture.principal.id,
             { depReach: 'whole-item' },
             fixture.expectedAccess,
@@ -1857,17 +2050,17 @@ test('admitted batch rolls back an actual external write when a later command cl
   const c = await ownerRow(fixture, 'Batch closing task');
   expect(
     await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
-      service.addTypedDependency(fixture.predecessor.projectId, fixture.principal.id, {
+      service.addTypedDependency(fixture.predecessor.workPackageId, fixture.principal.id, {
         predecessor: {
-          projectId: fixture.owner.projectId,
+          workPackageId: fixture.owner.workPackageId,
           workItemId: c,
           scope: 'node',
-          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+          stepId: workflowStep(fixture.owner.workPackageId, 'QA'),
         },
         successor: {
           ...fixture.predecessor,
           scope: 'node',
-          stepId: workflowStep(fixture.predecessor.projectId, 'Dev'),
+          stepId: workflowStep(fixture.predecessor.workPackageId, 'Dev'),
         },
         type: 'FS',
       }),
@@ -1877,34 +2070,77 @@ test('admitted batch rolls back an actual external write when a later command cl
   expect(
     await semantic(fixture, async (service, _graph, typedDependencies) => {
       const first = await service.addTypedDependency(
-        fixture.owner.projectId,
+        fixture.owner.workPackageId,
         fixture.principal.id,
         fixture.input,
       );
       expect(first).toMatchObject({ ok: true });
-      const staged = await typedDependencies.listIncident([fixture.owner.projectId]);
+      const staged = await typedDependencies.listIncident([fixture.owner.workPackageId]);
       expect(staged).toHaveLength(2);
       if (!first.ok) throw new Error('fixture first external write refused');
       expect(staged.find((relationship) => relationship.id === first.value)).toMatchObject({
         predecessor: fixture.input.predecessor,
         successor: fixture.input.successor,
       });
-      return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      return service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
         predecessor: {
           ...fixture.input.successor,
           scope: 'node',
-          stepId: workflowStep(fixture.owner.projectId, 'QA'),
+          stepId: workflowStep(fixture.owner.workPackageId, 'QA'),
         },
         successor: {
-          projectId: fixture.owner.projectId,
+          workPackageId: fixture.owner.workPackageId,
           workItemId: c,
           scope: 'node',
-          stepId: workflowStep(fixture.owner.projectId, 'Dev'),
+          stepId: workflowStep(fixture.owner.workPackageId, 'Dev'),
         },
         type: 'FS',
       });
     }),
   ).toMatchObject({ ok: false, reason: 'cycle' });
+  expect(effects()).toEqual(before);
+});
+
+test('a referenced connected node blocks removal of its actual project step binding', async () => {
+  const fixture = await open();
+  const stepId = workflowStep(fixture.predecessor.workPackageId, 'Dev');
+  const binding = harness.sqlite
+    .query<{ id: string }, [string, string]>(
+      "SELECT id FROM step_binding WHERE scope_kind='project' AND scope_id=? AND step_id=?",
+    )
+    .get(fixture.predecessorProjectId, stepId);
+  if (binding === null) throw new Error('fixture predecessor binding missing');
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
+        ...fixture.input,
+        predecessor: { ...fixture.input.predecessor, scope: 'node', stepId },
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+  const unbind = () =>
+    fixture.request('/api/organization/step-bindings/' + binding.id, { dryRun: false }, 'DELETE');
+  harness.sqlite.run('ALTER TABLE external_dependency RENAME TO unavailable_external_dependency');
+  const unavailable = effects();
+  expect((await unbind()).status).toBe(500);
+  expect(effects()).toEqual(unavailable);
+  harness.sqlite.run('ALTER TABLE unavailable_external_dependency RENAME TO external_dependency');
+  const before = effects();
+  const response = await unbind();
+  expect(response.status, await response.clone().text()).toBe(409);
+  expect(await response.json()).toEqual({
+    error: 'step_nodes_in_use',
+    count: 1,
+    pairs: [
+      {
+        workPackageId: fixture.predecessor.workPackageId,
+        id: fixture.predecessor.workItemId,
+        name: 'Predecessor row',
+        stepId,
+        facts: ['external_dependency'],
+      },
+    ],
+  });
   expect(effects()).toEqual(before);
 });
 
@@ -1914,55 +2150,52 @@ test('admitted estimate insertion and appended step preserve a valid connected i
   const b = fixture.predecessor;
   expect(
     await semantic({ ...fixture, owner: b }, (service) =>
-      service.addTypedDependency(b.projectId, fixture.principal.id, {
-        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') },
-        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+      service.addTypedDependency(b.workPackageId, fixture.principal.id, {
+        predecessor: { ...a, scope: 'node', stepId: workflowStep(a.workPackageId, 'Dev') },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(a.projectId, fixture.principal.id, {
-        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
-        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'QA') },
+      service.addTypedDependency(a.workPackageId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'QA') },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.workPackageId, 'QA') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.setEstimate(a.workItemId, fixture.principal.id, workflowStep(a.projectId, 'Dev'), {
-        optimistic: 0,
-        realistic: 0,
-        pessimistic: 0,
-      }),
+      service.setEstimate(
+        a.workItemId,
+        fixture.principal.id,
+        workflowStep(a.workPackageId, 'Dev'),
+        {
+          optimistic: 0,
+          realistic: 0,
+          pessimistic: 0,
+        },
+      ),
     ),
   ).toMatchObject({ ok: true });
-  const added = await semantic(fixture, (_service, graph) =>
-    graph.steps.addWithin(
-      a.projectId,
-      fixture.principal.id,
-      'Release',
-      0,
-      undefined,
-      fixture.expectedAccess,
-    ),
-  );
-  expect(added).toMatchObject({ ok: true });
+  await defineProjectStep(fixture, fixture.projectId, 'release', 'Release', 30);
   const steps = harness.sqlite
-    .query<{ name: string }, [string]>('SELECT name FROM step WHERE project_id=? ORDER BY position')
-    .all(a.projectId);
+    .query<{ name: string }, [string]>(
+      `SELECT name FROM ${projectSteps} WHERE work_package_id=? ORDER BY position`,
+    )
+    .all(a.workPackageId);
   expect(steps.map((step) => step.name)).toEqual(['Dev', 'QA', 'Release']);
   expect(harness.sqlite.query('SELECT id FROM external_dependency').all()).toHaveLength(2);
   expect(
     await semantic(fixture, async (service) => ({
-      ok: (await service.findDependencyCycle(a.projectId, fixture.principal.id)) === null,
+      ok: (await service.findDependencyCycle(a.workPackageId, fixture.principal.id)) === null,
     })),
   ).toEqual({ ok: true });
 });
 
-// Proof: applying the requested owner's reach to every captured project refused
+// Proof: applying the requested owner's reach to every captured work package refused
 // the final valid estimate write as cycle after all setup succeeded (2026-10-22).
 test('admitted remote legacy anchors retain their own reach when the owner uses whole-item reach', async () => {
   const fixture = await open();
@@ -1972,8 +2205,8 @@ test('admitted remote legacy anchors retain their own reach when the owner uses 
   const c = await ownerRow(remote, 'Remote legacy successor');
   expect(
     await semantic(remote, (_service, graph) =>
-      graph.projects.updateWithin(
-        a.projectId,
+      graph.workPackages.updateWithin(
+        a.workPackageId,
         fixture.principal.id,
         { depReach: 'anchor-slice' },
         fixture.expectedAccess,
@@ -1982,11 +2215,16 @@ test('admitted remote legacy anchors retain their own reach when the owner uses 
   ).toMatchObject({ ok: true });
   expect(
     await semantic(remote, (service) =>
-      service.setEstimate(a.workItemId, fixture.principal.id, workflowStep(a.projectId, 'Dev'), {
-        optimistic: 0,
-        realistic: 0,
-        pessimistic: 0,
-      }),
+      service.setEstimate(
+        a.workItemId,
+        fixture.principal.id,
+        workflowStep(a.workPackageId, 'Dev'),
+        {
+          optimistic: 0,
+          realistic: 0,
+          pessimistic: 0,
+        },
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(
@@ -1996,54 +2234,63 @@ test('admitted remote legacy anchors retain their own reach when the owner uses 
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(b.projectId, fixture.principal.id, {
+      service.addTypedDependency(b.workPackageId, fixture.principal.id, {
         predecessor: {
-          projectId: a.projectId,
+          workPackageId: a.workPackageId,
           workItemId: c,
           scope: 'node',
-          stepId: workflowStep(a.projectId, 'QA'),
+          stepId: workflowStep(a.workPackageId, 'QA'),
         },
-        successor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'Dev') },
+        successor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'Dev') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   expect(
     await semantic(remote, (service) =>
-      service.addTypedDependency(a.projectId, fixture.principal.id, {
-        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.projectId, 'QA') },
-        successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'QA') },
+      service.addTypedDependency(a.workPackageId, fixture.principal.id, {
+        predecessor: { ...b, scope: 'node', stepId: workflowStep(b.workPackageId, 'QA') },
+        successor: { ...a, scope: 'node', stepId: workflowStep(a.workPackageId, 'QA') },
         type: 'FS',
       }),
     ),
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.setEstimate(b.workItemId, fixture.principal.id, workflowStep(b.projectId, 'Dev'), {
-        optimistic: 1,
-        realistic: 1,
-        pessimistic: 1,
-      }),
+      service.setEstimate(
+        b.workItemId,
+        fixture.principal.id,
+        workflowStep(b.workPackageId, 'Dev'),
+        {
+          optimistic: 1,
+          realistic: 1,
+          pessimistic: 1,
+        },
+      ),
     ),
   ).toMatchObject({ ok: true });
   expect(
     harness.sqlite
-      .query<{ depReach: string }, [string]>('SELECT dep_reach AS depReach FROM project WHERE id=?')
-      .get(a.projectId),
+      .query<{ depReach: string }, [string]>(
+        'SELECT dep_reach AS depReach FROM work_package WHERE id=?',
+      )
+      .get(a.workPackageId),
   ).toEqual({ depReach: 'anchor-slice' });
   expect(
     harness.sqlite
-      .query<{ depReach: string }, [string]>('SELECT dep_reach AS depReach FROM project WHERE id=?')
-      .get(b.projectId),
+      .query<{ depReach: string }, [string]>(
+        'SELECT dep_reach AS depReach FROM work_package WHERE id=?',
+      )
+      .get(b.workPackageId),
   ).toEqual({ depReach: 'whole-item' });
 });
 
-function lastPreconditions(projectId: string): unknown {
+function lastPreconditions(workPackageId: string): unknown {
   const entry = harness.sqlite
     .query<{ preconditions: string }, [string]>(
-      'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT preconditions FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(projectId);
+    .get(workPackageId);
   if (entry === null) throw new Error('fixture journal missing');
   return JSON.parse(entry.preconditions);
 }
@@ -2054,19 +2301,19 @@ test('local external local updates preserve identity and both-direction history 
   const local = {
     ...fixture.input,
     predecessor: {
-      projectId: fixture.owner.projectId,
+      workPackageId: fixture.owner.workPackageId,
       workItemId: localId,
       scope: 'whole' as const,
     },
   };
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, local),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, local),
   );
   if (!added.ok) throw new Error('fixture local relationship refused');
   expect(
     await semantic(fixture, (service) =>
       service.updateTypedDependency(
-        fixture.owner.projectId,
+        fixture.owner.workPackageId,
         fixture.principal.id,
         added.value,
         fixture.input,
@@ -2075,13 +2322,18 @@ test('local external local updates preserve identity and both-direction history 
   ).toMatchObject({ ok: true });
   expect(
     await semantic(fixture, (service) =>
-      service.updateTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value, {
-        ...local,
-        type: 'FF',
-      }),
+      service.updateTypedDependency(
+        fixture.owner.workPackageId,
+        fixture.principal.id,
+        added.value,
+        {
+          ...local,
+          type: 'FF',
+        },
+      ),
     ),
   ).toMatchObject({ ok: true });
-  expect(lastPreconditions(fixture.owner.projectId)).toMatchObject({
+  expect(lastPreconditions(fixture.owner.workPackageId)).toMatchObject({
     externalRevisions: {
       from: [{ ...fixture.predecessor, revision: 1 }],
       expected: [{ ...fixture.predecessor, revision: 2 }],
@@ -2092,11 +2344,19 @@ test('local external local updates preserve identity and both-direction history 
       await semantic(fixture, (service) =>
         direction === 'undo'
           ? service.undoWithin(
-              { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+              {
+                workPackageId: fixture.owner.workPackageId,
+                userId: fixture.principal.id,
+                personId: null,
+              },
               fixture.expectedAccess,
             )
           : service.redoWithin(
-              { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+              {
+                workPackageId: fixture.owner.workPackageId,
+                userId: fixture.principal.id,
+                personId: null,
+              },
               fixture.expectedAccess,
             ),
       ),
@@ -2119,20 +2379,20 @@ test('collected history keeps an external endpoint first seen after the first ow
       });
       if (!renamed.ok) return renamed;
       const added = await service.addTypedDependency(
-        fixture.owner.projectId,
+        fixture.owner.workPackageId,
         fixture.principal.id,
         fixture.input,
       );
       if (!added.ok) return added;
       return service.updateTypedDependency(
-        fixture.owner.projectId,
+        fixture.owner.workPackageId,
         fixture.principal.id,
         added.value,
         { ...fixture.input, type: 'SS' },
       );
     }),
   ).toMatchObject({ ok: true });
-  expect(lastPreconditions(fixture.owner.projectId)).toMatchObject({
+  expect(lastPreconditions(fixture.owner.workPackageId)).toMatchObject({
     externalRevisions: {
       from: [{ ...fixture.predecessor, revision: 0 }],
       expected: [{ ...fixture.predecessor, revision: 2 }],
@@ -2141,7 +2401,11 @@ test('collected history keeps an external endpoint first seen after the first ow
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -2155,10 +2419,10 @@ test('collected history keeps an external endpoint first seen after the first ow
 });
 
 for (const operation of ['update', 'remove'] as const)
-  test(`${operation} refuses an injected denial of the old predecessor scoped project read`, async () => {
+  test(`${operation} refuses an injected denial of the old predecessor scoped work package read`, async () => {
     const fixture = await open();
     const added = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!added.ok) throw new Error('fixture relationship refused');
     // Reject exactly the old predecessor's scoped read; immutable ownership and
@@ -2171,18 +2435,18 @@ for (const operation of ['update', 'remove'] as const)
           (service) =>
             operation === 'remove'
               ? service.removeTypedDependency(
-                  fixture.owner.projectId,
+                  fixture.owner.workPackageId,
                   fixture.principal.id,
                   added.value,
                 )
               : service.updateTypedDependency(
-                  fixture.owner.projectId,
+                  fixture.owner.workPackageId,
                   fixture.principal.id,
                   added.value,
                   { ...fixture.input, predecessor: fixture.input.successor },
                 ),
           undefined,
-          fixture.predecessor.projectId,
+          fixture.predecessor.workPackageId,
         ),
       ),
     ).toMatchObject({ ok: false, reason: 'not_found' });
@@ -2193,7 +2457,7 @@ test('mounted local batch aliases survive create link undo redo under current ad
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
         commands: [
           { kind: 'createWorkItem', name: 'Alias predecessor', ref: 'created' },
           {
@@ -2206,15 +2470,19 @@ test('mounted local batch aliases survive create link undo redo under current ad
       })
     ).status,
   ).toBe(200);
-  expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/undo`)).status).toBe(200);
-  expect((await fixture.request(`/api/projects/${fixture.owner.projectId}/redo`)).status).toBe(200);
+  expect(
+    (await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/undo`)).status,
+  ).toBe(200);
+  expect(
+    (await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/redo`)).status,
+  ).toBe(200);
 });
 
 for (const peerEdit of [false, true])
   test(`external neighbor restamping preserves ${peerEdit ? 'a genuine intervening edit' : 'an unbroken history chain'}`, async () => {
     const fixture = await open();
     const added = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!added.ok) throw new Error('fixture relationship refused');
     if (peerEdit)
@@ -2223,16 +2491,25 @@ for (const peerEdit of [false, true])
         .run(fixture.predecessor.workItemId);
     expect(
       await semantic(fixture, (service) =>
-        service.updateTypedDependency(fixture.owner.projectId, fixture.principal.id, added.value, {
-          ...fixture.input,
-          type: 'SS',
-        }),
+        service.updateTypedDependency(
+          fixture.owner.workPackageId,
+          fixture.principal.id,
+          added.value,
+          {
+            ...fixture.input,
+            type: 'SS',
+          },
+        ),
       ),
     ).toMatchObject({ ok: true });
     expect(
       await semantic(fixture, (service) =>
         service.undoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       ),
@@ -2240,7 +2517,11 @@ for (const peerEdit of [false, true])
     const before = effects();
     const undone = await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     );
@@ -2255,7 +2536,11 @@ test('recordCollected refuses incomplete remote before evidence and rolls back t
     semantic(
       fixture,
       (service) =>
-        service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+        service.addTypedDependency(
+          fixture.owner.workPackageId,
+          fixture.principal.id,
+          fixture.input,
+        ),
       (recordings) => {
         const recording = recordings.at(0);
         if (recording === undefined) throw new Error('fixture recording missing');
@@ -2276,7 +2561,11 @@ test('recordCollected rejects an omitted final remote revision and rolls back th
     semantic(
       fixture,
       (service) =>
-        service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+        service.addTypedDependency(
+          fixture.owner.workPackageId,
+          fixture.principal.id,
+          fixture.input,
+        ),
       undefined,
       undefined,
       undefined,
@@ -2294,18 +2583,22 @@ test('replay refuses a corrupt scoped stored-row delivery even when its unqualif
   const fixture = await open();
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     ),
   ).toMatchObject({ ok: true });
   const before = effects();
   // Negative-only projection fault: the database and checked endpoint evidence
-  // remain genuine; only listByProject's delivered predecessor qualifier lies.
+  // remain genuine; only listByWorkPackage's delivered predecessor qualifier lies.
   expect(
     await semantic(
       fixture,
       (service) =>
         service.undoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       undefined,
@@ -2326,14 +2619,14 @@ test('mixed nested replay keeps an unrelated foreign patch outside typed endpoin
   const fixture = await open();
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     ),
   ).toMatchObject({ ok: true });
   const entry = harness.sqlite
     .query<{ id: string; payload: string }, [string]>(
-      'SELECT id, payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT id, payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (entry === null) throw new Error('fixture journal missing');
   const payload = JSON.parse(entry.payload) as {
     forward: { dependency: StoredTypedDependency };
@@ -2361,7 +2654,11 @@ test('mixed nested replay keeps an unrelated foreign patch outside typed endpoin
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -2373,8 +2670,8 @@ for (const direction of ['undo', 'redo'] as const)
   test(`real SQLite ${direction} closes its graph before writer settlement`, async () => {
     const fixture = await open();
     harness.sqlite
-      .query('DELETE FROM command_journal WHERE project_id=?')
-      .run(fixture.owner.projectId);
+      .query('DELETE FROM command_journal WHERE work_package_id=?')
+      .run(fixture.owner.workPackageId);
     const boundary = harness.publicWrites();
     const contexts: DependencyContext[] = [];
     const actual = commandTransaction(
@@ -2396,7 +2693,7 @@ for (const direction of ['undo', 'redo'] as const)
             const decision = await act(resources);
             expect(contexts.length).toBe(1);
             expect(() => {
-              contexts[0]?.assertUsable(fixture.owner.projectId, fixture.principal.id);
+              contexts[0]?.assertUsable(fixture.owner.workPackageId, fixture.principal.id);
             }).toThrow('dependency context is closed');
             return decision;
           }, settled),
@@ -2405,8 +2702,8 @@ for (const direction of ['undo', 'redo'] as const)
     const before = effects();
     const outcome = await observed(
       direction === 'undo'
-        ? runner.undoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess)
-        : runner.redoWithin(fixture.owner.projectId, fixture.principal, fixture.expectedAccess),
+        ? runner.undoWithin(fixture.owner.workPackageId, fixture.principal, fixture.expectedAccess)
+        : runner.redoWithin(fixture.owner.workPackageId, fixture.principal, fixture.expectedAccess),
     );
     expect(outcome).toMatchObject({ ok: false, reason: 'nothing_to_undo' });
     expect(effects()).toEqual(before);
@@ -2436,16 +2733,16 @@ for (const ending of ['success', 'refusal', 'throw'] as const)
         if (!resolved.ok || resolved.access.kind !== 'scoped')
           throw new Error('fixture authority refused');
         const refused = await resources.refuseOutsideScope(
-          fixture.owner.projectId,
+          fixture.owner.workPackageId,
           fixture.principal.id,
-          resolved.access.scope,
+          resolved.access,
           { commands: [] },
         );
         if (refused !== null) throw new Error('fixture owner admission refused');
-        const grant = grantAdmission(fixture.owner.projectId, fixture.principal.id);
+        const grant = grantAdmission(fixture.owner.workPackageId, fixture.principal.id);
         try {
-          resources.openCommandGraph(fixture.owner.projectId, recordingBroadcaster(), {
-            projectId: fixture.owner.projectId,
+          resources.openCommandGraph(fixture.owner.workPackageId, recordingBroadcaster(), {
+            workPackageId: fixture.owner.workPackageId,
             actorId: fixture.principal.id,
             access: resolved.access,
             admission: grant.admission,
@@ -2471,7 +2768,7 @@ for (const ending of ['success', 'refusal', 'throw'] as const)
         expect(evidence instanceof Error ? evidence.message : evidence).toContain(
           'observation is closed',
         );
-        const graph = await observed(context.graph.findCycle(fixture.owner.projectId));
+        const graph = await observed(context.graph.findCycle(fixture.owner.workPackageId));
         expect(graph instanceof Error ? graph.message : graph).toContain('observation is closed');
       }
     }
@@ -2494,19 +2791,21 @@ for (const missing of [false, true])
       release = resolve;
     });
     let reads = 0;
+    let observing = false;
     const pending: Promise<unknown>[] = [];
     const uow = {
       run: <T>(act: Parameters<typeof boundary.uow.run<T>>[0]) =>
         boundary.uow.run<T>((scope) => {
-          const projects = new Proxy(scope.stores.projects, {
+          const workPackages = new Proxy(scope.stores.workPackages, {
             get(target, key) {
               if (key === 'findInOrganization')
                 return async (id: string, organizationId: string) => {
-                  const project = await target.findInOrganization(id, organizationId);
+                  if (!observing) return target.findInOrganization(id, organizationId);
+                  const workPackage = await target.findInOrganization(id, organizationId);
                   reads++;
                   enter();
                   await held;
-                  return project;
+                  return workPackage;
                 };
               const member: unknown = Reflect.get(target, key);
               if (typeof member === 'function')
@@ -2514,16 +2813,17 @@ for (const missing of [false, true])
               return member;
             },
           });
-          return act({ ...scope, stores: { ...scope.stores, projects } });
+          return act({ ...scope, stores: { ...scope.stores, workPackages } });
         }),
     };
     const transaction = commandTransaction(
       uow,
       (scope, broadcast, admission, dependencies) => {
+        observing = true;
         pending.push(
           dependencies.endpoints.readEndpoint(
             missing
-              ? { ...fixture.input.successor, projectId: 'absent-project' }
+              ? { ...fixture.input.successor, workPackageId: 'absent-work-package' }
               : fixture.input.successor,
           ),
         );
@@ -2541,16 +2841,16 @@ for (const missing of [false, true])
       if (!resolved.ok || resolved.access.kind !== 'scoped')
         throw new Error('fixture authority refused');
       const refused = await resources.refuseOutsideScope(
-        fixture.owner.projectId,
+        fixture.owner.workPackageId,
         fixture.principal.id,
-        resolved.access.scope,
+        resolved.access,
         { commands: [] },
       );
       if (refused !== null) throw new Error('fixture owner admission refused');
-      const grant = grantAdmission(fixture.owner.projectId, fixture.principal.id);
+      const grant = grantAdmission(fixture.owner.workPackageId, fixture.principal.id);
       try {
-        resources.openCommandGraph(fixture.owner.projectId, recordingBroadcaster(), {
-          projectId: fixture.owner.projectId,
+        resources.openCommandGraph(fixture.owner.workPackageId, recordingBroadcaster(), {
+          workPackageId: fixture.owner.workPackageId,
           actorId: fixture.principal.id,
           access: resolved.access,
           admission: grant.admission,
@@ -2576,17 +2876,17 @@ for (const missing of [false, true])
 test('ordered restore lets an external create-link batch redo its local successor', async () => {
   const fixture = await open();
   const added = await semantic(fixture, async (service) => {
-    const created = await service.create(fixture.owner.projectId, fixture.principal.id, {
+    const created = await service.create(fixture.owner.workPackageId, fixture.principal.id, {
       name: 'New external successor',
       parentId: null,
       afterId: null,
     });
     if (!created.ok) return created;
-    return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+    return service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
       ...fixture.input,
       successor: {
         scope: 'whole',
-        projectId: fixture.owner.projectId,
+        workPackageId: fixture.owner.workPackageId,
         workItemId: created.value.id,
       },
     });
@@ -2594,14 +2894,14 @@ test('ordered restore lets an external create-link batch redo its local successo
   expect(added).toMatchObject({ ok: true });
   const undone = await semantic(fixture, (service) =>
     service.undoWithin(
-      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: fixture.owner.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     ),
   );
   expect(undone).toMatchObject({ ok: true });
   const redone = await semantic(fixture, (service) =>
     service.redoWithin(
-      { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: fixture.owner.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     ),
   );
@@ -2611,7 +2911,7 @@ test('ordered restore lets an external create-link batch redo its local successo
 for (const nested of [false, true])
   test(`ordered restore lets a mounted local create-update batch redo its predecessor${nested ? ' through nested replay' : ''}`, async () => {
     const fixture = await open();
-    const route = `/api/projects/${fixture.owner.projectId}`;
+    const route = `/api/work-packages/${fixture.owner.workPackageId}`;
     const initial = await fixture.request(`${route}/commands`, {
       commands: [
         { kind: 'createWorkItem', name: 'Original local predecessor', ref: 'original' },
@@ -2655,9 +2955,9 @@ for (const nested of [false, true])
     if (nested) {
       const entry = harness.sqlite
         .query<{ id: string; payload: string }, [string]>(
-          'SELECT id,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+          'SELECT id,payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
         )
-        .get(fixture.owner.projectId);
+        .get(fixture.owner.workPackageId);
       if (entry === null) throw new Error('fixture update history missing');
       const payload = JSON.parse(entry.payload) as { forward: CompensatingCommand };
       if (payload.forward.do !== 'batch')
@@ -2684,23 +2984,23 @@ async function undoneExternalCreate() {
   const fixture = await open();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (step === null) throw new Error('fixture restored successor step missing');
   let successorId: string | undefined;
   const added = await semantic(fixture, async (service) => {
-    const created = await service.create(fixture.owner.projectId, fixture.principal.id, {
+    const created = await service.create(fixture.owner.workPackageId, fixture.principal.id, {
       parentId: null,
       afterId: null,
       name: 'Nested external successor',
     });
     if (!created.ok) return created;
     successorId = created.value.id;
-    return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+    return service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
       ...fixture.input,
       successor: {
-        projectId: fixture.owner.projectId,
+        workPackageId: fixture.owner.workPackageId,
         workItemId: created.value.id,
         scope: 'node',
         stepId: step.id,
@@ -2712,16 +3012,20 @@ async function undoneExternalCreate() {
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
   ).toMatchObject({ ok: true });
   const entry = harness.sqlite
     .query<{ id: string; payload: string; inverse: string }, [string]>(
-      'SELECT id,payload,inverse FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT id,payload,inverse FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (entry === null) throw new Error('fixture external create history missing');
   // These are the real collected journal's commands; corrupt variants below
   // change only trusted-history delivery/setup and never create valid grants.
@@ -2758,7 +3062,11 @@ test('ordered restore replays nested local restoration before an external typed 
   expect(
     await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -2775,7 +3083,7 @@ test('ordered restore replays nested local restoration before an external typed 
       )
       .get(prepared.dependencyId),
   ).toEqual({ id: prepared.dependencyId, successor: prepared.successorId });
-  expect(lastPreconditions(fixture.owner.projectId)).toMatchObject({
+  expect(lastPreconditions(fixture.owner.workPackageId)).toMatchObject({
     externalRevisions: {
       expected: [{ ...fixture.predecessor, revision: 3 }],
       from: [{ ...fixture.predecessor, revision: 2 }],
@@ -2804,7 +3112,7 @@ for (const defect of [
         {
           ...root,
           ...(defect === 'foreign-restore'
-            ? { projectId: fixture.predecessor.projectId }
+            ? { workPackageId: fixture.predecessor.workPackageId }
             : { id: 'different-restored-address' }),
         },
       ],
@@ -2826,7 +3134,7 @@ for (const defect of [
             ...restore,
             rows: [
               ...restore.rows,
-              { ...root, id: 'foreign-insert', projectId: fixture.predecessor.projectId },
+              { ...root, id: 'foreign-insert', workPackageId: fixture.predecessor.workPackageId },
             ],
           },
           typed,
@@ -2848,7 +3156,7 @@ for (const defect of [
           dependency: {
             ...typed.dependency,
             successor: {
-              projectId: fixture.owner.projectId,
+              workPackageId: fixture.owner.workPackageId,
               workItemId: prepared.successorId,
               scope: 'node',
               stepId: 'absent-step',
@@ -2862,7 +3170,7 @@ for (const defect of [
           dependency: {
             ...typed.dependency,
             successor: {
-              projectId: fixture.owner.projectId,
+              workPackageId: fixture.owner.workPackageId,
               workItemId: prepared.successorId,
               scope: 'descendant-step',
               stepId:
@@ -2878,7 +3186,11 @@ for (const defect of [
     const before = effects();
     const redone = await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     );
@@ -2903,7 +3215,11 @@ for (const refusal of ['forbidden', 'unknown_step'] as const)
       fixture,
       (service) =>
         service.redoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       undefined,
@@ -2932,7 +3248,11 @@ test('ordered restore never defers a missing remote row even when replay carries
   const foreign: CompensatingCommand = {
     ...prepared.restore,
     rows: [
-      { ...root, id: fixture.predecessor.workItemId, projectId: fixture.predecessor.projectId },
+      {
+        ...root,
+        id: fixture.predecessor.workItemId,
+        workPackageId: fixture.predecessor.workPackageId,
+      },
     ],
   };
   replaceForward(prepared, nestedReplay(foreign, nestedReplay(prepared.restore), prepared.typed));
@@ -2940,7 +3260,11 @@ test('ordered restore never defers a missing remote row even when replay carries
   expect(
     await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -2952,13 +3276,13 @@ test('mounted predecessor deletion names every incident ID in sorted order', asy
   const fixture = await open();
   expect(
     (
-      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Second successor' }],
       })
     ).status,
   ).toBe(200);
   const first = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!first.ok) throw new Error('first link refused');
   const secondRow = harness.sqlite
@@ -2966,7 +3290,7 @@ test('mounted predecessor deletion names every incident ID in sorted order', asy
     .get();
   if (secondRow === null) throw new Error('second successor missing');
   const second = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
       ...fixture.input,
       successor: { ...fixture.input.successor, workItemId: secondRow.id },
     }),
@@ -2974,7 +3298,7 @@ test('mounted predecessor deletion names every incident ID in sorted order', asy
   if (!second.ok) throw new Error('second link refused');
   const before = effects();
   const response = await fixture.request(
-    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
     {
       commands: [
         { kind: 'deleteWorkItem', workItemId: fixture.predecessor.workItemId, strategy: 'cascade' },
@@ -2994,7 +3318,7 @@ for (const strategy of ['cascade', 'promote'] as const) {
     const fixture = await open();
     expect(
       (
-        await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
           commands: [
             { kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Child' },
             { kind: 'createWorkItem', name: 'Retained sibling' },
@@ -3003,12 +3327,12 @@ for (const strategy of ['cascade', 'promote'] as const) {
       ).status,
     ).toBe(200);
     const linked = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!linked.ok) throw new Error('fixture link refused');
     const original = harness.sqlite
       .query(
-        'SELECT id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
+        'SELECT id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
       )
       .get(linked.value);
     expect(
@@ -3025,7 +3349,11 @@ for (const strategy of ['cascade', 'promote'] as const) {
     expect(
       await semantic(fixture, (service) =>
         service.undoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       ),
@@ -3033,14 +3361,18 @@ for (const strategy of ['cascade', 'promote'] as const) {
     expect(
       harness.sqlite
         .query(
-          'SELECT id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
+          'SELECT id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
         )
         .get(linked.value),
     ).toEqual(original);
     expect(
       await semantic(fixture, (service) =>
         service.redoWithin(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           fixture.expectedAccess,
         ),
       ),
@@ -3059,12 +3391,18 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
   const a = fixture.predecessor;
   const b = fixture.owner;
   const remoteOwner = { ...fixture, owner: a };
-  const x = { projectId: b.projectId, workItemId: await ownerRow(fixture, 'Cycle bridge X') };
-  const y = { projectId: a.projectId, workItemId: await ownerRow(remoteOwner, 'Cycle bridge Y') };
+  const x = {
+    workPackageId: b.workPackageId,
+    workItemId: await ownerRow(fixture, 'Cycle bridge X'),
+  };
+  const y = {
+    workPackageId: a.workPackageId,
+    workItemId: await ownerRow(remoteOwner, 'Cycle bridge Y'),
+  };
   const node = (address: typeof a) => ({
     ...address,
     scope: 'node' as const,
-    stepId: workflowStep(address.projectId, 'Dev'),
+    stepId: workflowStep(address.workPackageId, 'Dev'),
   });
   for (const [owner, predecessor, successor] of [
     [fixture, b, x],
@@ -3072,7 +3410,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
   ] as const) {
     expect(
       await semantic(owner, (service) =>
-        service.addTypedDependency(owner.owner.projectId, fixture.principal.id, {
+        service.addTypedDependency(owner.owner.workPackageId, fixture.principal.id, {
           predecessor: node(predecessor),
           successor: node(successor),
           type: 'FS',
@@ -3081,7 +3419,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
     ).toMatchObject({ ok: true });
   }
   const added = await semantic(fixture, (service) =>
-    service.addTypedDependency(b.projectId, fixture.principal.id, {
+    service.addTypedDependency(b.workPackageId, fixture.principal.id, {
       predecessor: node(a),
       successor: node(b),
       type: 'FS',
@@ -3090,7 +3428,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
   if (!added.ok) throw new Error('fixture cycle-closing relationship refused');
   expect(
     await semantic(fixture, (service) =>
-      service.removeTypedDependency(b.projectId, fixture.principal.id, added.value),
+      service.removeTypedDependency(b.workPackageId, fixture.principal.id, added.value),
     ),
   ).toMatchObject({ ok: true });
   const guardedRevisions = () =>
@@ -3102,7 +3440,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
   const revisions = guardedRevisions();
   expect(
     await semantic(remoteOwner, (service) =>
-      service.addTypedDependency(a.projectId, fixture.principal.id, {
+      service.addTypedDependency(a.workPackageId, fixture.principal.id, {
         predecessor: node(x),
         successor: node(y),
         type: 'FS',
@@ -3118,7 +3456,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
     expect(patched).toMatchObject({ ok: true });
     if (!patched.ok) return patched;
     return service.undoWithin(
-      { projectId: b.projectId, userId: fixture.principal.id, personId: null },
+      { workPackageId: b.workPackageId, userId: fixture.principal.id, personId: null },
       fixture.expectedAccess,
     );
   });
@@ -3130,7 +3468,7 @@ test('undo reaches the actual remote cycle guard after only unguarded remote end
   expect(effects()).toEqual(before);
 });
 
-for (const defect of ['project-read', 'foreign-project', 'wrong-identity'] as const)
+for (const defect of ['work-package-read', 'foreign-work-package', 'wrong-identity'] as const)
   test(`external redo revalidates ${defect} delivery and rolls back an earlier successful action`, async () => {
     const { fixture } = await undoneExternalCreate();
     const before = effects();
@@ -3144,17 +3482,21 @@ for (const defect of ['project-read', 'foreign-project', 'wrong-identity'] as co
           expect(patched).toMatchObject({ ok: true });
           if (!patched.ok) return patched;
           return service.redoWithin(
-            { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+            {
+              workPackageId: fixture.owner.workPackageId,
+              userId: fixture.principal.id,
+              personId: null,
+            },
             fixture.expectedAccess,
           );
         },
         undefined,
-        defect === 'project-read' ? fixture.predecessor.projectId : undefined,
+        defect === 'work-package-read' ? fixture.predecessor.workPackageId : undefined,
         undefined,
         false,
         false,
         undefined,
-        defect === 'project-read' ? undefined : defect,
+        defect === 'work-package-read' ? undefined : defect,
       ),
     );
     if (defect === 'wrong-identity') {
@@ -3172,7 +3514,7 @@ test('mounted external redo checks revoked current membership before opening its
     .query('DELETE FROM organization_membership WHERE organization_id=? AND user_id=?')
     .run('org-a', fixture.principal.id);
   const before = effects();
-  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/redo`);
+  const response = await fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/redo`);
   expect(response.status).toBe(403);
   expect(await response.json()).toMatchObject({ error: 'not_a_member' });
   expect(effects()).toEqual(before);
@@ -3182,36 +3524,36 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
   test(`mounted ${command} models a delete-pending endpoint as conflict without effects`, async () => {
     const pushUrls: string[] = [];
     const fixture = await open(pushUrls);
-    const projectId = fixture.owner.projectId;
+    const workPackageId = fixture.owner.workPackageId;
     expect(
       (
-        await fixture.request(`/api/projects/${projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${workPackageId}/commands`, {
           commands: [{ kind: 'createWorkItem', name: 'Second local row' }],
         })
       ).status,
     ).toBe(200);
     const second = harness.sqlite
       .query<{ id: string }, [string, string]>(
-        'SELECT id FROM work_item WHERE project_id=? AND id<>?',
+        'SELECT id FROM work_item WHERE work_package_id=? AND id<>?',
       )
-      .get(projectId, fixture.owner.workItemId);
+      .get(workPackageId, fixture.owner.workItemId);
     if (second === null) throw new Error('second local endpoint missing');
     const input = {
-      predecessor: { projectId, workItemId: fixture.owner.workItemId, scope: 'whole' },
-      successor: { projectId, workItemId: second.id, scope: 'whole' },
+      predecessor: { workPackageId, workItemId: fixture.owner.workItemId, scope: 'whole' },
+      successor: { workPackageId, workItemId: second.id, scope: 'whole' },
       type: 'FS',
     };
     if (command === 'updateTypedDependency')
       expect(
         (
-          await fixture.request(`/api/projects/${projectId}/commands`, {
+          await fixture.request(`/api/work-packages/${workPackageId}/commands`, {
             commands: [{ kind: 'addTypedDependency', ...input }],
           })
         ).status,
       ).toBe(200);
     const dependency = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM typed_dependency WHERE project_id=?')
-      .get(projectId);
+      .query<{ id: string }, [string]>('SELECT id FROM typed_dependency WHERE work_package_id=?')
+      .get(workPackageId);
     let release = (): void => {
       throw new Error('writer was not held');
     };
@@ -3226,7 +3568,7 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
     });
     const held = harness.holdWriteTurn(until, markEntered);
     await entered;
-    const pending = fixture.request(`/api/projects/${projectId}/commands`, {
+    const pending = fixture.request(`/api/work-packages/${workPackageId}/commands`, {
       commands: [
         { kind: 'patchWorkItem', workItemId: second.id, patch: { name: 'Must roll back' } },
         {
@@ -3238,7 +3580,10 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
       ],
     });
     expect(
-      beginOptimizationDrain(openDrizzle(harness.databasePath()), projectId, { at: 2, by: 'ada' }),
+      beginOptimizationDrain(openDrizzle(harness.databasePath()), workPackageId, {
+        at: 2,
+        by: 'ada',
+      }),
     ).toBe(0);
     const before = effects();
     const pushedBefore = [...pushUrls];
@@ -3247,7 +3592,7 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
     const response = await pending;
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({
-      error: 'project_deleting',
+      error: 'work_package_deleting',
       at: 1,
       kind: command,
     });
@@ -3257,38 +3602,38 @@ for (const command of ['addTypedDependency', 'updateTypedDependency'] as const) 
 }
 
 for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
-  test(`mounted ${command} refuses implicit typed writes on a deleting project without effects`, async () => {
+  test(`mounted ${command} refuses implicit typed writes on a deleting work package without effects`, async () => {
     const pushUrls: string[] = [];
     const fixture = await open(pushUrls);
-    const projectId = fixture.owner.projectId;
+    const workPackageId = fixture.owner.workPackageId;
     expect(
       (
-        await fixture.request(`/api/projects/${projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${workPackageId}/commands`, {
           commands: [{ kind: 'createWorkItem', name: 'Local prerequisite' }],
         })
       ).status,
     ).toBe(200);
     const peer = harness.sqlite
       .query<{ id: string }, [string, string]>(
-        'SELECT id FROM work_item WHERE project_id=? AND id<>?',
+        'SELECT id FROM work_item WHERE work_package_id=? AND id<>?',
       )
-      .get(projectId, fixture.owner.workItemId);
+      .get(workPackageId, fixture.owner.workItemId);
     const step = harness.sqlite
       .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+        `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
       )
-      .get(projectId);
+      .get(workPackageId);
     if (peer === null || step === null) throw new Error('implicit-write fixture endpoints missing');
     expect(
       (
-        await fixture.request(`/api/projects/${projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${workPackageId}/commands`, {
           commands: [
             {
               kind: 'addTypedDependency',
               type: 'FS',
-              predecessor: { projectId, workItemId: peer.id, scope: 'whole' },
+              predecessor: { workPackageId, workItemId: peer.id, scope: 'whole' },
               successor: {
-                projectId,
+                workPackageId,
                 workItemId: fixture.owner.workItemId,
                 scope: 'node',
                 stepId: step.id,
@@ -3299,11 +3644,14 @@ for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
       ).status,
     ).toBe(200);
     expect(
-      beginOptimizationDrain(openDrizzle(harness.databasePath()), projectId, { at: 2, by: 'ada' }),
+      beginOptimizationDrain(openDrizzle(harness.databasePath()), workPackageId, {
+        at: 2,
+        by: 'ada',
+      }),
     ).toBe(0);
     const before = effects();
     const pushedBefore = [...pushUrls];
-    const response = await fixture.request(`/api/projects/${projectId}/commands`, {
+    const response = await fixture.request(`/api/work-packages/${workPackageId}/commands`, {
       commands: [
         { kind: 'patchWorkItem', workItemId: peer.id, patch: { name: 'Must roll back' } },
         command === 'createWorkItem'
@@ -3313,7 +3661,7 @@ for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
     });
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({
-      error: 'project_deleting',
+      error: 'work_package_deleting',
       at: 1,
       kind: command,
     });
@@ -3323,41 +3671,29 @@ for (const command of ['createWorkItem', 'duplicateWorkItem'] as const) {
 }
 
 for (const source of ['owner', 'third'] as const)
-  test(`mounted remote predecessor refuses a real ${source} project step with equal labels`, async () => {
+  test(`mounted remote predecessor refuses a real ${source} project-only step alongside shared Dev and QA definitions`, async () => {
     const fixture = await open();
-    if (source === 'third')
-      expect((await fixture.request('/api/projects', { name: 'Third' })).status).toBe(200);
-    const steps = harness.sqlite
-      .query<{ id: string; projectId: string }, []>(
-        'SELECT id, project_id AS projectId FROM step ORDER BY position',
-      )
-      .all();
-    const remote = steps.find((step) => step.projectId === fixture.predecessor.projectId);
-    const other = steps.find((step) =>
-      source === 'owner'
-        ? step.projectId === fixture.owner.projectId
-        : step.projectId !== fixture.owner.projectId &&
-          step.projectId !== fixture.predecessor.projectId,
-    );
-    if (remote === undefined || other === undefined) throw new Error('fixture steps missing');
-    harness.sqlite
-      .query("UPDATE step SET name='Equal design', code='design' WHERE id IN (?,?)")
-      .run(remote.id, other.id);
+    const sourceProjectId =
+      source === 'third' ? await fixture.createPackage('Third', true) : fixture.projectId;
+    const otherId = await defineProjectStep(fixture, sourceProjectId, 'design', 'Design', 30);
     const before = effects();
-    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-      commands: [
-        {
-          kind: 'patchWorkItem',
-          workItemId: fixture.owner.workItemId,
-          patch: { name: 'Must roll back' },
-        },
-        {
-          kind: 'addTypedDependency',
-          ...fixture.input,
-          predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: other.id },
-        },
-      ],
-    });
+    const response = await fixture.request(
+      `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+      {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.owner.workItemId,
+            patch: { name: 'Must roll back' },
+          },
+          {
+            kind: 'addTypedDependency',
+            ...fixture.input,
+            predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: otherId },
+          },
+        ],
+      },
+    );
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({
       error: 'not_found',
@@ -3367,21 +3703,21 @@ for (const source of ['owner', 'third'] as const)
     expect(effects()).toEqual(before);
   });
 
-for (const fault of ['step-identity', 'step-project'] as const)
+for (const fault of ['step-identity', 'step-work-package'] as const)
   test(`admitted add refuses ${fault} misdelivery before storage`, async () => {
     const fixture = await open();
     const step = harness.sqlite
       .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+        `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
       )
-      .get(fixture.predecessor.projectId);
+      .get(fixture.predecessor.workPackageId);
     if (step === null) throw new Error('remote step missing');
     const before = effects();
     expect(
       await semantic(
         fixture,
         (service) =>
-          service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+          service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, {
             ...fixture.input,
             predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
           }),
@@ -3402,21 +3738,21 @@ for (const operation of ['add', 'update'] as const)
   test(`second successor owner ${operation} refuses before protected facts and rolls back earlier local work`, async () => {
     const fixture = await open();
     const linked = await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
     );
     if (!linked.ok) throw new Error('fixture relationship refused');
     expect(
       (
-        await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+        await fixture.request(`/api/work-packages/${fixture.predecessor.workPackageId}/commands`, {
           commands: [{ kind: 'createWorkItem', name: 'Protected successor' }],
         })
       ).status,
     ).toBe(200);
     const protectedRow = harness.sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM work_item WHERE project_id=? AND name='Protected successor'",
+        "SELECT id FROM work_item WHERE work_package_id=? AND name='Protected successor'",
       )
-      .get(fixture.predecessor.projectId);
+      .get(fixture.predecessor.workPackageId);
     if (protectedRow === null) throw new Error('protected row missing');
     const input = {
       ...fixture.input,
@@ -3432,9 +3768,9 @@ for (const operation of ['add', 'update'] as const)
           });
           if (!patched.ok) throw new Error('prior patch refused');
           return operation === 'add'
-            ? service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input)
+            ? service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, input)
             : service.updateTypedDependency(
-                fixture.owner.projectId,
+                fixture.owner.workPackageId,
                 fixture.principal.id,
                 linked.value,
                 input,
@@ -3448,22 +3784,25 @@ for (const operation of ['add', 'update'] as const)
         undefined,
         undefined,
         undefined,
-        fixture.predecessor.projectId,
+        fixture.predecessor.workPackageId,
       ),
     ).toEqual({ ok: false, reason: 'not_found' });
     expect(effects()).toEqual(before);
-    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-      commands: [
-        {
-          kind: 'patchWorkItem',
-          workItemId: fixture.owner.workItemId,
-          patch: { name: 'Must roll back' },
-        },
-        operation === 'add'
-          ? { kind: 'addTypedDependency', ...input }
-          : { kind: 'updateTypedDependency', dependencyId: linked.value, ...input },
-      ],
-    });
+    const response = await fixture.request(
+      `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+      {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.owner.workItemId,
+            patch: { name: 'Must roll back' },
+          },
+          operation === 'add'
+            ? { kind: 'addTypedDependency', ...input }
+            : { kind: 'updateTypedDependency', dependencyId: linked.value, ...input },
+        ],
+      },
+    );
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({
       error: 'not_found',
@@ -3477,38 +3816,41 @@ test('mounted low priority prerequisite finishes before its high priority succes
   const fixture = await open();
   const step = harness.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+      `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position LIMIT 1`,
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (step === null) throw new Error('local step absent');
-  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [
-      { kind: 'createWorkItem', ref: 'prerequisite', name: 'Low priority prerequisite' },
-      { kind: 'patchWorkItem', workItemRef: 'prerequisite', patch: { priority: 100 } },
-      { kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { priority: 1 } },
-      {
-        kind: 'setEstimate',
-        workItemRef: 'prerequisite',
-        stepId: step.id,
-        days: { optimistic: 2, realistic: 2, pessimistic: 2 },
-      },
-      {
-        kind: 'setEstimate',
-        workItemId: fixture.owner.workItemId,
-        stepId: step.id,
-        days: { optimistic: 1, realistic: 1, pessimistic: 1 },
-      },
-      {
-        kind: 'addTypedDependency',
-        predecessor: { scope: 'whole', workItemRef: 'prerequisite' },
-        successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
-        type: 'FS',
-      },
-    ],
-  });
+  const response = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [
+        { kind: 'createWorkItem', ref: 'prerequisite', name: 'Low priority prerequisite' },
+        { kind: 'patchWorkItem', workItemRef: 'prerequisite', patch: { priority: 100 } },
+        { kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { priority: 1 } },
+        {
+          kind: 'setEstimate',
+          workItemRef: 'prerequisite',
+          stepId: step.id,
+          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+        },
+        {
+          kind: 'setEstimate',
+          workItemId: fixture.owner.workItemId,
+          stepId: step.id,
+          days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'whole', workItemRef: 'prerequisite' },
+          successor: { scope: 'whole', workItemId: fixture.owner.workItemId },
+          type: 'FS',
+        },
+      ],
+    },
+  );
   expect(response.status).toBe(200);
   const read = await fixture.request(
-    `/api/projects/${fixture.owner.projectId}/work-items`,
+    `/api/work-packages/${fixture.owner.workPackageId}/work-items`,
     undefined,
     'GET',
   );
@@ -3518,9 +3860,9 @@ test('mounted low priority prerequisite finishes before its high priority succes
   };
   const predecessor = harness.sqlite
     .query<{ id: string }, [string]>(
-      "SELECT id FROM work_item WHERE project_id=? AND name='Low priority prerequisite'",
+      "SELECT id FROM work_item WHERE work_package_id=? AND name='Low priority prerequisite'",
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (predecessor === null) throw new Error('local prerequisite absent');
   const prerequisite = view.slices.filter(
     (slice: { workItemId: string }) => slice.workItemId === predecessor.id,
@@ -3543,22 +3885,26 @@ test('mounted low priority prerequisite finishes before its high priority succes
 test('admitted redo refuses a misowned resulting relationship before storage', async () => {
   const fixture = await open();
   const linked = await semantic(fixture, (service) =>
-    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, fixture.input),
   );
   if (!linked.ok) throw new Error('fixture link refused');
   expect(
     await semantic(fixture, (service) =>
       service.undoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
   ).toMatchObject({ ok: true });
   const entry = harness.sqlite
     .query<{ id: string; payload: string }, [string]>(
-      'SELECT id,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT id,payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (entry === null) throw new Error('journal missing');
   const payload = JSON.parse(entry.payload) as { forward: CompensatingCommand };
   if (payload.forward.do !== 'add_typed_dependency') throw new Error('typed forward missing');
@@ -3566,7 +3912,7 @@ test('admitted redo refuses a misowned resulting relationship before storage', a
     ...payload.forward,
     dependency: {
       ...payload.forward.dependency,
-      projectId: fixture.predecessor.projectId,
+      workPackageId: fixture.predecessor.workPackageId,
       successor: { ...fixture.predecessor, scope: 'whole' as const },
     },
   };
@@ -3577,7 +3923,11 @@ test('admitted redo refuses a misowned resulting relationship before storage', a
   expect(
     await semantic(fixture, (service) =>
       service.redoWithin(
-        { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+        {
+          workPackageId: fixture.owner.workPackageId,
+          userId: fixture.principal.id,
+          personId: null,
+        },
         fixture.expectedAccess,
       ),
     ),
@@ -3611,26 +3961,24 @@ test('synthetic mounted external FS commits stable authority, history and connec
       .uow.run(() => Promise.resolve({ commit: false, value: undefined }));
     deliveredAfterRelease = true;
   });
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  restrictPredecessor(fixture.predecessor.workPackageId, fixture.principal.id);
   for (const endpoint of [fixture.predecessor, fixture.owner]) {
     harness.sqlite
       .query(
-        "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+        "UPDATE work_package SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
       )
-      .run(endpoint.projectId);
+      .run(endpoint.workPackageId);
     harness.sqlite
       .query("UPDATE work_item SET readiness='ready' WHERE id=?")
       .run(endpoint.workItemId);
     const steps = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
-      .all(endpoint.projectId);
+      .query<{ id: string }, [string]>(
+        `SELECT id FROM ${projectSteps} WHERE work_package_id=? ORDER BY position`,
+      )
+      .all(endpoint.workPackageId);
     for (const step of steps)
       harness.sqlite
         .query(
@@ -3640,7 +3988,7 @@ test('synthetic mounted external FS commits stable authority, history and connec
   }
   const before = effects();
   const forbidden = await fixture.request(
-    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
     {
       commands: [
         {
@@ -3653,11 +4001,21 @@ test('synthetic mounted external FS commits stable authority, history and connec
   );
   expect(forbidden.status).toBe(403);
   expect(effects()).toEqual(before);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.workPackageId,
+  );
   pushes.length = 0;
   inspectCommit = true;
-  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [{ kind: 'addTypedDependency', ...fixture.input }],
-  });
+  const response = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [{ kind: 'addTypedDependency', ...fixture.input }],
+    },
+  );
   expect(response.status).toBe(200);
   const relationship = harness.sqlite
     .query<{ id: string }, []>('SELECT id FROM external_dependency')
@@ -3668,9 +4026,9 @@ test('synthetic mounted external FS commits stable authority, history and connec
   expect(deliveredAfterRelease).toBe(true);
   const journal = harness.sqlite
     .query<{ preconditions: string }, [string]>(
-      'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      'SELECT preconditions FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
     )
-    .get(fixture.owner.projectId);
+    .get(fixture.owner.workPackageId);
   if (journal === null) throw new Error('mounted journal missing');
   expect(JSON.parse(journal.preconditions)).toMatchObject({
     externalRevisions: {
@@ -3679,7 +4037,7 @@ test('synthetic mounted external FS commits stable authority, history and connec
     },
   });
   const tree = await fixture.request(
-    `/api/projects/${fixture.owner.projectId}/work-items`,
+    `/api/work-packages/${fixture.owner.workPackageId}/work-items`,
     undefined,
     'GET',
   );
@@ -3706,7 +4064,7 @@ test('synthetic mounted external FS commits stable authority, history and connec
     redoable: false,
   });
   const remoteTree = await fixture.request(
-    `/api/projects/${fixture.predecessor.projectId}/work-items`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/work-items`,
     undefined,
     'GET',
   );
@@ -3720,7 +4078,7 @@ test('synthetic mounted external FS commits stable authority, history and connec
 
 test('synthetic mounted local external transitions preserve identity through update remove undo redo', async () => {
   const fixture = await open(undefined, true);
-  const route = `/api/projects/${fixture.owner.projectId}`;
+  const route = `/api/work-packages/${fixture.owner.workPackageId}`;
   const created = await fixture.request(`${route}/commands`, {
     commands: [
       { kind: 'createWorkItem', name: 'Local predecessor', ref: 'local' },
@@ -3799,7 +4157,7 @@ test('synthetic mounted local external transitions preserve identity through upd
 test('synthetic mounted refusal rolls back external writes before fanout and stale history retains the edge', async () => {
   const pushes: string[] = [];
   const fixture = await open(pushes, true);
-  const route = `/api/projects/${fixture.owner.projectId}`;
+  const route = `/api/work-packages/${fixture.owner.workPackageId}`;
   const before = effects();
   pushes.length = 0;
   const rejected = await fixture.request(`${route}/commands`, {
@@ -3844,39 +4202,49 @@ test('synthetic mounted external authoring conceals foreign organization endpoin
   const foreign = await foreignEndpoint();
   const before = effects();
   pushes.length = 0;
-  const refused = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [
-      { kind: 'addTypedDependency', ...fixture.input, predecessor: { ...foreign, scope: 'whole' } },
-    ],
-  });
+  const refused = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'addTypedDependency',
+          ...fixture.input,
+          predecessor: { ...foreign, scope: 'whole' },
+        },
+      ],
+    },
+  );
   expect(refused.status).toBe(404);
-  expect(await refused.json()).toEqual({ error: 'not_found', at: 0, kind: 'addTypedDependency' });
+  expect(await refused.json()).toEqual({ error: 'not_found' });
   expect(effects()).toEqual(before);
   expect(pushes).toEqual([]);
 });
 
 async function nodeAuthoringFixture(synthetic?: true) {
   const fixture = await open(undefined, synthetic, undefined, synthetic === undefined);
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  restrictPredecessor(fixture.predecessor.workPackageId, fixture.principal.id);
   for (const endpoint of [fixture.predecessor, fixture.owner]) {
     harness.sqlite
       .query(
-        "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+        "UPDATE work_package SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
       )
-      .run(endpoint.projectId);
+      .run(endpoint.workPackageId);
     harness.sqlite
       .query("UPDATE work_item SET readiness='ready' WHERE id=?")
       .run(endpoint.workItemId);
   }
-  const predecessorStep = workflowStep(fixture.predecessor.projectId, 'Dev');
-  const successorStep = workflowStep(fixture.owner.projectId, 'Dev');
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.workPackageId,
+  );
+  const predecessorStep = workflowStep(fixture.predecessor.workPackageId, 'Dev');
+  const successorStep = workflowStep(fixture.owner.workPackageId, 'Dev');
   harness.sqlite
     .query(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,2,2,2)',
@@ -3897,7 +4265,7 @@ async function nodeAuthoringFixture(synthetic?: true) {
       type: 'FS',
       predecessor: encoded
         ? {
-            projectId: predecessor.projectId,
+            workPackageId: predecessor.workPackageId,
             scope: 'node',
             stepNodeId: `sn1.${predecessor.workItemId}.${predecessorStep}`,
           }
@@ -3908,15 +4276,19 @@ async function nodeAuthoringFixture(synthetic?: true) {
   return { ...fixture, predecessorStep, successorStep, node: predecessor, commands };
 }
 
-// Proof: forcing bindTypedEndpoint's project to the owner made split-node admission return 404 instead of 200.
+// Proof: forcing bindTypedEndpoint's work package to the owner made split-node admission return 404 instead of 200.
 // Proof: passing the dotted workItemRef through as its ID made split-node admission return 404 instead of 200.
 for (const encoded of [false, true])
   test(`node authoring ${encoded ? 'encoded' : 'split'} remote endpoint binds staged dotted alias locally and schedules FS`, async () => {
     const fixture = await nodeAuthoringFixture(true);
-    const route = `/api/projects/${fixture.owner.projectId}`;
+    const route = `/api/work-packages/${fixture.owner.workPackageId}`;
+    harness.sqlite.run(
+      "DELETE FROM access_grant WHERE subject_id=? AND scope_kind='work_package' AND scope_id=?",
+      [fixture.principal.id, fixture.predecessor.workPackageId],
+    );
     const before = effects();
     const forbidden = await fixture.request(
-      `/api/projects/${fixture.predecessor.projectId}/commands`,
+      `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
       {
         commands: [
           {
@@ -3929,29 +4301,36 @@ for (const encoded of [false, true])
     );
     expect(forbidden.status).toBe(403);
     expect(effects()).toEqual(before);
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.predecessor.workPackageId,
+    );
     const response = await fixture.request(`${route}/commands`, {
       commands: fixture.commands(encoded),
     });
     expect(response.status).toBe(200);
     const successor = harness.sqlite
-      .query<{ id: string; projectId: string; revision: number }, []>(
-        "SELECT id,project_id AS projectId,revision FROM work_item WHERE name='Staged successor'",
+      .query<{ id: string; workPackageId: string; revision: number }, []>(
+        "SELECT id,work_package_id AS workPackageId,revision FROM work_item WHERE name='Staged successor'",
       )
       .get();
     if (successor === null) throw new Error('staged node successor missing');
-    expect(successor).toMatchObject({ projectId: fixture.owner.projectId, revision: 3 });
+    expect(successor).toMatchObject({ workPackageId: fixture.owner.workPackageId, revision: 3 });
     const relationships = harness.sqlite
       .query(
-        'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency',
+        'SELECT predecessor_work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_package_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency',
       )
       .all();
     expect(relationships).toEqual([
       {
-        predecessor_project_id: fixture.predecessor.projectId,
+        predecessor_work_package_id: fixture.predecessor.workPackageId,
         predecessor_work_item_id: fixture.predecessor.workItemId,
         predecessor_scope: 'node',
         predecessor_step_id: fixture.predecessorStep,
-        successor_project_id: fixture.owner.projectId,
+        successor_work_package_id: fixture.owner.workPackageId,
         successor_work_item_id: successor.id,
         successor_scope: 'node',
         successor_step_id: fixture.successorStep,
@@ -3966,9 +4345,9 @@ for (const encoded of [false, true])
     ).toEqual({ revision: 1 });
     const journal = harness.sqlite
       .query<{ kind: string; preconditions: string; payload: string }, [string]>(
-        'SELECT kind,preconditions,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+        'SELECT kind,preconditions,payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
       )
-      .get(fixture.owner.projectId);
+      .get(fixture.owner.workPackageId);
     if (journal === null) throw new Error('staged node journal missing');
     expect(JSON.parse(journal.preconditions)).toMatchObject({
       externalRevisions: {
@@ -3982,10 +4361,10 @@ for (const encoded of [false, true])
     expect(payload.forward.steps.find((step) => step.do === 'add_typed_dependency')).toMatchObject({
       do: 'add_typed_dependency',
       dependency: {
-        projectId: fixture.owner.projectId,
+        workPackageId: fixture.owner.workPackageId,
         predecessor: fixture.node,
         successor: {
-          projectId: fixture.owner.projectId,
+          workPackageId: fixture.owner.workPackageId,
           workItemId: successor.id,
           scope: 'node',
           stepId: fixture.successorStep,
@@ -4011,7 +4390,7 @@ for (const encoded of [false, true])
           predecessor: { endpoint: fixture.node, revision: 1 },
           successor: {
             endpoint: {
-              projectId: fixture.owner.projectId,
+              workPackageId: fixture.owner.workPackageId,
               workItemId: successor.id,
               scope: 'node',
               stepId: fixture.successorStep,
@@ -4028,14 +4407,17 @@ for (const dormant of [false, true])
     const fixture = await nodeAuthoringFixture(dormant ? undefined : true);
     const before = effects();
     const commands = fixture.commands(false);
-    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-      commands: dormant
-        ? commands
-        : [
-            ...commands,
-            { kind: 'patchWorkItem', workItemId: 'absent-node-row', patch: { name: 'Never' } },
-          ],
-    });
+    const response = await fixture.request(
+      `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+      {
+        commands: dormant
+          ? commands
+          : [
+              ...commands,
+              { kind: 'patchWorkItem', workItemId: 'absent-node-row', patch: { name: 'Never' } },
+            ],
+      },
+    );
     expect(response.status).toBe(dormant ? 409 : 404);
     expect(await response.json()).toEqual({
       error: dormant ? 'external_dependencies_inactive' : 'not_found',
@@ -4047,36 +4429,43 @@ for (const dormant of [false, true])
 
 // Proof: removing typedEvidence's node-parent or descendant-leaf guard independently made its mounted case return 500 instead of 409.
 // The downstream real graph still refused; neither mutation proves an unsafe commit.
-for (const shape of ['node-parent', 'descendant-leaf', 'wrong-project-step'] as const)
+for (const shape of ['node-parent', 'descendant-leaf', 'wrong-work-package-step'] as const)
   test(`node authoring mounted and direct parity refuses ${shape} with full rollback`, async () => {
     const fixture = await nodeAuthoringFixture(true);
     if (shape === 'node-parent') {
       // A real child makes the remote endpoint a parent without granting its reader edit access.
       harness.sqlite
-        .query('UPDATE project SET restricted=0 WHERE id=?')
-        .run(fixture.predecessor.projectId);
+        .query('UPDATE work_package SET restricted=0 WHERE id=?')
+        .run(fixture.predecessor.workPackageId);
       expect(
         (
-          await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
-            commands: [
-              {
-                kind: 'createWorkItem',
-                parentId: fixture.predecessor.workItemId,
-                name: 'Remote child',
-              },
-            ],
-          })
+          await fixture.request(
+            `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
+            {
+              commands: [
+                {
+                  kind: 'createWorkItem',
+                  parentId: fixture.predecessor.workItemId,
+                  name: 'Remote child',
+                },
+              ],
+            },
+          )
         ).status,
       ).toBe(200);
       harness.sqlite
-        .query('UPDATE project SET restricted=1 WHERE id=?')
-        .run(fixture.predecessor.projectId);
+        .query('UPDATE work_package SET restricted=1 WHERE id=?')
+        .run(fixture.predecessor.workPackageId);
     }
+    const wrongStep =
+      shape === 'wrong-work-package-step'
+        ? await defineProjectStep(fixture, fixture.projectId, 'owner-only', 'Owner only', 30)
+        : fixture.successorStep;
     const predecessor =
       shape === 'descendant-leaf'
         ? { ...fixture.node, scope: 'descendant-step' as const }
-        : shape === 'wrong-project-step'
-          ? { ...fixture.node, stepId: fixture.successorStep }
+        : shape === 'wrong-work-package-step'
+          ? { ...fixture.node, stepId: wrongStep }
           : fixture.node;
     const input = {
       predecessor,
@@ -4093,10 +4482,13 @@ for (const shape of ['node-parent', 'descendant-leaf', 'wrong-project-step'] as 
     const commands = fixture
       .commands(false)
       .map((command, index) => (index === 3 ? { ...command, predecessor } : command));
-    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-      commands,
-    });
-    expect(response.status).toBe(shape === 'wrong-project-step' ? 404 : 409);
+    const response = await fixture.request(
+      `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+      {
+        commands,
+      },
+    );
+    expect(response.status).toBe(shape === 'wrong-work-package-step' ? 404 : 409);
     expect(await response.json()).toEqual({ error: reason, at: 3, kind: 'addTypedDependency' });
     expect(effects()).toEqual(before);
     expect(
@@ -4105,7 +4497,7 @@ for (const shape of ['node-parent', 'descendant-leaf', 'wrong-project-step'] as 
           name: 'Must roll back',
         });
         if (!patched.ok) throw new Error('prior node patch refused');
-        return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input);
+        return service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, input);
       }),
     ).toEqual({ ok: false, reason });
     expect(effects()).toEqual(before);
@@ -4120,7 +4512,7 @@ test('node authoring direct semantic service accepts the same stable remote node
   };
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input),
+      service.addTypedDependency(fixture.owner.workPackageId, fixture.principal.id, input),
     ),
   ).toMatchObject({ ok: true });
   expect(
@@ -4143,7 +4535,7 @@ test('node authoring direct semantic service accepts the same stable remote node
 test('mounted production commands reread writer authority after dormant refusal', async () => {
   const fixture = await open(undefined, undefined, undefined, true);
   const command = () =>
-    fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+    fixture.request(`/api/work-packages/${fixture.owner.workPackageId}/commands`, {
       commands: [
         {
           kind: 'patchWorkItem',
@@ -4154,7 +4546,7 @@ test('mounted production commands reread writer authority after dormant refusal'
       ],
     });
   expect((await command()).status).toBe(409);
-  harness.sqlite.run('DELETE FROM cross_project_dependency_activation');
+  harness.sqlite.run('DELETE FROM cross_work_package_dependency_activation');
   const before = effects();
   expect((await command()).status).toBe(500);
   expect(effects()).toEqual(before);
@@ -4169,12 +4561,19 @@ test('mounted production commands refuse enabled unsupported runtime and retain 
     INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   );
   const before = effects();
-  const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
-    commands: [
-      { kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { name: 'Rollback' } },
-      { kind: 'addTypedDependency', ...fixture.input },
-    ],
-  });
+  const response = await fixture.request(
+    `/api/work-packages/${fixture.owner.workPackageId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'patchWorkItem',
+          workItemId: fixture.owner.workItemId,
+          patch: { name: 'Rollback' },
+        },
+        { kind: 'addTypedDependency', ...fixture.input },
+      ],
+    },
+  );
   expect(response.status).toBe(500);
   expect(effects()).toEqual(before);
 });
@@ -4188,31 +4587,36 @@ test('mounted production imports resolve fresh writer authority before external 
     INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   );
   const document = planDocumentFixture();
-  document.document.version = 12;
-  document.typedDependencies = [
-    {
-      id: 'external-import',
-      type: 'FS',
-      predecessor: {
-        kind: 'external',
-        ...fixture.input.predecessor,
-        display: {
-          projectName: 'Predecessor',
-          abbreviation: 'PRE',
-          workItemName: 'Remote row',
-          address: 'PRE.1',
-        },
-      },
-      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
-    },
-  ];
   const send = () =>
-    fixture.request('/api/projects/import', {
-      ...document,
-      workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
-        ...row,
-        attempts: {},
-      })),
+    fixture.request('/api/work-packages/import', {
+      projectId: fixture.projectId,
+      document: {
+        ...document,
+        document: { ...document.document, version: 12 },
+        workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
+          ...row,
+          attempts: {},
+        })),
+        typedDependencies: [
+          {
+            id: 'external-import',
+            type: 'FS',
+            predecessor: {
+              kind: 'external',
+              projectId: fixture.predecessor.workPackageId,
+              workItemId: fixture.predecessor.workItemId,
+              scope: 'whole',
+              display: {
+                projectName: 'Predecessor',
+                abbreviation: 'PRE',
+                workItemName: 'Remote row',
+                address: 'PRE.1',
+              },
+            },
+            successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+          },
+        ],
+      },
     });
   const before = effects();
   const dormant = await send();
@@ -4224,7 +4628,7 @@ test('mounted production imports resolve fresh writer authority before external 
   const enabled = effects();
   expect((await send()).status).toBe(500);
   expect(effects()).toEqual(enabled);
-  harness.sqlite.run('DELETE FROM cross_project_dependency_activation');
+  harness.sqlite.run('DELETE FROM cross_work_package_dependency_activation');
   const malformed = effects();
   expect((await send()).status).toBe(500);
   expect(effects()).toEqual(malformed);

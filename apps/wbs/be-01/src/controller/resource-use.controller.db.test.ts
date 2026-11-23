@@ -1,13 +1,26 @@
+import { cpSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
 import { resourceRuntimeAdmission, resourceRuntimeEvent } from '@wbs/contracts';
+import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { openDatabase } from '@wbs/store-sqlite';
+import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { runMigrations } from '../repository/migrate';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
+let workPackageId: string;
 let projectId: string;
 let leaf: string;
 let resourceId: string;
@@ -27,25 +40,44 @@ beforeEach(async () => {
   for (const username of ['owner', 'viewer', 'other']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'owner', 'super_admin');
-  h.member('org-a', 'viewer', 'viewer');
-  h.member('org-b', 'other', 'admin');
+  h.member('org-a', 'owner', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'viewer', 'viewer', ['org-viewer']);
+  h.member('org-b', 'other', 'admin', ['org-admin']);
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.bind('other', 'org-b');
   h.activate();
   addAgentPerson(h.sqlite, 'agent-a', 'org-a', h.userId('owner'));
   addAgentPerson(h.sqlite, 'agent-b', 'org-b', h.userId('other'));
-  key = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'agent-a',
-      issuedBy: h.userId('owner'),
-    })
-  ).key;
-  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Tracked plan' });
-  projectId = (project.body as { project: { id: string } }).project.id;
-  const created = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+  const worker = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'agent-a',
+    issuedBy: h.userId('owner'),
+  });
+  key = worker.key;
+  h.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('worker-write','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
+    [worker.id],
+  );
+  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Resource use parent' });
+  if (project.status !== 201)
+    throw new Error('resource use project refused: ' + JSON.stringify(project));
+  const parent = h.sqlite
+    .query<{ id: string }, []>(
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Resource use parent'",
+    )
+    .get();
+  if (parent === null) throw new Error('resource use project is absent');
+  projectId = parent.id;
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, {
+      by: h.userId('owner'),
+      at: 1,
+    });
+    return { commit: true, value: undefined };
+  });
+  workPackageId = await createPackage('Tracked plan');
+  const created = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   leaf = (created.body as { results: { id: string }[] }).results[0].id;
@@ -55,9 +87,15 @@ beforeEach(async () => {
     ],
   });
   resourceId = (resource.body as { results: { id: string }[] }).results[0].id;
-  path = `/api/projects/${projectId}/resource-uses`;
+  path = `/api/work-packages/${workPackageId}/resource-uses`;
 });
 afterEach(async () => h.closeComposed());
+async function createPackage(name: string): Promise<string> {
+  const answer = await h.call('owner', 'POST', '/api/work-packages', { name, projectId });
+  if (answer.status !== 200)
+    throw new Error('resource use package refused: ' + JSON.stringify(answer));
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+}
 function draft(requestId = crypto.randomUUID()) {
   return {
     requestId,
@@ -155,7 +193,7 @@ it('validates retention owner, reason and deadline', async () => {
       .body,
   ).toMatchObject({ use: { state: 'retained', retention: { ownerPersonId: 'agent-a' } } });
 });
-it('guards project reads and writes, viewer writes, machine attribution and foreign references', async () => {
+it('guards work package reads and writes, viewer writes, machine attribution and foreign references', async () => {
   const use = await registered();
   for (const suffix of ['', `/${use.id}/history`])
     expect((await h.call('other', 'GET', path + suffix)).status).toBe(404);
@@ -184,7 +222,7 @@ it('guards project reads and writes, viewer writes, machine attribution and fore
   expect((await callForwarded(h, key, 'POST', path, draft())).status).toBe(201);
 });
 async function commands(commands: unknown[]) {
-  return h.call('owner', 'POST', `/api/projects/${projectId}/commands`, { commands });
+  return h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 function states() {
   return h.sqlite
@@ -193,7 +231,9 @@ function states() {
 }
 async function steps() {
   return (
-    (await h.call('owner', 'GET', `/api/projects/${projectId}`)).body as { steps: { id: string }[] }
+    (await h.call('owner', 'GET', `/api/work-packages/${workPackageId}`)).body as {
+      steps: { id: string }[];
+    }
   ).steps.map((each) => each.id);
 }
 it('signals only the last matching claim release and leaves other runs and retained uses alone', async () => {
@@ -243,7 +283,7 @@ it('signals lease expiry through the composed sweep without reporting release', 
   const [dev] = await steps();
   expect(
     (
-      await callForwarded(h, key, 'POST', `/api/projects/${projectId}/commands`, {
+      await callForwarded(h, key, 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [
           {
             kind: 'claimWorkItem',
@@ -307,11 +347,10 @@ it('signals exact ended attempts atomically and keeps outcome independent of cle
 it('keeps deleted planning snapshots and limits orphan access to original organization admins', async () => {
   const use = await registered();
   h.sqlite.run('DELETE FROM work_item WHERE id=?', [leaf]);
-  h.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
+  h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
+  h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
-    uses: [{ projectName: 'Tracked plan', workItemName: 'Leaf', state: 'active' }],
+    uses: [{ workPackageName: 'Tracked plan', workItemName: 'Leaf', state: 'active' }],
   });
   expect((await h.call('viewer', 'GET', path)).status).toBe(404);
   expect((await h.call('other', 'GET', `${path}/${use.id}/history`)).status).toBe(404);
@@ -319,13 +358,15 @@ it('keeps deleted planning snapshots and limits orphan access to original organi
   expect((await callForwarded(h, key, 'GET', path)).status).toBe(404);
 });
 it('tracking writes leave scheduling and occupancy unchanged', async () => {
-  const before = await h.optimizationHash(projectId);
-  const claimsBefore = await h.call('owner', 'GET', `/api/projects/${projectId}/claims`);
+  const before = await h.optimizationHash(workPackageId);
+  const claimsBefore = await h.call('owner', 'GET', `/api/work-packages/${workPackageId}/claims`);
   const use = await registered();
   await event(use.id, 'cleanup_requested', 1);
   await event(use.id, 'release_reported', 2, { evidence: 'reported:1' });
-  expect(await h.optimizationHash(projectId)).toBe(before);
-  expect((await h.call('owner', 'GET', `/api/projects/${projectId}/claims`)).body).toMatchObject({
+  expect(await h.optimizationHash(workPackageId)).toBe(before);
+  expect(
+    (await h.call('owner', 'GET', `/api/work-packages/${workPackageId}/claims`)).body,
+  ).toMatchObject({
     claims: (claimsBefore.body as { claims: unknown[] }).claims,
   });
 });
@@ -419,6 +460,58 @@ it('preserves immutable history and refuses destructive rollback once reports ex
   expect(() => h.sqlite.run('DELETE FROM resource_use_event WHERE use_id=?', [use.id])).toThrow(
     'immutable',
   );
+  const readInstallation = () => ({
+    schema: h.sqlite
+      .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
+      .all(),
+    ledger: h.sqlite
+      .query<{ name: string }, []>('SELECT * FROM __drizzle_migrations ORDER BY id')
+      .all(),
+    rows: Object.fromEntries(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+        )
+        .all()
+        .map((table) => [
+          table.name,
+          h.sqlite.query('SELECT * FROM "' + table.name.replaceAll('"', '""') + '"').all(),
+        ]),
+    ),
+  });
+  const before = readInstallation();
+  const rollbackPath = join(dirname(h.databasePath()), 'resource-use-rollback-copy.db');
+  h.sqlite.run('VACUUM INTO ?', [rollbackPath]);
+  expect(() =>
+    rollbackTo(
+      rollbackPath,
+      new URL('../../drizzle', import.meta.url).pathname,
+      '20261023170000_add_work_item_budget',
+    ),
+  ).toThrow('step catalogue rollback requires migration-origin definition');
+  const rolled = openDatabase(rollbackPath);
+  try {
+    const reversed = new Set([
+      '20261118180000_add_resource_use_locations',
+      '20261118210000_add_step_retirements',
+    ]);
+    // The two later migrations reverse before the catalogue refuses its own down.
+    expect(rolled.query('SELECT * FROM __drizzle_migrations ORDER BY id').all()).toEqual(
+      before.ledger.filter(({ name }) => !reversed.has(name)),
+    );
+    expect(rolled.query('SELECT * FROM resource_use WHERE id=?').get(use.id)).toMatchObject({
+      id: use.id,
+      work_package_id: workPackageId,
+      work_item_id: leaf,
+      state: 'active',
+    });
+    expect(rolled.query('SELECT * FROM resource_use_event ORDER BY rowid').all()).toEqual(
+      before.rows['resource_use_event'],
+    );
+  } finally {
+    rolled.close();
+  }
+  expect(readInstallation()).toEqual(before);
   const down = await Bun.file(
     new URL('../../drizzle/20261025120000_add_resource_use/down.sql', import.meta.url),
   ).text();
@@ -427,22 +520,66 @@ it('preserves immutable history and refuses destructive rollback once reports ex
       for (const statement of down.split('--> statement-breakpoint').filter((each) => each.trim()))
         h.sqlite.run(statement);
     })();
-  }).toThrow();
+  }).toThrow('CHECK constraint failed');
+  expect(readInstallation()).toEqual(before);
+  expect(
+    h.sqlite.query("SELECT name FROM sqlite_master WHERE name='resource_use_rollback_guard'").all(),
+  ).toEqual([]);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({ uses: [{ id: use.id }] });
 });
-it('rolls an empty migration back and forward and keeps persisted reports across a reopened reader', async () => {
-  const folder = new URL('../../drizzle/20261025120000_add_resource_use/', import.meta.url);
-  const down = await Bun.file(new URL('down.sql', folder)).text();
-  h.sqlite.transaction(() => {
-    for (const statement of down.split('--> statement-breakpoint').filter((each) => each.trim()))
-      h.sqlite.run(statement);
-  })();
-  expect(() => h.sqlite.query('SELECT * FROM resource_use').all()).toThrow();
-  const forward = await Bun.file(new URL('migration.sql', folder)).text();
-  h.sqlite.transaction(() => {
-    for (const statement of forward.split('--> statement-breakpoint').filter((each) => each.trim()))
-      h.sqlite.run(statement);
-  })();
+it('runs immutable resource-use down and reinstall only on a real historical native prefix', () => {
+  const migration = '20261025120000_add_resource_use';
+  const currentMigrations = new URL('../../drizzle', import.meta.url).pathname;
+  const historicalMigrations = join(dirname(h.databasePath()), 'resource-use-prefix');
+  const historicalPath = join(dirname(h.databasePath()), 'resource-use-history.db');
+  const prefix = readdirSync(currentMigrations)
+    .filter((name) => name <= migration)
+    .sort();
+  const previous = prefix.at(-2);
+  if (previous === undefined || prefix.at(-1) !== migration)
+    throw new Error('historical resource migration prefix missing');
+  for (const name of prefix)
+    cpSync(join(currentMigrations, name), join(historicalMigrations, name), { recursive: true });
+  runMigrations(historicalPath, historicalMigrations);
+  const observe = () => {
+    const native = openDatabase(historicalPath);
+    try {
+      return {
+        identities: native.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
+        schema: native
+          .query(
+            "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE tbl_name IN ('resource_use','resource_use_event') ORDER BY type,name",
+          )
+          .all(),
+        columns: native
+          .query<{ name: string }, []>('PRAGMA table_info(resource_use)')
+          .all()
+          .map((column) => column.name),
+        reports: native.query('SELECT * FROM resource_use').all(),
+      };
+    } finally {
+      native.close();
+    }
+  };
+  const before = observe();
+  expect(before.columns).toContain('project_id');
+  expect(before.columns).not.toContain('work_package_id');
+  expect(before.reports).toEqual([]);
+  expect(rollbackTo(historicalPath, historicalMigrations, previous)).toEqual([migration]);
+  const absent = openDatabase(historicalPath);
+  try {
+    expect(
+      absent
+        .query("SELECT name FROM sqlite_master WHERE name IN ('resource_use','resource_use_event')")
+        .all(),
+    ).toEqual([]);
+  } finally {
+    absent.close();
+  }
+  runMigrations(historicalPath, historicalMigrations);
+  expect(observe()).toEqual(before);
+});
+it('keeps current resource reports across a reopened reader without historical schema reconstruction', async () => {
   const use = await registered();
   const reopened = openDatabase(h.databasePath());
   try {
@@ -491,6 +628,14 @@ async function runtimeSetup() {
     issuedBy: h.userId('owner'),
     name: 'runtime-key',
   });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    issued.id,
+    'package-contributor',
+    'work_package',
+    workPackageId,
+  );
   const authorityId = 'dash-local';
   const binding = { providerId, credentialId: issued.id, epoch: 'epoch-one' };
   expect(
@@ -509,7 +654,7 @@ async function runtimeSetup() {
     observedAt: Date.now(),
     reason: 'Created managed checkout',
     use: {
-      projectId,
+      workPackageId,
       resourceId,
       workItemId: leaf,
       agentRun: 'run-a',
@@ -780,7 +925,7 @@ it('revoking the worker queues runtime cleanup while its separate authority stay
   const [dev] = await steps();
   expect(
     (
-      await callForwarded(h, key, 'POST', `/api/projects/${projectId}/commands`, {
+      await callForwarded(h, key, 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [
           {
             kind: 'claimWorkItem',
@@ -953,24 +1098,27 @@ it('refuses another in-scope person as the machine report owner', async () => {
     ).status,
   ).toBe(403);
 });
+async function currentRuntimeActor(r: Awaited<ReturnType<typeof runtimeSetup>>) {
+  const principal = await h.authenticatedMachinePrincipal(r.issued.key);
+  return {
+    ...resourceUseActorOf(principal, {
+      kind: 'scoped',
+      scope: {
+        cap: CONTRIBUTOR_CAP,
+        organizationId: 'org-a',
+        userId: principal.id,
+
+        delegated: true,
+      },
+      principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
+    }),
+    credentialId: r.issued.id,
+  };
+}
 it('rechecks a runtime grant after upstream credential admission', async () => {
   const r = await runtimeSetup();
   const authority = h.resourceRuntime();
-  const actor = {
-    id: h.userId('owner'),
-    personId: 'runtime-controller',
-    credentialId: r.issued.id,
-    fingerprint: 'verified-before-revocation',
-    access: {
-      kind: 'scoped' as const,
-      scope: {
-        organizationId: 'org-a',
-        userId: h.userId('owner'),
-        role: 'super_admin' as const,
-        delegated: true as const,
-      },
-    },
-  };
+  const actor = await currentRuntimeActor(r);
   h.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [r.issued.id]);
   expect(await authority.requests(r.authorityId, actor, 0, 50)).toEqual({
     ok: false,
@@ -1093,21 +1241,7 @@ it.each(['unbound', 'rebound'] as const)(
     expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
       200,
     );
-    const actor = {
-      id: h.userId('owner'),
-      personId: 'runtime-controller',
-      credentialId: r.issued.id,
-      fingerprint: 'previously-admitted',
-      access: {
-        kind: 'scoped' as const,
-        scope: {
-          organizationId: 'org-a',
-          userId: h.userId('owner'),
-          role: 'super_admin' as const,
-          delegated: true as const,
-        },
-      },
-    };
+    const actor = await currentRuntimeActor(r);
     const release = Promise.withResolvers<undefined>();
     const entered = Promise.withResolvers<undefined>();
     const held = h.holdWriteTurn(release.promise, () => {
@@ -1336,17 +1470,16 @@ it('admission refuses foreign or missing attribution and changed replay while la
   expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).status).toBe(401);
 });
 
-it('admission replay survives project deletion with original organization authority and immutable history', async () => {
+it('admission replay survives work package deletion with original organization authority and immutable history', async () => {
   const r = await runtimeSetup();
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
   const admission = admissionOf(r.runtimeEvent);
   const accepted = await callForwarded(h, r.issued.key, 'PUT', endpoint, admission);
   expect(accepted.status).toBe(200);
   expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
-  // Project deletion has no public route in this increment; mirror the existing orphan-history fixture.
-  h.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
-  h.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
+  // Work package deletion has no public route in this increment; mirror the existing orphan-history fixture.
+  h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
+  h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect(await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
   expect(
     (
@@ -1392,25 +1525,29 @@ it('resource deletion before admission refuses without sequence allocation and t
   });
 });
 
-it('admission identities cannot reserve the same authority event for two different projects', async () => {
+it('admission identities cannot reserve the same authority event for two different work packages', async () => {
   const r = await runtimeSetup();
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
   expect(
     (await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
   ).toBe(200);
-  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Second project' });
-  const secondProject = (project.body as { project: { id: string } }).project.id;
-  const created = await h.call('owner', 'POST', `/api/projects/${secondProject}/commands`, {
-    commands: [{ kind: 'createWorkItem', parentId: null, name: 'Second leaf' }],
-  });
+  const secondWorkPackage = await createPackage('Second work package');
+  const created = await h.call(
+    'owner',
+    'POST',
+    `/api/work-packages/${secondWorkPackage}/commands`,
+    {
+      commands: [{ kind: 'createWorkItem', parentId: null, name: 'Second leaf' }],
+    },
+  );
   const secondLeaf = (created.body as { results: { id: string }[] }).results[0].id;
   const duplicate = {
     ...admissionOf(r.runtimeEvent),
     useId: crypto.randomUUID(),
-    use: { ...r.runtimeEvent.use, projectId: secondProject, workItemId: secondLeaf },
+    use: { ...r.runtimeEvent.use, workPackageId: secondWorkPackage, workItemId: secondLeaf },
   };
   expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, duplicate)).status).toBe(409);
   expect(
-    (await h.call('owner', 'GET', `/api/projects/${secondProject}/resource-uses`)).body,
+    (await h.call('owner', 'GET', `/api/work-packages/${secondWorkPackage}/resource-uses`)).body,
   ).toMatchObject({ uses: [] });
 });

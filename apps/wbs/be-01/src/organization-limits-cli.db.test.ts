@@ -1,15 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 setDefaultTimeout(30_000);
 
 const cli = new URL('./organization-limits-cli.ts', import.meta.url).pathname;
-const migrations = new URL('../drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
   ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
@@ -36,7 +35,7 @@ const FIXTURE = [
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'organization-limits-cli-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   sqlite(FIXTURE);
 });
 
@@ -372,8 +371,13 @@ describe('organization-limits-cli refusals', () => {
 
   it('refuses before activation', () => {
     // The marker refuses reverting, so a second store that was never activated.
-    path = join(directory, 'legacy.db');
-    runMigrations(path, migrations);
+    const legacyDirectory = join(directory, 'legacy');
+    mkdirSync(legacyDirectory);
+    path = join(legacyDirectory, 'plan.db');
+    migrateEmptyCatalogueFixture(
+      { path, directory: legacyDirectory, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     sqlite(["INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"]);
     const refused = run(['show', '--organization', 'org-a']);
     expect(refused.exitCode).toBe(3);

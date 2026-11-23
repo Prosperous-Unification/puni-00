@@ -1,4 +1,5 @@
 import { installSavedPlans } from '@wbs/core/module/saved-plans/check';
+import { captureConnectedHistory } from '@wbs/core/module/saved-plans/connected-history';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { readSavedConnectedScheduleBody, sliceKey } from '@wbs/domain';
 import { openDatabase } from '@wbs/store-sqlite/db';
@@ -24,11 +25,13 @@ test.each([
         dbPath: path,
       });
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       };
       let captures = 0;
       let replaceAfterCapture = false;
+      let firstCapture: Awaited<ReturnType<typeof read>> | undefined;
       const { savedPlans } = installSavedPlans({
         capture: source.history.savedPlanCapture,
         plans: source.history.savedPlans,
@@ -39,6 +42,7 @@ test.each([
         captureSharedPlan: async () => {
           captures += 1;
           const held = await read();
+          if (captures === 1) firstCapture = held;
           if (replaceAfterCapture) {
             const publisher = openDatabase(path);
             try {
@@ -57,29 +61,48 @@ test.each([
         throw new Error('connected observation cannot recapture target');
       });
       try {
-        const current = await savedPlans.projectCurrentPlan('a1', access);
-        if (current === null) throw new Error('current expected');
+        const current = await savedPlans.workPackageCurrentPlan('a1', access);
+        if (current === null || firstCapture === undefined) throw new Error('current expected');
+        const capturedInput = captureConnectedHistory(firstCapture, 'a1').input;
         replaceAfterCapture = true;
         const saved = await savedPlans.save({
-          projectId: 'a1',
+          workPackageId: 'a1',
           createdBy: 'ada',
           createdById: 'ada',
           access,
-          scoped: { organizationId: 'org-a', actorId: 'ada', role: 'member', operation: 'save' },
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-a',
+            actorId: 'ada',
+
+            operation: 'save',
+          },
         });
         expect(saved.outcome).toBe('saved');
         if (saved.outcome !== 'saved' || !current.schedule.present)
           throw new Error('saved schedule expected');
         const stored = saved.record;
         if (!stored.schedule.present) throw new Error('saved schedule expected');
-        expect(stored.input.schemaVersion).toBe(10);
-        expect(stored.schedule.body.schemaVersion).toBe(2);
+        expect(stored.input.schemaVersion).toBe(13);
+        expect(stored.schedule.body.schemaVersion).toBe(4);
         expect(stored.input.sha256).toBe(await nodeDigest.sha256(stored.input.bytes));
         expect(stored.schedule.body.sha256).toBe(
           await nodeDigest.sha256(stored.schedule.body.bytes),
         );
         expect(stored.schedule.inputSha256).toBe(stored.input.sha256);
-        expect(JSON.parse(stored.input.bytes)).toEqual(current.input);
+        expect(JSON.parse(stored.input.bytes)).toEqual(capturedInput);
+        const {
+          schemaVersion,
+          dependencyHistory,
+          workPackage: { projectId, ...workPackage },
+          ...facts
+        } = capturedInput;
+        expect(schemaVersion).toBe(13);
+        expect(current.input).toEqual({ ...facts, workPackage });
+        expect(current.inputEvidence).toEqual({
+          parent: { kind: 'recorded', projectId },
+          dependencies: { kind: 'recorded', execution: 'leaf', history: dependencyHistory },
+        });
         expect(JSON.parse(stored.schedule.body.bytes)).toEqual(current.schedule.body);
         const schedule = readSavedConnectedScheduleBody(JSON.parse(stored.schedule.body.bytes));
         const stage = schedule.connection.stages[0];
@@ -129,12 +152,13 @@ test('installed connected writer refuses missing required evidence without parti
         let refusal: unknown;
         try {
           await savedPlans.save({
-            projectId: 'a1',
+            workPackageId: 'a1',
             createdBy: 'ada',
             createdById: 'ada',
             access: {
+              principal: { id: 'ada' },
               kind: 'scoped',
-              scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
             },
           });
         } catch (cause) {

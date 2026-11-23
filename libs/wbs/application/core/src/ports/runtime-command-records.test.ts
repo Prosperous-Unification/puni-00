@@ -15,7 +15,7 @@ const ledger = {
   bindingCount: 0,
   receiptCount: 0,
 };
-const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+const scope = { organizationId: 'org', workPackageId: 'work_package', personId: 'person' };
 const authority = { ownerId: 'owner', generation: 1 };
 const claim = {
   claimId: 'claim',
@@ -25,7 +25,7 @@ const claim = {
   execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
 };
 const receipt = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   ledgerId: 'ledger',
   scope,
   commandId: 'command',
@@ -34,7 +34,7 @@ const receipt = {
   acceptance: { kind: 'authority', authority },
 };
 const stored = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   scope,
   commandId: 'command',
   canonicalRequest: '["authority"]',
@@ -84,7 +84,7 @@ describe('trusted runtime record parsers', () => {
     ).toHaveProperty('generation', Number.MAX_SAFE_INTEGER);
   });
   it('requires all opaque scope IDs without coercion', () => {
-    for (const field of ['organizationId', 'projectId', 'personId'])
+    for (const field of ['organizationId', 'workPackageId', 'personId'])
       for (const invalid of ['', null, undefined, 1])
         expect(() => parseRuntimeScope({ ...scope, [field]: invalid })).toThrow();
     expect(() => parseRuntimeScope({ ...scope, extra: true })).toThrow();
@@ -118,9 +118,9 @@ describe('trusted runtime record parsers', () => {
   it('rejects malformed versions, request bytes, digests and acceptance variants', () => {
     for (const field of ['commandId', 'canonicalRequest', 'requestDigest'])
       expect(() => parseStoredRuntimeAcceptance({ ...stored, [field]: '' })).toThrow();
-    expect(() => parseStoredRuntimeAcceptance({ ...stored, schemaVersion: 2 })).toThrow();
+    expect(() => parseStoredRuntimeAcceptance({ ...stored, schemaVersion: 3 })).toThrow();
     expect(() =>
-      parseStoredRuntimeAcceptance({ ...stored, receipt: { ...receipt, schemaVersion: 2 } }),
+      parseStoredRuntimeAcceptance({ ...stored, receipt: { ...receipt, schemaVersion: 3 } }),
     ).toThrow();
     for (const acceptance of [
       {},
@@ -138,7 +138,7 @@ describe('trusted runtime record parsers', () => {
         authority,
         claim,
         basisAfter: `rb1:${'b'.repeat(64)}`,
-        applied: [{ index: 0, kind: 'patchProject' }],
+        applied: [{ index: 0, kind: 'patchWorkPackage' }],
       },
     ])
       expect(() =>
@@ -162,7 +162,7 @@ describe('trusted runtime record parsers', () => {
         receipt: { ...receipt, requestDigest: 'b'.repeat(64) },
       }),
     ).toThrow('identity mismatch');
-    for (const field of ['organizationId', 'projectId', 'personId'])
+    for (const field of ['organizationId', 'workPackageId', 'personId'])
       expect(() =>
         parseStoredRuntimeAcceptance({
           ...stored,

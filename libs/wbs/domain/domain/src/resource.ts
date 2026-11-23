@@ -4,7 +4,7 @@ import { RESOURCE_KINDS, type ResourceKind } from './stored-vocabularies';
  * A claimable thing work can state a demand on, named in the directory like a
  * team (`wbs-resources` R1): unique by name, with a {@link ResourceKind} that
  * never changes and a free-text unit label shown beside every number of it.
- * Project and directory capacity statements together define the scheduling pool
+ * Work package and directory capacity statements together define the scheduling pool
  * through {@link effectivePoolSizesOf}.
  */
 export interface Resource {
@@ -15,7 +15,7 @@ export interface Resource {
 }
 
 /**
- * A stated project or directory capacity. Absence leaves that scope unsized,
+ * A stated work package or directory capacity. Absence leaves that scope unsized,
  * while 0 states that it offers no units.
  */
 export interface ResourceCapacity {
@@ -57,7 +57,7 @@ export function refuseDemand(kind: ResourceKind, units: number): 'exclusive_dema
 }
 
 /**
- * The resources actually demanded by the project's leaves, before hold reduction.
+ * The resources actually demanded by the work package's leaves, before hold reduction.
  * Parent demands and demands outside these rows never introduce a scheduling pool.
  */
 export function leafDemandResourceIdsOf(
@@ -75,37 +75,37 @@ export function leafDemandResourceIdsOf(
   return resourceIds;
 }
 
-/** The batch of directory statements needed for one project's schedule. */
+/** The batch of directory statements needed for one work package's schedule. */
 export function scheduleResourceIdsOf(
   rows: Parameters<typeof leafDemandResourceIdsOf>[0],
-  projectCapacities: readonly ResourceCapacity[],
+  workPackageCapacities: readonly ResourceCapacity[],
   demands: readonly Demand[],
 ): string[] {
   return [
     ...new Set([
-      ...projectCapacities.map(({ resourceId }) => resourceId),
+      ...workPackageCapacities.map(({ resourceId }) => resourceId),
       ...leafDemandResourceIdsOf(rows, demands),
     ]),
   ];
 }
 
 /**
- * Size the resource pools for both schedulers. A project statement always
+ * Size the resource pools for both schedulers. A work package statement always
  * contributes a pool and a directory statement caps it, including at zero.
- * A directory statement alone contributes only when the project's leaves
+ * A directory statement alone contributes only when the work package's leaves
  * demand it. Occupancy is irrelevant to placement.
  */
 export function effectivePoolSizesOf(
-  projectCapacities: readonly ResourceCapacity[],
+  workPackageCapacities: readonly ResourceCapacity[],
   directoryCapacities: readonly ResourceCapacity[],
   demandedResourceIds: ReadonlySet<string>,
 ): Map<string, number> {
-  const pools = new Map(projectCapacities.map(({ resourceId, units }) => [resourceId, units]));
+  const pools = new Map(workPackageCapacities.map(({ resourceId, units }) => [resourceId, units]));
   for (const { resourceId, units } of directoryCapacities) {
-    const project = pools.get(resourceId);
-    // Proof: returning the raw project value made resource.test.ts's pool
+    const workPackage = pools.get(resourceId);
+    // Proof: returning the raw work package value made resource.test.ts's pool
     // table receive 32 at both a 16-unit ceiling and a zero ceiling.
-    if (project !== undefined) pools.set(resourceId, Math.min(project, units));
+    if (workPackage !== undefined) pools.set(resourceId, Math.min(workPackage, units));
     else if (demandedResourceIds.has(resourceId)) pools.set(resourceId, units);
   }
   return pools;

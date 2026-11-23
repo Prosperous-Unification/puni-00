@@ -111,7 +111,7 @@ describe('createReconnectingWs', () => {
         storage.set(key, value);
       },
     });
-    subscriptions.update('project:a', 4);
+    subscriptions.update('work-package:a', 4);
     const sent: string[] = [];
     // A fake carrying only what the client calls: it sets the handlers and sends.
     const socket = {
@@ -134,18 +134,18 @@ describe('createReconnectingWs', () => {
       socket.onmessage?.(new MessageEvent('message', { data: JSON.stringify(frame) }));
     };
     socket.onopen?.(new Event('open'));
-    deliver({ subscription: 'project:a', message: { type: 'claims_changed' } });
-    deliver({ subscription: 'project:a', seq: 5, message: { type: 'tree_replaced' } });
+    deliver({ subscription: 'work-package:a', message: { type: 'claims_changed' } });
+    deliver({ subscription: 'work-package:a', seq: 5, message: { type: 'tree_replaced' } });
 
     expect(transients).toEqual([
-      { subscription: 'project:a', message: { type: 'claims_changed' } },
+      { subscription: 'work-package:a', message: { type: 'claims_changed' } },
     ]);
     expect(frames).toEqual([
-      { subscription: 'project:a', seq: 5, message: { type: 'tree_replaced' } },
+      { subscription: 'work-package:a', seq: 5, message: { type: 'tree_replaced' } },
     ]);
-    expect(subscriptions.snapshot()).toEqual({ 'project:a': 4 });
+    expect(subscriptions.snapshot()).toEqual({ 'work-package:a': 4 });
     expect(() => {
-      deliver({ subscription: 'project:a', seq: 'five', message: {} });
+      deliver({ subscription: 'work-package:a', seq: 'five', message: {} });
     }).toThrow();
     handle.close();
   });

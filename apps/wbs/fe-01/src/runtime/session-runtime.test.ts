@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { DirectoryApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
-import { projectServicesOver } from '@/modules/project/composition';
+import { workPackageServicesOver } from '@/modules/work-package/composition';
 import {
   CatalogWithdrawnError,
-  type ProjectRuntime,
-  type ProjectSource,
-} from '@/modules/project/contract';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+  type WorkPackageRuntime,
+  type WorkPackageSource,
+} from '@/modules/work-package/contract';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { recordCalls } from '@/testing/record-calls';
 import { createRefusingAddressApi } from '@/testing/refusing-address-api';
@@ -17,32 +17,39 @@ import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
-import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
 import {
   createSessionOwner,
   installSessionRuntime,
   type SessionExit,
   sessionFor,
 } from './session-runtime';
+import {
+  installWorkPackageRuntime,
+  type WorkPackageRuntimeDependencies,
+} from './work-package-runtime';
 
-/** A project source over a fresh fake client, with no socket. */
-const projectSource = (): ProjectSource => ({
-  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS, createRefusingAddressApi()),
+/** A work package source over a fresh fake client, with no socket. */
+const workPackageSource = (): WorkPackageSource => ({
+  services: workPackageServicesOver(
+    fakeWorkPackageApi(),
+    NO_SAVED_PLANS,
+    createRefusingAddressApi(),
+  ),
   subscribe: undefined,
 });
 
-/** The real project installer, recording every close and what order things happened in. */
-function recordedProjects(
+/** The real work package installer, recording every close and what order things happened in. */
+function recordedWorkPackages(
   events: string[],
   closeWith: () => Promise<void> = () => Promise.resolve(),
 ) {
-  return (dependencies: ProjectRuntimeDependencies): RetirableRuntime<ProjectRuntime> => {
-    const installed = installProjectRuntime(dependencies);
-    events.push(`project ${dependencies.projectId} opened`);
+  return (dependencies: WorkPackageRuntimeDependencies): RetirableRuntime<WorkPackageRuntime> => {
+    const installed = installWorkPackageRuntime(dependencies);
+    events.push(`work package ${dependencies.workPackageId} opened`);
     return {
       services: installed.services,
       close: async (options) => {
-        events.push(`project ${dependencies.projectId} closed`);
+        events.push(`work package ${dependencies.workPackageId} closed`);
         await closeWith();
         await installed.close(options);
       },
@@ -63,14 +70,14 @@ function clientsByCredential() {
 }
 
 describe('the session runtime', () => {
-  it('publishes the session’s directory and its projects, and nothing else', async () => {
+  it('publishes the session’s directory and its work packages, and nothing else', async () => {
     const runtime = installSessionRuntime({
       userId: 'u1',
       directoryApi: fakeDirectoryApi(),
-      catalogRoutes: fakeProjectApi(),
-      projectSourceFor: projectSource,
+      catalogRoutes: fakeWorkPackageApi(),
+      workPackageSourceFor: workPackageSource,
       isCurrent: () => true,
-      installProject: installProjectRuntime,
+      installWorkPackage: installWorkPackageRuntime,
       budgetMs: 1_000,
     });
 
@@ -81,22 +88,22 @@ describe('the session runtime', () => {
       'directory',
       'isCurrent',
       'organization',
-      'projects',
       'resourceScope',
       'userId',
+      'workPackages',
     ]);
     await runtime.close({ timeoutMs: 1_000 });
   });
 
-  it('lists the catalog and reads each project through the one client cut from the credential', async () => {
+  it('lists the catalog and reads each work package through the one client cut from the credential', async () => {
     const credentials: string[] = [];
-    const client = fakeProjectApi();
-    const listed = recordCalls(client, 'listProjects');
-    const trees = recordCalls(client, 'tree', (projectId) => projectId);
+    const client = fakeWorkPackageApi();
+    const listed = recordCalls(client, 'listWorkPackages');
+    const trees = recordCalls(client, 'tree', (workPackageId) => workPackageId);
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
-      projectClientFor: (credential) => {
+      workPackageClientFor: (credential) => {
         credentials.push(credential);
         return client;
       },
@@ -107,7 +114,7 @@ describe('the session runtime', () => {
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
 
     await opened.services.catalog.list();
-    await opened.services.projects.open('p1');
+    await opened.services.workPackages.open('p1');
     await vi.waitFor(() => {
       expect(trees).toEqual(['p1']);
     });
@@ -117,14 +124,14 @@ describe('the session runtime', () => {
     await owner.leave();
   });
 
-  it('keeps the first credential’s project client when the same user arrives with another', async () => {
+  it('keeps the first credential’s work package client when the same user arrives with another', async () => {
     const credentials: string[] = [];
-    const client = fakeProjectApi();
-    const trees = recordCalls(client, 'tree', (projectId) => projectId);
+    const client = fakeWorkPackageApi();
+    const trees = recordCalls(client, 'tree', (workPackageId) => workPackageId);
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
-      projectClientFor: (credential) => {
+      workPackageClientFor: (credential) => {
         credentials.push(credential);
         return client;
       },
@@ -136,7 +143,7 @@ describe('the session runtime', () => {
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
 
     await opened.services.catalog.list();
-    await opened.services.projects.open('p1');
+    await opened.services.workPackages.open('p1');
     await vi.waitFor(() => {
       expect(trees).toEqual(['p1']);
     });
@@ -146,12 +153,12 @@ describe('the session runtime', () => {
   });
 
   it('sends nothing for a catalog gesture asked of a withdrawn session', async () => {
-    const client = fakeProjectApi();
-    const listed = recordCalls(client, 'listProjects');
+    const client = fakeWorkPackageApi();
+    const listed = recordCalls(client, 'listWorkPackages');
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
-      projectClientFor: () => client,
+      workPackageClientFor: () => client,
       budgetMs: 1_000,
     });
     await owner.open({ userId: 'u1', credential: credentialOf('') });
@@ -168,7 +175,7 @@ describe('the session runtime', () => {
     const clients = clientsByCredential();
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: clients.clientFor,
       budgetMs: 1_000,
     });
@@ -190,43 +197,44 @@ describe('the session runtime', () => {
     expect(clients.asked).toEqual(['', '']);
   });
 
-  it('retires the session’s project before the session, and opens none once it is withdrawn', async () => {
+  it('retires the session’s work package before the session, and opens none once it is withdrawn', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
-      installProject: recordedProjects(events),
+      installWorkPackage: recordedWorkPackages(events),
       budgetMs: 1_000,
     });
     await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
     const session = opened.services;
-    await session.projects.open('p1');
-    const project = session.projects.snapshot();
-    if (project.status !== 'live') throw new Error(`p1 was not published: ${project.status}`);
+    await session.workPackages.open('p1');
+    const workPackage = session.workPackages.snapshot();
+    if (workPackage.status !== 'live')
+      throw new Error(`p1 was not published: ${workPackage.status}`);
 
     const leaving = owner.leave();
-    expect(project.services.isCurrent()).toBe(false);
+    expect(workPackage.services.isCurrent()).toBe(false);
     await leaving;
 
-    expect(events).toEqual(['project p1 opened', 'project p1 closed']);
-    expect(session.projects.snapshot().status).toBe('empty');
+    expect(events).toEqual(['work package p1 opened', 'work package p1 closed']);
+    expect(session.workPackages.snapshot().status).toBe('empty');
     expect(owner.snapshot().status).toBe('empty');
 
-    await session.projects.open('p2');
-    expect(events).toEqual(['project p1 opened', 'project p1 closed']);
-    expect(session.projects.snapshot().status).toBe('empty');
+    await session.workPackages.open('p2');
+    expect(events).toEqual(['work package p1 opened', 'work package p1 closed']);
+    expect(session.workPackages.snapshot().status).toBe('empty');
   });
 
-  it('fails the session’s retirement when its project will not let go', async () => {
+  it('fails the session’s retirement when its work package will not let go', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
-      installProject: recordedProjects(events, () =>
+      installWorkPackage: recordedWorkPackages(events, () =>
         Promise.reject(new Error('the socket would not close')),
       ),
       budgetMs: 1_000,
@@ -234,7 +242,7 @@ describe('the session runtime', () => {
     await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1');
+    await opened.services.workPackages.open('p1');
 
     await expect(owner.leave()).resolves.toBeUndefined();
 
@@ -249,7 +257,7 @@ describe('the session runtime', () => {
   it('settles a half-built session that cannot be released, and leaves the owner terminally fatal', async () => {
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {
         throw new PartialAcquisitionError(new Error('the directory could not be built'), () =>
@@ -271,7 +279,7 @@ describe('the session runtime', () => {
     const clients = clientsByCredential();
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: clients.clientFor,
       budgetMs: 1_000,
     });
@@ -289,9 +297,9 @@ describe('the session runtime', () => {
     let letGo: () => void = () => undefined;
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
-      installProject: recordedProjects(
+      installWorkPackage: recordedWorkPackages(
         events,
         () =>
           new Promise<void>((resolve) => {
@@ -303,7 +311,7 @@ describe('the session runtime', () => {
     await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1');
+    await opened.services.workPackages.open('p1');
 
     const first = owner.leave();
     let secondSettled = false;
@@ -322,7 +330,7 @@ describe('the session runtime', () => {
   it('hands a region drawn for one user nothing of another user’s session', async () => {
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
       budgetMs: 1_000,
     });
@@ -337,12 +345,12 @@ describe('the session runtime', () => {
 });
 
 describe('log out', () => {
-  it('settles signed out once the project and then the session have let go, and sends nothing', async () => {
+  it('settles signed out once the work package and then the session have let go, and sends nothing', async () => {
     const events: string[] = [];
     const client = fakeDirectoryApi();
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => client,
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
@@ -354,13 +362,13 @@ describe('log out', () => {
           },
         };
       },
-      installProject: (dependencies) => {
-        const installed = installProjectRuntime(dependencies);
+      installWorkPackage: (dependencies) => {
+        const installed = installWorkPackageRuntime(dependencies);
         return {
           services: installed.services,
           close: async (options) => {
             await installed.close(options);
-            events.push(`project ${dependencies.projectId} given back`);
+            events.push(`work package ${dependencies.workPackageId} given back`);
           },
         };
       },
@@ -369,17 +377,17 @@ describe('log out', () => {
     await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1');
+    await opened.services.workPackages.open('p1');
     const sent = client.log.length;
 
     await expect(owner.exit()).resolves.toBe('signed-out');
 
-    expect(events).toEqual(['project p1 given back', 'session given back']);
+    expect(events).toEqual(['work package p1 given back', 'session given back']);
     expect(client.log.length).toBe(sent);
     expect(owner.snapshot().status).toBe('empty');
   });
 
-  it('settles fatal at the budget when the project’s socket never closes, and stays fatal once it does', async () => {
+  it('settles fatal at the budget when the work package’s socket never closes, and stays fatal once it does', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
     try {
       let letGo: () => void = () => undefined;
@@ -398,14 +406,14 @@ describe('log out', () => {
         .buildContainer();
       socket.resolve('socket');
       const owner = createSessionOwner({
-        projectClientFor: () => fakeProjectApi(),
+        workPackageClientFor: () => fakeWorkPackageApi(),
         clientFor: () => fakeDirectoryApi(),
         // Proof: with `streamDeps` on none of this file's owners (2026-09-27, after saved
         // plans began subscribing on open) the node tier raised 7 unhandled
         // `ReferenceError`s from this file; with it on this owner alone, 6.
         streamDeps: SILENT_STREAM,
-        installProject: (dependencies) => {
-          const installed = installProjectRuntime(dependencies);
+        installWorkPackage: (dependencies) => {
+          const installed = installWorkPackageRuntime(dependencies);
           return {
             services: installed.services,
             close: async (options) => {
@@ -419,7 +427,7 @@ describe('log out', () => {
       await owner.open({ userId: 'u1', credential: credentialOf('') });
       const opened = owner.snapshot();
       if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-      await opened.services.projects.open('p1');
+      await opened.services.workPackages.open('p1');
 
       let settled: SessionExit | null = null;
       void owner.exit().then((exit) => {
@@ -446,7 +454,7 @@ describe('log out', () => {
   it('settles fatal after a sign-in that could not be built, and keeps the fatal state', async () => {
     const owner = createSessionOwner({
       streamDeps: SILENT_STREAM,
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {
         throw new Error('the directory could not be built');

@@ -3,6 +3,7 @@ import {
   type ClaimedTreeRow,
   type ClaimIdentity,
   type ClaimOccupancy,
+  type ClaimStepOrder,
   type ClaimStore,
   type OrganizationOccupancyRow,
   type StampedClaim,
@@ -13,7 +14,7 @@ import { renewalAt } from '@wbs/domain';
 
 import type { MemoryWorkItemTables } from './memory-work-item-fixture';
 import type { MemoryProgressTable } from './progress-fixture';
-import type { MemoryProjectTables } from './project-fixture';
+import type { MemoryWorkPackageTables } from './work-package-fixture';
 
 /**
  * Cloneable claims owned by the memory source, each with the instant it was
@@ -28,20 +29,20 @@ export function memoryClaimTable(): MemoryClaimTable {
 }
 
 /**
- * The source tables a claims observation reads beside its own: projects and
- * their steps, work items, and people. Read synchronously, so no write lands
+ * The source tables a claims observation reads beside its own: work packages and
+ * work items, and people. Read synchronously, so no write lands
  * inside an observation, as SQLite's savepoint and synchronous reads ensure.
  */
 export interface MemoryPlanTables {
-  readonly projects: Pick<MemoryProjectTables, 'projects' | 'steps'>;
+  readonly workPackages: Pick<MemoryWorkPackageTables, 'workPackages'>;
   readonly workItems: Pick<MemoryWorkItemTables, 'byId'>;
   readonly people: ReadonlyMap<string, { readonly name: string }>;
   /**
-   * The organization each project and each resource belongs to, as SQLite's
-   * `project_organization` and `resource_organization` hold them; a key with
+   * The organization each work package and each resource belongs to, as SQLite's
+   * `work_package_organization` and `resource_organization` hold them; a key with
    * no entry belongs to none.
    */
-  readonly projectOrganization: ReadonlyMap<string, string>;
+  readonly workPackageOrganization: ReadonlyMap<string, string>;
   readonly resourceOrganization: ReadonlyMap<string, string>;
 }
 
@@ -54,7 +55,7 @@ export interface MemoryPlanTables {
  *
  * Each claim keeps the instant of the write that stored it, as SQLite's
  * `created_at` does, and its lease's expiry and revocation instants;
- * {@link ClaimStore.listStampedByProject} answers them. No memory port revokes
+ * {@link ClaimStore.listStampedByWorkPackage} answers them. No memory port revokes
  * a lease: {@link endMemoryLeases} is the revocation's seam.
  *
  * `identity` answers the bound-account and credential-pin reads: the source's
@@ -62,24 +63,28 @@ export interface MemoryPlanTables {
  * `holdsResource` answers whether the directory still holds a resource, which
  * SQLite's foreign key on `claim_occupancy.resource_id` answers there.
  *
- * `plan` is what {@link ClaimStore.observeProject} reads beside the claims.
+ * `plan` is what {@link ClaimStore.observeWorkPackage} reads beside the claims.
+ * `readSteps` captures current catalogue metadata and each actual leaf's order
+ * synchronously on the same state; legacy local step tables are not consulted.
  * The memory source holds no organization activation or membership, so a
- * scoped observation is refused as a misuse, as the memory project store
+ * scoped observation is refused as a misuse, as the memory work package store
  * refuses organization edits: scoped access never arises over this store.
  *
  * @throws on a read of a claim whose work item is gone, and on a removal of a
  * claim that is not stored: both are trusted state gone wrong.
  */
 export function inMemoryClaims(
-  workItems: Pick<WorkItemStore, 'findById' | 'listByProject'>,
+  workItems: Pick<WorkItemStore, 'findById' | 'listByWorkPackage'>,
   progress: MemoryProgressTable,
   table: MemoryClaimTable,
   identity: ClaimIdentity,
   holdsResource: (resourceId: string) => boolean,
   plan: MemoryPlanTables,
+  readSteps: (workPackageId: string, claims: readonly StampedClaim[]) => ClaimStepOrder,
+  mayReadWorkPackageWithin: ClaimStore['mayReadWorkPackageWithin'],
 ): ClaimStore {
-  const inProject = async (projectId: string): Promise<StampedClaim[]> => {
-    const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
+  const inWorkPackage = async (workPackageId: string): Promise<StampedClaim[]> => {
+    const ids = new Set((await workItems.listByWorkPackage(workPackageId)).map(({ id }) => id));
     const found: StampedClaim[] = [];
     for (const claim of table.rows) {
       if (ids.has(claim.workItemId)) {
@@ -116,15 +121,15 @@ export function inMemoryClaims(
         throw new Error(`claim ${claimId} names absent work item ${claim.workItemId}`);
       const owner = plan.resourceOrganization.get(resourceId);
       if (owner === undefined) return [];
-      const organizationId = plan.projectOrganization.get(workItem.projectId);
-      // SQLite's twin: an owned resource held in a project of no organization
+      const organizationId = plan.workPackageOrganization.get(workItem.workPackageId);
+      // SQLite's twin: an owned resource held in a work package of no organization
       // is corrupt trusted state.
       // Proof: with this throw removed, the memory twin of `throws on a holder
-      // in a project of no organization` (shared-occupancy.db.test.ts)
+      // in a work package of no organization` (shared-occupancy.db.test.ts)
       // answered without it; watched 2026-10-25.
       if (organizationId === undefined)
         throw new Error(
-          `resource ${resourceId} is held in a project of no organization: corrupt trusted state`,
+          `resource ${resourceId} is held in a work package of no organization: corrupt trusted state`,
         );
       if (owner !== organizationId) return [];
       const { workItemId, personId, runId } = claim;
@@ -136,7 +141,7 @@ export function inMemoryClaims(
           runId,
           resourceId,
           units,
-          projectId: workItem.projectId,
+          workPackageId: workItem.workPackageId,
           organizationId,
         },
       ];
@@ -149,15 +154,18 @@ export function inMemoryClaims(
     );
   };
   return {
-    listByProject: async (projectId) => (await inProject(projectId)).map(unstampClaim),
-    listStampedByProject: inProject,
-    observeProject(projectId, access) {
+    mayReadWorkPackageWithin,
+    listByWorkPackage: async (workPackageId) =>
+      (await inWorkPackage(workPackageId)).map(unstampClaim),
+    listStampedByWorkPackage: inWorkPackage,
+    observeWorkPackage(workPackageId, access) {
       if (access.kind === 'scoped')
         return Promise.reject(new Error('the in-memory claims store has no organization reads'));
       // Every read below is synchronous: no write lands between them.
-      if (!plan.projects.projects.has(projectId)) return Promise.resolve({ kind: 'not_found' });
+      if (!plan.workPackages.workPackages.has(workPackageId))
+        return Promise.resolve({ kind: 'not_found' });
       const rows: ClaimedTreeRow[] = [...plan.workItems.byId.values()]
-        .filter((row) => row.projectId === projectId)
+        .filter((row) => row.workPackageId === workPackageId)
         .map(({ id, parentId, position, frozenNumber, name }) => ({
           id,
           parentId,
@@ -166,28 +174,28 @@ export function inMemoryClaims(
           name,
         }));
       const ids = new Set(rows.map(({ id }) => id));
-      const stepIds = [...(plan.projects.steps.get(projectId) ?? [])]
-        .sort((left, right) => left.position - right.position || compare(left.id, right.id))
-        .map(({ id }) => id);
       // Proof: with every claim kept, the memory certification's
-      // `claims.observeProject:legacy-observation` case read project A's claim
-      // in project B (74 pass, 1 fail); watched 2026-10-23.
+      // `claims.observeWorkPackage:legacy-observation` case read work package A's claim
+      // in work package B (74 pass, 1 fail); watched 2026-10-23.
       const claims = table.rows
         .filter(({ workItemId }) => ids.has(workItemId))
         .map((claim) => ({ ...claim }));
+      const { stepIds, leafSteps } = readSteps(workPackageId, claims);
       const personNames = new Map<string, string>();
       for (const { personId } of claims) {
         const holder = plan.people.get(personId);
         if (holder !== undefined) personNames.set(personId, holder.name);
       }
-      return Promise.resolve({ kind: 'observed', rows, stepIds, claims, personNames });
+      return Promise.resolve({ kind: 'observed', rows, stepIds, leafSteps, claims, personNames });
     },
-    async findById(projectId, claimId) {
-      const found = (await inProject(projectId)).find(({ id }) => id === claimId);
+    async findById(workPackageId, claimId) {
+      const found = (await inWorkPackage(workPackageId)).find(({ id }) => id === claimId);
       return found === undefined ? null : unstampClaim(found);
     },
-    async occupancyOf(projectId) {
-      const claims = new Map((await inProject(projectId)).map((claim) => [claim.id, claim]));
+    async occupancyOf(workPackageId) {
+      const claims = new Map(
+        (await inWorkPackage(workPackageId)).map((claim) => [claim.id, claim]),
+      );
       return table.occupancy
         .flatMap(({ claimId, resourceId, units }) => {
           const claim = claims.get(claimId);
@@ -202,18 +210,18 @@ export function inMemoryClaims(
             compare(left.claimId, right.claimId),
         );
     },
-    // Proof: removing the project predicate exposed a foreign claim in source conformance.
-    async listStampedByIds(projectId, ids) {
+    // Proof: removing the work package predicate exposed a foreign claim in source conformance.
+    async listStampedByIds(workPackageId, ids) {
       await Promise.resolve();
       const wanted = new Set(ids);
       return table.rows
         .filter(
           ({ id, workItemId }) =>
-            wanted.has(id) && plan.workItems.byId.get(workItemId)?.projectId === projectId,
+            wanted.has(id) && plan.workItems.byId.get(workItemId)?.workPackageId === workPackageId,
         )
         .map((stamped) => ({ ...stamped }));
     },
-    // SQLite's join, modelled: a row counts only when its project and its
+    // SQLite's join, modelled: a row counts only when its work package and its
     // resource belong to one organization.
     // Proof: with the organization comparison dropped, the memory
     // certification's `claims.occupancy:organization-filter` case read the
@@ -265,7 +273,7 @@ export function inMemoryClaims(
       table.occupancy.push(...occupancy.map((row) => ({ ...row })));
       // The instant stored is this write's, as SQLite's `created_at` is.
       // Proof: storing 0 here failed the memory certification's
-      // `claims.listStampedByProject:write-instant` case; watched 2026-10-19.
+      // `claims.listStampedByWorkPackage:write-instant` case; watched 2026-10-19.
       table.rows.push(
         ...claims.map((claim) => ({
           ...claim,
@@ -341,22 +349,22 @@ export function inMemoryClaims(
       // it (74 pass, 1 fail); watched 2026-10-23.
       const isDue = (row: StampedClaim): boolean =>
         isInForce(row) && row.leaseExpiresAt !== null && row.leaseExpiresAt < renewal.dueBefore;
-      // Every due row's project is found before any row moves, so an absent
+      // Every due row's work package is found before any row moves, so an absent
       // work item throws with nothing renewed; the rows decided due are then
       // moved by id.
       // Proof: with the rows moved before the lookups, `renews nothing when a
       // due claim names an absent work item` (memory-source.test.ts) saw the
       // kept claim renewed (0 pass, 1 fail); with the in-force rows' work items
       // in place of the due ones, the memory certification's
-      // `claims.lease:write-renew-expire` case named a project whose lease did
+      // `claims.lease:write-renew-expire` case named a work package whose lease did
       // not move (74 pass, 1 fail); unsorted, the same case failed on the
       // order (74 pass, 1 fail); watched 2026-10-23.
       const due = table.rows.filter(isDue);
-      const renewedProjectIds = new Set<string>();
+      const renewedWorkPackageIds = new Set<string>();
       for (const { workItemId } of due) {
         const found = await workItems.findById(workItemId);
         if (found === null) throw new Error(`a due claim names absent work item ${workItemId}`);
-        renewedProjectIds.add(found.projectId);
+        renewedWorkPackageIds.add(found.workPackageId);
       }
       const dueIds = new Set(due.map(({ id }) => id));
       table.rows.splice(
@@ -374,12 +382,12 @@ export function inMemoryClaims(
           leases: expiries.length,
           leaseExpiresAt: expiries.length === 0 ? null : Math.min(...expiries),
         },
-        renewedProjectIds: [...renewedProjectIds].sort(compare),
+        renewedWorkPackageIds: [...renewedWorkPackageIds].sort(compare),
       };
     },
-    async expiredLeasesOf(projectId, at) {
+    async expiredLeasesOf(workPackageId, at) {
       return (
-        (await inProject(projectId))
+        (await inWorkPackage(workPackageId))
           .filter(({ leaseExpiresAt }) => leaseExpiresAt !== null && leaseExpiresAt <= at)
           .sort((left, right) => compare(left.id, right.id))
           // Proof: answering `lease_expired` for every claim failed the memory
@@ -394,21 +402,21 @@ export function inMemoryClaims(
           }))
       );
     },
-    async projectsWithExpiredLeases(at, limit) {
+    async workPackagesWithExpiredLeases(at, limit) {
       const oldest = new Map<string, number>();
       for (const row of table.rows) {
         if (row.leaseExpiresAt === null || row.leaseExpiresAt > at) continue;
         const item = await workItems.findById(row.workItemId);
         if (item === null) throw new Error(`claim ${row.id} names an absent work item`);
         oldest.set(
-          item.projectId,
-          Math.min(oldest.get(item.projectId) ?? row.leaseExpiresAt, row.leaseExpiresAt),
+          item.workPackageId,
+          Math.min(oldest.get(item.workPackageId) ?? row.leaseExpiresAt, row.leaseExpiresAt),
         );
       }
       return [...oldest]
         .sort(([left, a], [right, b]) => a - b || compare(left, right))
         .slice(0, limit)
-        .map(([projectId]) => projectId);
+        .map(([workPackageId]) => workPackageId);
     },
     moveAll(fromWorkItemId, toWorkItemId, _stamp) {
       const moving = table.rows.filter(({ workItemId }) => workItemId === fromWorkItemId);

@@ -30,13 +30,13 @@ export interface LeaseStanding {
 
 /**
  * What the claim store's lease renewal answers: the person's standing after the
- * renewal, and the projects in which its committed write moved at least one
- * lease, in project-id order, empty when it moved none. The heartbeat route
+ * renewal, and the work packages in which its committed write moved at least one
+ * lease, in work-package-id order, empty when it moved none. The heartbeat route
  * announces `claims_changed` to exactly these (`wbs-claim-display` C4).
  */
 export interface LeaseRenewal {
   readonly standing: LeaseStanding;
-  readonly renewedProjectIds: readonly string[];
+  readonly renewedWorkPackageIds: readonly string[];
 }
 
 /**

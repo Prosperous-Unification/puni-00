@@ -50,7 +50,6 @@ import type {
   Days,
   NodeReadingView,
   PersonView,
-  ProjectApi,
   ScheduleView,
   ServiceView,
   StepView,
@@ -59,16 +58,17 @@ import type {
   TypedDependencyEndpoint,
   TypedDependencyView,
   WorkItemView,
+  WorkPackageApi,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { claimedPlan } from '@/testing/claims-fixture';
-import { fakeProjectApi as dependencyApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi as dependencyApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead, sliceView } from '@/testing/views';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { isoToday } from './gantt-panel';
 import { refusedDraftFor, unsent } from './live-editing';
@@ -132,11 +132,11 @@ const QA: StepView = {
  * nothing is the "unknown converted to a default" this repository refuses.
  */
 const notImplemented = (what: string): never => {
-  throw new Error(`the card tests' fake project API has no ${what}`);
+  throw new Error(`the card tests' fake work package API has no ${what}`);
 };
 
 /**
- * A `ProjectApi` over an in-memory plan, as small as these tests can be served
+ * A `WorkPackageApi` over an in-memory plan, as small as these tests can be served
  * by.
  *
  * Deliberately **not** `wbs-table.test.tsx`'s: that one is four hundred lines
@@ -161,7 +161,7 @@ const DATED_PLAN = {
  * **A choice, not a computation, and that is why it is written down.** be-01
  * takes the *latest* of a slice's floors after a real levelling pass, and a
  * fixture with no scheduler in it cannot. What it can do is stop lying: every
- * slice this fake built said `projectStart` — the same fixture bug
+ * slice this fake built said `workPackageStart` — the same fixture bug
  * `wbs-table.test.tsx` carried until chunk 2 fixed it — so its plans claimed no
  * waits at all, and a card could only ever be shown one of the six sentences.
  *
@@ -170,15 +170,15 @@ const DATED_PLAN = {
  * start-no-earlier-than is held by it (`notBeforeFloorWords` appends the typed
  * reason to exactly that floor), a row with a stored dependency waits for that
  * dependency (be-01's `schedule.ts`), and everything else stands on the
- * project's first day.
+ * work package's first day.
  */
-const fixtureFloorOf = (row: WorkItemView): 'notBefore' | 'predecessor' | 'projectStart' => {
+const fixtureFloorOf = (row: WorkItemView): 'notBefore' | 'predecessor' | 'workPackageStart' => {
   if (row.startNoEarlierThan !== null) return 'notBefore';
   if (row.dependsOn.length > 0) return 'predecessor';
-  return 'projectStart';
+  return 'workPackageStart';
 };
 
-function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): ProjectApi & {
+function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): WorkPackageApi & {
   patched: {
     id: string;
     name?: string;
@@ -278,345 +278,345 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   });
 
   return Object.assign(
-    refusingApi({
-      tree: () =>
-        Promise.resolve(
-          planRead({
-            workItems: rows.map(view),
-            seq: 0,
-            scheduleError: null,
-            // One per row, since these tests make no parents. Read since
-            // `wbs-row-waiting-explanation` chunk 4: `startFloorByRow` turns the
-            // `boundBy` below into the sentence a card prints, so the field that
-            // used to be inert payload is now the thing three cases arrange.
-            slices: rows.map((row) =>
-              sliceView({
-                id: `${row.id}::${DEV.id}`,
-                workItemId: row.id,
-                stepId: DEV.id,
-                personId: null,
-                duration: 0,
-                estimated: false,
-                earliestStart: 0,
-                earliestFinish: 0,
-                latestStart: 0,
-                latestFinish: 0,
-                float: 0,
-                critical: false,
-                boundBy: fixtureFloorOf(row),
-                resourcePredecessorId: null,
-                // One at a time and nothing holding a pool. The cards read neither —
-                // a card's parallelism line is the row's stored number — but the
-                // payload carries them, so this fake does too.
-                width: 1,
-                effort: 0,
-                capacityPredecessorIds: [],
-                lateBy: null,
-              }),
-            ),
-            // The same two lists `steps` and `listPeople` answer with, on the read
-            // that carried the slices: the chart is drawn from this payload alone.
-            steps: stepList.map((step) => ({ ...step })),
-            typedDependencies: typedDependencies.map((dependency) => ({ ...dependency })),
-            assignedPeople: people.map(({ id, name }) => ({ id, name })),
-            // Present and empty, never absent: be-01 always sends it, so a fake that
-            // left it out would let `teamsOnThePlan` be handed `undefined` here and
-            // never in production. A plan whose teams are unlimited is what `[]` says.
-            teamCapacities: [],
-            priorityBands: [...DEFAULT_PRIORITY_BANDS],
-            estimateMethod: 'pert' as const,
-            depReach: 'whole-item' as const,
-            pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
-            estimateRounding: 'ceil' as const,
-            startDate: options.dated === true ? DATED_PLAN.startsOn : null,
-            projectRevision: 0,
-            undoable: false,
-            redoable: false,
-          }),
-        ),
-      steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
-      listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
-      listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
-      listWorkItemTypes: () => Promise.resolve([]),
-      listExternalSystems: () => Promise.resolve([]),
-      listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
-      listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
-      // The table reads the calendar markers on mount, alongside the plan, so a
-      // double that stands in for a project has to answer it: unstated, this api
-      // refuses on purpose and the refusal arrives as a toast over every case in
-      // this file. Empty is what these projects have.
-      listCalendarMarkers: () => Promise.resolve([]),
-      createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
-        next += 1;
-        const id = `w${String(next)}`;
-        rows.push({
-          id,
-          parentId: input.parentId,
-          revision: 0,
-          number: String(rows.length + 1).padStart(2, '0') + '0',
-          name: input.name ?? '',
-          notes: '',
-          frozenNumber: null,
-          priority: null,
-          // One at a time, be-01's `NOT NULL DEFAULT 1`: never absent, because 1
-          // and unset are the same fact.
-          maxParallel: 1,
-          rolledUp: false,
-          estimates: {},
-          dependsOn: [],
-          finalDays: {},
-          finalTotal: 0,
-          dates: options.dated === true ? { ...DATED_PLAN } : null,
-          startNoEarlierThan: null,
-          startNoEarlierThanReason: null,
-          deadline: null,
-          factStart: null,
-          factEnd: null,
-          status: 'unknown',
-          readiness: null,
-          hold: null,
-          progress: {},
-          serviceTeamId: null,
-          teamIds: [],
-          assignees: {},
-          doesEveryStep: null,
-          schedule: {
-            duration: 0,
-            estimated: false,
-            earliestStart: 0,
-            earliestFinish: 0,
-            latestStart: 0,
-            latestFinish: 0,
-            float: 0,
-            critical: false,
-          },
-        });
-        return Promise.resolve({ id });
-      },
-      patchWorkItem: (
-        id: string,
-        patch: {
-          name?: string;
-          notes?: string;
-          serviceTeamId?: string | null;
-          teamIds?: string[];
-          tagIds?: string[];
-          serviceIds?: string[];
-          startNoEarlierThan?: string | null;
-          startNoEarlierThanReason?: string | null;
-          deadline?: string | null;
-          priority?: number | null;
+    refusingApi(
+      {
+        tree: () =>
+          Promise.resolve(
+            planRead({
+              workItems: rows.map(view),
+              seq: 0,
+              scheduleError: null,
+              // One per row, since these tests make no parents. Read since
+              // `wbs-row-waiting-explanation` chunk 4: `startFloorByRow` turns the
+              // `boundBy` below into the sentence a card prints, so the field that
+              // used to be inert payload is now the thing three cases arrange.
+              slices: rows.map((row) =>
+                sliceView({
+                  id: `${row.id}::${DEV.id}`,
+                  workItemId: row.id,
+                  stepId: DEV.id,
+                  personId: null,
+                  duration: 0,
+                  estimated: false,
+                  earliestStart: 0,
+                  earliestFinish: 0,
+                  latestStart: 0,
+                  latestFinish: 0,
+                  float: 0,
+                  critical: false,
+                  boundBy: fixtureFloorOf(row),
+                  resourcePredecessorId: null,
+                  // One at a time and nothing holding a pool. The cards read neither —
+                  // a card's parallelism line is the row's stored number — but the
+                  // payload carries them, so this fake does too.
+                  width: 1,
+                  effort: 0,
+                  capacityPredecessorIds: [],
+                  lateBy: null,
+                }),
+              ),
+              // The same two lists `steps` and `listPeople` answer with, on the read
+              // that carried the slices: the chart is drawn from this payload alone.
+              steps: stepList.map((step) => ({ ...step })),
+              typedDependencies: typedDependencies.map((dependency) => ({ ...dependency })),
+              assignedPeople: people.map(({ id, name }) => ({ id, name })),
+              // Present and empty, never absent: be-01 always sends it, so a fake that
+              // left it out would let `teamsOnThePlan` be handed `undefined` here and
+              // never in production. A plan whose teams are unlimited is what `[]` says.
+              teamCapacities: [],
+              priorityBands: [...DEFAULT_PRIORITY_BANDS],
+              estimateMethod: 'pert' as const,
+              depReach: 'whole-item' as const,
+              pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+              estimateRounding: 'ceil' as const,
+              startDate: options.dated === true ? DATED_PLAN.startsOn : null,
+              workPackageRevision: 0,
+              undoable: false,
+              redoable: false,
+            }),
+          ),
+        steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
+        setStepAllowance: (_packageId: string, stepId: string, allowancePercent: number) => {
+          const step = stepList.find((candidate) => candidate.id === stepId);
+          if (step === undefined) return Promise.reject(new Error('not_found'));
+          step.allowancePercent = allowancePercent;
+          return Promise.resolve({ ...step });
         },
-      ) => {
-        if (options.refusePatch === true) return Promise.reject(new Error('forbidden'));
-        patched.push({ id, ...patch });
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        if (patch.name !== undefined) row.name = patch.name;
-        if (patch.notes !== undefined) row.notes = patch.notes;
-        // `serviceTeamId` is the stored label and `teamIds` is what the row is
-        // read through — be-01 keeps both in step, so a fake that moved only one
-        // would let a card pass a test the server would fail.
-        if (patch.serviceTeamId !== undefined) {
-          row.serviceTeamId = patch.serviceTeamId;
-          row.teamIds = patch.serviceTeamId === null ? [] : [patch.serviceTeamId];
-        }
-        if (patch.teamIds !== undefined) {
-          row.teamIds = [...patch.teamIds];
-          row.serviceTeamId = [...patch.teamIds].sort().at(0) ?? null;
-        }
-        if (patch.tagIds !== undefined) row.tagIds = [...patch.tagIds];
-        if (patch.serviceIds !== undefined) row.serviceIds = [...patch.serviceIds];
-        // be-01's pair rule, kept by the fake so a card cannot pass here what the
-        // server would refuse: words about a date that is not there are a
-        // `not_before_reason_needs_a_date` 400, checked inside the one
-        // transaction that would write them. A fake that took them silently would
-        // let the two-request version of this write look correct.
-        if (patch.startNoEarlierThan !== undefined)
-          row.startNoEarlierThan = patch.startNoEarlierThan;
-        if (patch.startNoEarlierThanReason !== undefined) {
-          if (patch.startNoEarlierThanReason !== null && row.startNoEarlierThan === null) {
-            return Promise.reject(new Error('not_before_reason_needs_a_date'));
+        listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
+        listTags: () => Promise.resolve(tags.map((tag) => ({ ...tag }))),
+        listWorkItemTypes: () => Promise.resolve([]),
+        listExternalSystems: () => Promise.resolve([]),
+        listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
+        listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
+        // The table reads the calendar markers on mount, alongside the plan, so a
+        // double that stands in for a work package has to answer it: unstated, this api
+        // refuses on purpose and the refusal arrives as a toast over every case in
+        // this file. Empty is what these work packages have.
+        listCalendarMarkers: () => Promise.resolve([]),
+        createWorkItem: (
+          _work_packageId: string,
+          input: { parentId: string | null; name?: string },
+        ) => {
+          next += 1;
+          const id = `w${String(next)}`;
+          rows.push({
+            id,
+            parentId: input.parentId,
+            revision: 0,
+            number: String(rows.length + 1).padStart(2, '0') + '0',
+            name: input.name ?? '',
+            notes: '',
+            frozenNumber: null,
+            priority: null,
+            // One at a time, be-01's `NOT NULL DEFAULT 1`: never absent, because 1
+            // and unset are the same fact.
+            maxParallel: 1,
+            rolledUp: false,
+            estimates: {},
+            dependsOn: [],
+            finalDays: {},
+            finalTotal: 0,
+            dates: options.dated === true ? { ...DATED_PLAN } : null,
+            startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
+            deadline: null,
+            factStart: null,
+            factEnd: null,
+            status: 'unknown',
+            readiness: null,
+            hold: null,
+            progress: {},
+            serviceTeamId: null,
+            teamIds: [],
+            assignees: {},
+            doesEveryStep: null,
+            schedule: {
+              duration: 0,
+              estimated: false,
+              earliestStart: 0,
+              earliestFinish: 0,
+              latestStart: 0,
+              latestFinish: 0,
+              float: 0,
+              critical: false,
+            },
+          });
+          return Promise.resolve({ id });
+        },
+        patchWorkItem: (
+          id: string,
+          patch: {
+            name?: string;
+            notes?: string;
+            serviceTeamId?: string | null;
+            teamIds?: string[];
+            tagIds?: string[];
+            serviceIds?: string[];
+            startNoEarlierThan?: string | null;
+            startNoEarlierThanReason?: string | null;
+            deadline?: string | null;
+            priority?: number | null;
+          },
+        ) => {
+          if (options.refusePatch === true) return Promise.reject(new Error('forbidden'));
+          patched.push({ id, ...patch });
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          if (patch.name !== undefined) row.name = patch.name;
+          if (patch.notes !== undefined) row.notes = patch.notes;
+          // `serviceTeamId` is the stored label and `teamIds` is what the row is
+          // read through — be-01 keeps both in step, so a fake that moved only one
+          // would let a card pass a test the server would fail.
+          if (patch.serviceTeamId !== undefined) {
+            row.serviceTeamId = patch.serviceTeamId;
+            row.teamIds = patch.serviceTeamId === null ? [] : [patch.serviceTeamId];
           }
-          row.startNoEarlierThanReason = patch.startNoEarlierThanReason;
-        }
-        // The deadline, stored — absent until TASK-291 and therefore silently
-        // dropped, which let a card look as though it had written a date the
-        // fake never kept. One field and no pair rule beside it: slice 1.1 gave
-        // the deadline no reason column.
-        //
-        // **What this deliberately does not model, stated rather than implied:**
-        // be-01 refuses a date before the project's first working day with
-        // `deadline_before_project_start`, and that refusal is not kept here.
-        // The card sends the date unguarded on purpose (`setDeadline`'s own
-        // docstring: a client-side rule the server also keeps is how the two
-        // come to disagree), and a refusal no case in this file exercises would
-        // be unproven fixture behaviour standing in for a server's. The §2.3
-        // state the cards *do* read is a stored date the project has since moved
-        // past, which is arranged on the row rather than written through here.
-        if (patch.deadline !== undefined) row.deadline = patch.deadline;
-        // Moved on the row and not only recorded, because half of what the
-        // priority sheet's cases assert is what the *chip* says afterwards — a
-        // fake that took the patch and left the row alone would let a write that
-        // never reached the row read as green.
-        if (patch.priority !== undefined) row.priority = patch.priority;
-        return Promise.resolve();
+          if (patch.teamIds !== undefined) {
+            row.teamIds = [...patch.teamIds];
+            row.serviceTeamId = [...patch.teamIds].sort().at(0) ?? null;
+          }
+          if (patch.tagIds !== undefined) row.tagIds = [...patch.tagIds];
+          if (patch.serviceIds !== undefined) row.serviceIds = [...patch.serviceIds];
+          // be-01's pair rule, kept by the fake so a card cannot pass here what the
+          // server would refuse: words about a date that is not there are a
+          // `not_before_reason_needs_a_date` 400, checked inside the one
+          // transaction that would write them. A fake that took them silently would
+          // let the two-request version of this write look correct.
+          if (patch.startNoEarlierThan !== undefined)
+            row.startNoEarlierThan = patch.startNoEarlierThan;
+          if (patch.startNoEarlierThanReason !== undefined) {
+            if (patch.startNoEarlierThanReason !== null && row.startNoEarlierThan === null) {
+              return Promise.reject(new Error('not_before_reason_needs_a_date'));
+            }
+            row.startNoEarlierThanReason = patch.startNoEarlierThanReason;
+          }
+          // The deadline, stored — absent until TASK-291 and therefore silently
+          // dropped, which let a card look as though it had written a date the
+          // fake never kept. One field and no pair rule beside it: slice 1.1 gave
+          // the deadline no reason column.
+          //
+          // **What this deliberately does not model, stated rather than implied:**
+          // be-01 refuses a date before the work package's first working day with
+          // `deadline_before_work_package_start`, and that refusal is not kept here.
+          // The card sends the date unguarded on purpose (`setDeadline`'s own
+          // docstring: a client-side rule the server also keeps is how the two
+          // come to disagree), and a refusal no case in this file exercises would
+          // be unproven fixture behaviour standing in for a server's. The §2.3
+          // state the cards *do* read is a stored date the work package has since moved
+          // past, which is arranged on the row rather than written through here.
+          if (patch.deadline !== undefined) row.deadline = patch.deadline;
+          // Moved on the row and not only recorded, because half of what the
+          // priority sheet's cases assert is what the *chip* says afterwards — a
+          // fake that took the patch and left the row alone would let a write that
+          // never reached the row read as green.
+          if (patch.priority !== undefined) row.priority = patch.priority;
+          return Promise.resolve();
+        },
+        setEstimate: (id: string, stepId: string, days: Days) => {
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          row.estimates = { ...row.estimates, [stepId]: days };
+          const final = (days.optimistic + 4 * days.realistic + days.pessimistic) / 6;
+          row.finalDays = { ...row.finalDays, [stepId]: final };
+          row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
+          return Promise.resolve();
+        },
+        assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
+          assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
+          if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
+          else assigned.set(`${workItemId}::${stepId}`, personId);
+          return Promise.resolve();
+        },
+        listWorkPackages: () => notImplemented('listWorkPackages'),
+        createWorkPackage: () => notImplemented('createWorkPackage'),
+        openWorkPackage: () => notImplemented('openWorkPackage'),
+        renameWorkPackage: () => notImplemented('renameWorkPackage'),
+        setAbbreviation: (_id: string, abbreviation: string) =>
+          Promise.resolve(abbreviation.toUpperCase()),
+        undo: () => notImplemented('undo'),
+        redo: () => notImplemented('redo'),
+        setEstimateMethod: () => notImplemented('setEstimateMethod'),
+        setStartDate: () => notImplemented('setStartDate'),
+        // Idempotent by name, because be-01 is: two browsers typing `Platform`
+        // at once end up on one team, and a fake that made two would hide the
+        // whole reason `createTeamFor` goes through the server at all.
+        addTeam: (name: string) => {
+          const existing = teams.find((team) => team.name.toLowerCase() === name.toLowerCase());
+          if (existing !== undefined) return Promise.resolve({ ...existing });
+          const team = { id: `team-${name.toLowerCase()}`, name, serviceIds: [] };
+          teams.push(team);
+          return Promise.resolve({ ...team });
+        },
+        addTag: (name: string) => {
+          const existing = tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+          if (existing !== undefined) return Promise.resolve({ ...existing });
+          const tag = { id: `tag-${name.toLowerCase()}`, name };
+          tags.push(tag);
+          return Promise.resolve({ ...tag });
+        },
+        addService: (name: string) => {
+          const existing = services.find(
+            (service) => service.name.toLowerCase() === name.toLowerCase(),
+          );
+          if (existing !== undefined) return Promise.resolve({ ...existing });
+          const service = { id: `service-${name.toLowerCase()}`, name };
+          services.push(service);
+          return Promise.resolve({ ...service });
+        },
+        addPerson: () => notImplemented('addPerson'),
+        moveWorkItem: () => notImplemented('move'),
+        /**
+         * A copy beside the original, numbered as {@link create} numbers, because
+         * a card that duplicated nothing and a card that duplicated something both
+         * look the same until a second row is on screen.
+         */
+        duplicateWorkItem: (id: string) => {
+          rowActionCalls.push(`duplicate:${id}`);
+          const original = rows.find((each) => each.id === id);
+          if (original === undefined) return Promise.reject(new Error('not_found'));
+          next += 1;
+          const copy: WorkItemView = {
+            ...original,
+            id: `w${String(next)}`,
+            number: String(rows.length + 1).padStart(2, '0') + '0',
+            // A freeze pins the number a row left the tool under, and the copy is
+            // given none — `wbs-table.tsx`'s own comment on offering Duplicate on a
+            // frozen row.
+            frozenNumber: null,
+          };
+          rows.push(copy);
+          return Promise.resolve({ id: copy.id });
+        },
+        removeWorkItem: (id: string) => {
+          rowActionCalls.push(`remove:${id}`);
+          const at = rows.findIndex((each) => each.id === id);
+          if (at === -1) return Promise.reject(new Error('not_found'));
+          rows.splice(at, 1);
+          return Promise.resolve();
+        },
+        // Real since `wbs-mobile-orp-input`: the trio sheet's `Clear` is the one
+        // control on a card that reaches it, and a fake that refused would have let
+        // "taking an estimate back off" pass untested on the only face that can do
+        // it with a thumb. Removes the step's key rather than storing zeros —
+        // `0/0/0` is an estimate somebody made, and no estimate is not.
+        clearEstimate: (id: string, stepId: string) => {
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          const { [stepId]: _goneDays, ...keptDays } = row.estimates;
+          const { [stepId]: _goneFinal, ...keptFinal } = row.finalDays;
+          row.estimates = keptDays;
+          row.finalDays = keptFinal;
+          row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
+          return Promise.resolve();
+        },
+        freezeWorkPackage: () => notImplemented('freeze'),
+        unfreezeWorkPackage: () => notImplemented('unfreezeWorkPackage'),
+        unfreezeWorkItem: (id: string) => {
+          rowActionCalls.push(`unfreeze:${id}`);
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          row.frozenNumber = null;
+          return Promise.resolve();
+        },
+        addDependency: (id: string, predecessorId: string) => {
+          edges.push(`add:${id}:${predecessorId}`);
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          // Idempotent by pair, which is be-01's own unique constraint: the picker
+          // never offers a predecessor a row already holds, so a duplicate here
+          // would be modelling a request the app cannot make.
+          if (!row.dependsOn.includes(predecessorId))
+            row.dependsOn = [...row.dependsOn, predecessorId];
+          return Promise.resolve();
+        },
+        addTypedDependency: (
+          _work_packageId: string,
+          predecessor: TypedDependencyEndpoint,
+          successor: TypedDependencyEndpoint,
+        ) => {
+          if (predecessor.scope !== 'whole' || successor.scope !== 'whole')
+            return Promise.reject(new Error('fake only models whole dependencies'));
+          edges.push(`add:${successor.workItemId}:${predecessor.workItemId}`);
+          typedDependencies.push({
+            id: `dependency-${String(typedDependencies.length + 1)}`,
+            predecessor,
+            successor,
+            type: 'FS',
+          });
+          return Promise.resolve();
+        },
+        updateTypedDependency: () => notImplemented('updateTypedDependency'),
+        removeTypedDependency: () => notImplemented('removeTypedDependency'),
+        removeDependency: (id: string, predecessorId: string) => {
+          edges.push(`drop:${id}:${predecessorId}`);
+          const row = rows.find((each) => each.id === id);
+          if (row === undefined) return Promise.reject(new Error('not_found'));
+          row.dependsOn = row.dependsOn.filter((each) => each !== predecessorId);
+          return Promise.resolve();
+        },
       },
-      setEstimate: (id: string, stepId: string, days: Days) => {
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        row.estimates = { ...row.estimates, [stepId]: days };
-        const final = (days.optimistic + 4 * days.realistic + days.pessimistic) / 6;
-        row.finalDays = { ...row.finalDays, [stepId]: final };
-        row.finalTotal = Object.values(row.finalDays).reduce((total, each) => total + each, 0);
-        return Promise.resolve();
-      },
-      assignPerson: (workItemId: string, stepId: string, personId: string | null) => {
-        assignments.push(`${workItemId} ${stepId} ${personId ?? '(nobody)'}`);
-        if (personId === null) assigned.delete(`${workItemId}::${stepId}`);
-        else assigned.set(`${workItemId}::${stepId}`, personId);
-        return Promise.resolve();
-      },
-      addStep: (_projectId: string, name: string) => {
-        const step = {
-          estimateUnit: 'workdays' as const,
-          id: `step-${name.toLowerCase()}`,
-          name,
-          allowancePercent: 0,
-        };
-        stepList.push(step);
-        return Promise.resolve({ ...step });
-      },
-      listProjects: () => notImplemented('listProjects'),
-      createProject: () => notImplemented('createProject'),
-      openProject: () => notImplemented('openProject'),
-      renameProject: () => notImplemented('renameProject'),
-      setAbbreviation: (_id: string, abbreviation: string) =>
-        Promise.resolve(abbreviation.toUpperCase()),
-      undo: () => notImplemented('undo'),
-      redo: () => notImplemented('redo'),
-      setEstimateMethod: () => notImplemented('setEstimateMethod'),
-      setStartDate: () => notImplemented('setStartDate'),
-      renameStep: () => notImplemented('renameStep'),
-      removeStep: () => notImplemented('removeStep'),
-      // Idempotent by name, because be-01 is: two browsers typing `Platform`
-      // at once end up on one team, and a fake that made two would hide the
-      // whole reason `createTeamFor` goes through the server at all.
-      addTeam: (name: string) => {
-        const existing = teams.find((team) => team.name.toLowerCase() === name.toLowerCase());
-        if (existing !== undefined) return Promise.resolve({ ...existing });
-        const team = { id: `team-${name.toLowerCase()}`, name, serviceIds: [] };
-        teams.push(team);
-        return Promise.resolve({ ...team });
-      },
-      addTag: (name: string) => {
-        const existing = tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
-        if (existing !== undefined) return Promise.resolve({ ...existing });
-        const tag = { id: `tag-${name.toLowerCase()}`, name };
-        tags.push(tag);
-        return Promise.resolve({ ...tag });
-      },
-      addService: (name: string) => {
-        const existing = services.find(
-          (service) => service.name.toLowerCase() === name.toLowerCase(),
-        );
-        if (existing !== undefined) return Promise.resolve({ ...existing });
-        const service = { id: `service-${name.toLowerCase()}`, name };
-        services.push(service);
-        return Promise.resolve({ ...service });
-      },
-      addPerson: () => notImplemented('addPerson'),
-      moveWorkItem: () => notImplemented('move'),
-      /**
-       * A copy beside the original, numbered as {@link create} numbers, because
-       * a card that duplicated nothing and a card that duplicated something both
-       * look the same until a second row is on screen.
-       */
-      duplicateWorkItem: (id: string) => {
-        rowActionCalls.push(`duplicate:${id}`);
-        const original = rows.find((each) => each.id === id);
-        if (original === undefined) return Promise.reject(new Error('not_found'));
-        next += 1;
-        const copy: WorkItemView = {
-          ...original,
-          id: `w${String(next)}`,
-          number: String(rows.length + 1).padStart(2, '0') + '0',
-          // A freeze pins the number a row left the tool under, and the copy is
-          // given none — `wbs-table.tsx`'s own comment on offering Duplicate on a
-          // frozen row.
-          frozenNumber: null,
-        };
-        rows.push(copy);
-        return Promise.resolve({ id: copy.id });
-      },
-      removeWorkItem: (id: string) => {
-        rowActionCalls.push(`remove:${id}`);
-        const at = rows.findIndex((each) => each.id === id);
-        if (at === -1) return Promise.reject(new Error('not_found'));
-        rows.splice(at, 1);
-        return Promise.resolve();
-      },
-      // Real since `wbs-mobile-orp-input`: the trio sheet's `Clear` is the one
-      // control on a card that reaches it, and a fake that refused would have let
-      // "taking an estimate back off" pass untested on the only face that can do
-      // it with a thumb. Removes the step's key rather than storing zeros —
-      // `0/0/0` is an estimate somebody made, and no estimate is not.
-      clearEstimate: (id: string, stepId: string) => {
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        const { [stepId]: _goneDays, ...keptDays } = row.estimates;
-        const { [stepId]: _goneFinal, ...keptFinal } = row.finalDays;
-        row.estimates = keptDays;
-        row.finalDays = keptFinal;
-        row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
-        return Promise.resolve();
-      },
-      freezeProject: () => notImplemented('freeze'),
-      unfreezeProject: () => notImplemented('unfreezeProject'),
-      unfreezeWorkItem: (id: string) => {
-        rowActionCalls.push(`unfreeze:${id}`);
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        row.frozenNumber = null;
-        return Promise.resolve();
-      },
-      addDependency: (id: string, predecessorId: string) => {
-        edges.push(`add:${id}:${predecessorId}`);
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        // Idempotent by pair, which is be-01's own unique constraint: the picker
-        // never offers a predecessor a row already holds, so a duplicate here
-        // would be modelling a request the app cannot make.
-        if (!row.dependsOn.includes(predecessorId))
-          row.dependsOn = [...row.dependsOn, predecessorId];
-        return Promise.resolve();
-      },
-      addTypedDependency: (
-        _projectId: string,
-        predecessor: TypedDependencyEndpoint,
-        successor: TypedDependencyEndpoint,
-      ) => {
-        if (predecessor.scope !== 'whole' || successor.scope !== 'whole')
-          return Promise.reject(new Error('fake only models whole dependencies'));
-        edges.push(`add:${successor.workItemId}:${predecessor.workItemId}`);
-        typedDependencies.push({
-          id: `dependency-${String(typedDependencies.length + 1)}`,
-          predecessor,
-          successor,
-          type: 'FS',
-        });
-        return Promise.resolve();
-      },
-      updateTypedDependency: () => notImplemented('updateTypedDependency'),
-      removeTypedDependency: () => notImplemented('removeTypedDependency'),
-      removeDependency: (id: string, predecessorId: string) => {
-        edges.push(`drop:${id}:${predecessorId}`);
-        const row = rows.find((each) => each.id === id);
-        if (row === undefined) return Promise.reject(new Error('not_found'));
-        row.dependsOn = row.dependsOn.filter((each) => each !== predecessorId);
-        return Promise.resolve();
-      },
-    }),
+      { projectIdOf: (_id: string) => 'fixture-project' },
+    ),
     { patched, assignments, rows, teams, services, tags, people, rowActionCalls, edges },
   );
 }
@@ -673,7 +673,7 @@ const scheduled = (row: { schedule: ScheduleView | null }): ScheduleView => {
   return row.schedule;
 };
 
-describe('the plan-card ProjectApi fake', () => {
+describe('the plan-card WorkPackageApi fake', () => {
   it('round trips whole team sets and retains the legacy scalar arm', async () => {
     const api = fakeApi();
     const created = await api.createWorkItem('p1', {
@@ -712,7 +712,9 @@ describe('the plan on a phone', () => {
       await api.createWorkItem('p1', { parentId: `w${String(parent)}` });
     }
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 080' });
 
     const cardMargin = (id: string): string => {
@@ -737,7 +739,9 @@ describe('the plan on a phone', () => {
   itDom('is cards below the breakpoint and the table above it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     expect(screen.getByRole('article', { name: 'Work item 010' })).toBeInTheDocument();
@@ -769,7 +773,9 @@ describe('the plan on a phone', () => {
   itDom('renders no cell the table has not got one for', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const onCards = cellsOnScreen();
@@ -793,7 +799,9 @@ describe('the plan on a phone', () => {
   itDom('marks the card list as the grid, and it is no table', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const grid = document.querySelector('[data-grid]');
@@ -820,7 +828,9 @@ describe('the plan on a phone', () => {
   itDom('carries the caret to an unestimated card when the badge is taken', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     openTheSheet();
@@ -854,7 +864,9 @@ describe('the plan on a phone', () => {
   itDom('lands the focus in the card of a work item it just created', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     await waitFor(() => {
@@ -878,7 +890,9 @@ describe('the plan on a phone', () => {
    */
   itDom('keeps a draft be-01 refused when the window crosses the breakpoint', async () => {
     const api = fakeApi({ refusePatch: true });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Add work item' }));
     const onTheTable = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
@@ -899,7 +913,9 @@ describe('the plan on a phone', () => {
   itDom('and carries it back to the table when the window widens again', async () => {
     const api = fakeApi({ refusePatch: true });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const onACard = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -931,7 +947,9 @@ describe('the plan on a phone', () => {
   itDom('keeps a refused draft, and its cells, when the phone is turned', async () => {
     const api = fakeApi({ refusePatch: true });
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const inPortrait = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -955,7 +973,9 @@ describe('the plan on a phone', () => {
   itDom('sends a name typed on a card', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const box = screen.getByLabelText('Name of 010');
@@ -983,7 +1003,9 @@ describe('the plan on a phone', () => {
     // `e2e/mobile.spec.ts`, red on the raw `[design](…)` before the change.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -1022,7 +1044,9 @@ describe('the plan on a phone', () => {
     // nowhere else to show it. Watched, 2026-08-09.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
@@ -1044,7 +1068,9 @@ describe('the plan on a phone', () => {
     // '2026-06-01 → 2026-06-03' to be '1 Jun → 3 Jun'`. Watched, 2026-08-09.
     const api = fakeApi({ dated: true });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const onCard = document.querySelector('[data-card-span]');
@@ -1060,11 +1086,13 @@ describe('the plan on a phone', () => {
   });
 
   itDom('prints the workday offsets the columns print, on a plan with no start date', async () => {
-    // The fallback, on both faces: without a project start date there are no
+    // The fallback, on both faces: without a work package start date there are no
     // dates to shorten and both renderers count days from day zero.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const onCard = document.querySelector('[data-card-span]');
@@ -1081,7 +1109,9 @@ describe('the plan on a phone', () => {
   itDom('offers nothing to drag a card by', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     expect(screen.queryByRole('button', { name: 'Reorder 010' })).toBeNull();
@@ -1103,7 +1133,9 @@ describe('a picker open on a card', () => {
   itDom('takes Enter for the list rather than the box under it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1132,7 +1164,9 @@ describe('a picker open on a card', () => {
   itDom('closes on Escape and leaves what was typed', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1151,7 +1185,9 @@ describe('a picker open on a card', () => {
     // `aria-activedescendant` names — and both pointers go when the list goes.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1180,7 +1216,9 @@ describe('a picker open on a card', () => {
     // makes this the same box as the one above and a different branch of it.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const figure = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
@@ -1208,13 +1246,13 @@ describe('the toolbar sheet', () => {
    *
    * That rule is right about the toolbar and wrong about this: taking a control
    * on the toolbar acts on the plan behind the sheet, and the plan is what
-   * wants looking at next. Reading a project's history does not — the thing to
+   * wants looking at next. Reading a work package's history does not — the thing to
    * look at is the panel, which the close would take away mid-click. Hence the
    * `[data-saved-plans]` exemption beside the `aria-haspopup` one.
    *
    * A stand-in shelf rather than the real one, and it carries the two facts the
    * rule turns on: the mark, and a plain `<button>` under it. `SavedPlanShelf`
-   * lives in `project-page.tsx` with the checkpoint routes, and pulling it in
+   * lives in `work-package-page.tsx` with the checkpoint routes, and pulling it in
    * here would make this a test of that wiring instead of of this rule.
    */
   itDom('keeps itself open while a shelf on it is being read', async () => {
@@ -1222,8 +1260,8 @@ describe('the toolbar sheet', () => {
     widthIs(PHONE);
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         savedPlansShelf={
           <details data-saved-plans open>
             <summary>Saved plans</summary>
@@ -1263,12 +1301,14 @@ describe('the toolbar sheet', () => {
   itDom('issues the arrangement and then closes itself', async () => {
     const api = fakeApi();
     const asked: string[] = [];
-    api.arrangeBySchedule = (projectId: string) => {
-      asked.push(projectId);
+    api.arrangeBySchedule = (workPackageId: string) => {
+      asked.push(workPackageId);
       return Promise.resolve();
     };
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1286,7 +1326,9 @@ describe('the toolbar sheet', () => {
   itDom('holds the toolbar, which is nowhere on the page until it is opened', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1309,7 +1351,7 @@ describe('the toolbar sheet', () => {
    *
    * The trigger is exempt from the sheet's own close for the reason and by the
    * mechanism `StepsDialog` established — that surface is
-   * `ProjectSettingsModal` now: `closingControlIn` leaves a
+   * `WorkPackageSettingsModal` now: `closingControlIn` leaves a
    * control carrying `aria-haspopup` alone, and closing the sheet on the click
    * that opened the menu would unmount the menu with it.
    *
@@ -1321,7 +1363,9 @@ describe('the toolbar sheet', () => {
   itDom('offers freezing once, as a menu that opens on the sheet', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1362,7 +1406,9 @@ describe('the toolbar sheet', () => {
   itDom('closes when a control on it acts on the plan', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     expect(screen.queryByRole('button', { name: 'Add work item' })).toBeNull();
@@ -1377,30 +1423,34 @@ describe('the toolbar sheet', () => {
    * removed: failed on `Unable to find an accessible element with the role
    * "dialog" and name "Steps"` (the dialog's name at the time) — the sheet closed on the trigger's own click
    * and took the dialog with it. The surface check removed so a click anywhere
-   * closes the sheet: `adds a step from inside the sheet` failed the same way
+   * closes the sheet: `edits a package allowance without closing settings or the toolbar sheet` failed the same way
    * one click later, on the dialog's own Add.
    */
-  itDom('lets the project settings open from inside it', async () => {
-    // `Project settings` since `project-config-modal`: the steps dialog this
+  itDom('lets the work package settings open from inside it', async () => {
+    // `WorkPackage settings` since `work-package-config-modal`: the steps dialog this
     // case was written for is one section of that modal now, and the sheet
     // lists the control by its name rather than by a gear.
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
     openTheSheet();
 
-    const control = await screen.findByRole('button', { name: 'Project settings' });
-    expect(control.textContent).toContain('Project settings');
+    const control = await screen.findByRole('button', { name: 'Work package settings' });
+    expect(control.textContent).toContain('Work package settings');
     fireEvent.click(control);
 
-    expect(await screen.findByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('dialog', { name: 'Work package settings' }),
+    ).toBeInTheDocument();
   });
 
   /**
-   * `project-config-modal` slice 3.2: closing the modal hands the focus back to
+   * `work-package-config-modal` slice 3.2: closing the modal hands the focus back to
    * the control that opened it, from inside the sheet — Radix's own restore to
    * its **trigger**.
    *
@@ -1418,24 +1468,26 @@ describe('the toolbar sheet', () => {
    * `Button` with an `onClick`, so Radix's `onCloseAutoFocus` cancels the default
    * restore and has no trigger to put the focus on. This failed on
    * `expected <body …> to be <button …>` — the focus left on `<body>` — and so
-   * did `project-settings-modal.test.tsx`'s `a clean modal closes from any
+   * did `work-package-settings-modal.test.tsx`'s `a clean modal closes from any
    * section, and gives the focus back to its control`. Watched 2026-08-30.
    */
-  itDom('closing project settings puts the focus back on its trigger', async () => {
+  itDom('closing work package settings puts the focus back on its trigger', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
     openTheSheet();
-    const control = await screen.findByRole('button', { name: 'Project settings' });
+    const control = await screen.findByRole('button', { name: 'Work package settings' });
     fireEvent.click(control);
-    await screen.findByRole('dialog', { name: 'Project settings' });
+    await screen.findByRole('dialog', { name: 'Work package settings' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Project settings' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: 'Work package settings' })).toBeNull();
     });
 
     await waitFor(() => {
@@ -1459,26 +1511,28 @@ describe('the toolbar sheet', () => {
    * 2026-08-09, and only after the second assertion below was added: the step
    * itself still lands, so the first one cannot see this at all.
    */
-  itDom('adds a step from inside the sheet', async () => {
+  itDom('edits a package allowance without closing settings or the toolbar sheet', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
     openTheSheet();
-    fireEvent.click(await screen.findByRole('button', { name: 'Project settings' }));
-    await screen.findByRole('dialog', { name: 'Project settings' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Work package settings' }));
+    await screen.findByRole('dialog', { name: 'Work package settings' });
     fireEvent.click(screen.getByRole('tab', { name: 'Steps' }));
 
-    fireEvent.change(screen.getByLabelText('New step'), { target: { value: 'Review' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
-
-    // The new step reaches the cards behind both surfaces, which is what says
-    // the refetch the modal asked for was not thrown away with them.
-    expect(await screen.findByLabelText('Review estimate for 010')).toBeInTheDocument();
-    // And the modal is still there to add a second one. This is the half the
-    // line above cannot see: a sheet that closed under it would take the modal
-    // with it *after* the step had already been sent.
-    expect(screen.getByRole('dialog', { name: 'Project settings' })).toBeInTheDocument();
+    const allowance = screen.getByLabelText('Dev allowance (%)');
+    fireEvent.change(allowance, { target: { value: '12.34' } });
+    fireEvent.keyDown(allowance, { key: 'Enter' });
+    await waitFor(async () => {
+      expect((await api.steps('p1')).find((step) => step.id === 'step-dev')?.allowancePercent).toBe(
+        12.34,
+      );
+    });
+    expect(screen.queryByLabelText('New step')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Work package settings' })).toBeInTheDocument();
   });
 
   /**
@@ -1516,7 +1570,9 @@ describe('the toolbar sheet', () => {
     async () => {
       const api = fakeApi();
       widthIs(PHONE);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await addAWorkItem();
 
       const trigger = screen.getByRole('button', { name: 'Plan actions' });
@@ -1546,7 +1602,9 @@ describe('the toolbar sheet', () => {
   itDom('leaves the focus on the cheat sheet the sheet opened', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1571,7 +1629,7 @@ describe('the toolbar sheet', () => {
      * never takes.
      *
      * Seeded with a width already in force, or the control would be absent for
-     * the wrong reason: on a project nobody has dragged a column in there is
+     * the wrong reason: on a work package nobody has dragged a column in there is
      * nothing to render on either renderer, and the assertion would pass
      * against a reset that was in `toolbarControls` all along.
      *
@@ -1586,7 +1644,9 @@ describe('the toolbar sheet', () => {
     localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1614,7 +1674,9 @@ describe('the toolbar sheet', () => {
       localStorage.setItem('wbs.linksResetShown.p1', 'true');
       const api = fakeApi();
       widthIs(PHONE);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
       });
@@ -1639,7 +1701,9 @@ describe('the toolbar sheet', () => {
   itDom('holds the page’s own shortcuts back while it is open', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
     });
@@ -1667,7 +1731,9 @@ describe('what a card says about capacity', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams, api);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
   }
 
@@ -1712,7 +1778,7 @@ describe('what a card says about capacity', () => {
 
   itDom('draws no team line at all where nothing above carries a label', async () => {
     await aPlan(() => {
-      // Nothing arranged: the plan every project starts as.
+      // Nothing arranged: the plan every work package starts as.
     });
 
     expect(teamOnCard()).toBeNull();
@@ -1755,7 +1821,7 @@ describe('what a card says about capacity', () => {
 
   itDom('draws no service line at all where nothing above delivers anything', async () => {
     await aPlan(() => {
-      // Nothing arranged: the plan every project starts as.
+      // Nothing arranged: the plan every work package starts as.
     });
 
     expect(serviceOnCard()).toBeNull();
@@ -1986,7 +2052,7 @@ describe('what a card says about capacity', () => {
     // The bargain every face makes with an unranked row: nothing rather than a
     // grey chip reading `—`. On a 390px screen that furniture costs the most.
     await aPlan(() => {
-      // Nothing arranged: the plan every project starts as.
+      // Nothing arranged: the plan every work package starts as.
     });
 
     expect(document.querySelector('[data-card-priority]')).toBeNull();
@@ -2049,7 +2115,9 @@ describe('what a card says about the schedule', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
   }
 
@@ -2112,14 +2180,14 @@ describe('what a card says about the schedule', () => {
   const floorOnCard = (rowId = 'w1'): HTMLElement | null =>
     document.querySelector(`[data-card="${rowId}"] [data-card-floor]`);
 
-  itDom('says a row nothing holds back starts with the project, in words', async () => {
-    // The project-start floor prints like every other floor rather than
+  itDom('says a row nothing holds back starts with the work package, in words', async () => {
+    // The work-package-start floor prints like every other floor rather than
     // printing nothing, and that is the contract the `null` case below is
     // about: absence means the geometry could not explain the row, and it can
     // only mean that if "nothing holds this" has words of its own.
     await aPlan(() => undefined);
 
-    expect(floorOnCard()?.textContent).toBe('Starts with the project');
+    expect(floorOnCard()?.textContent).toBe('Starts with the work package');
   });
 
   itDom(
@@ -2142,7 +2210,7 @@ describe('what a card says about the schedule', () => {
       expect(floorOnCard('w2')?.textContent).toBe('Waits for 010 (Dev)');
       // The first row is untouched by its dependant, so one card's sentence is
       // not the whole plan's.
-      expect(floorOnCard('w1')?.textContent).toBe('Starts with the project');
+      expect(floorOnCard('w1')?.textContent).toBe('Starts with the work package');
     },
   );
 
@@ -2196,8 +2264,8 @@ describe('a step’s node reading, on a card', () => {
       name: 'Leaf',
     });
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         workItems: plan.workItems.map((item) =>
@@ -2214,7 +2282,9 @@ describe('a step’s node reading, on a card', () => {
       };
     };
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     expect([readingOnCard(DEV.id, '010.1'), readingOnCard(QA.id, '010.1')]).toEqual([
@@ -2243,7 +2313,9 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
   itDom('draws a step’s chip beside its assignee, with the lease text', async () => {
     const { api } = await claimedPlan();
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     await waitFor(() => {
@@ -2276,7 +2348,9 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
   itDom('draws a subtree claim’s chip in its card’s header, and none under it', async () => {
     const { api } = await claimedPlan();
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     await waitFor(() => {
@@ -2293,7 +2367,9 @@ describe('claims on a card (wbs-claim-display 7.1)', () => {
     // the chip on a line of its own; the 375 px screenshots show it holds.
     const { api } = await claimedPlan();
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     const header = cardOf('010').querySelector('header');
@@ -2316,7 +2392,9 @@ describe('the Claims sheet on a phone (wbs-claim-display 9.2)', () => {
   itDom('is offered on the Plan actions sheet, and opens over it', async () => {
     const { api } = await claimedPlan();
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     openTheSheet();
@@ -2350,7 +2428,9 @@ describe('the trio behind a step’s figure, on a card', () => {
   itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     expect(trioOnCard(DEV.id)?.textContent).toBe('No estimate yet');
@@ -2368,7 +2448,9 @@ describe('the trio behind a step’s figure, on a card', () => {
       const created = await api.createWorkItem('p1', { parentId: null });
       await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
       widthIs(PHONE);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByLabelText('Name of 010');
 
       expect(trioOnCard(DEV.id)?.textContent).toBe('optimistic 2 · realistic 3 · pessimistic 8');
@@ -2390,7 +2472,9 @@ describe('the trio behind a step’s figure, on a card', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('2/3/8');
@@ -2404,7 +2488,9 @@ describe('the trio behind a step’s figure, on a card', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     await api.setEstimate(created.id, DEV.id, { optimistic: 5, realistic: 5, pessimistic: 5 });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     expect(screen.getByLabelText<HTMLInputElement>('Dev estimate for 010').value).toBe('5');
@@ -2414,7 +2500,9 @@ describe('the trio behind a step’s figure, on a card', () => {
   itDom('opens on a tap and stays shut until one', async () => {
     const api = fakeApi();
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await addAWorkItem();
 
     const detail = detailOnCard(DEV.id);
@@ -2460,7 +2548,9 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
     const created = await api.createWorkItem('p1', { parentId: null });
     if (days !== null) await api.setEstimate(created.id, DEV.id, days);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   };
@@ -2571,7 +2661,9 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await api.createWorkItem('p1', { parentId: null });
     const sent = recordCalls(api, 'setStatus', (_id, status, on) => ({ status, on }));
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 010' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2593,7 +2685,9 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 010' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2611,9 +2705,11 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     await api.createWorkItem('p1', { parentId: 'w1' });
-    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const creates = recordCalls(api, 'createWorkItem', (_work_packageId, input) => input);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 020' });
     fireEvent.click(screen.getByRole('button', { name: 'Collapse 010' }));
     expect(screen.queryByRole('article', { name: 'Work item 020' })).toBeNull();
@@ -2634,7 +2730,9 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await api.createWorkItem('p1', { parentId: null });
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 020' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
@@ -2653,7 +2751,9 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await api.createWorkItem('p1', { parentId: null });
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByRole('article', { name: 'Work item 020' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2677,7 +2777,9 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       // not how it came to be frozen.
       api.rows[0].frozenNumber = '010';
       widthIs(PHONE);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByRole('article', { name: 'Work item 010' });
 
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
@@ -2814,10 +2916,10 @@ function renderCards(
 ) {
   return render(
     <PlanCards
-      projectId="p1"
+      workPackageId="p1"
       dependencyLookup={
         openDependencyLookup({
-          projectId: 'p1',
+          workPackageId: 'p1',
           isCurrent: () => true,
           routes: createRefusingAddressApi(),
         }).lookup
@@ -2855,10 +2957,10 @@ function renderCards(
       setTeams={() => Promise.resolve('landed')}
       createTeam={() => Promise.resolve('landed')}
       // No calendar, which is what a stub tree honestly is: none of these rows
-      // came from a plan, so none of them has a project start date behind it.
+      // came from a plan, so none of them has a work package start date behind it.
       // The date field draws its refusal and opens onto nothing, which is
       // exactly what these row-actions tests want it doing.
-      projectStart={null}
+      workPackageStart={null}
       setNotBefore={() => undefined}
       setDeadline={() => undefined}
       setPriority={() => Promise.resolve('landed')}
@@ -2908,10 +3010,10 @@ describe('a card given no sentence for its start', () => {
   const floors = (): NodeListOf<Element> => document.querySelectorAll('[data-card-floor]');
 
   itDom('prints the sentence where there is one', () => {
-    renderCards([aTreeRow()], undefined, [], () => 'Starts with the project');
+    renderCards([aTreeRow()], undefined, [], () => 'Starts with the work package');
 
     expect(floors()).toHaveLength(1);
-    expect(floors()[0].textContent).toBe('Starts with the project');
+    expect(floors()[0].textContent).toBe('Starts with the work package');
   });
 
   itDom('prints no line at all for a row the geometry could not explain', () => {
@@ -3146,7 +3248,9 @@ describe('a filter on a phone', () => {
     strip.serviceTeamId = 't1';
     strip.teamIds = ['t1'];
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
   }
 
@@ -3209,7 +3313,9 @@ describe('setting a card’s team', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows, api.teams);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3291,7 +3397,9 @@ describe('setting a card’s team', () => {
       });
     };
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     fireEvent.click(teamFields()[0]);
@@ -3350,7 +3458,7 @@ describe('setting a card’s team', () => {
       // drawn only where a value already exists cannot set the first one. Every
       // plan starts as this row.
       const api = await aPhonePlan(() => {
-        // Nothing arranged: the plan every project starts as.
+        // Nothing arranged: the plan every work package starts as.
       });
 
       // Still no *claim* about a team — `data-card-team` is the claim, and this
@@ -3416,7 +3524,9 @@ describe('setting a card’s tags and services', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     expect(document.querySelector('[data-card-tags-field]')).toBeNull();
@@ -3432,7 +3542,9 @@ describe('setting a card’s tags and services', () => {
     api.services.push({ id: 'service-seed', name: 'seed service' });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3513,20 +3625,22 @@ describe('setting a card’s tags and services', () => {
 describe('setting a card’s earliest start', () => {
   /**
    * A phone plan **on a calendar**, which is this field's precondition rather
-   * than a convenience: without a project start date be-01 ignores the
+   * than a convenience: without a work package start date be-01 ignores the
    * constraint, so a dateless fixture would only ever exercise the refusal.
    * The fake is kept, like the team's, because what a tap *sent* is the subject.
    */
   async function aDatedPhonePlan(
     arrange: (rows: WorkItemView[]) => void = () => {
-      // The plan a project starts as: on a calendar, constraining nothing.
+      // The plan a work package starts as: on a calendar, constraining nothing.
     },
   ): Promise<ReturnType<typeof fakeApi>> {
     const api = fakeApi({ dated: true });
     await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3628,13 +3742,15 @@ describe('setting a card’s earliest start', () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const field = dateFields()[0];
     expect(field.hasAttribute('disabled')).toBe(true);
     expect(field.getAttribute('data-fact')).toBe(
-      'Set the project start date first — without one there are no dates to constrain.',
+      'Set the work package start date first — without one there are no dates to constrain.',
     );
 
     fireEvent.click(field);
@@ -3691,7 +3807,9 @@ describe('setting a card’s work item deadline', () => {
     await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -3779,8 +3897,8 @@ describe('setting a card’s work item deadline', () => {
     });
   });
 
-  itDom('says a work item deadline the project has moved past cannot be met', async () => {
-    // TASK-291 AC #3 on the card, the read-time `before-project-start` case:
+  itDom('says a work item deadline the work package has moved past cannot be met', async () => {
+    // TASK-291 AC #3 on the card, the read-time `before-work-package-start` case:
     // the plan starts on the 1st of June and the row owes its work by the 29th
     // of May. **The date is printed unchanged** — §2.3's "not silently
     // dropped" — and the mark beside it is what stops the card from showing an
@@ -3797,7 +3915,7 @@ describe('setting a card’s work item deadline', () => {
     expect(dueOnCard()?.textContent).toBe(`due ${shortIsoDate(impossible, new Date())}`);
     expect(
       screen.getByRole('img', {
-        name: "Work item deadline for 010 falls before the project's first working day",
+        name: "Work item deadline for 010 falls before the work package's first working day",
       }),
     ).not.toBeNull();
 
@@ -3814,7 +3932,7 @@ describe('setting a card’s work item deadline', () => {
   itDom('marks nothing on a work item deadline the plan can still meet', async () => {
     // The negative control for the case above, and the one that makes the mark
     // a reading rather than a decoration drawn beside every date: same fixture,
-    // same field, a date after the project start.
+    // same field, a date after the work package start.
     await aDatedPhonePlan((rows) => {
       rows[0].deadline = DATED_PLAN.endsOn;
     });
@@ -3838,7 +3956,9 @@ describe('setting a card’s work item deadline', () => {
     const api = fakeApi({ dated: false });
     await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const field = deadlineFields()[0];
@@ -3855,7 +3975,7 @@ describe('setting a card’s priority', () => {
    */
   async function aPhonePlan(
     arrange: (rows: WorkItemView[]) => void = () => {
-      // The plan every project starts as: nobody has ranked anything.
+      // The plan every work package starts as: nobody has ranked anything.
     },
     howMany = 1,
   ): Promise<ReturnType<typeof fakeApi>> {
@@ -3863,7 +3983,9 @@ describe('setting a card’s priority', () => {
     for (let at = 0; at < howMany; at += 1) await api.createWorkItem('p1', { parentId: null });
     arrange(api.rows);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -4065,7 +4187,9 @@ describe('setting what a card waits for', () => {
       'FF',
     );
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     expect(screen.getByText(/010 FF.*Finish-to-finish/)).toBeDefined();
@@ -4089,7 +4213,9 @@ describe('setting what a card waits for', () => {
     });
     const added = recordCalls(api, 'addTypedDependency');
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     fireEvent.click(screen.getByRole('button', { name: /^010/ }));
@@ -4125,7 +4251,9 @@ describe('setting what a card waits for', () => {
     );
     const removed = recordCalls(api, 'removeTypedDependency');
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     expect(screen.getByText(/010 FS ·/)).toBeDefined();
@@ -4167,7 +4295,9 @@ describe('setting what a card waits for', () => {
       'FS',
     );
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
@@ -4191,8 +4321,8 @@ describe('setting what a card waits for', () => {
       'FS',
     );
     const readTree = api.tree.bind(api);
-    api.tree = async (projectId) => {
-      const plan = await readTree(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readTree(workPackageId);
       return {
         ...plan,
         stepNodes: plan.stepNodes?.map((node) => ({
@@ -4202,7 +4332,9 @@ describe('setting what a card waits for', () => {
       };
     };
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     expect(screen.getByText(/010\.build FS → build/)).toBeDefined();
@@ -4225,7 +4357,9 @@ describe('setting what a card waits for', () => {
     if (original === undefined) throw new Error('Missing fixture dependency');
     const added = recordCalls(api, 'addTypedDependency');
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
@@ -4245,14 +4379,16 @@ describe('setting what a card waits for', () => {
     await api.createWorkItem('p1', { parentId: null, afterId: source.id, name: 'Sand' });
     const readPlan = api.tree.bind(api);
     let predecessorDeleted = false;
-    api.tree = async (projectId) => {
-      const plan = await readPlan(projectId);
+    api.tree = async (workPackageId) => {
+      const plan = await readPlan(workPackageId);
       return predecessorDeleted
         ? { ...plan, workItems: plan.workItems.filter((row) => row.id !== source.id) }
         : plan;
     };
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
@@ -4275,7 +4411,9 @@ describe('setting what a card waits for', () => {
     await api.createWorkItem('p1', { parentId: null, afterId: predecessor.id, name: 'Sand' });
     const added = recordCalls(api, 'addTypedDependency');
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
@@ -4300,7 +4438,9 @@ describe('setting what a card waits for', () => {
     arrange(api.rows);
     configure(api);
     widthIs(PHONE);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     return api;
   }
@@ -4441,7 +4581,7 @@ describe('setting what a card waits for', () => {
         () => undefined,
         (configured) => {
           const realAdd = configured.addTypedDependency.bind(configured);
-          configured.addTypedDependency = (projectId, predecessor, successor, type) => {
+          configured.addTypedDependency = (workPackageId, predecessor, successor, type) => {
             calls.push(
               `add:${successor.scope === 'whole' ? successor.workItemId : ''}:${predecessor.scope === 'whole' ? predecessor.workItemId : ''}`,
             );
@@ -4449,7 +4589,7 @@ describe('setting what a card waits for', () => {
               release = () => {
                 resolve();
               };
-            }).then(() => realAdd(projectId, predecessor, successor, type));
+            }).then(() => realAdd(workPackageId, predecessor, successor, type));
           };
         },
       );
@@ -4562,7 +4702,9 @@ describe('what a gesture over the plan costs the cards behind it', () => {
     const api = fakeApi();
     for (let at = 0; at < 5; at += 1) await api.createWorkItem('p1', { parentId: null });
     widthIs(PHONE, PHONE_TALL);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
     expect(document.querySelectorAll('[data-card]')).toHaveLength(5);
   }
@@ -4572,7 +4714,7 @@ describe('what a gesture over the plan costs the cards behind it', () => {
     async () => {
       const api = fakeApi();
       for (let at = 0; at < 50; at += 1) await api.createWorkItem('p1', { parentId: null });
-      const projectSteps = [
+      const workPackageSteps = [
         DEV,
         QA,
         ...Array.from({ length: 3 }, (_, at) => ({
@@ -4582,22 +4724,22 @@ describe('what a gesture over the plan costs the cards behind it', () => {
         })),
       ];
       const readTree = api.tree.bind(api);
-      api.tree = async (projectId) => {
-        const plan = await readTree(projectId);
+      api.tree = async (workPackageId) => {
+        const plan = await readTree(workPackageId);
         return {
           ...plan,
-          steps: projectSteps,
+          steps: workPackageSteps,
           timezone: 'UTC',
           workItems: plan.workItems.map((row) => ({
             ...row,
             nodeReadings: Object.fromEntries(
-              projectSteps.map((step) => [step.id, 'unknown' as const]),
+              workPackageSteps.map((step) => [step.id, 'unknown' as const]),
             ),
             blockages: {},
             blockageCauses: {},
           })),
           stepNodes: plan.workItems.flatMap((row) =>
-            projectSteps.map((step) => ({
+            workPackageSteps.map((step) => ({
               id: `sn1.${row.id}.${step.id}`,
               workItemId: row.id,
               stepId: step.id,
@@ -4606,11 +4748,11 @@ describe('what a gesture over the plan costs the cards behind it', () => {
           ),
         };
       };
-      api.steps = () => Promise.resolve(projectSteps);
+      api.steps = () => Promise.resolve(workPackageSteps);
       widthIs(PHONE, PHONE_TALL);
       blockageIndexCalls.length = 0;
       const drawn = render(
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
       );
       await screen.findByLabelText('Name of 500');
       expect(document.querySelectorAll('[data-card]')).toHaveLength(50);
@@ -4620,15 +4762,15 @@ describe('what a gesture over the plan costs the cards behind it', () => {
         blockageIndexCalls.filter(([rows, steps]) => rows.length === 50 && steps.length === 5);
       expect(builds()).toHaveLength(1);
       drawn.rerender(
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
       );
       expect(builds()).toHaveLength(1);
       const priorRows = builds().at(0)?.[0];
       if (priorRows === undefined) throw new Error('No initial production index build');
       const changedApi = {
         ...api,
-        tree: async (projectId: string) => {
-          const plan = await api.tree(projectId);
+        tree: async (workPackageId: string) => {
+          const plan = await api.tree(workPackageId);
           return {
             ...plan,
             workItems: plan.workItems.map((row) =>
@@ -4638,7 +4780,10 @@ describe('what a gesture over the plan costs the cards behind it', () => {
         },
       };
       drawn.rerender(
-        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(changedApi)} />,
+        <WbsTableOverClient
+          workPackageId="p1"
+          workPackageServices={workPackageServicesOf(changedApi)}
+        />,
       );
       await waitFor(() => {
         expect(builds().some(([rows]) => rows !== priorRows)).toBe(true);

@@ -40,6 +40,7 @@ import { referenceArtifact } from '../artifact-integrity';
 import { decodeCurrentAttempt, ownerId } from '../record-codecs';
 import { decodeRecoveryHistory } from '../recovery-codecs';
 import { digestRuntimeRequest, runtimeScopeKey } from '../runtime-codecs';
+import type { readRuntimeStateArtifact } from '../runtime-state';
 import { prepareClaimed, unwrapReply } from '../testing/fixtures';
 import {
   authorityReceipt,
@@ -409,7 +410,35 @@ for (const format of ['current', 'historical'] as const)
         format === 'historical' ? createFormat4Inspection : createRecoveryInspection
       )(directory, options);
       try {
-        const setup = await prepareClaimed<typeof stores.runs>({ ...stores, clock: options.clock });
+        const setup = await (async () => {
+          if (format === 'current')
+            return await prepareClaimed<typeof stores.runs>({ ...stores, clock: options.clock });
+          if (!('sourceDirectory' in stores)) throw new Error('historical fixture source absent');
+          const historical: unknown = await import(
+            stores.sourceDirectory +
+              '/apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts'
+          );
+          if (
+            typeof historical !== 'object' ||
+            historical === null ||
+            !('prepareClaimed' in historical) ||
+            typeof historical.prepareClaimed !== 'function'
+          )
+            throw new Error('historical prepareClaimed export absent');
+          type State1 = Extract<
+            Awaited<ReturnType<typeof readRuntimeStateArtifact>>,
+            { schemaVersion: 1 }
+          >;
+          type HistoricalSetup = Omit<
+            Awaited<ReturnType<typeof prepareClaimed<typeof stores.runs>>>,
+            'state'
+          > & { readonly state: State1 };
+          // Boundary: the active format4 provider owns and verifies this published helper in format4SourceEntries. Its raw state is generation1, never relabeled current2.
+          const prepareHistorical = historical.prepareClaimed as (
+            fixture: Parameters<typeof prepareClaimed<typeof stores.runs>>[0],
+          ) => Promise<HistoricalSetup>;
+          return await prepareHistorical({ ...stores, clock: options.clock });
+        })();
         const execution = await stores.runs.readExecutionHistory(
           setup.run.runId,
           setup.admission.attemptId,

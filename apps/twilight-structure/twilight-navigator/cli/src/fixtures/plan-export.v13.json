@@ -1,0 +1,238 @@
+{
+  "workPackage": {
+    "id": "C",
+    "name": "C",
+    "ownerId": "u",
+    "restricted": false,
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "exact",
+    "startDate": "2026-10-05",
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "optimizationEnabled": false,
+    "solutionRef": null,
+    "timezone": "UTC",
+    "abbreviation": "C",
+    "revision": 7,
+    "createdAt": 0
+  },
+  "workItems": [
+    {
+      "id": "c",
+      "workPackageId": "C",
+      "parentId": null,
+      "position": 0,
+      "name": "c",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "readiness": null,
+      "hold": null,
+      "priority": null,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 1,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "factStart": null,
+      "factEnd": null,
+      "number": "010",
+      "estimates": {
+        "build": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "unknown",
+      "charged": {
+        "build": {
+          "unit": "workdays",
+          "days": 1
+        }
+      },
+      "finalDays": {
+        "build": 1
+      },
+      "finalTotal": 1,
+      "rolledUp": false,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "nodeReadings": {
+        "build": "unknown"
+      },
+      "schedule": {
+        "duration": 1,
+        "estimated": true,
+        "earliestStart": 2,
+        "earliestFinish": 3,
+        "latestStart": 2,
+        "latestFinish": 3,
+        "float": 0,
+        "critical": true
+      },
+      "dates": {
+        "startsOn": "2026-10-07",
+        "endsOn": "2026-10-07"
+      }
+    }
+  ],
+  "typedDependencies": [],
+  "seq": 11,
+  "scheduleError": null,
+  "waitingForPerson": 0,
+  "waitingForCapacity": 0,
+  "slices": [
+    {
+      "id": "c\u0000build",
+      "workItemId": "c",
+      "stepId": "build",
+      "duration": 1,
+      "effort": 1,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 2,
+      "earliestFinish": 3,
+      "latestStart": 2,
+      "latestFinish": 3,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "predecessor",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "build",
+      "name": "Build",
+      "code": "build",
+      "position": 0,
+      "allowancePercent": 0,
+      "estimateUnit": "workdays",
+      "workPackageId": "C"
+    }
+  ],
+  "assignedPeople": [],
+  "teamCapacities": [],
+  "priorityBands": [],
+  "estimateMethod": "realistic",
+  "pertWeights": {
+    "optimistic": 1,
+    "realistic": 4,
+    "pessimistic": 1
+  },
+  "estimateRounding": "exact",
+  "depReach": "whole-item",
+  "startDate": "2026-10-05",
+  "workPackageRevision": 7,
+  "connectedDependencies": [
+    {
+      "id": "bc",
+      "workPackageId": "C",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "workPackageId": "B",
+          "scope": "whole",
+          "workItemId": "b"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "b",
+        "workPackageAbbreviation": "B",
+        "workItemNumber": "010",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "B.010",
+        "stepNodeId": null
+      },
+      "successor": {
+        "endpoint": {
+          "workPackageId": "C",
+          "scope": "whole",
+          "workItemId": "c"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "c",
+        "workPackageAbbreviation": "C",
+        "workItemNumber": "010",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "C.010",
+        "stepNodeId": null
+      }
+    }
+  ],
+  "remoteBlockageLabels": [],
+  "stepBlockages": [],
+  "stepNodes": [
+    {
+      "id": "sn1.c.build",
+      "workItemId": "c",
+      "stepId": "build",
+      "reference": "010.s1-build"
+    }
+  ],
+  "document": {
+    "format": "wbs-plan",
+    "version": 13,
+    "exportedAt": "2026-11-11T00:00:00.000Z"
+  },
+  "settings": {
+    "name": "C",
+    "restricted": false,
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "exact",
+    "startDate": "2026-10-05",
+    "solutionRef": null,
+    "optimizationEnabled": false,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC",
+    "budgetFactor": 1
+  },
+  "capacity": [],
+  "resourceCapacities": [],
+  "demands": [],
+  "calendarMarkers": [],
+  "directory": {
+    "teams": [],
+    "people": [],
+    "tags": [],
+    "services": [],
+    "types": [],
+    "externalSystems": [],
+    "resources": []
+  },
+  "measureDefinitions": [],
+  "measureFacts": [],
+  "measureEstimates": [],
+  "budgets": []
+}

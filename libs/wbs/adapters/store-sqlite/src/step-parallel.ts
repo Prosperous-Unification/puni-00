@@ -1,17 +1,18 @@
 import type { StepParallelStore, StoredStepParallel, WriteStamp } from '@wbs/core';
 import { assertStepParallel } from '@wbs/domain';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { step, stepParallel, workItem } from './schema';
+import { stepParallel } from './schema';
+import { readSqliteParallelsIn } from './sparse-step-reads';
 
 /**
- * Pair-keyed audited parallelism, ordered by owner and project step position.
+ * Pair-keyed audited parallelism, ordered by each actual leaf's current SC18 steps.
  * Left joins preserve malformed references for validation. A fact with no owner
- * cannot be safely scoped, so every full project read refuses that orphan.
+ * cannot be safely scoped, so every full work package read refuses that orphan.
  * Explicit values survive row-default changes; writes update audit and row revisions.
  *
  * @throws for invalid stored references, parent ownership or maximum parallelism,
@@ -23,48 +24,25 @@ export class StepParallelRepository implements StepParallelStore {
     private readonly gate: Gate,
   ) {}
 
-  listByProject(projectId: string): Promise<StoredStepParallel[]> {
-    return this.read(projectId);
+  listByWorkPackage(workPackageId: string): Promise<StoredStepParallel[]> {
+    return this.read(workPackageId);
   }
 
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredStepParallel[]> {
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredStepParallel[]> {
     if (ids.length === 0) return Promise.resolve([]);
-    return this.read(projectId, ids);
+    return this.read(workPackageId, ids);
   }
 
-  private async read(projectId: string, ids?: readonly string[]): Promise<StoredStepParallel[]> {
-    const rows = await this.db
-      .select({
-        workItemId: stepParallel.workItemId,
-        stepId: stepParallel.stepId,
-        maxParallel: stepParallel.maxParallel,
-        ownerProject: workItem.projectId,
-        stepProject: step.projectId,
-        hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepParallel.workItemId})`,
-      })
-      .from(stepParallel)
-      .leftJoin(workItem, eq(workItem.id, stepParallel.workItemId))
-      .leftJoin(step, eq(step.id, stepParallel.stepId))
-      .where(
-        and(
-          or(eq(workItem.projectId, projectId), isNull(workItem.id)),
-          ids === undefined ? undefined : inArray(stepParallel.workItemId, [...ids]),
-        ),
-      )
-      .orderBy(stepParallel.workItemId, step.position, stepParallel.stepId);
-    for (const row of rows) {
-      // Proof: owner guard removed; missing-owner retained-row read negative failed, 2026-10-15.
-      if (row.ownerProject === null)
-        throw new Error('step parallelism has an invalid work-item reference');
-      // Proof: step/project guard removed independently against missing-step and cross-project corrupt reads; both negatives failed, 2026-10-15.
-      if (row.stepProject !== projectId)
-        throw new Error('step parallelism has an invalid step reference');
-      // Proof: leaf guard removed; corrupt-parent read negative failed, 2026-10-15.
-      if (row.hasChildren !== 0) throw new Error('step parallelism owner is not a leaf');
-      // Proof: read range call removed; corrupt-value read negative failed, 2026-10-15.
-      assertStepParallel(row.maxParallel);
-    }
-    return rows.map(({ workItemId, stepId, maxParallel }) => ({ workItemId, stepId, maxParallel }));
+  /** Current fact and metadata queries share one actual supplied native transaction. */
+  private async read(
+    workPackageId: string,
+    ids?: readonly string[],
+  ): Promise<StoredStepParallel[]> {
+    const retained = ids === undefined ? null : [...ids];
+    if (retained !== null && retained.length === 0) return [];
+    return Promise.resolve(
+      this.db.transaction((snapshot) => readSqliteParallelsIn(snapshot, workPackageId, retained)),
+    );
   }
 
   async set(parallelism: StoredStepParallel, stamp: WriteStamp): Promise<void> {

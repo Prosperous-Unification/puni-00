@@ -2,31 +2,39 @@ import { schedule, workdayOrdinalOf } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { ScheduleRead } from '../ports/scheduler';
-import { compareSharedPeopleFanout, type FanoutProject } from './shared-people-fanout';
+import { compareSharedPeopleFanout, type FanoutWorkPackage } from './shared-people-fanout';
 
 function placed(
-  projectId: string,
+  workPackageId: string,
   start: number,
   width = 1,
   days = 1,
   personId: string | null = 'ana',
 ) {
   return schedule(
-    [{ id: `${projectId}-row`, parentId: null, position: 10, frozenNumber: null, priority: null }],
+    [
+      {
+        id: `${workPackageId}-row`,
+        parentId: null,
+        position: 10,
+        frozenNumber: null,
+        priority: null,
+      },
+    ],
     [],
-    [{ workItemId: `${projectId}-row`, stepId: 'build', days, personId, width, poolIds: [] }],
-    new Map([[`${projectId}-row`, start]]),
+    [{ workItemId: `${workPackageId}-row`, stepId: 'build', days, personId, width, poolIds: [] }],
+    new Map([[`${workPackageId}-row`, start]]),
     new Map(),
     'whole-item',
     new Map(),
   );
 }
 
-function project(projectId: string, outcome: ScheduleRead): FanoutProject {
+function workPackage(workPackageId: string, outcome: ScheduleRead): FanoutWorkPackage {
   return {
-    projectId,
+    workPackageId,
     organizationId: 'org-a',
-    name: projectId,
+    name: workPackageId,
     rankPosition: 10,
     startDate: '2026-10-05',
     personIds: ['ana'],
@@ -37,10 +45,10 @@ function project(projectId: string, outcome: ScheduleRead): FanoutProject {
   };
 }
 
-function fast(projectId: string): ScheduleRead {
+function fast(workPackageId: string): ScheduleRead {
   return {
     kind: 'scheduled',
-    fast: placed(projectId, 0),
+    fast: placed(workPackageId, 0),
     optimization: {
       inputHash: 'same-input',
       generation: 1,
@@ -66,128 +74,144 @@ describe('compareSharedPeopleFanout', () => {
         schedules: { pri: placed('A', 3), time: null },
       },
     };
-    const before = [project('A', fast('A')), project('B', fast('B'))];
-    const after = [project('A', ready), project('B', fast('B'))];
+    const before = [workPackage('A', fast('A')), workPackage('B', fast('B'))];
+    const after = [workPackage('A', ready), workPackage('B', fast('B'))];
 
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
 
-    expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
-    expect(comparison.projections.find(({ projectId }) => projectId === 'A')).toMatchObject({
-      before: {
-        availability: 'available',
-        bookings: [{ personId: 'ana', projectId: 'A', workItemId: 'A-row', stepId: 'build' }],
+    expect(comparison.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
+    expect(comparison.projections.find(({ workPackageId }) => workPackageId === 'A')).toMatchObject(
+      {
+        before: {
+          availability: 'available',
+          bookings: [{ personId: 'ana', workPackageId: 'A', workItemId: 'A-row', stepId: 'build' }],
+        },
+        after: {
+          availability: 'available',
+          bookings: [{ personId: 'ana', workPackageId: 'A', workItemId: 'A-row', stepId: 'build' }],
+        },
+        bookingsChanged: true,
+        availabilityChanged: false,
       },
-      after: {
-        availability: 'available',
-        bookings: [{ personId: 'ana', projectId: 'A', workItemId: 'A-row', stepId: 'build' }],
-      },
-      bookingsChanged: true,
-      availabilityChanged: false,
-    });
-    const a = comparison.projections.find(({ projectId }) => projectId === 'A');
+    );
+    const a = comparison.projections.find(({ workPackageId }) => workPackageId === 'A');
     expect(a?.before?.bookings[0]?.start).toBe(workdayOrdinalOf('2026-10-05'));
     expect(a?.after?.bookings[0]?.start).toBe(workdayOrdinalOf('2026-10-05') + 3);
   });
 
   it('equal hashes retain availability transitions with no bookings', () => {
-    const unavailable = project('A', {
+    const unavailable = workPackage('A', {
       kind: 'engine_unavailable',
       error: 'engine_unavailable',
       engine: 'optimized',
     });
-    const cycle: FanoutProject = { ...unavailable, outcome: { kind: 'cycle' } };
-    const before = [unavailable, project('B', fast('B'))];
-    const after = [cycle, project('B', fast('B'))];
+    const cycle: FanoutWorkPackage = { ...unavailable, outcome: { kind: 'cycle' } };
+    const before = [unavailable, workPackage('B', fast('B'))];
+    const after = [cycle, workPackage('B', fast('B'))];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
 
     expect(before[0]?.inputHash).toBe(after[0]?.inputHash);
-    expect(comparison.projections.find(({ projectId }) => projectId === 'A')).toMatchObject({
-      before: { availability: 'engine_unavailable', bookings: [] },
-      after: { availability: 'cycle', bookings: [] },
-      bookingsChanged: false,
-      availabilityChanged: true,
-    });
-    expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+    expect(comparison.projections.find(({ workPackageId }) => workPackageId === 'A')).toMatchObject(
+      {
+        before: { availability: 'engine_unavailable', bookings: [] },
+        after: { availability: 'cycle', bookings: [] },
+        bookingsChanged: false,
+        availabilityChanged: true,
+      },
+    );
+    expect(comparison.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
   });
 
   it('removed bridge retains recipients reached in the old topology', () => {
-    const aBefore = project('A', fast('A'));
+    const aBefore = workPackage('A', fast('A'));
     const aAfter = { ...aBefore, outcome: { kind: 'cycle' as const } };
-    const bridge = { ...project('B', fast('B')), personIds: ['ana', 'bob'] };
-    const oldProjects = [aBefore, bridge, { ...project('C', fast('C')), personIds: ['bob'] }];
-    const newProjects = [aAfter, { ...bridge, personIds: ['ana'] }, oldProjects[2]];
+    const bridge = { ...workPackage('B', fast('B')), personIds: ['ana', 'bob'] };
+    const oldWorkPackages = [
+      aBefore,
+      bridge,
+      { ...workPackage('C', fast('C')), personIds: ['bob'] },
+    ];
+    const newWorkPackages = [aAfter, { ...bridge, personIds: ['ana'] }, oldWorkPackages[2]];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: oldProjects },
-      after: { mode: 'shared', organizationId: 'org-a', projects: newProjects },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: oldWorkPackages },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: newWorkPackages },
       directCauses: ['A'],
     });
 
     expect(comparison.recipients).toEqual([
-      { projectId: 'B', causeProjectId: 'A' },
-      { projectId: 'C', causeProjectId: 'A' },
+      { workPackageId: 'B', causeWorkPackageId: 'A' },
+      { workPackageId: 'C', causeWorkPackageId: 'A' },
     ]);
   });
 
   it('does not invent a path from mixed old and new edges', () => {
-    const aBefore = project('A', fast('A'));
+    const aBefore = workPackage('A', fast('A'));
     const aAfter = { ...aBefore, outcome: { kind: 'cycle' as const } };
-    const oldProjects = [
+    const oldWorkPackages = [
       aBefore,
-      { ...project('B', fast('B')), personIds: ['ana'] },
-      { ...project('C', fast('C')), personIds: ['bob'] },
+      { ...workPackage('B', fast('B')), personIds: ['ana'] },
+      { ...workPackage('C', fast('C')), personIds: ['bob'] },
     ];
-    const newProjects = [aAfter, { ...oldProjects[1], personIds: ['bob'] }, oldProjects[2]];
+    const newWorkPackages = [
+      aAfter,
+      { ...oldWorkPackages[1], personIds: ['bob'] },
+      oldWorkPackages[2],
+    ];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: oldProjects },
-      after: { mode: 'shared', organizationId: 'org-a', projects: newProjects },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: oldWorkPackages },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: newWorkPackages },
       directCauses: ['A'],
     });
 
-    expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+    expect(comparison.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
   });
 
   it('deduplicates and orders recipient/cause pairs independent of capture order', () => {
-    const before = [project('Z', fast('Z')), project('A', fast('A')), project('B', fast('B'))];
+    const before = [
+      workPackage('Z', fast('Z')),
+      workPackage('A', fast('A')),
+      workPackage('B', fast('B')),
+    ];
     const after = before.map((entry) =>
-      entry.projectId === 'B' ? entry : { ...entry, outcome: { kind: 'cycle' as const } },
+      entry.workPackageId === 'B' ? entry : { ...entry, outcome: { kind: 'cycle' as const } },
     );
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['Z', 'A', 'Z'],
     });
 
     expect(comparison.recipients).toEqual([
-      { projectId: 'A', causeProjectId: 'Z' },
-      { projectId: 'B', causeProjectId: 'A' },
-      { projectId: 'B', causeProjectId: 'Z' },
+      { workPackageId: 'A', causeWorkPackageId: 'Z' },
+      { workPackageId: 'B', causeWorkPackageId: 'A' },
+      { workPackageId: 'B', causeWorkPackageId: 'Z' },
     ]);
   });
 
-  it('keeps isolated and foreign organization projects outside shared fan-out', () => {
+  it('keeps isolated and foreign organization work packages outside shared fan-out', () => {
     const before = [
-      project('A', fast('A')),
-      project('B', fast('B')),
-      { ...project('X', fast('X')), organizationId: 'org-b' },
+      workPackage('A', fast('A')),
+      workPackage('B', fast('B')),
+      { ...workPackage('X', fast('X')), organizationId: 'org-b' },
     ];
     const after = before.map((entry) =>
-      entry.projectId === 'A' ? { ...entry, outcome: { kind: 'cycle' as const } } : entry,
+      entry.workPackageId === 'A' ? { ...entry, outcome: { kind: 'cycle' as const } } : entry,
     );
-    const sharedBefore = { mode: 'shared' as const, organizationId: 'org-a', projects: before };
-    const sharedAfter = { mode: 'shared' as const, organizationId: 'org-a', projects: after };
+    const sharedBefore = { mode: 'shared' as const, organizationId: 'org-a', workPackages: before };
+    const sharedAfter = { mode: 'shared' as const, organizationId: 'org-a', workPackages: after };
 
     expect(
       compareSharedPeopleFanout({ before: sharedBefore, after: sharedAfter, directCauses: ['A'] })
         .recipients,
-    ).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+    ).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
     expect(
       compareSharedPeopleFanout({
         before: { ...sharedBefore, mode: 'isolated' },
@@ -206,9 +230,9 @@ describe('compareSharedPeopleFanout', () => {
 
   it('topology-only connection changes invalidate only changed incoming bases', () => {
     const before = [
-      project('A', fast('A')),
-      { ...project('B', fast('B')), incomingBasis: 'old-A' },
-      { ...project('C', fast('C')), incomingBasis: 'unchanged' },
+      workPackage('A', fast('A')),
+      { ...workPackage('B', fast('B')), incomingBasis: 'old-A' },
+      { ...workPackage('C', fast('C')), incomingBasis: 'unchanged' },
     ];
     const after = [
       { ...before[0], personIds: ['bob'] },
@@ -216,27 +240,29 @@ describe('compareSharedPeopleFanout', () => {
       before[2],
     ];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
 
-    expect(comparison.projections.find(({ projectId }) => projectId === 'A')).toMatchObject({
-      bookingsChanged: false,
-      availabilityChanged: false,
-    });
-    expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+    expect(comparison.projections.find(({ workPackageId }) => workPackageId === 'A')).toMatchObject(
+      {
+        bookingsChanged: false,
+        availabilityChanged: false,
+      },
+    );
+    expect(comparison.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
   });
 
   it('rename and rank respacing with the same order are silent', () => {
-    const before = [project('A', fast('A')), project('B', fast('B'))];
+    const before = [workPackage('A', fast('A')), workPackage('B', fast('B'))];
     const after = [
       { ...before[0], name: 'Renamed A', rankPosition: 100 },
       { ...before[1], rankPosition: 200 },
     ];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
     expect(comparison.recipients).toEqual([]);
@@ -250,7 +276,7 @@ describe('compareSharedPeopleFanout', () => {
   it('compares absolute fractional bookings with slice identity', () => {
     const before = [
       {
-        ...project('A', { kind: 'scheduled', fast: placed('A', 0, 2), optimization: null }),
+        ...workPackage('A', { kind: 'scheduled', fast: placed('A', 0, 2), optimization: null }),
         settings: {
           optimizationEnabled: false,
           scheduleEngine: 'fast' as const,
@@ -265,15 +291,15 @@ describe('compareSharedPeopleFanout', () => {
       },
     ];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
     const interval = comparison.projections[0];
     expect(interval.bookingsChanged).toBe(true);
     expect(interval.before?.bookings[0]).toMatchObject({
       personId: 'ana',
-      projectId: 'A',
+      workPackageId: 'A',
       workItemId: 'A-row',
       stepId: 'build',
     });
@@ -286,22 +312,26 @@ describe('compareSharedPeopleFanout', () => {
   });
 
   it('stops traversal at an undated bridge and keeps modeled absence separate', () => {
-    const a = project('A', fast('A'));
-    const b = { ...project('B', fast('B')), startDate: null, personIds: ['ana', 'bob'] };
-    const c = { ...project('C', fast('C')), personIds: ['bob'] };
+    const a = workPackage('A', fast('A'));
+    const b = { ...workPackage('B', fast('B')), startDate: null, personIds: ['ana', 'bob'] };
+    const c = { ...workPackage('C', fast('C')), personIds: ['bob'] };
     const before = [a, b, c];
     const after = [{ ...a, outcome: { kind: 'calendar_range' as const } }, b, c];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
 
-    expect(comparison.projections.find(({ projectId }) => projectId === 'B')?.before).toEqual({
+    expect(
+      comparison.projections.find(({ workPackageId }) => workPackageId === 'B')?.before,
+    ).toEqual({
       availability: 'undated',
       bookings: [],
     });
-    expect(comparison.projections.find(({ projectId }) => projectId === 'A')?.after).toEqual({
+    expect(
+      comparison.projections.find(({ workPackageId }) => workPackageId === 'A')?.after,
+    ).toEqual({
       availability: 'calendar_range',
       bookings: [],
     });
@@ -309,14 +339,14 @@ describe('compareSharedPeopleFanout', () => {
   });
 
   it('keeps cycle and calendar-range bridges reachable while skipping their bookings', () => {
-    const a = project('A', fast('A'));
+    const a = workPackage('A', fast('A'));
     const b = {
-      ...project('B', fast('B')),
+      ...workPackage('B', fast('B')),
       personIds: ['ana', 'bob'],
       outcome: { kind: 'cycle' as const },
     };
     const c = {
-      ...project('C', fast('C')),
+      ...workPackage('C', fast('C')),
       personIds: ['bob'],
       outcome: { kind: 'calendar_range' as const },
     };
@@ -334,38 +364,44 @@ describe('compareSharedPeopleFanout', () => {
       c,
     ];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
 
-    expect(comparison.projections.find(({ projectId }) => projectId === 'B')?.after).toEqual({
+    expect(
+      comparison.projections.find(({ workPackageId }) => workPackageId === 'B')?.after,
+    ).toEqual({
       availability: 'cycle',
       bookings: [],
     });
-    expect(comparison.projections.find(({ projectId }) => projectId === 'C')?.after).toEqual({
+    expect(
+      comparison.projections.find(({ workPackageId }) => workPackageId === 'C')?.after,
+    ).toEqual({
       availability: 'calendar_range',
       bookings: [],
     });
-    expect(comparison.projections.find(({ projectId }) => projectId === 'A')?.after).toEqual({
+    expect(
+      comparison.projections.find(({ workPackageId }) => workPackageId === 'A')?.after,
+    ).toEqual({
       availability: 'engine_unavailable',
       bookings: [],
     });
     expect(comparison.recipients).toEqual([
-      { projectId: 'B', causeProjectId: 'A' },
-      { projectId: 'C', causeProjectId: 'A' },
+      { workPackageId: 'B', causeWorkPackageId: 'A' },
+      { workPackageId: 'C', causeWorkPackageId: 'A' },
     ]);
   });
 
-  it('an undated cause cannot pass bookings to a dated lower project', () => {
-    const cause = { ...project('A', fast('A')), startDate: null };
-    const recipient = project('B', fast('B'));
+  it('an undated cause cannot pass bookings to a dated lower work package', () => {
+    const cause = { ...workPackage('A', fast('A')), startDate: null };
+    const recipient = workPackage('B', fast('B'));
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: [cause, recipient] },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: [cause, recipient] },
       after: {
         mode: 'shared',
         organizationId: 'org-a',
-        projects: [{ ...cause, outcome: { kind: 'cycle' } }, recipient],
+        workPackages: [{ ...cause, outcome: { kind: 'cycle' } }, recipient],
       },
       directCauses: ['A'],
     });
@@ -375,7 +411,7 @@ describe('compareSharedPeopleFanout', () => {
 
   it('omits zero-time and unassigned slices without calling them unavailable', () => {
     const zero = {
-      ...project('A', fast('A')),
+      ...workPackage('A', fast('A')),
       settings: {
         optimizationEnabled: false,
         scheduleEngine: 'fast' as const,
@@ -384,13 +420,13 @@ describe('compareSharedPeopleFanout', () => {
       outcome: { kind: 'scheduled' as const, fast: placed('A', 0, 1, 0), optimization: null },
     };
     const unassigned = {
-      ...project('B', fast('B')),
+      ...workPackage('B', fast('B')),
       settings: zero.settings,
       outcome: { kind: 'scheduled' as const, fast: placed('B', 0, 1, 1, null), optimization: null },
     };
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: [zero, unassigned] },
-      after: { mode: 'shared', organizationId: 'org-a', projects: [zero, unassigned] },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: [zero, unassigned] },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: [zero, unassigned] },
       directCauses: [],
     });
     expect(comparison.projections.map(({ after }) => after)).toEqual([
@@ -400,20 +436,20 @@ describe('compareSharedPeopleFanout', () => {
   });
 
   it('retains deleted cause identity and excludes deleted recipients', () => {
-    const a = project('A', fast('A'));
-    const b = project('B', fast('B'));
+    const a = workPackage('A', fast('A'));
+    const b = workPackage('B', fast('B'));
     const deletedCause = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: [a, b] },
-      after: { mode: 'shared', organizationId: 'org-a', projects: [b] },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: [a, b] },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: [b] },
       directCauses: ['A'],
     });
-    expect(deletedCause.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+    expect(deletedCause.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
     const deletedRecipient = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: [a, b] },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: [a, b] },
       after: {
         mode: 'shared',
         organizationId: 'org-a',
-        projects: [{ ...a, outcome: { kind: 'cycle' } }],
+        workPackages: [{ ...a, outcome: { kind: 'cycle' } }],
       },
       directCauses: ['A'],
     });
@@ -421,11 +457,11 @@ describe('compareSharedPeopleFanout', () => {
   });
 
   it('does not fan out topology-only changes to unchanged incoming bases', () => {
-    const before = [project('A', fast('A')), project('B', fast('B'))];
+    const before = [workPackage('A', fast('A')), workPackage('B', fast('B'))];
     const after = [{ ...before[0], personIds: ['bob'] }, before[1]];
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: before },
-      after: { mode: 'shared', organizationId: 'org-a', projects: after },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: before },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: after },
       directCauses: ['A'],
     });
     expect(comparison.recipients).toEqual([]);
@@ -464,7 +500,7 @@ describe('compareSharedPeopleFanout', () => {
       scheduleObjective: 'pri' as const,
     };
     const before = {
-      ...project('A', fast('A')),
+      ...workPackage('A', fast('A')),
       settings,
       outcome: { kind: 'scheduled' as const, fast: planned, optimization: null },
     };
@@ -473,8 +509,8 @@ describe('compareSharedPeopleFanout', () => {
       outcome: { kind: 'scheduled' as const, fast: reordered, optimization: null },
     };
     const comparison = compareSharedPeopleFanout({
-      before: { mode: 'shared', organizationId: 'org-a', projects: [before] },
-      after: { mode: 'shared', organizationId: 'org-a', projects: [after] },
+      before: { mode: 'shared', organizationId: 'org-a', workPackages: [before] },
+      after: { mode: 'shared', organizationId: 'org-a', workPackages: [after] },
       directCauses: ['A'],
     });
     expect(comparison.projections[0]?.bookingsChanged).toBe(false);
@@ -484,7 +520,7 @@ describe('compareSharedPeopleFanout', () => {
   });
 
   it('refuses an explicit cause missing from both captures', () => {
-    const captured = { mode: 'shared' as const, organizationId: 'org-a', projects: [] };
+    const captured = { mode: 'shared' as const, organizationId: 'org-a', workPackages: [] };
     expect(() =>
       compareSharedPeopleFanout({ before: captured, after: captured, directCauses: ['absent'] }),
     ).toThrow('direct cause absent from both captures');
@@ -494,7 +530,7 @@ describe('compareSharedPeopleFanout', () => {
     const captured = {
       mode: 'shared' as const,
       organizationId: 'org-a',
-      projects: [project('A', fast('A'))],
+      workPackages: [workPackage('A', fast('A'))],
     };
     expect(() =>
       compareSharedPeopleFanout({

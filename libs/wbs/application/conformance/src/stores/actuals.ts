@@ -27,14 +27,20 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
       );
       const groups = [
         ...new Set(
-          (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+          (await port.listByWorkPackage(seed.workPackageIds[0])).map(
+            ({ workItemId }) => workItemId,
+          ),
         ),
       ];
-      expect(await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId])).toEqual(
+      expect(
+        await port.listPlacements(seed.workPackageIds[0], [secondId, 'missing', firstId]),
+      ).toEqual(
         groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
       );
-      expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
-      expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listPlacements(seed.workPackageIds[0], [seed.workItemIds[1][0]])).toEqual(
+        [],
+      );
+      expect(await port.listPlacements(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('actuals', 'actuals.listByWorkItems:scope-order', open, async ({ port, seed }) => {
       const targetId = seed.workItemIds[0][0];
@@ -58,17 +64,19 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
           seed.stamps[0],
         );
       }
-      const complete = await port.listByProject(seed.projectIds[0]);
+      const complete = await port.listByWorkPackage(seed.workPackageIds[0]);
       expect(
-        (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+        (await port.listByWorkItems(seed.workPackageIds[0], [targetId])).map(
+          ({ stepId }) => stepId,
+        ),
       ).toEqual([firstStep, secondStep]);
-      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
-      // Proof: validating ownership before project filtering made the memory
-      // adapter throw for this valid project-B actual instead of returning [].
+      const foreign = await port.listByWorkItems(seed.workPackageIds[0], [foreignId]);
+      // Proof: validating ownership before work package filtering made the memory
+      // adapter throw for this valid work-package-B actual instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
       const mixedCase = await port.listByWorkItems(
-        seed.projectIds[0],
+        seed.workPackageIds[0],
         TARGETED_ORDER_WORK_ITEM_IDS,
       );
       // Proof: SQLite's old localeCompare post-sort returned work-a before
@@ -78,7 +86,7 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
           TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
         ),
       );
-      expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listByWorkItems(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('actuals', 'actuals.set:replace', open, async ({ port, readers, seed }) => {
       const [firstId, secondId] = seed.workItemIds[0];
@@ -105,12 +113,12 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, days: 2, recordedAt: 101 },
         { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
         { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -124,12 +132,12 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, days: 13, recordedAt: 201 },
         { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
         { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -163,12 +171,12 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, days: 2, recordedAt: 101 },
         { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
         { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -179,11 +187,11 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
 
       await port.remove(firstId, devId, seed.stamps[1]);
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
         { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -194,11 +202,11 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
 
       await port.remove(firstId, devId, seed.stamps[1]);
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
         { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -228,11 +236,11 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: sourceId, stepId: devId, days: 2, recordedAt: 101 },
         { workItemId: sourceId, stepId: qaId, days: 3, recordedAt: 102 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -243,11 +251,11 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
 
       await port.moveAll(sourceId, targetId, seed.stamps[1]);
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: targetId, stepId: devId, days: 2, recordedAt: 101 },
         { workItemId: targetId, stepId: qaId, days: 3, recordedAt: 102 },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -276,7 +284,7 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         {
           workItemId: seed.workItemIds[0][1],
           stepId: seed.stepIds[0][1],
@@ -284,7 +292,7 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
           recordedAt: 102,
         },
       ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -302,12 +310,12 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         },
         seed.stamps[1],
       );
-      const projectA = byKey(await readers.actuals.listByProject(seed.projectIds[0]));
-      const projectB = byKey(await readers.actuals.listByProject(seed.projectIds[1]));
+      const workPackageA = byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[0]));
+      const workPackageB = byKey(await readers.actuals.listByWorkPackage(seed.workPackageIds[1]));
 
-      expect({ outcome, projectA, projectB }).toEqual({
+      expect({ outcome, workPackageA, workPackageB }).toEqual({
         outcome: 'unknown_step',
-        projectA: [
+        workPackageA: [
           {
             workItemId: seed.workItemIds[0][1],
             stepId: seed.stepIds[0][1],
@@ -315,7 +323,7 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
             recordedAt: 102,
           },
         ],
-        projectB: [
+        workPackageB: [
           {
             workItemId: seed.workItemIds[1][0],
             stepId: seed.stepIds[1][0],

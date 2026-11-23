@@ -19,7 +19,7 @@ import {
   type DocumentTypedDependency,
   documentV4TypedDependencyRequest,
   documentV10TypedDependencyRequest,
-  documentV12TypedDependencyRequest,
+  documentV14TypedDependencyRequest,
   type ImportedAttempt,
   PLAN_DOCUMENT_EXTERNAL_VERSION,
   PLAN_DOCUMENT_VERSION,
@@ -27,7 +27,7 @@ import {
   type PlanDocumentImport,
   type PlanDocumentRequest,
   planDocumentRequest,
-  type PlanDocumentV11 as PlanDocument,
+  type PlanDocumentV15 as PlanDocument,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
@@ -47,32 +47,29 @@ import {
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type {
-  DirectoryCatalog,
-  DirectoryCatalogRows,
-  DirectoryStore as _DirectoryStore,
-  PersonWithTeams,
-  TeamWithServices,
-} from '../../ports/directory-store';
-import type { ResourceAccess } from '../../ports/organization-access';
-import type { Project } from '../../ports/project-store';
-import { isBudgetFactor } from '../../ports/project-values';
+import type { PersonWithTeams, TeamWithServices } from '../../ports/directory-store';
 import type {
   LivePlanExportRead,
   MeasureReads,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
-import { projectConnectedDocument } from './connected-document';
+import type { WorkPackage } from '../../ports/work-package-store';
+import { isBudgetFactor } from '../../ports/work-package-values';
+import { workPackageConnectedDocument } from './connected-document';
+import {
+  readLegacyDocumentDependency12,
+  readLegacyDocumentMapping12,
+} from './legacy-document-import';
 import type {
-  ExportedProject,
+  ExportedWorkPackage,
   PlanDocumentClassification,
   PlanDocumentExport,
   PlanDocumentServiceOptions,
 } from './plan-document-values';
 
 export type {
-  ExportedProject,
+  ExportedWorkPackage,
   PlanDocumentClassification,
   PlanDocumentExport,
   PlanDocumentServiceOptions,
@@ -96,53 +93,15 @@ function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['pred
 const STEP_CODE_BACKFILL_COMMAND = 'bun run src/backfill-step-codes-cli.ts';
 
 /**
- * Constructs the versioned archival document around the established project
- * tree projection.
+ * Constructs the versioned archival document around the established work package
+ * tree projection from detached evidence. The service performs no IO; the
+ * required PlanExportReader captures authority, parent and catalogs together.
  *
  * @throws when a file-local reference has no directory row. An unnamed default
  * would make the exported document impossible to restore faithfully.
  */
 export class PlanDocumentService {
-  constructor(private readonly options: PlanDocumentServiceOptions) {
-    // Proof: removing required-reader guard failed the construction negative (mutation-required-reader-final.txt, 2026-10-17).
-    // Untyped composition hosts must fail at construction when this required port is absent.
-    const reader: unknown = Reflect.get(options, 'stepParallels');
-    if (
-      typeof reader !== 'object' ||
-      reader === null ||
-      typeof Reflect.get(reader, 'listByProject') !== 'function'
-    )
-      throw new Error('plan export requires a step parallelism reader');
-  }
-
-  /**
-   * Exports `tree` as the current plan document, or refuses while any step is
-   * uncoded (`code: null`, written mid-swap by an older be-01 and not yet
-   * backfilled): the document carries every step's code and never invents one.
-   *
-   * Under scoped access the directory closure is read from the organization's
-   * own catalogs, under their local names, so a person's teams and a team's
-   * services that cross into another organization fail the export closed
-   * rather than export a foreign entry; see {@link _DirectoryStore.listInOrganization | DirectoryStore.listInOrganization}.
-   *
-   * Proof: reading the global directory under scoped access made `exports
-   * only the organization's own directory, under its local names` in
-   * `import-export-organization.controller.db.test.ts` export the root names
-   * `root-pe-a`, `root-tm-a` and `root-sv-a`; watched 2026-09-27.
-   *
-   * @throws when a step has no `code` key at all. This service reads its own
-   * store, which always answers the key; an absent one is an older reader's
-   * wire shape and cannot reach here.
-   */
-  async export(
-    project: ExportedProject,
-    tree: WorkItemTree,
-    access: ResourceAccess,
-  ): Promise<PlanDocumentExport> {
-    const coded = codedTree(tree);
-    if (!coded.ok) return coded;
-    return this.exportCaptured(project, coded.value, await this.readDocumentReads(project, access));
-  }
+  constructor(private readonly options: PlanDocumentServiceOptions) {}
 
   /**
    * Builds from detached export evidence and performs no store reads. Valid
@@ -150,34 +109,38 @@ export class PlanDocumentService {
    * Uncoded steps precede modeled sparse refusals; trusted shared store failures
    * may already have thrown while the observation was captured.
    * @throws when required sparse evidence is absent or malformed, or its exact
-   * pair does not name a leaf and step belonging to the exported project.
+   * pair does not name a leaf and step belonging to the exported work package.
    */
   exportCaptured(
-    project: ExportedProject,
+    workPackage: ExportedWorkPackage,
     tree: WorkItemTree,
     reads: PlanDocumentReads,
   ): PlanDocumentExport {
+    // Proof: before this check, the separately supplied parent mismatch test
+    // returned a successful export and its own toThrow assertion failed (2026-11-13).
+    if (reads.project.id !== workPackage.projectId) throw new Error('plan export parent mismatch');
     const coded = codedTree(tree);
     if (!coded.ok) return coded;
-    validateStepParallels(project, tree, reads.stepParallels);
+    validateStepParallels(workPackage, tree, reads.stepParallels);
     // Proof: omitting refusal made both mounted sparse JSON cases succeed (mutation-refusal.txt, 2026-10-17).
     if (reads.stepParallels.length > 0) return { ok: false, error: 'unsupported_step_parallelism' };
     return {
       ok: true,
-      value: buildDocument(project, coded.value, reads, this.options.clock.now()),
+      value: buildDocument(workPackage, coded.value, reads, this.options.clock.now()),
     };
   }
 
   /** Serializes a closed connected observation without IO or scheduling admission. */
   exportConnectedCaptured(
-    project: ExportedProject,
+    workPackage: ExportedWorkPackage,
     tree: WorkItemTree,
     captured: Extract<LivePlanExportRead, { kind: 'connected' }>,
   ): PlanDocumentExport {
-    if (captured.projectId !== project.id) throw new Error('connected export target mismatch');
-    const local = this.exportCaptured(project, tree, captured.document);
+    if (captured.workPackageId !== workPackage.id)
+      throw new Error('connected export target mismatch');
+    const local = this.exportCaptured(workPackage, tree, captured.document);
     if (!local.ok) return local;
-    const evidence = projectConnectedDocument(captured, project.id);
+    const evidence = workPackageConnectedDocument(captured, workPackage.id);
     return {
       ok: true,
       value: {
@@ -187,60 +150,10 @@ export class PlanDocumentService {
       },
     };
   }
-
-  private async readDocumentReads(
-    project: Project,
-    access: ResourceAccess,
-  ): Promise<PlanDocumentReads> {
-    const directory = this.options.directory;
-    const read = <C extends DirectoryCatalog>(
-      catalog: C,
-      legacy: () => Promise<DirectoryCatalogRows[C]>,
-    ): Promise<DirectoryCatalogRows[C]> =>
-      access.kind === 'scoped'
-        ? directory.listInOrganization(catalog, access.scope.organizationId)
-        : legacy();
-    const [teams, people, tags, services, types, externalSystems, markerRead, stepParallels] =
-      await Promise.all([
-        read('teams', () => directory.listTeams()),
-        read('people', () => directory.listPeople()),
-        read('tags', () => directory.listTags()),
-        read('services', () => directory.listServices()),
-        read('workItemTypes', () => directory.listWorkItemTypes()),
-        read('externalSystems', () => directory.listExternalSystems()),
-        this.options.markers.list(project.id),
-        // Proof: empty injection and wrong project independently failed mounted isolated export (mutation-legacy-{read-empty,wrong-project}.txt).
-        this.options.stepParallels.listByProject(project.id),
-      ]);
-    if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);
-    const [resources, capacities, demands] = await Promise.all([
-      read('resources', () => directory.listResources()),
-      this.options.resourceFacts.resourceCapacitiesOf(project.id),
-      this.options.resourceFacts.demandsOf(project.id),
-    ]);
-    const measureFacts = this.options.measureFacts;
-    // Proof: with the facts, trios and budgets read as empty, the isolated
-    // `round-trips a version-11 plan byte for byte into an organization lacking
-    // a measure` and four more cases of measure-export.controller.db.test.ts
-    // exported empty lists (4 pass, 5 fail); watched 2026-10-24.
-    const [definitions, facts, estimates, budgets] = await Promise.all([
-      measureFacts.measureDefinitionsOf(project.id),
-      measureFacts.measuresOf(project.id),
-      measureFacts.measureEstimatesOf(project.id),
-      measureFacts.budgetsOf(project.id),
-    ]);
-    return {
-      directory: { teams, people, tags, services, types, externalSystems },
-      markers: markerRead.value,
-      stepParallels,
-      resources: { resources, capacities, demands },
-      measures: { definitions, facts, estimates, budgets },
-    };
-  }
 }
 
 /** Refuses corrupt trusted sparse evidence before the version 9 preservation fence. */
-function validateStepParallels(project: Project, tree: WorkItemTree, held: unknown): void {
+function validateStepParallels(workPackage: WorkPackage, tree: WorkItemTree, held: unknown): void {
   // Proof: removing this check failed the missing/null/object collection negative (mutation-collection.txt, 2026-10-17).
   if (!Array.isArray(held)) throw new Error('export was read without step parallelism');
   const owners = new Map(tree.workItems.map((row) => [row.id, row]));
@@ -262,14 +175,15 @@ function validateStepParallels(project: Project, tree: WorkItemTree, held: unkno
     const owner = owners.get(workItemId);
     // Proof: removing this check failed the missing owner negative (mutation-owner-existence.txt, 2026-10-17).
     if (owner === undefined) throw new Error('step parallelism names an unknown work item');
-    // Proof: removing this check failed the foreign owner negative (mutation-owner-project.txt, 2026-10-17).
-    if (owner.projectId !== project.id)
+    // Proof: removing this check failed the foreign owner negative (mutation-owner-work-package.txt, 2026-10-17).
+    if (owner.workPackageId !== workPackage.id)
       throw new Error('step parallelism names a foreign work item');
     const step = steps.get(stepId);
     // Proof: removing this check failed the missing step negative (mutation-step-existence.txt, 2026-10-17).
     if (step === undefined) throw new Error('step parallelism names an unknown step');
-    // Proof: removing this check failed the foreign step negative (mutation-step-project.txt, 2026-10-17).
-    if (step.projectId !== project.id) throw new Error('step parallelism names a foreign step');
+    // Proof: removing this check failed the foreign step negative (mutation-step-work-package.txt, 2026-10-17).
+    if (step.workPackageId !== workPackage.id)
+      throw new Error('step parallelism names a foreign step');
     // Proof: removing this check failed the parent owner negative (mutation-leaf.txt, 2026-10-17).
     if (parents.has(workItemId)) throw new Error('step parallelism names a parent work item');
     const seen = pairs.get(workItemId);
@@ -291,7 +205,7 @@ function codedTree(
     // Proof: with this throw removed, `throws on a step read without a code
     // key` received an export instead of an Error (2026-09-27).
     if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
-    // Proof: with this branch removed, `refuses to export a project holding
+    // Proof: with this branch removed, `refuses to export a workPackage holding
     // an uncoded step, naming it` received ok: true, and the mounted be-01
     // export received 500 instead of 409 (2026-09-27).
     if (step.code === null) uncoded.push({ id: step.id, name: step.name });
@@ -314,7 +228,7 @@ function codedTree(
 
 /** Serializes detached evidence without following any store capability. */
 function buildDocument(
-  project: ExportedProject,
+  workPackage: ExportedWorkPackage,
   tree: WorkItemTree & { steps: PlanDocument['steps'] },
   reads: PlanDocumentReads,
   exportedAt: number,
@@ -323,13 +237,32 @@ function buildDocument(
   // Proof (2026-09-28): removing this guard made the missing-list export
   // test receive a TypeError from .map instead of the named trusted-state error.
   if (tree.typedDependencies === undefined)
-    throw new Error(`project "${project.id}" tree was read without typed dependencies`);
-  // The factor travels in `settings` (design D63, D71); the embedded project
+    throw new Error(`work package "${workPackage.id}" tree was read without typed dependencies`);
+  // The factor travels in `settings` (design D63, D71); the embedded work package
   // never carries it, so it is written once.
-  // Proof: with the factor left in the project, `preserves the existing JSON
+  // Proof: with the factor left in the work package, `preserves the existing JSON
   // export fields` and the four canonical-bytes cases
   // (plan-document.resource.test.ts) failed (84 pass, 5 fail); watched 2026-10-24.
-  const { budgetFactor, ...exported } = project;
+  const { budgetFactor } = workPackage;
+  const exported = {
+    id: workPackage.id,
+    name: workPackage.name,
+    abbreviation: workPackage.abbreviation,
+    projectId: workPackage.projectId,
+    restricted: workPackage.restricted,
+    estimateMethod: workPackage.estimateMethod,
+    depReach: workPackage.depReach,
+    pertWeights: { ...workPackage.pertWeights },
+    estimateRounding: workPackage.estimateRounding,
+    startDate: workPackage.startDate,
+    solutionRef: workPackage.solutionRef === null ? null : { ...workPackage.solutionRef },
+    revision: workPackage.revision,
+    createdAt: workPackage.createdAt,
+    optimizationEnabled: workPackage.optimizationEnabled,
+    scheduleEngine: workPackage.scheduleEngine,
+    scheduleObjective: workPackage.scheduleObjective,
+    timezone: workPackage.timezone,
+  };
   // The tree read's own demand fields stay out of the file: the document writes
   // its file-local `demands` below and names resources in `directory`.
   // Proof: spread whole, the isolated export carried `demandedResources` and
@@ -338,23 +271,24 @@ function buildDocument(
   const { demands: _readDemands, demandedResources: _readResources, ...documentTree } = tree;
   const measures = documentMeasures(tree, reads.measures);
   const settings = {
-    name: project.name,
-    restricted: project.restricted,
-    estimateMethod: project.estimateMethod,
-    depReach: project.depReach,
-    pertWeights: project.pertWeights,
+    name: workPackage.name,
+    restricted: workPackage.restricted,
+    estimateMethod: workPackage.estimateMethod,
+    depReach: workPackage.depReach,
+    pertWeights: workPackage.pertWeights,
     // Proof: dropping estimateRounding made the mounted JSON export return
-    // 500 instead of 200 before its unchanged project/workItems controls.
-    estimateRounding: project.estimateRounding,
-    startDate: project.startDate,
-    solutionRef: project.solutionRef,
-    optimizationEnabled: project.optimizationEnabled,
-    scheduleEngine: project.scheduleEngine,
-    scheduleObjective: project.scheduleObjective,
-    timezone: project.timezone,
+    // 500 instead of 200 before its unchanged work-package/workItems controls.
+    estimateRounding: workPackage.estimateRounding,
+    startDate: workPackage.startDate,
+    solutionRef: workPackage.solutionRef,
+    optimizationEnabled: workPackage.optimizationEnabled,
+    scheduleEngine: workPackage.scheduleEngine,
+    scheduleObjective: workPackage.scheduleObjective,
+    timezone: workPackage.timezone,
   };
   return {
-    project: exported,
+    workPackage: exported,
+    project: { id: reads.project.id, name: reads.project.name },
     ...documentTree,
     workItems: documentWorkItems(tree, closure.people),
     // Proof: omitting this collection failed `v9 exports detached direct blockage facts` (2026-10-14).
@@ -406,7 +340,7 @@ function buildDocument(
     // Proof: `closure` written whole put `accountId` into the document and
     // failed `capacity-only team is named …` and `v9 zero-fact export retains
     // canonical bytes` in `plan-document.resource.test.ts`, and `exports the
-    // referenced directory closure …` in `project.controller.test.ts` (watched 2026-10-19).
+    // referenced directory closure …` in `work-package.controller.test.ts` (watched 2026-10-19).
     directory: {
       ...closure,
       people: closure.people.map(exportedPerson),
@@ -522,7 +456,7 @@ function exportedPerson({ id, name, kind, teamIds }: PersonWithTeams) {
 }
 
 /**
- * The project's demands as the document writes them, by work item then
+ * The work package's demands as the document writes them, by work item then
  * resource.
  *
  * @throws on a demand naming a work item the tree does not hold: trusted reads
@@ -575,7 +509,7 @@ function referencedResources(
  * executor by the name the document's directory gives them.
  *
  * Proof: the executors left out of the closure made the mounted export in
- * `round-trips a Kyiv project whose 010.dev holds attempts…` answer 500 on
+ * `round-trips a Kyiv workPackage whose 010.dev holds attempts…` answer 500 on
  * `attempt executor "pe-ana" is not in the directory`; watched 2026-10-12.
  *
  * @throws on an attempt at a step the tree lacks, or by an executor the
@@ -591,6 +525,10 @@ function documentWorkItems(
   return tree.workItems.map(
     ({
       attempts,
+      // Proof: retaining live applicability failed the versioned-document omission regression.
+      steps: _steps,
+      // Captured metadata can retain a storage audit column; the document row grammar excludes it.
+      createdAt: _createdAt,
       spans: _spans,
       span: _span,
       blockages: _blockages,
@@ -609,7 +547,7 @@ function documentWorkItems(
       mixedRateCards: _mixedRateCards,
       moneyBases: _moneyBases,
       ...held
-    }) => {
+    }: WorkItemTree['workItems'][number] & { readonly createdAt?: unknown }) => {
       // The row keeps the legacy metrics only (`wbs-measure-budgets` D18,
       // design D63): a fact in a defined measure travels in `measureFacts`
       // with its basis, and the derived `agent_minutes` comes back from the
@@ -712,7 +650,7 @@ function spellStepNodes(tree: {
 }
 
 /**
- * Projects an archival payload to writable fields at its version. Header
+ * Work packages an archival payload to writable fields at its version. Header
  * validation runs first so an unsupported version is never interpreted as a
  * supported one.
  *
@@ -750,17 +688,22 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 8 &&
     version !== 9 &&
     version !== 10 &&
+    version !== 11 &&
+    version !== 12 &&
+    version !== 13 &&
+    version !== 14 &&
     version !== PLAN_DOCUMENT_VERSION &&
     version !== PLAN_DOCUMENT_EXTERNAL_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
+  const connected = version === 12 || version === 14 || version === 16;
   const checked = await validateSchema(planDocumentRequest, input);
   if (checked.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
-  // Proof: forcing this historical screen false made mounted v1, v2 and v3 imports return 201 with new projects instead of refusing typedDependencies[0] (2026-10-22).
-  if (version < PLAN_DOCUMENT_EXTERNAL_VERSION && Array.isArray(checked.value.typedDependencies)) {
+  // Proof: forcing this historical screen false made mounted v1, v2 and v3 imports return 201 with new work packages instead of refusing typedDependencies[0] (2026-10-22).
+  if (!connected && Array.isArray(checked.value.typedDependencies)) {
     for (const [at, entry] of checked.value.typedDependencies.entries()) {
       if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
       for (const side of ['predecessor', 'successor'] as const) {
@@ -769,7 +712,10 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
           typeof endpoint === 'object' &&
           endpoint !== null &&
           !Array.isArray(endpoint) &&
-          ('kind' in endpoint || 'projectId' in endpoint || 'workItemId' in endpoint)
+          ('kind' in endpoint ||
+            'projectId' in endpoint ||
+            'workPackageId' in endpoint ||
+            'workItemId' in endpoint)
         )
           return {
             ok: false,
@@ -857,9 +803,11 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       const parsed =
         version === 4
           ? await validateSchema(documentV4TypedDependencyRequest, entry)
-          : version < PLAN_DOCUMENT_EXTERNAL_VERSION
+          : !connected
             ? await validateSchema(documentV10TypedDependencyRequest, entry)
-            : await validateSchema(documentV12TypedDependencyRequest, entry);
+            : version === 12
+              ? await readLegacyDocumentDependency12(entry)
+              : await validateSchema(documentV14TypedDependencyRequest, entry);
       // Proof (2026-09-28): bypassing schema refusal made the unknown-type
       // memory import throw on an undefined relationship in preparation.
       if (parsed.issues !== undefined)
@@ -874,12 +822,12 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   const externalMappings: PlanDocumentImport['externalMappings'] = [];
   const rawMappings = checked.value.externalMappings;
   if (
-    version < PLAN_DOCUMENT_EXTERNAL_VERSION &&
+    !connected &&
     rawMappings !== undefined &&
     (!Array.isArray(rawMappings) || rawMappings.length > 0)
   )
     return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
-  if (version === PLAN_DOCUMENT_EXTERNAL_VERSION && rawMappings !== undefined) {
+  if (connected && rawMappings !== undefined) {
     if (!Array.isArray(rawMappings))
       return { ok: false, code: 'invalid_typed_dependency', path: 'externalMappings' };
     const declared = new Set(
@@ -887,7 +835,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
         'kind' in predecessor && predecessor.kind === 'external'
           ? [
               JSON.stringify([
-                predecessor.projectId,
+                predecessor.workPackageId,
                 predecessor.workItemId,
                 predecessor.scope,
                 'stepId' in predecessor ? predecessor.stepId : null,
@@ -899,7 +847,10 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     const used = new Set<string>();
     for (const [at, mapping] of rawMappings.entries()) {
       const prefix = `externalMappings[${String(at)}]`;
-      const parsed = await validateSchema(documentExternalMappingRequest, mapping);
+      const parsed =
+        version === 12
+          ? await readLegacyDocumentMapping12(mapping)
+          : await validateSchema(documentExternalMappingRequest, mapping);
       if (parsed.issues !== undefined)
         return {
           ok: false,
@@ -908,7 +859,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
         };
       const { source, destination } = parsed.value;
       const key = JSON.stringify([
-        source.projectId,
+        source.workPackageId,
         source.workItemId,
         source.scope,
         'stepId' in source ? source.stepId : null,
@@ -956,7 +907,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   if (version >= 7) {
     // Proof: this refusal removed made the unknown-zone case of `refuses an
     // unknown zone, an unknown outcome, …` (`step-node-attempt.controller.db`)
-    // answer 201, importing `Kyiv` as a project's zone; watched 2026-10-12.
+    // answer 201, importing `Kyiv` as a work package's zone; watched 2026-10-12.
     if (!isTimezone(written)) return { ok: false, code: 'invalid_body', path: 'settings.timezone' };
     timezone = written;
   }
@@ -1082,7 +1033,7 @@ function resourceFactsOf(
 /**
  * The measures a file states (`wbs-measure-budgets` design D63): from version
  * 11 the four lists are required, every entry well formed and every figure a
- * finite number, and the budget factor one a project may hold; before version
+ * finite number, and the budget factor one a work package may hold; before version
  * 11 a file states none of them and reads with a factor of 1, and one that
  * names any (or a factor other than 1) is refused rather than half-read. What the entries name, and
  * whether the measures they name allow them, is `prepareImport`'s to check.
@@ -1106,7 +1057,7 @@ function measuresOf(
     budgets: document.budgets,
   };
   const factor = document.settings.budgetFactor;
-  if (version < PLAN_DOCUMENT_VERSION) {
+  if (version < 11) {
     for (const [path, held] of Object.entries(listed))
       if (held !== undefined && (!Array.isArray(held) || held.length > 0))
         return { ok: false, code: 'invalid_body', path };

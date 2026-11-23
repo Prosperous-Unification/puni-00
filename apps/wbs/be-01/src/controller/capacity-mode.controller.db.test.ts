@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
- * The capacity mode route (`share-people-across-projects`, slice 8) over
+ * The capacity mode route (`share-people-across-work-packages`, slice 8) over
  * be-01's production composition and real SQLite. Organization A holds a
  * super-admin (`sam`), an admin (`ada`), a member (`mel`) and a viewer
  * (`vic`); Platform ranks above Billing, and both give Ana two days.
@@ -19,18 +20,12 @@ let billing: string;
 
 const MODE = '/api/organization';
 
-async function create(name: string): Promise<string> {
-  const answer = await h.call('ada', 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
-}
-
-async function plan(projectId: string): Promise<void> {
-  await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { startDate: '2026-10-05' });
-  const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+async function plan(workPackageId: string): Promise<void> {
+  await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { startDate: '2026-10-05' });
+  const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
   const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
-  if (stepId === undefined) throw new Error('the project started with no step');
-  const applied = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+  if (stepId === undefined) throw new Error('the work package started with no step');
+  const applied = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Work' },
       {
@@ -47,7 +42,7 @@ async function plan(projectId: string): Promise<void> {
 
 /** Where Billing's work for Ana starts. */
 async function billingStart(): Promise<number | undefined> {
-  const answer = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+  const answer = await h.call('ada', 'GET', `/api/work-packages/${billing}/work-items`);
   const slices = (
     answer.body as {
       slices: { personId: string | null; earliestStart: number; earliestFinish: number }[];
@@ -63,12 +58,13 @@ function switches(): unknown[] {
     .all();
 }
 
-function toldAboutTheMode(projectId: string): number {
+function toldAboutTheMode(workPackageId: string): number {
   return h.sqlite
     .query<{ message: string }, [string]>('SELECT message FROM event_log WHERE subscription = ?')
-    .all(`project:${projectId}`)
-    .map((row) => JSON.parse(row.message) as { type: string; causeProjectId?: string | null })
-    .filter((event) => event.type === 'elsewhere_changed' && event.causeProjectId === null).length;
+    .all(`work-package:${workPackageId}`)
+    .map((row) => JSON.parse(row.message) as { type: string; causeWorkPackageId?: string | null })
+    .filter((event) => event.type === 'elsewhere_changed' && event.causeWorkPackageId === null)
+    .length;
 }
 
 /** The production composition, with `modes` as the release's supported capacity modes. */
@@ -91,18 +87,18 @@ beforeEach(async () => {
 async function populate(): Promise<void> {
   for (const username of ['sam', 'ada', 'mel', 'vic']) await h.register(username);
   h.organization('org-a');
-  h.member('org-a', 'sam', 'super_admin');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-a', 'mel', 'member');
-  h.member('org-a', 'vic', 'viewer');
+  h.member('org-a', 'sam', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-a', 'mel', 'member', ['project-contributor']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
   for (const username of ['sam', 'ada', 'mel', 'vic']) h.bind(username, 'org-a');
   h.activate();
   h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-a', 'root-Ana')");
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-a', 'org-a', 'Ana')",
   );
-  platform = await create('Platform');
-  billing = await create('Billing');
+  platform = await createFixturePackage(h, 'ada', 'Platform');
+  billing = await createFixturePackage(h, 'ada', 'Billing');
   await plan(platform);
   await plan(billing);
 }
@@ -167,7 +163,7 @@ describe('the capacity mode', () => {
       expect({
         username,
         answer: await h.call(username, 'PATCH', MODE, { sharedPeople: true }),
-      }).toEqual({ username, answer: { status: 403, body: { error: 'forbidden' } } });
+      }).toMatchObject({ username, answer: { status: 403, body: { error: 'forbidden' } } });
     }
     expect(await h.call('sam', 'GET', MODE)).toMatchObject({ body: { sharedPeople: false } });
     expect(switches()).toEqual([]);
@@ -176,24 +172,28 @@ describe('the capacity mode', () => {
 
   it('refuses an admin the switch even in a release that supports shared people', async () => {
     await open(SHARED_RELEASE);
-    expect(await h.call('ada', 'PATCH', MODE, { sharedPeople: true })).toEqual({
+    expect(await h.call('ada', 'PATCH', MODE, { sharedPeople: true })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
     expect(switches()).toEqual([]);
   });
 
-  it('refuses a super-admin demoted after route admission, storing nothing', async () => {
+  it('refuses revoked capacity-mode authority after route admission, storing nothing', async () => {
     let demote = false;
     await open(SHARED_RELEASE, () => {
       if (!demote) return;
+      h.sqlite.run(
+        "UPDATE access_grant SET role_id = 'org-admin' WHERE subject_kind = 'user' AND subject_id = ?",
+        [h.userId('sam')],
+      );
       h.sqlite.run(
         "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('sam')],
       );
     });
     demote = true;
-    expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: true })).toEqual({
+    expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: true })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
@@ -204,7 +204,7 @@ describe('the capacity mode', () => {
     expect([toldAboutTheMode(platform), toldAboutTheMode(billing)]).toEqual([0, 0]);
   });
 
-  it('tells every project when the organization switches, and nothing for no switch', async () => {
+  it('tells every work package when the organization switches, and nothing for no switch', async () => {
     await open(SHARED_RELEASE);
     await h.call('sam', 'PATCH', MODE, { sharedPeople: false });
     expect([toldAboutTheMode(platform), toldAboutTheMode(billing)]).toEqual([0, 0]);

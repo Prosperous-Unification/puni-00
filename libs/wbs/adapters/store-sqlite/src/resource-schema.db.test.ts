@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const RESOURCES = '20261020120000_add_resources';
 
 let dir: string;
 let db: Database;
@@ -16,7 +17,7 @@ let db: Database;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-resource-schema-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  runMigrations(path, copyRecoveryPrefix(dir, RESOURCES));
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
@@ -39,7 +40,7 @@ function count(table: string): number {
   return row.n;
 }
 
-describe('20261020120000_add_resources', () => {
+describe(RESOURCES, () => {
   it('refuses a kind outside exclusive and divisible', () => {
     expect(() =>
       db.run(
@@ -56,7 +57,7 @@ describe('20261020120000_add_resources', () => {
     ).toThrow('UNIQUE constraint failed: resource.name');
   });
 
-  it('holds a capacity of 0 or more whole units, one per project and resource', () => {
+  it('holds a capacity of 0 or more whole units, one per work package and resource', () => {
     db.run(
       "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'stage', 0)",
     );
@@ -113,7 +114,7 @@ describe('20261020120000_add_resources', () => {
     expect(count('project_resource_capacity')).toBe(0);
   });
 
-  it('takes a capacity with its project', () => {
+  it('takes a capacity with its work package', () => {
     db.run(
       "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p1', 'ram', 32)",
     );

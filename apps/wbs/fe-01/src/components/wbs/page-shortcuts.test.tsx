@@ -3,12 +3,12 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { KeyboardCheatSheet } from '@/components/wbs/keyboard-cheat-sheet';
-import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import type { WorkItemView, WorkPackageApi } from '@/lib/wbs-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { refusingApi } from '@/testing/refusing-api';
 import { personView, planRead, workItemView } from '@/testing/views';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { Modal, ModalContent, ModalTitle } from './modal';
 
@@ -56,7 +56,7 @@ const ROW: WorkItemView = workItemView({
 
 /** What a test needs: the table's api, and the two calls it asserts never happen. */
 interface SilentApi {
-  api: ProjectApi;
+  api: WorkPackageApi;
   /** `api.undo`, held separately — reading it back off the object is an unbound method. */
   undo: Mock;
   /** `api.createWorkItem`, the write the chord must not reach. */
@@ -64,7 +64,7 @@ interface SilentApi {
 }
 
 /**
- * A ProjectApi that answers, records, and changes nothing.
+ * A WorkPackageApi that answers, records, and changes nothing.
  *
  * Spies rather than `wbs-table.test.tsx`'s in-memory tree, because what every
  * test here asserts is a **call that must not happen**: `undo` never reached,
@@ -84,81 +84,88 @@ function silentApi(): SilentApi {
   return {
     undo,
     createWorkItem,
-    api: refusingApi({
-      listProjects: () => Promise.resolve([]),
-      createProject: () =>
-        Promise.resolve({ id: 'p', name: 'Plan', restricted: false, abbreviation: 'PLAN' }),
-      openProject: nothing,
-      renameProject: nothing,
-      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
-      tree: () =>
-        Promise.resolve(
-          planRead({
-            workItems: [ROW],
-            seq: 1,
-            scheduleError: null,
-            slices: [],
-            steps: [],
-            assignedPeople: [],
-            // Present and empty, never absent: be-01 always sends it, so a fake that
-            // left it out would let `teamsOnThePlan` be handed `undefined` here and
-            // never in production. A plan whose teams are unlimited is what `[]` says.
-            teamCapacities: [],
-            // Copied: `PlanRead.priorityBands` is a mutable array and the
-            // constant is `readonly`.
-            priorityBands: [...DEFAULT_PRIORITY_BANDS],
-            estimateMethod: 'pert' as const,
-            depReach: 'whole-item' as const,
-            startDate: null,
-            projectRevision: 1,
-            undoable: true,
-            redoable: true,
+    api: refusingApi(
+      {
+        listWorkPackages: () => Promise.resolve([]),
+        listProjects: () => Promise.resolve([]),
+        createWorkPackage: (projectId) =>
+          Promise.resolve({
+            projectId,
+            id: 'p',
+            name: 'Plan',
+            restricted: false,
+            abbreviation: 'PLAN',
           }),
-        ),
-      undo,
-      redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
-      setEstimateMethod: nothing,
-      setStartDate: nothing,
-      steps: () =>
-        Promise.resolve([
-          { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
-        ]),
-      addStep: () => Promise.reject(new Error('not_in_these_tests')),
-      renameStep: () => Promise.reject(new Error('not_in_these_tests')),
-      removeStep: () => Promise.reject(new Error('not_in_these_tests')),
-      createWorkItem,
-      patchWorkItem: nothing,
-      listTeams: () => Promise.resolve([]),
-      listTags: () => Promise.resolve([]),
-      listWorkItemTypes: () => Promise.resolve([]),
-      listExternalSystems: () => Promise.resolve([]),
-      listServices: () => Promise.resolve([]),
-      addTeam: () => Promise.resolve({ id: 't', name: 'T' }),
-      listPeople: () => Promise.resolve([]),
-      // The table reads the calendar markers on mount, alongside the plan, so a
-      // double that stands in for a project has to answer it: unstated, this api
-      // refuses on purpose and the refusal arrives as a toast over every case in
-      // this file. Empty is what these projects have.
-      listCalendarMarkers: () => Promise.resolve([]),
-      addPerson: () => Promise.resolve(personView({ id: 'person' })),
-      assignPerson: nothing,
-      moveWorkItem: nothing,
-      duplicateWorkItem: () => Promise.resolve({ id: 'row-3' }),
-      removeWorkItem: nothing,
-      setEstimate: nothing,
-      clearEstimate: nothing,
-      freezeProject: nothing,
-      unfreezeProject: nothing,
-      unfreezeWorkItem: nothing,
-      addDependency: nothing,
-      removeDependency: nothing,
-    }),
+        openWorkPackage: nothing,
+        renameWorkPackage: nothing,
+        setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
+        tree: () =>
+          Promise.resolve(
+            planRead({
+              workItems: [ROW],
+              seq: 1,
+              scheduleError: null,
+              slices: [],
+              steps: [],
+              assignedPeople: [],
+              // Present and empty, never absent: be-01 always sends it, so a fake that
+              // left it out would let `teamsOnThePlan` be handed `undefined` here and
+              // never in production. A plan whose teams are unlimited is what `[]` says.
+              teamCapacities: [],
+              // Copied: `PlanRead.priorityBands` is a mutable array and the
+              // constant is `readonly`.
+              priorityBands: [...DEFAULT_PRIORITY_BANDS],
+              estimateMethod: 'pert' as const,
+              depReach: 'whole-item' as const,
+              startDate: null,
+              workPackageRevision: 1,
+              undoable: true,
+              redoable: true,
+            }),
+          ),
+        undo,
+        redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
+        setEstimateMethod: nothing,
+        setStartDate: nothing,
+        steps: () =>
+          Promise.resolve([
+            { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+          ]),
+        createWorkItem,
+        patchWorkItem: nothing,
+        listTeams: () => Promise.resolve([]),
+        listTags: () => Promise.resolve([]),
+        listWorkItemTypes: () => Promise.resolve([]),
+        listExternalSystems: () => Promise.resolve([]),
+        listServices: () => Promise.resolve([]),
+        addTeam: () => Promise.resolve({ id: 't', name: 'T' }),
+        listPeople: () => Promise.resolve([]),
+        // The table reads the calendar markers on mount, alongside the plan, so a
+        // double that stands in for a work package has to answer it: unstated, this api
+        // refuses on purpose and the refusal arrives as a toast over every case in
+        // this file. Empty is what these work packages have.
+        listCalendarMarkers: () => Promise.resolve([]),
+        addPerson: () => Promise.resolve(personView({ id: 'person' })),
+        assignPerson: nothing,
+        moveWorkItem: nothing,
+        duplicateWorkItem: () => Promise.resolve({ id: 'row-3' }),
+        removeWorkItem: nothing,
+        setEstimate: nothing,
+        clearEstimate: nothing,
+        freezeWorkPackage: nothing,
+        unfreezeWorkPackage: nothing,
+        unfreezeWorkItem: nothing,
+        addDependency: nothing,
+        removeDependency: nothing,
+      },
+      { projectIdOf: (_id: string) => 'fixture-project' },
+    ),
   };
 }
 
 /** The table, on screen with its one row, and its window listeners registered. */
-async function renderTable(api: ProjectApi): Promise<void> {
-  render(<WbsTableOverClient projectId="p" projectServices={projectServicesOf(api)} />);
+async function renderTable(api: WorkPackageApi): Promise<void> {
+  render(<WbsTableOverClient workPackageId="p" workPackageServices={workPackageServicesOf(api)} />);
   await waitFor(() => {
     expect(screen.getByLabelText('Name of 010')).toBeDefined();
   });

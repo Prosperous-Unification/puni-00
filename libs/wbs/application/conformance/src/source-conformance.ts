@@ -34,7 +34,6 @@ import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { historyBatchRegistrations, type OpenHistoryBatchCase } from './stores/history-batch';
 import { priorityBandRegistrations } from './stores/priority-bands';
-import { projectRegistrations } from './stores/projects';
 import {
   CONFORMANCE_RESOURCES,
   demandRegistrations,
@@ -44,18 +43,24 @@ import {
 } from './stores/resources';
 import { savedPlanCaptureRegistrations } from './stores/saved-plan-capture';
 import { savedPlanRegistrations } from './stores/saved-plans';
+import { settingsRegistrations } from './stores/settings';
+import { type OpenStepCatalogueCase, stepCatalogueRegistrations } from './stores/step-catalogue';
 import { stepRegistrations } from './stores/steps';
 import { subtreeRegistrations } from './stores/subtrees';
 import { userRegistrations } from './stores/users';
 import { workItemRegistrations } from './stores/work-items';
+import { workPackageRegistrations } from './stores/work-packages';
 
 /** The organization a source's `accessDecisions` opener seeds (see its case). */
 export const ACCESS_CONFORMANCE_ORGANIZATION = 'access-conformance-org';
 
 export interface ExistingStoreOpeners {
   readonly livePlans?: OpenCase<'livePlans'>;
-  readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
-  readonly projectRanks?: OpenCase<'projectRanks'>;
+  readonly workPackages: (
+    caseId: CaseId,
+  ) => Promise<CaseFixture<TransactionalStores['workPackages']>>;
+  readonly spaces?: OpenCase<'spaces'>;
+  readonly workPackageRanks?: OpenCase<'workPackageRanks'>;
   /** Absent where a source installs no grant decisions (memory fixtures). */
   readonly accessDecisions?: OpenCase<'accessDecisions'>;
   /** Absent where a source offers no organization limits gauge. */
@@ -66,10 +71,12 @@ export interface ExistingStoreOpeners {
   readonly priorityBands: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['priorityBands']>>;
+  readonly settings: OpenCase<'settings'>;
   readonly calendarMarkers: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['calendarMarkers']>>;
   readonly workItems: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['workItems']>>;
+  readonly stepCatalogue: OpenStepCatalogueCase;
   readonly steps: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['steps']>>;
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
@@ -116,54 +123,94 @@ export function existingStoreRegistrations(
             openers.livePlans,
             async ({ port, seed }) => {
               if (port === undefined) throw new Error('declared live plan capability is absent');
-              expect(await port.read(seed.projectIds[0], { kind: 'legacy' })).toEqual({
+              expect(await port.read(seed.workPackageIds[0], { kind: 'legacy' })).toEqual({
                 kind: 'isolated',
               });
-              expect(await port.read('missing-project', { kind: 'legacy' })).toEqual({
+              expect(await port.read('missing-work-package', { kind: 'legacy' })).toEqual({
                 kind: 'not_found',
               });
-              expect(await port.readProject(seed.projectIds[0])).toEqual({ kind: 'isolated' });
-              expect(await port.readProject('missing-project')).toEqual({ kind: 'not_found' });
-              expect(await port.readExport(seed.projectIds[0], { kind: 'legacy' })).toEqual({
+              expect(await port.readWorkPackage(seed.workPackageIds[0])).toEqual({
                 kind: 'isolated',
               });
-              expect(await port.readExport('missing-project', { kind: 'legacy' })).toEqual({
+              expect(await port.readWorkPackage('missing-work-package')).toEqual({
+                kind: 'not_found',
+              });
+              expect((await port.readExport(seed.workPackageIds[0], { kind: 'legacy' })).kind).toBe(
+                'local',
+              );
+              expect(await port.readExport('missing-work-package', { kind: 'legacy' })).toEqual({
                 kind: 'not_found',
               });
             },
           ),
         ]),
-    ...projectRegistrations(openers.projects),
-    ...(openers.projectRanks === undefined
-      ? [{ family: 'projectRanks' as const, caseId: 'projectRanks.orderIn:scoped-move' as const }]
+    ...workPackageRegistrations(openers.workPackages),
+    ...(openers.spaces === undefined
+      ? [{ family: 'spaces' as const, caseId: 'spaces.create:scoped-round-trip' as const }]
       : [
           storeCase(
-            'projectRanks',
-            'projectRanks.orderIn:scoped-move',
-            openers.projectRanks,
+            'spaces',
+            'spaces.create:scoped-round-trip',
+            openers.spaces,
             async ({ port, seed }) => {
-              if (port === undefined) throw new Error('declared project rank capability is absent');
+              if (port === undefined)
+                throw new Error('declared borrowed space capability is absent');
+              const created = await port.create(
+                {
+                  id: 'conformance-space',
+                  organizationId: 'space-conformance-org',
+                  name: 'Scoped space',
+                },
+                seed.stamps[0],
+              );
+              expect(created.ok).toBe(true);
+              expect(await port.findIn('space-conformance-org', 'conformance-space')).toMatchObject(
+                { id: 'conformance-space', name: 'Scoped space' },
+              );
+              expect(await port.findIn('other-org', 'conformance-space')).toBeNull();
+              expect(
+                await port.remove('space-conformance-org', 'conformance-space', seed.stamps[1]),
+              ).toBe(true);
+              expect(await port.findIn('space-conformance-org', 'conformance-space')).toBeNull();
+            },
+          ),
+        ]),
+    ...(openers.workPackageRanks === undefined
+      ? [
+          {
+            family: 'workPackageRanks' as const,
+            caseId: 'workPackageRanks.orderIn:scoped-move' as const,
+          },
+        ]
+      : [
+          storeCase(
+            'workPackageRanks',
+            'workPackageRanks.orderIn:scoped-move',
+            openers.workPackageRanks,
+            async ({ port, seed }) => {
+              if (port === undefined)
+                throw new Error('declared work package rank capability is absent');
               expect(await port.orderIn('rank-conformance-org')).toEqual([
-                { projectId: seed.projectIds[0], rank: 1, ranked: false },
-                { projectId: seed.projectIds[1], rank: 2, ranked: false },
+                { workPackageId: seed.workPackageIds[0], rank: 1, ranked: false },
+                { workPackageId: seed.workPackageIds[1], rank: 2, ranked: false },
               ]);
               expect(
                 await port.moveAfter(
                   'rank-conformance-org',
-                  seed.projectIds[1],
+                  seed.workPackageIds[1],
                   null,
                   seed.stamps[0],
                 ),
               ).toEqual({
                 ok: true,
                 order: [
-                  { projectId: seed.projectIds[1], rank: 1, ranked: true },
-                  { projectId: seed.projectIds[0], rank: 2, ranked: true },
+                  { workPackageId: seed.workPackageIds[1], rank: 1, ranked: true },
+                  { workPackageId: seed.workPackageIds[0], rank: 2, ranked: true },
                 ],
               });
               expect(await port.orderIn('rank-conformance-org')).toEqual([
-                { projectId: seed.projectIds[1], rank: 1, ranked: true },
-                { projectId: seed.projectIds[0], rank: 2, ranked: true },
+                { workPackageId: seed.workPackageIds[1], rank: 1, ranked: true },
+                { workPackageId: seed.workPackageIds[0], rank: 2, ranked: true },
               ]);
             },
           ),
@@ -180,23 +227,29 @@ export function existingStoreRegistrations(
             'accessDecisions',
             'accessDecisions.effectiveRoleAt:grant-reaches-package',
             openers.accessDecisions,
-            async ({ port, seed }) => {
+            async ({ port, seed, readers }) => {
               if (port === undefined) throw new Error('declared access decisions are absent');
-              // The opener seeds ACCESS_CONFORMANCE_ORGANIZATION owning both projects,
+              // The opener seeds ACCESS_CONFORMANCE_ORGANIZATION owning both work packages,
               // both owners as members, and one package-viewer grant: the first
-              // owner's on the first project.
-              const [granted, ungranted] = seed.projectIds;
+              // owner's on the first work package.
+              const [granted, ungranted] = seed.workPackageIds;
               const principal = { id: seed.ownerIds[0] };
-              const targetOf = (packageId: string) => ({
-                kind: 'work_package' as const,
-                chain: {
-                  level: 'work_package' as const,
-                  organizationId: ACCESS_CONFORMANCE_ORGANIZATION,
-                  workPackageId: packageId,
-                },
-                restricted: false,
-              });
-              expect(await port.effectiveRoleAt(principal, targetOf(granted))).toEqual({
+              const targetOf = async (packageId: string) => {
+                const current = await readers.workPackages.findById(packageId);
+                if (current === null) throw new Error('seeded access package is absent');
+                return {
+                  kind: 'work_package' as const,
+                  chain: {
+                    level: 'work_package' as const,
+                    organizationId: ACCESS_CONFORMANCE_ORGANIZATION,
+                    spaceId: null,
+                    projectId: current.projectId,
+                    workPackageId: packageId,
+                  },
+                  restricted: current.restricted,
+                };
+              };
+              expect(await port.effectiveRoleAt(principal, await targetOf(granted))).toEqual({
                 permissions: new Set(['organization.navigate', 'package.read']),
                 via: [
                   {
@@ -208,9 +261,9 @@ export function existingStoreRegistrations(
                   },
                 ],
               });
-              expect(await port.effectiveRoleAt(principal, targetOf(ungranted))).toBeNull();
+              expect(await port.effectiveRoleAt(principal, await targetOf(ungranted))).toBeNull();
               expect(
-                await port.effectiveRoleAt({ id: seed.ownerIds[1] }, targetOf(granted)),
+                await port.effectiveRoleAt({ id: seed.ownerIds[1] }, await targetOf(granted)),
               ).toBeNull();
               expect(
                 await port.readablePackageIds(principal, ACCESS_CONFORMANCE_ORGANIZATION),
@@ -230,7 +283,7 @@ export function existingStoreRegistrations(
           },
           {
             family: 'organizationLimits' as const,
-            caseId: 'organizationLimits.readCapacityCap:per-resource-except-project' as const,
+            caseId: 'organizationLimits.readCapacityCap:per-resource-except-work-package' as const,
           },
           {
             family: 'organizationLimits' as const,
@@ -242,8 +295,10 @@ export function existingStoreRegistrations(
     ...capacityRegistrations(openers.capacity),
     ...resourceCapacityRegistrations(openers.resourceCapacity),
     ...priorityBandRegistrations(openers.priorityBands),
+    ...settingsRegistrations(openers.settings),
     ...calendarMarkerRegistrations(openers.calendarMarkers),
     ...workItemRegistrations(openers.workItems),
+    ...stepCatalogueRegistrations(openers.stepCatalogue),
     ...stepRegistrations(openers.steps),
     ...estimateRegistrations(openers.estimates),
     ...actualRegistrations(openers.actuals),
@@ -264,13 +319,13 @@ export function existingStoreRegistrations(
           blockedAt: 123456,
         };
         expect(await port.set(blockage, seed.stamps[0])).toBe('written');
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([blockage]);
-        expect(await port.listByWorkItems(seed.projectIds[0], [blockage.workItemId])).toEqual([
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([blockage]);
+        expect(await port.listByWorkItems(seed.workPackageIds[0], [blockage.workItemId])).toEqual([
           blockage,
         ]);
-        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[1])).toEqual([]);
         await port.remove(blockage.workItemId, blockage.stepId, seed.stamps[1]);
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
       },
     ),
     storeCase(
@@ -283,16 +338,16 @@ export function existingStoreRegistrations(
           stepId: seed.stepIds[0][0],
           maxParallel: 1,
         };
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
         await port.set(parallel, seed.stamps[0]);
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([parallel]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([parallel]);
         await port.set({ ...parallel, maxParallel: 1000 }, seed.stamps[1]);
-        expect(await port.listByWorkItems(seed.projectIds[0], [parallel.workItemId])).toEqual([
+        expect(await port.listByWorkItems(seed.workPackageIds[0], [parallel.workItemId])).toEqual([
           { ...parallel, maxParallel: 1000 },
         ]);
-        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[1])).toEqual([]);
         await port.remove(parallel.workItemId, parallel.stepId, seed.stamps[1]);
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
       },
     ),
     storeCase(
@@ -338,24 +393,24 @@ export function existingStoreRegistrations(
         };
         const stated = [{ workItemId, stepId }];
         expect(await port.add([held], stated, seed.stamps[0], [])).toBe('written');
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
-        expect(await port.findById(seed.projectIds[0], held.id)).toEqual(held);
-        expect(await port.findById(seed.projectIds[1], held.id)).toBeNull();
-        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([held]);
+        expect(await port.findById(seed.workPackageIds[0], held.id)).toEqual(held);
+        expect(await port.findById(seed.workPackageIds[1], held.id)).toBeNull();
+        expect(await port.listByWorkPackage(seed.workPackageIds[1])).toEqual([]);
         const rival = { ...held, id: 'claim-two', personId: seed.personIds[1] };
         expect(await port.add([rival], [], seed.stamps[1], [])).toBe('taken');
         const beside = { ...rival, stepId: otherStepId };
         expect(await port.add([beside], stated, seed.stamps[1], [])).toBe('progress_stated');
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([held]);
         await port.remove([held], stated, seed.stamps[1]);
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
         expect(await port.add([beside], stated, seed.stamps[1], [])).toBe('written');
         expect(await failureOf(port.remove([held], [], seed.stamps[1]))).toContain('not stored');
       },
     ),
     storeCase(
       'claims',
-      'claims.listStampedByProject:write-instant',
+      'claims.listStampedByWorkPackage:write-instant',
       openers.claims,
       async ({ port, seed }) => {
         const [workItemId] = seed.workItemIds[0];
@@ -372,18 +427,18 @@ export function existingStoreRegistrations(
         const second = { ...first, id: 'claim-second', stepId: otherStepId };
         expect(await port.add([first], [], seed.stamps[0], [])).toBe('written');
         expect(await port.add([second], [], seed.stamps[1], [])).toBe('written');
-        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
+        expect(await port.listStampedByWorkPackage(seed.workPackageIds[0])).toEqual(
           [
             { ...first, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
             { ...second, claimedAt: seed.stamps[1].at, leaseExpiresAt: null, leaseRevokedAt: null },
           ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
         );
-        expect(await port.listStampedByProject(seed.projectIds[1])).toEqual([]);
+        expect(await port.listStampedByWorkPackage(seed.workPackageIds[1])).toEqual([]);
         // The plain reads stay unstamped: the journal stores what they answer.
-        expect(await port.listByProject(seed.projectIds[0])).toEqual(
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual(
           [first, second].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
         );
-        expect(await port.findById(seed.projectIds[0], first.id)).toEqual(first);
+        expect(await port.findById(seed.workPackageIds[0], first.id)).toEqual(first);
         const third = { ...first, id: 'unrequested-claim', workItemId: seed.workItemIds[0][1] };
         const foreign = {
           ...first,
@@ -398,7 +453,7 @@ export function existingStoreRegistrations(
           leaseExpiresAt: null,
           leaseRevokedAt: null,
         });
-        const local = await port.listStampedByIds(seed.projectIds[0], [
+        const local = await port.listStampedByIds(seed.workPackageIds[0], [
           second.id,
           foreign.id,
           first.id,
@@ -408,13 +463,13 @@ export function existingStoreRegistrations(
           stamped(first, seed.stamps[0].at),
           stamped(second, seed.stamps[1].at),
         ]);
-        expect(await port.listStampedByIds(seed.projectIds[0], [second.id])).toEqual([
+        expect(await port.listStampedByIds(seed.workPackageIds[0], [second.id])).toEqual([
           stamped(second, seed.stamps[1].at),
         ]);
-        expect(await port.listStampedByIds(seed.projectIds[1], [first.id, foreign.id])).toEqual([
-          stamped(foreign, seed.stamps[0].at),
-        ]);
-        expect(await port.listStampedByIds(seed.projectIds[0], [])).toEqual([]);
+        expect(await port.listStampedByIds(seed.workPackageIds[1], [first.id, foreign.id])).toEqual(
+          [stamped(foreign, seed.stamps[0].at)],
+        );
+        expect(await port.listStampedByIds(seed.workPackageIds[0], [])).toEqual([]);
       },
     ),
     storeCase(
@@ -446,7 +501,7 @@ export function existingStoreRegistrations(
         );
         expect(await port.add([delegated], [], seed.stamps[0], [])).toBe('written');
         await port.remove([subtree], [], seed.stamps[1]);
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
       },
     ),
     storeCase('claims', 'claims.moveAll:in-place', openers.claims, async ({ port, seed }) => {
@@ -473,7 +528,7 @@ export function existingStoreRegistrations(
       expect(await port.add([moved], [], seed.stamps[0], [])).toBe('written');
       expect(await port.add([under], [], seed.stamps[0], [])).toBe('written');
       await port.moveAll(leaf, child, seed.stamps[1]);
-      expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
+      expect(await port.listStampedByWorkPackage(seed.workPackageIds[0])).toEqual(
         [
           {
             ...moved,
@@ -490,9 +545,9 @@ export function existingStoreRegistrations(
       expect(await failureOf(port.moveAll(leaf, child, seed.stamps[1]))).not.toBe('');
       await port.remove([clash], [], seed.stamps[1]);
       await port.moveAll(child, leaf, seed.stamps[1]);
-      expect(await port.findById(seed.projectIds[0], moved.id)).toEqual(moved);
+      expect(await port.findById(seed.workPackageIds[0], moved.id)).toEqual(moved);
       await port.remove([moved], [], seed.stamps[1]);
-      expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([]);
     }),
     // `wbs-claim-leases` L1, L4, L5: a lease is written with its claim,
     // renewed only while in force and due, and read as expired at exactly
@@ -505,7 +560,7 @@ export function existingStoreRegistrations(
         const [leaf] = seed.workItemIds[0];
         const [otherLeaf] = seed.workItemIds[1];
         const [stepId, otherStepId] = seed.stepIds[0];
-        const [otherProjectStep] = seed.stepIds[1];
+        const [otherWorkPackageStep] = seed.stepIds[1];
         const [agent, human] = seed.personIds;
         const leased = {
           id: 'claim-leased',
@@ -521,7 +576,7 @@ export function existingStoreRegistrations(
           ...leased,
           id: 'claim-elsewhere',
           workItemId: otherLeaf,
-          stepId: otherProjectStep,
+          stepId: otherWorkPackageStep,
         };
         expect(
           await failureOf(
@@ -548,45 +603,48 @@ export function existingStoreRegistrations(
           ),
         ).toBe('written');
         expect(
-          (await port.listStampedByProject(seed.projectIds[0])).map(({ id, leaseExpiresAt }) => [
-            id,
-            leaseExpiresAt,
-          ]),
+          (await port.listStampedByWorkPackage(seed.workPackageIds[0])).map(
+            ({ id, leaseExpiresAt }) => [id, leaseExpiresAt],
+          ),
         ).toEqual([
           ['claim-leased', 10_000],
           ['claim-human', null],
         ]);
         // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
         // to 905,000, the second was renewed within the resolution and stays.
-        // Only the first project's lease moved, so only it is named.
+        // Only the first work package's lease moved, so only it is named.
         expect(await port.renewLeases(agent, null, () => 5_000)).toEqual({
           standing: { leases: 2, leaseExpiresAt: 860_000 },
-          renewedProjectIds: [seed.projectIds[0]],
+          renewedWorkPackageIds: [seed.workPackageIds[0]],
         });
         // At 860,000 the second lease has run out: it is not revived.
         expect(await port.renewLeases(agent, null, () => 860_000)).toEqual({
           standing: { leases: 1, leaseExpiresAt: 1_760_000 },
-          renewedProjectIds: [seed.projectIds[0]],
+          renewedWorkPackageIds: [seed.workPackageIds[0]],
         });
         expect(await port.renewLeases(human, null, () => 860_000)).toEqual({
           standing: { leases: 0, leaseExpiresAt: null },
-          renewedProjectIds: [],
+          renewedWorkPackageIds: [],
         });
-        expect(await port.expiredLeasesOf(seed.projectIds[1], 860_000)).toEqual([
+        expect(await port.expiredLeasesOf(seed.workPackageIds[1], 860_000)).toEqual([
           { claimId: elsewhere.id, reason: 'lease_expired' },
         ]);
-        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_759_999)).toEqual([]);
-        expect(await port.expiredLeasesOf(seed.projectIds[0], 1_760_000)).toEqual([
+        expect(await port.expiredLeasesOf(seed.workPackageIds[0], 1_759_999)).toEqual([]);
+        expect(await port.expiredLeasesOf(seed.workPackageIds[0], 1_760_000)).toEqual([
           { claimId: leased.id, reason: 'lease_expired' },
         ]);
-        expect(await port.projectsWithExpiredLeases(860_000, 10)).toEqual([seed.projectIds[1]]);
-        // Oldest expired lease first: the second project's ran out at 860,000.
-        expect(await port.projectsWithExpiredLeases(1_760_000, 10)).toEqual([
-          seed.projectIds[1],
-          seed.projectIds[0],
+        expect(await port.workPackagesWithExpiredLeases(860_000, 10)).toEqual([
+          seed.workPackageIds[1],
         ]);
-        expect(await port.projectsWithExpiredLeases(1_760_000, 1)).toEqual([seed.projectIds[1]]);
-        // One renewal moving leases in both projects names each once, in
+        // Oldest expired lease first: the second work package's ran out at 860,000.
+        expect(await port.workPackagesWithExpiredLeases(1_760_000, 10)).toEqual([
+          seed.workPackageIds[1],
+          seed.workPackageIds[0],
+        ]);
+        expect(await port.workPackagesWithExpiredLeases(1_760_000, 1)).toEqual([
+          seed.workPackageIds[1],
+        ]);
+        // One renewal moving leases in both work packages names each once, in
         // code-unit order whatever order the claims were written in.
         const [, secondLeaf] = seed.workItemIds[0];
         const [, otherSecondLeaf] = seed.workItemIds[1];
@@ -614,8 +672,8 @@ export function existingStoreRegistrations(
         }
         expect(await port.renewLeases(agent, null, () => 1_800_000)).toEqual({
           standing: { leases: 3, leaseExpiresAt: 2_700_000 },
-          renewedProjectIds: [seed.projectIds[0], seed.projectIds[1]].sort((left, right) =>
-            left < right ? -1 : Number(left > right),
+          renewedWorkPackageIds: [seed.workPackageIds[0], seed.workPackageIds[1]].sort(
+            (left, right) => (left < right ? -1 : Number(left > right)),
           ),
         });
       },
@@ -625,10 +683,10 @@ export function existingStoreRegistrations(
     // and a step it answers.
     storeCase(
       'claims',
-      'claims.observeProject:legacy-observation',
+      'claims.observeWorkPackage:legacy-observation',
       openers.claims,
       async ({ port, seed, readers }) => {
-        const [projectId] = seed.projectIds;
+        const [workPackageId] = seed.workPackageIds;
         const [leaf, child] = seed.workItemIds[0];
         const [stepId, otherStepId] = seed.stepIds[0];
         const [agent] = seed.personIds;
@@ -642,7 +700,7 @@ export function existingStoreRegistrations(
           accountId: seed.ownerIds[0],
         };
         expect(await port.add([held], [], seed.stamps[0], [])).toBe('written');
-        const observed = await port.observeProject(projectId, { kind: 'legacy' });
+        const observed = await port.observeWorkPackage(workPackageId, { kind: 'legacy' });
         if (observed.kind !== 'observed')
           throw new Error(`the observation answered ${observed.kind}`);
         const placement = (row: {
@@ -655,24 +713,30 @@ export function existingStoreRegistrations(
         const byId = (left: unknown[], right: unknown[]) =>
           String(left[0]) < String(right[0]) ? -1 : 1;
         expect(observed.rows.map(placement).sort(byId)).toEqual(
-          (await readers.workItems.listByProject(projectId)).map(placement).sort(byId),
+          (await readers.workItems.listByWorkPackage(workPackageId)).map(placement).sort(byId),
         );
         expect(observed.rows.map(({ id }) => id).sort()).toEqual([leaf, child].sort());
         expect(observed.stepIds).toEqual(
-          (await readers.projects.stepsOf(projectId)).map(({ id }) => id),
+          (await readers.workPackages.stepsOf(workPackageId)).map(({ id }) => id),
         );
         expect(observed.stepIds).toContain(stepId);
+        expect(observed.leafSteps).toEqual(
+          new Map([
+            [leaf, [stepId, otherStepId]],
+            [child, [stepId, otherStepId]],
+          ]),
+        );
         expect(observed.claims).toEqual([
           { ...held, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
         ]);
         const named = (await readers.directory.listPeople()).find(({ id }) => id === agent);
         if (named === undefined) throw new Error('the seed holds no such person');
         expect([...observed.personNames]).toEqual([[agent, named.name]]);
-        const other = await port.observeProject(seed.projectIds[1], { kind: 'legacy' });
+        const other = await port.observeWorkPackage(seed.workPackageIds[1], { kind: 'legacy' });
         if (other.kind !== 'observed') throw new Error(`the observation answered ${other.kind}`);
         expect(other.claims).toEqual([]);
         expect(other.personNames.size).toBe(0);
-        expect(await port.observeProject('project-absent', { kind: 'legacy' })).toEqual({
+        expect(await port.observeWorkPackage('work-package-absent', { kind: 'legacy' })).toEqual({
           kind: 'not_found',
         });
       },
@@ -716,21 +780,25 @@ export function existingStoreRegistrations(
           { ...leased, claimedAt: seed.stamps[0].at, leaseExpiresAt, leaseRevokedAt },
           { ...unleased, claimedAt: seed.stamps[0].at, leaseExpiresAt: null, leaseRevokedAt: null },
         ];
-        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(900_000, null));
+        expect(await port.listStampedByWorkPackage(seed.workPackageIds[0])).toEqual(
+          stamped(900_000, null),
+        );
         expect(await scenario.endLeasesOf(human, 5_000)).toBe(0);
         expect(await scenario.endLeasesOf(agent, 5_000)).toBe(1);
-        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(5_000, 5_000));
+        expect(await port.listStampedByWorkPackage(seed.workPackageIds[0])).toEqual(
+          stamped(5_000, 5_000),
+        );
         // A revoked lease is never renewed again, and expires as revoked.
         expect(await port.renewLeases(agent, null, () => 4_000)).toEqual({
           standing: { leases: 0, leaseExpiresAt: null },
-          renewedProjectIds: [],
+          renewedWorkPackageIds: [],
         });
-        expect(await port.expiredLeasesOf(seed.projectIds[0], 5_000)).toEqual([
+        expect(await port.expiredLeasesOf(seed.workPackageIds[0], 5_000)).toEqual([
           { claimId: leased.id, reason: 'credential_revoked' },
         ]);
         // The plain reads stay unstamped: the journal stores what they answer.
-        expect(await port.listByProject(seed.projectIds[0])).toEqual([leased, unleased]);
-        expect(await port.findById(seed.projectIds[0], leased.id)).toEqual(leased);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toEqual([leased, unleased]);
+        expect(await port.findById(seed.workPackageIds[0], leased.id)).toEqual(leased);
       },
     ),
     // `wbs-mcp-agent-surface` M15: a run renews its own leases and the
@@ -763,16 +831,15 @@ export function existingStoreRegistrations(
         ).toBe('written');
       const expiries = async () =>
         Object.fromEntries(
-          (await port.listStampedByProject(seed.projectIds[0])).map(({ id, leaseExpiresAt }) => [
-            id,
-            leaseExpiresAt,
-          ]),
+          (await port.listStampedByWorkPackage(seed.workPackageIds[0])).map(
+            ({ id, leaseExpiresAt }) => [id, leaseExpiresAt],
+          ),
         );
       // Run a: its lease and the no-run lease move, b's stays where it was,
       // and the standing counts those two.
       expect(await port.renewLeases(agent, 'a', () => 5_000)).toEqual({
         standing: { leases: 2, leaseExpiresAt: 905_000 },
-        renewedProjectIds: [seed.projectIds[0]],
+        renewedWorkPackageIds: [seed.workPackageIds[0]],
       });
       expect(await expiries()).toEqual({
         'claim-run-a': 905_000,
@@ -782,12 +849,12 @@ export function existingStoreRegistrations(
       // A run that holds nothing renews nothing new; it stands at the no-run lease.
       expect(await port.renewLeases(agent, 'c', () => 6_000)).toEqual({
         standing: { leases: 1, leaseExpiresAt: 905_000 },
-        renewedProjectIds: [],
+        renewedWorkPackageIds: [],
       });
       // No run: every lease of the person, whatever its run.
       expect(await port.renewLeases(agent, null, () => 7_000)).toEqual({
         standing: { leases: 3, leaseExpiresAt: 905_000 },
-        renewedProjectIds: [seed.projectIds[0]],
+        renewedWorkPackageIds: [seed.workPackageIds[0]],
       });
       expect(await expiries()).toEqual({
         'claim-run-a': 905_000,
@@ -830,8 +897,8 @@ export function existingStoreRegistrations(
           resourceId: ram.id,
           units: 4,
         });
-        expect(await port.occupancyOf(seed.projectIds[0])).toEqual([row(first), row(second)]);
-        expect(await port.occupancyOf(seed.projectIds[1])).toEqual([]);
+        expect(await port.occupancyOf(seed.workPackageIds[0])).toEqual([row(first), row(second)]);
+        expect(await port.occupancyOf(seed.workPackageIds[1])).toEqual([]);
         const third = { ...first, id: 'claim-c', workItemId: seed.workItemIds[0][0] };
         expect(
           await port.add([third], [], seed.stamps[1], [
@@ -845,9 +912,9 @@ export function existingStoreRegistrations(
             ]),
           ),
         ).toContain('not added');
-        expect(await port.listByProject(seed.projectIds[0])).toHaveLength(2);
+        expect(await port.listByWorkPackage(seed.workPackageIds[0])).toHaveLength(2);
         await port.remove([first], [], seed.stamps[1]);
-        expect(await port.occupancyOf(seed.projectIds[0])).toEqual([row(second)]);
+        expect(await port.occupancyOf(seed.workPackageIds[0])).toEqual([row(second)]);
       },
     ),
     // `wbs-shared-occupancy` S2. Proof, each watched 2026-10-25: with the
@@ -874,7 +941,7 @@ export function existingStoreRegistrations(
           accountId: seed.ownerIds[0],
         });
         const own = holding('claim-own', ownLeaf, seed.stepIds[0][0], seed.personIds[0]);
-        // The second project is another organization's: its row on RAM never counts.
+        // The second work package is another organization's: its row on RAM never counts.
         const other = holding('claim-other', otherLeaf, seed.stepIds[1][0], seed.personIds[1]);
         const units = (claimId: string) => [
           { claimId, resourceId: ram.id, units: 6 },
@@ -890,7 +957,7 @@ export function existingStoreRegistrations(
             runId: null,
             resourceId: ram.id,
             units: 6,
-            projectId: seed.projectIds[0],
+            workPackageId: seed.workPackageIds[0],
             organizationId,
           },
         ]);

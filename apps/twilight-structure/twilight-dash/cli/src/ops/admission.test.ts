@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
 
@@ -84,6 +85,10 @@ if (insideOpsNamespace(import.meta.path))
         telemetry: linuxScopeTelemetry(),
         host: ampleHost,
         user: 'puni1',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('../entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => privateLegacyLock('/nonexistent'),
         connect: () => {
           throw new Error('no WBS call expected');
@@ -172,6 +177,10 @@ if (insideOpsNamespace(import.meta.path))
           telemetry: linuxScopeTelemetry(),
           host: ampleHost,
           user: 'puni1',
+          helperPrefix: createLaunch(
+            process.execPath,
+            new URL('../entrypoint.ts', import.meta.url).pathname,
+          ),
           legacyLock: () => privateLegacyLock('/nonexistent'),
           connect: () => {
             throw new Error('no WBS call expected');

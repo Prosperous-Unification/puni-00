@@ -1,4 +1,8 @@
-import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts';
+import {
+  DEPENDENCY_SEMANTICS,
+  DEPENDENCY_SEMANTICS_HEADER,
+  readSpaceRollUps,
+} from '@wbs/contracts';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import * as connectedPlan from '@wbs/core/service/connected-plan';
 import { response } from '@wbs/store-sqlite/connected-optimization.fixture';
@@ -11,6 +15,12 @@ import { admitDependencyClient } from '../runtime/dependency-client';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 import { trackReadObservations } from '../testing/read-observation.fixture';
+import {
+  createFixturePackage,
+  readPackageFigures,
+  readProjectIds,
+  readSpaceFigures,
+} from '../testing/space-rollup';
 
 const headers = {
   'X-WBS-Expected-Organization': 'org-a',
@@ -36,7 +46,7 @@ async function fixture(held = true, optimized = true, withLocal = false) {
   const launches: ReservedSpawnRequest[] = [];
   const finishes = new Set<() => void>();
   let hold = held;
-  let afterRead: (projectId: string) => void = () => undefined;
+  let afterRead: (workPackageId: string) => void = () => undefined;
   let beforeRead: () => void = () => undefined;
   reads.beforeRead = () => {
     beforeRead();
@@ -56,9 +66,9 @@ async function fixture(held = true, optimized = true, withLocal = false) {
       }
     },
     captureRead: {
-      afterFirstRead: ({ projectId }) => {
-        captures.push(projectId);
-        afterRead(projectId);
+      afterFirstRead: ({ workPackageId }) => {
+        captures.push(workPackageId);
+        afterRead(workPackageId);
         return Promise.resolve();
       },
     },
@@ -86,7 +96,7 @@ async function fixture(held = true, optimized = true, withLocal = false) {
   const path = harness.databasePath();
   database.path = path;
   const call = (method: string, route: string, body?: unknown) =>
-    harness.callWith(harness.token('ada'), method, route, body, headers);
+    readSpaceFigures(harness.callWith(harness.token('ada'), method, route, body, headers), route);
   const ok = async (asked: Promise<Answer>, status = 200) => {
     const answered = await asked;
     expect(answered.status).toBe(status);
@@ -98,29 +108,34 @@ async function fixture(held = true, optimized = true, withLocal = false) {
     seedDependencyAuthority(path);
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'package.manage_settings',
+      'organization.manage_spaces',
+    ]);
     harness.bind('ada', 'org-a');
     harness.activate();
     harness.sqlite.run("INSERT INTO person(id,name) VALUES('ana','Root Ana')");
     harness.sqlite.run(
       "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('ana','org-a','Ana')",
     );
-    const endpoints: { projectId: string; workItemId: string; stepId: string }[] = [];
+    const endpoints: { workPackageId: string; workItemId: string; stepId: string }[] = [];
     for (const name of ['Remote', 'Target', ...(withLocal ? ['Local'] : [])]) {
-      await ok(call('POST', '/api/projects', { name }));
-      const project = harness.sqlite
-        .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+      await createFixturePackage(harness, 'ada', name, call);
+      const workPackage = harness.sqlite
+        .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
         .get(name);
-      if (project === null) throw new Error('project missing');
-      await ok(call('PATCH', `/api/projects/${project.id}`, { startDate: '2026-10-05' }));
+      if (workPackage === null) throw new Error('work package missing');
+      await ok(call('PATCH', `/api/work-packages/${workPackage.id}`, { startDate: '2026-10-05' }));
       const step = harness.sqlite
         .query<{ id: string }, [string]>(
-          'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+          "SELECT v.step_id AS id FROM work_package_step v JOIN work_package wp ON wp.id=v.work_package_id JOIN step_binding b ON b.step_id=v.step_id AND b.scope_kind='project' AND b.scope_id=wp.project_id WHERE wp.id=? ORDER BY b.position LIMIT 1",
         )
-        .get(project.id);
+        .get(workPackage.id);
       if (step === null) throw new Error('step missing');
       await ok(
-        call('POST', `/api/projects/${project.id}/commands`, {
+        call('POST', `/api/work-packages/${workPackage.id}/commands`, {
           commands: [
             {
               kind: 'createWorkItem',
@@ -140,15 +155,15 @@ async function fixture(held = true, optimized = true, withLocal = false) {
         }),
       );
       const row = harness.sqlite
-        .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-        .get(project.id);
+        .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+        .get(workPackage.id);
       if (row === null) throw new Error('work missing');
       await ok(
-        call('POST', `/api/projects/${project.id}/commands`, {
+        call('POST', `/api/work-packages/${workPackage.id}/commands`, {
           commands: [{ kind: 'setStatus', workItemId: row.id, status: 'in_progress' }],
         }),
       );
-      endpoints.push({ projectId: project.id, workItemId: row.id, stepId: step.id });
+      endpoints.push({ workPackageId: workPackage.id, workItemId: row.id, stepId: step.id });
     }
     const remote = endpoints.at(0);
     const target = endpoints.at(1);
@@ -160,16 +175,18 @@ async function fixture(held = true, optimized = true, withLocal = false) {
     if (space === null) throw new Error('space missing');
     for (const endpoint of endpoints)
       await ok(
-        call('POST', `/api/spaces/${space.id}/projects`, { projectId: endpoint.projectId }),
+        call('POST', `/api/spaces/${space.id}/projects`, {
+          projectId: readProjectIds(harness, endpoint.workPackageId),
+        }),
         201,
       );
     harness.sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('fs','org-a',?,?,?,?,'whole','whole','FS')",
-      [remote.projectId, target.projectId, remote.workItemId, target.workItemId],
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('fs','org-a',?,?,?,?,'whole','whole','FS')",
+      [remote.workPackageId, target.workPackageId, remote.workItemId, target.workItemId],
     );
     await harness.drainOptimization();
     harness.sqlite.run(
-      "UPDATE project SET estimate_rounding='exact',schedule_engine=?,optimization_enabled=?",
+      "UPDATE work_package SET estimate_rounding='exact',schedule_engine=?,optimization_enabled=?",
       [optimized ? 'optimized' : 'fast', optimized ? 1 : 0],
     );
     expect(
@@ -203,7 +220,7 @@ async function fixture(held = true, optimized = true, withLocal = false) {
           : surface === 'people'
             ? `/api/people/load?${period}`
             : surface === 'roll-ups'
-              ? `/api/spaces/${space.id}/roll-ups?projectIds=${endpoints.map(({ projectId }) => projectId).join(',')}`
+              ? `/api/spaces/${space.id}/roll-ups?projectIds=${readProjectIds(harness, endpoints.map(({ workPackageId }) => workPackageId).join(','))}`
               : `/api/spaces/${space.id}/in-progress`,
       );
     const settle = async () => {
@@ -227,6 +244,14 @@ async function fixture(held = true, optimized = true, withLocal = false) {
       captures,
       launches,
       request,
+      projectRollUps: () =>
+        harness.callWith(
+          harness.token('ada'),
+          'GET',
+          `/api/spaces/${space.id}/roll-ups?projectIds=${readProjectIds(harness, endpoints.map(({ workPackageId }) => workPackageId).join(','))}`,
+          undefined,
+          headers,
+        ),
       ledger,
       close,
       settle,
@@ -246,8 +271,8 @@ async function fixture(held = true, optimized = true, withLocal = false) {
 function assertResponse(
   surface: Surface,
   answered: Answer,
-  remote: { projectId: string; workItemId: string },
-  target: { projectId: string; workItemId: string },
+  remote: { workPackageId: string; workItemId: string },
+  target: { workPackageId: string; workItemId: string },
 ) {
   expect(answered.status).toBe(200);
   if (surface === 'in-progress') {
@@ -255,22 +280,22 @@ function assertResponse(
     body.items.sort((left, right) => left.name.localeCompare(right.name));
   }
   if (surface === 'person') {
-    const body = answered.body as { projects: { name: string }[] };
-    body.projects.sort((left, right) => left.name.localeCompare(right.name));
+    const body = answered.body as { workPackages: { name: string }[] };
+    body.workPackages.sort((left, right) => left.name.localeCompare(right.name));
   }
   if (surface === 'person')
     expect(answered.body).toMatchObject({
       person: { id: 'ana', name: 'Ana' },
-      projects: [
+      workPackages: [
         {
-          projectId: remote.projectId,
+          workPackageId: remote.workPackageId,
           name: 'Remote',
           bookings: [
             { workItemId: remote.workItemId, startsOn: '2026-10-05', endsOn: '2026-10-05' },
           ],
         },
         {
-          projectId: target.projectId,
+          workPackageId: target.workPackageId,
           name: 'Target',
           bookings: [
             { workItemId: target.workItemId, startsOn: '2026-10-06', endsOn: '2026-10-06' },
@@ -296,12 +321,12 @@ function assertResponse(
   else if (surface === 'roll-ups')
     expect(answered.body).toMatchObject({
       rollUps: {
-        [remote.projectId]: {
+        [remote.workPackageId]: {
           kind: 'rolled_up',
           counts: { leaves: 1 },
           dates: { startsOn: '2026-10-05', endsOn: '2026-10-05' },
         },
-        [target.projectId]: {
+        [target.workPackageId]: {
           kind: 'rolled_up',
           counts: { leaves: 1 },
           dates: { startsOn: '2026-10-06', endsOn: '2026-10-06' },
@@ -312,13 +337,13 @@ function assertResponse(
     expect(answered.body).toMatchObject({
       items: [
         {
-          projectId: remote.projectId,
+          workPackageId: remote.workPackageId,
           workItemId: remote.workItemId,
           name: 'Remote row',
           dates: { startsOn: '2026-10-05', endsOn: '2026-10-05' },
         },
         {
-          projectId: target.projectId,
+          workPackageId: target.workPackageId,
           workItemId: target.workItemId,
           name: 'Target row',
           dates: { startsOn: '2026-10-06', endsOn: '2026-10-06' },
@@ -351,8 +376,8 @@ for (const surface of surfaces) {
       const answered = await f.request(surface);
       assertResponse(surface, answered, f.remote, f.target);
       expect(f.launches).toEqual([]);
-      expect(f.captures.filter((id) => id === f.remote.projectId)).toHaveLength(1);
-      expect(f.captures.filter((id) => id === f.target.projectId)).toHaveLength(1);
+      expect(f.captures.filter((id) => id === f.remote.workPackageId)).toHaveLength(1);
+      expect(f.captures.filter((id) => id === f.target.workPackageId)).toHaveLength(1);
       expect(derive).toHaveBeenCalledTimes(1);
     } finally {
       derive.mockRestore();
@@ -364,7 +389,7 @@ for (const surface of surfaces) {
 test('cold public connected tree admits installed work only after source reads close', async () => {
   const f = await fixture();
   try {
-    const answered = await f.call('GET', `/api/projects/${f.target.projectId}/work-items`);
+    const answered = await f.call('GET', `/api/work-packages/${f.target.workPackageId}/work-items`);
     expect(answered.status).toBe(200);
     expect(answered.body).toMatchObject({
       workItems: [{ id: f.target.workItemId, dates: { startsOn: '2026-10-06' } }],
@@ -385,12 +410,12 @@ test('isolated person aggregate keeps its first component coherent across a riva
       if (changed) return;
       changed = true;
       f.harness.sqlite.run(
-        "UPDATE project SET name='Remote revised',start_date='2026-10-06' WHERE id=?",
-        [f.remote.projectId],
+        "UPDATE work_package SET name='Remote revised',start_date='2026-10-06' WHERE id=?",
+        [f.remote.workPackageId],
       );
       f.harness.sqlite.run(
-        "UPDATE project_abbreviation SET abbreviation='REVISED' WHERE project_id=?",
-        [f.remote.projectId],
+        "UPDATE work_package_abbreviation SET abbreviation='REVISED' WHERE work_package_id=?",
+        [f.remote.workPackageId],
       );
       f.harness.sqlite.run(
         "UPDATE work_item SET name='Remote revised row',frozen_number='900' WHERE id=?",
@@ -407,12 +432,12 @@ test('isolated person aggregate keeps its first component coherent across a riva
     expect(reached).toBeGreaterThan(0);
     const next = await f.request('person');
     expect(next.status).toBe(200);
-    const body = next.body as { projects: { name: string }[] };
-    body.projects.sort((left, right) => left.name.localeCompare(right.name));
+    const body = next.body as { workPackages: { name: string }[] };
+    body.workPackages.sort((left, right) => left.name.localeCompare(right.name));
     expect(next.body).toMatchObject({
-      projects: [
+      workPackages: [
         {
-          projectId: f.remote.projectId,
+          workPackageId: f.remote.workPackageId,
           name: 'Remote revised',
           bookings: [
             {
@@ -424,7 +449,7 @@ test('isolated person aggregate keeps its first component coherent across a riva
           ],
         },
         {
-          projectId: f.target.projectId,
+          workPackageId: f.target.workPackageId,
           name: 'Target',
           bookings: [
             { workItemId: f.target.workItemId, startsOn: '2026-10-08', endsOn: '2026-10-08' },
@@ -443,35 +468,67 @@ for (const surface of ['roll-ups', 'in-progress'] as const) {
     const f = await fixture(false, false, true);
     const local = f.local;
     if (local === undefined) throw new Error('local fixture member required');
+    const localProjectId = readProjectIds(f.harness, local.workPackageId);
+    const localParent = f.harness.sqlite
+      .query<{ position: number }, [string]>(
+        'SELECT space_position AS position FROM project WHERE id=?',
+      )
+      .get(localProjectId);
+    if (localParent === null) throw new Error('local project membership absent');
     let deleted = 0;
     const publicTree = spyOn(WorkItemService.prototype, 'treeWithin');
     try {
       f.beforeCapture(() => {
         f.beforeCapture(() => undefined);
         expect(
-          f.harness.sqlite.query('SELECT id FROM project WHERE id=?').get(local.projectId),
-        ).toEqual({ id: local.projectId });
+          f.harness.sqlite.query('SELECT id FROM work_package WHERE id=?').get(local.workPackageId),
+        ).toEqual({ id: local.workPackageId });
         // Remove C's existing referencing rows in dependency order, retaining every SQLite constraint.
-        f.harness.sqlite.run('DELETE FROM project_access WHERE project_id=?', [local.projectId]);
+        f.harness.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [
+          local.workPackageId,
+        ]);
         f.harness.sqlite.run('DELETE FROM assignment WHERE work_item_id=?', [local.workItemId]);
         f.harness.sqlite.run('DELETE FROM estimate WHERE work_item_id=?', [local.workItemId]);
-        f.harness.sqlite.run('DELETE FROM work_item WHERE project_id=?', [local.projectId]);
-        f.harness.sqlite.run('DELETE FROM step WHERE project_id=?', [local.projectId]);
-        f.harness.sqlite.run('DELETE FROM project WHERE id=?', [local.projectId]);
+        f.harness.sqlite.run('DELETE FROM work_item WHERE work_package_id=?', [
+          local.workPackageId,
+        ]);
+        f.harness.sqlite.run('DELETE FROM work_package_step WHERE work_package_id=?', [
+          local.workPackageId,
+        ]);
+        f.harness.sqlite.run('DELETE FROM work_package WHERE id=?', [local.workPackageId]);
         expect(
-          f.harness.sqlite.query('SELECT id FROM project WHERE id=?').get(local.projectId),
+          f.harness.sqlite.query('SELECT id FROM work_package WHERE id=?').get(local.workPackageId),
         ).toBeNull();
         deleted += 1;
       });
-      const answered = await f.request(surface);
+      const answered = surface === 'roll-ups' ? await f.projectRollUps() : await f.request(surface);
       expect(deleted).toBe(1);
       expect(publicTree).not.toHaveBeenCalled();
-      expect(f.captures.filter((id) => id === f.remote.projectId)).toHaveLength(1);
-      expect(f.captures.filter((id) => id === f.target.projectId)).toHaveLength(1);
-      expect(f.captures).not.toContain(local.projectId);
-      if (surface === 'roll-ups')
-        expect(answered).toEqual({ status: 404, body: { error: 'not_found' } });
-      else assertResponse(surface, answered, f.remote, f.target);
+      expect(f.captures.filter((id) => id === f.remote.workPackageId)).toHaveLength(1);
+      expect(f.captures.filter((id) => id === f.target.workPackageId)).toHaveLength(1);
+      expect(f.captures).not.toContain(local.workPackageId);
+      if (surface === 'roll-ups') {
+        expect(answered.status).toBe(200);
+        const checked = await readSpaceRollUps.responses[0].schema.validator['~standard'].validate(
+          answered.body,
+        );
+        if (checked.issues !== undefined)
+          throw new Error('invalid captured project reply', { cause: checked.issues });
+        expect(checked.value.projects.find((group) => group.project.id === localProjectId)).toEqual(
+          {
+            project: { id: localProjectId, name: 'Local engagement' },
+            position: localParent.position,
+            rollUp: { kind: 'empty' },
+            workPackages: [],
+          },
+        );
+        assertResponse(
+          surface,
+          await readPackageFigures(Promise.resolve(answered)),
+          f.remote,
+          f.target,
+        );
+      } else assertResponse(surface, answered, f.remote, f.target);
       expect(f.launches).toEqual([]);
     } finally {
       publicTree.mockRestore();
@@ -487,13 +544,13 @@ test('isolated held aggregate retains active target labels and placement without
     const before = f.ledger();
     const answered = await f.call(
       'GET',
-      `/api/spaces/${f.spaceId}/roll-ups?projectIds=${f.remote.projectId},${f.target.projectId}`,
+      `/api/spaces/${f.spaceId}/roll-ups?projectIds=${readProjectIds(f.harness, f.remote.workPackageId)},${readProjectIds(f.harness, f.target.workPackageId)}`,
     );
     expect(answered.status).toBe(200);
     expect(answered.body).toMatchObject({
       rollUps: {
-        [f.remote.projectId]: { status: 'on_hold', dates: null, counts: { leaves: 1 } },
-        [f.target.projectId]: {
+        [f.remote.workPackageId]: { status: 'on_hold', dates: null, counts: { leaves: 1 } },
+        [f.target.workPackageId]: {
           status: 'in_progress',
           dates: { startsOn: '2026-10-05', endsOn: '2026-10-05' },
           counts: { leaves: 1 },
@@ -504,9 +561,9 @@ test('isolated held aggregate retains active target labels and placement without
     expect(load.status).toBe(200);
     expect(load.body).toMatchObject({
       undated: [],
-      projects: [
+      workPackages: [
         {
-          projectId: f.target.projectId,
+          workPackageId: f.target.workPackageId,
           name: 'Target',
           bookings: [
             { workItemId: f.target.workItemId, startsOn: '2026-10-05', endsOn: '2026-10-05' },

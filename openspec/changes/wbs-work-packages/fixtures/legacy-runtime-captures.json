@@ -1,0 +1,520 @@
+{
+  "sourceParent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "sources": [
+    {
+      "path": "libs/wbs/domain/contracts/src/runtime-request.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/domain/contracts/src/runtime-request.ts",
+      "sha256": "09132c877935125bcee5f308451daa8b77ef6a840f764ba9ddc6e95ae72f4037",
+      "bytes": 10872
+    },
+    {
+      "path": "libs/wbs/domain/contracts/src/runtime-receipt.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/domain/contracts/src/runtime-receipt.ts",
+      "sha256": "258fa2def1b50c012bfd9152d5600d21e5c1b7a62caf546afcbd5c84bb482426",
+      "bytes": 4055
+    },
+    {
+      "path": "libs/wbs/domain/contracts/src/runtime-command-values.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/domain/contracts/src/runtime-command-values.ts",
+      "sha256": "36622a8228ebdd909565c1cbf97ce8f1e00c6c3e7af332ddab5d05eb5b2419b8",
+      "bytes": 7813
+    },
+    {
+      "path": "libs/wbs/application/core/src/ports/runtime-command-records.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/application/core/src/ports/runtime-command-records.ts",
+      "sha256": "b1f3f8c4e5c8ada1dc8eb0132f435df57c680c4a899b56a80005afa2752c6a0d",
+      "bytes": 4018
+    },
+    {
+      "path": "libs/wbs/application/core/src/module/plan-commands/runtime-command.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/application/core/src/module/plan-commands/runtime-command.ts",
+      "sha256": "3cd51690d749465a204dd07a75c0c87d850a980020d4de89b8023cfbf2acf2f7",
+      "bytes": 4575
+    },
+    {
+      "path": "libs/wbs/application/core/src/module/plan-commands/runtime-authority.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/application/core/src/module/plan-commands/runtime-authority.ts",
+      "sha256": "1ed611d9d01ccf238d021d00fec08239184ea8e86e13c58da14933f8392eb95f",
+      "bytes": 10695
+    },
+    {
+      "path": "libs/wbs/application/core/src/module/plan-commands/runtime-state.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/application/core/src/module/plan-commands/runtime-state.ts",
+      "sha256": "4c14badb43a8e89fb2192151d1914bba646359698a7392802a4618922c9e9864",
+      "bytes": 1542
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/runtime-command.ts",
+      "archive": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/libs/wbs/adapters/store-sqlite/src/runtime-command.ts",
+      "sha256": "4c45c73eff69376972ef2f7fc1bebaa383567ffac0a6f63710aeee8aebf86721",
+      "bytes": 16525
+    }
+  ],
+  "helper": {
+    "path": "/tmp/task-698-1.5-legacy-source-TbbgKF/source/apps/wbs/be-01/src/controller/capture-genuine-runtime1.test.ts",
+    "sha256": "b771c0dc7fe9590a0b672d02e84f1a839d17f79f769d7600456ff53b0427da25",
+    "bytes": 37848,
+    "qualification": "Original mounted test helper copy, only exact outgoing migration-folder setup and capture test added. No production source changed."
+  },
+  "outgoingMigrations": [
+    {
+      "name": "20260426171432_talented_smiling_tiger",
+      "hash": "3a526cf9a1bf19be7f22690e780f6de8696055561f4e5e4c4e41cbefc577b950"
+    },
+    {
+      "name": "20260804194845_add_users",
+      "hash": "fb97d07303d5603f17d92bbd0597cd2943a35409f4c82c8a49df87b60593663c"
+    },
+    {
+      "name": "20260805154500_add_wbs_domain",
+      "hash": "a9c17e34c9015c9008d9f653cb89b74a7de324c4ef311e5866526b8f73e7f7b5"
+    },
+    {
+      "name": "20260806084828_add_dependencies",
+      "hash": "7fd56541e4285bb46b93c6ad21d6c61381a772474342fbddb7adefaacb73ea16"
+    },
+    {
+      "name": "20260806160000_add_project_access",
+      "hash": "01af7a477d5621fb3b01e3a7c1b14d419f6de0d82fd811d9b5659b8ebcd89971"
+    },
+    {
+      "name": "20260806170000_add_estimate_method",
+      "hash": "63162949d4419d11e973b547eabc465aaeb18c379cbdf9793c396cb9bf74e7cf"
+    },
+    {
+      "name": "20260806180000_add_calendar_dates",
+      "hash": "adb6c01264d3bb069b9322f66d45a19a076437b0a48a8fedceed7a26e2a81a4a"
+    },
+    {
+      "name": "20260806190000_add_teams_and_assignees",
+      "hash": "e3331e0c72e0fac06678d32689832eb9e7a8080bc7f5d8799fe69f40e427efe8"
+    },
+    {
+      "name": "20260807090000_add_revisions",
+      "hash": "21303bda83d6d3c57756a60415e8725af5f99af608ac83f1624add496977dfc4"
+    },
+    {
+      "name": "20260807180000_add_command_journal",
+      "hash": "d2075b792402cad2fe99a03cd914e623dcd9e8a44480ae36422ec5f916effe35"
+    },
+    {
+      "name": "20260809090000_add_role_position",
+      "hash": "2f3212bffad6c5560e10dbc2a1c7c4cae18a01d442607ff9e62dca241a3a244e"
+    },
+    {
+      "name": "20260811100000_add_priority",
+      "hash": "dab3352ebf184c50e916eb987d022b2102a3ec338b774807fb6690cc505d449d"
+    },
+    {
+      "name": "20260812100000_add_team_slots",
+      "hash": "cd72488098fc326124f3fcf39d090363405375a2f842405bf2e31f18e80145fa"
+    },
+    {
+      "name": "20260812100001_add_max_parallel",
+      "hash": "9badcfd2f08a539da55826cc40097a165f87456f20e7a108a78d788f5dc207e0"
+    },
+    {
+      "name": "20260813120000_add_project_team_capacity",
+      "hash": "21e2ff6c52fed2f25f1841d7d089adbd0de0d1cc8ed800ca1b17b7351ad52e61"
+    },
+    {
+      "name": "20260814100000_add_work_item_team",
+      "hash": "213751cc58b0007c09df678cb8906813640a4c24a32b4ddf019ea75505f1535e"
+    },
+    {
+      "name": "20260814110000_add_priority_band",
+      "hash": "2572713ae71fa3dc12d9b4111131912c70af95cc91f610b0e0f5cf3aa871013f"
+    },
+    {
+      "name": "20260817120000_add_plan_event",
+      "hash": "7d0e6b0f6ad91fd9e377a8c8b64f8777d527532d84bf1d4d73f16f864f49643f"
+    },
+    {
+      "name": "20260817130000_add_actual",
+      "hash": "4fe0c95e8e932a63e0963a89d86d14bfb79fc3ecb81e513baa0d9d6b898cc754"
+    },
+    {
+      "name": "20260818010000_add_role_progress",
+      "hash": "82b8e3f61c233f5ff9f00baf4c5f98cab9415243a4e2fc117d1c41da74abe105"
+    },
+    {
+      "name": "20260818090000_add_not_before_reason",
+      "hash": "1c77364332adfe7be4897b8e9aca4dc3a11054e449406d7f0a0f01787165c0c9"
+    },
+    {
+      "name": "20260819120000_add_tag",
+      "hash": "266b249901314f78e5c2b48e53a2890ca1849c94a10ffbf8ee0df57b347396a8"
+    },
+    {
+      "name": "20260821000000_add_service",
+      "hash": "0f9fa812b452c54a2efdd343683abff4bccb3a9b2ca85a9f778ee6d5e6083dfc"
+    },
+    {
+      "name": "20260821080000_add_work_item_service",
+      "hash": "bf9c5afdc5e384d03474fff0c7ec87b39d1b3de27d69a522d9280cd48b6305b3"
+    },
+    {
+      "name": "20260821140000_add_role_measure",
+      "hash": "3c2be539fbba782f07f1cb8b7906e92bd9c85d0d935c6c897964789b99a32df3"
+    },
+    {
+      "name": "20260821150000_add_person_kind",
+      "hash": "73a774234a8a182cc3ce3c97afb4942637bfc75fe1dcdd1da622fef95b216b2c"
+    },
+    {
+      "name": "20260824010000_add_oidc_identity",
+      "hash": "1d0e6fe26146b5877ebadc84ca0fd5411257f2cfffd651481d2353e0cf52aecd"
+    },
+    {
+      "name": "20260824020000_add_solution_ref",
+      "hash": "65817337d7efdd8b7974914ad92d6813e61157c15b3fbe5308aa9aba292d30ec"
+    },
+    {
+      "name": "20260830010000_add_work_item_type",
+      "hash": "37d574e14ba75ce90ca9ec5092e7c3a071a638720584634b12eada45be077d46"
+    },
+    {
+      "name": "20260830020000_add_external_ref",
+      "hash": "eeffdeaed54093acd3b5d87108e05f6d1817a8e6dbd4919902f09f1da4ea51c4"
+    },
+    {
+      "name": "20260830120000_add_dep_reach",
+      "hash": "57ba12192d26cc7815401188ab7fa5cecc512615f6b830e8ddecf99e188387a0"
+    },
+    {
+      "name": "20260830130000_add_estimate_weights_and_rounding",
+      "hash": "9cfc31278c7ee4ed78aa5817715ed9baed464fc1cd9375d4b01db02e120f436a"
+    },
+    {
+      "name": "20260831120000_rename_role_to_step",
+      "hash": "90eb52642a42328f00edf2511343d80814ff183f42d065dff1de5bb604e57ae0"
+    },
+    {
+      "name": "20260901120000_add_audit_columns",
+      "hash": "b1f9479bbce96ef6ec3d09e4b4cddeeffa9891e3119c1bdb6f6e7218b6443e01"
+    },
+    {
+      "name": "20260902120000_add_lookup_indexes",
+      "hash": "eafe4b007446e774b9a2550bcd5518feda2da69272f4ea3ab89c3e05834d685e"
+    },
+    {
+      "name": "20260903190000_add_saved_plan",
+      "hash": "594745a4ffa123524ff0d58438447350be803f049b5a5b78d2f48c588290a307"
+    },
+    {
+      "name": "20260904020000_add_saved_plan_created_by_id",
+      "hash": "99d7cb0791e293e7839535ec9b479e0c5c1bf25f0452f8851ca51bc438e1176e"
+    },
+    {
+      "name": "20260904100000_add_optimizer_tables",
+      "hash": "1abff2c53fcc3f8e833aa6a3dec90eb55c14282b51d118ccf0366713cea11e6a"
+    },
+    {
+      "name": "20260904140000_add_project_settings",
+      "hash": "d1263a899883560bb6f26c0987865cf5b45460e66c66fd90c4542d7b1f529c77"
+    },
+    {
+      "name": "20260905090000_add_calendar_marker",
+      "hash": "5277f807ffd32d88990308297c4a2ca6a1f844f1907cfa7b2d7fe28134ccff8f"
+    },
+    {
+      "name": "20260906003000_add_work_item_read_order_index",
+      "hash": "929008aa571464d6db0d6ab687f086293621b4df95e9ab04e0e1faed8257762f"
+    },
+    {
+      "name": "20260906090000_add_work_item_deadline",
+      "hash": "777937e68b938358582289328ddba2bc7f99ef406e7a6c718ead65bd1e617413"
+    },
+    {
+      "name": "20260909120000_add_external_ref_name",
+      "hash": "0b48975a90c2c16948ef5fe37317a1c83c6a3e5b55e620245241f69a4e364801"
+    },
+    {
+      "name": "20260912120000_add_work_item_facts",
+      "hash": "ebb51785be3611f78d97b6b40b6cdbfc2cdcdc852da52fed4dd6037f5a0bfa3c"
+    },
+    {
+      "name": "20260927120000_add_organization_records",
+      "hash": "58fc49ee7930ef1755de9257d2cdc21c9d4fc19570313eb055395f8cf3fb1f03"
+    },
+    {
+      "name": "20260927130000_add_organization_ownership",
+      "hash": "499f5dcdaa1bec4699590c0032e0f671fe140910621c1dfa234683fb6b49ba7b"
+    },
+    {
+      "name": "20260927150000_add_step_code",
+      "hash": "ca295cb1c1e67fd5ee4ef7748b86d61590eefbe67779785ad3e1e952d52b163f"
+    },
+    {
+      "name": "20260927170000_add_step_allowance",
+      "hash": "f76716017deae9912e0bec1c47784ad7c377dbc4e3aa23f6d405285f42aed2a4"
+    },
+    {
+      "name": "20260927180000_add_organization_activation",
+      "hash": "6ce290b0a7b1d51440d7c8855f79a885057296b4f4f6b85b495d36c92909eac5"
+    },
+    {
+      "name": "20260927190000_add_organization_bridge",
+      "hash": "8f45016088634d57ecbfdc896bd2b735d37c376710ee5aae324acdeba9df37ab"
+    },
+    {
+      "name": "20260927200000_freeze_organization_ownership",
+      "hash": "9dc7ca1fb26c5bb23786dae5c958941d6a346255e207bec91dff338c514a6079"
+    },
+    {
+      "name": "20260927213000_add_typed_dependency",
+      "hash": "21a3295854b8a2d5d70682ee7370899f262516eea58b205fbeb893bff8c57b05"
+    },
+    {
+      "name": "20260927220000_add_organization_audit",
+      "hash": "ce670f1949910782fdf60404ce2c1ede13591f275f48d7f061d6ef1d90062b39"
+    },
+    {
+      "name": "20260928010000_add_project_solution",
+      "hash": "cc30d8242e7a90b5b0b7108d2f073139358723a239a194f5dcb2b83c91748b58"
+    },
+    {
+      "name": "20260928020000_add_email_verification",
+      "hash": "78f83f763172c75681817516ce23b57c6c1f6fb20f87e15e2fbbeab257a8fcaa"
+    },
+    {
+      "name": "20260928030000_add_delegation_use",
+      "hash": "dac497a90adca30b02e9fe901db35534459bc0eeee79082b32213880e7ca591c"
+    },
+    {
+      "name": "20260928040000_add_email_challenge",
+      "hash": "422e0d8ce3a010693dc3e03d294b80609d15b35189ebb1b0524f37ee4034e891"
+    },
+    {
+      "name": "20260928200000_add_work_item_status_facts",
+      "hash": "448db832ec04f17dba9ff1c8a19921d22c06374929458046a8b510c725c87f5f"
+    },
+    {
+      "name": "20260929100000_add_spaces",
+      "hash": "bc261eaa594cbc56f00998040ddf7fb1f31008a0ef6fed5806e6469531ee6e94"
+    },
+    {
+      "name": "20260929180000_add_project_rank",
+      "hash": "03bebda4450b20637a92041e15ae280304769bdcdbac48f840c95a39ebf13539"
+    },
+    {
+      "name": "20261001010000_add_browser_credential_revocations",
+      "hash": "efa642ed7832f045b5b65b5bb61b55914f6e8d47ad785a2f76410956d9937e25"
+    },
+    {
+      "name": "20261005110000_add_shared_people",
+      "hash": "5d73daa66c8320b178e3c079107f3cc1320dd765a0ea38b8a30ce013c5d04075"
+    },
+    {
+      "name": "20261011120000_add_browser_auth_lifecycle",
+      "hash": "baa890bbbe2fd947486664fc5f5e27a4b621df6a2c9a7987b7f006a72674742c"
+    },
+    {
+      "name": "20261011200000_add_shared_people_audit",
+      "hash": "7af8a3768f56222ada1eb233ad0a2484437177622e27ae401a6a37d6e23024dc"
+    },
+    {
+      "name": "20261012090000_add_enterprise_sso_records",
+      "hash": "86bc171961fef9b5698faacc2256879d754fb9e51c1fbbac2e3da4eadb2836b2"
+    },
+    {
+      "name": "20261012090100_add_browser_auth_times",
+      "hash": "b090df8f4d9ccbb5042e3d3cd324e6fca6037c35c61cef37358c21e37bf2f192"
+    },
+    {
+      "name": "20261012090200_widen_organization_audit",
+      "hash": "87d5cd7e214f7614850e94cb86fddc6436223c88b0e10dc581bb336b4642022c"
+    },
+    {
+      "name": "20261012120000_add_step_node_attempts",
+      "hash": "03622184aab08a28d2aea905e53ed56a94836c52c306b083cc73c57540d776a8"
+    },
+    {
+      "name": "20261012130000_add_step_estimate_unit",
+      "hash": "4e9193392175077ee74d53864a8f7f11f7b33720c026352a96cf8912e8b44348"
+    },
+    {
+      "name": "20261013140000_add_step_node_blockages",
+      "hash": "4b26fb3d6e3503d4db2cd54c4bff16cad6b07d5a256bae84d2bec40052ea170a"
+    },
+    {
+      "name": "20261014120000_add_shared_people_restore_approvals",
+      "hash": "9f5654bdafd6aabf820f46b0989c2069a8343ad6763156af25711d998658c6b7"
+    },
+    {
+      "name": "20261014130000_add_shared_people_restore_receipts",
+      "hash": "6ee43ae8058a30383fd8f3ebc611d508d93f6dcccdcb9b9a21084f6642e5c25f"
+    },
+    {
+      "name": "20261014140000_add_step_blockage_activation",
+      "hash": "b2fc7485f5428cf67447b057ba1be910dd6f5f70146e5103e8219770f310556b"
+    },
+    {
+      "name": "20261015100000_add_step_blockage_activation_receipt",
+      "hash": "3171a3eb3640e34ad87a1950818b52e47293355ed14cba917095e9d524b60d7f"
+    },
+    {
+      "name": "20261015110000_add_step_node_parallelism",
+      "hash": "60edd648330bc0505aa25c96e64daf1b12c938e96e04d78ce7c2f147af2a93b4"
+    },
+    {
+      "name": "20261019120000_add_claim",
+      "hash": "369f09216a17a5ffe5905fc44dbecf545ff06548eecc7177e7c5d1ffe15d247d"
+    },
+    {
+      "name": "20261019130000_add_person_account",
+      "hash": "73a33a314a874750b5a3e2a3ee287a34d642836a3e0d667ba64e3fbabcb503cd"
+    },
+    {
+      "name": "20261019130100_add_external_identity_person",
+      "hash": "39f207e42095747d48b96f141565ad0ba20bbebb443decc323ee1831fb5c9f50"
+    },
+    {
+      "name": "20261020120000_add_resources",
+      "hash": "6f5c0166252b6484090aac1674d389ea3b7b4f2a949d036c6a62b4dc46831736"
+    },
+    {
+      "name": "20261020130000_add_claim_occupancy",
+      "hash": "395098a8e87c1bc81af2052e5f9a650a93228807f81027e44e4d3340d69d14b3"
+    },
+    {
+      "name": "20261022100000_add_machine_credential",
+      "hash": "70ec5068bc593912922d328242bf7dc3fd5d093f960a629a78e389883567d408"
+    },
+    {
+      "name": "20261022110000_widen_organization_audit_machine_credentials",
+      "hash": "67203236b68714ddf289a71b5d5e6e49efbebf8272d615f4628072dba33c7f57"
+    },
+    {
+      "name": "20261022110100_check_machine_credential_id",
+      "hash": "110ba1a53347a94f3aa8dbcbc8c22f43a30774f036b3e3cc4d13c02b7aa35db5"
+    },
+    {
+      "name": "20261022120000_scope_trusted_issuer_audience",
+      "hash": "04d7cfe649d212d8128d2205a02875c41d39f426c8b25f7b8362d29e756f93af"
+    },
+    {
+      "name": "20261022121000_add_runtime_commands",
+      "hash": "ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d"
+    },
+    {
+      "name": "20261022130000_add_organization_limits",
+      "hash": "a84625236b32d10ba7a425e7e11d31469c0a089b9b65b627bbbc01aaef2176fb"
+    },
+    {
+      "name": "20261022130100_widen_organization_audit_organization_limits",
+      "hash": "93d65f622c2823df43e050a538ae834396d26d2f81e90096bf16a0ec592774b2"
+    },
+    {
+      "name": "20261022140000_add_resource_provider",
+      "hash": "6abaae224dc60292137303b82ac27afcc43c38d4217ac41ea9891a01393de2e1"
+    },
+    {
+      "name": "20261022140100_widen_organization_audit_compute_providers",
+      "hash": "64a8c56fd3f64963d497c7534903086f274766ee10da82386936f9c7cd0c21e2"
+    },
+    {
+      "name": "20261022210000_add_project_abbreviations",
+      "hash": "8e120c421e84771cc65912537c522a7126943c3a3dfce87d89cfcbf2bd3244d9"
+    },
+    {
+      "name": "20261022211000_add_external_dependencies",
+      "hash": "318b66d6eb443b83a4c75c9297e6e67cb62c91ba691cbeb38fdf51b98757f07f"
+    },
+    {
+      "name": "20261022212000_add_cross_project_dependency_activation",
+      "hash": "7a609fe739a2ea1e53bb04c0d15f3403b7a9eeb7a73e7c872f2aef96d553b9a1"
+    },
+    {
+      "name": "20261022213000_add_optimization_boundary_certificates",
+      "hash": "713337f7d9f7d778ba971580607185d1bd612b262cdd0bbc8943a1c3331749e1"
+    },
+    {
+      "name": "20261023100000_add_claim_lease",
+      "hash": "97d0b35d583b1f0f9a6ea284a8bd4603b96de017d910850f1836df15462c3517"
+    },
+    {
+      "name": "20261023140000_add_measure",
+      "hash": "312f05c762707c64ef2af8f354499fd4809a94884b202a6983ab7dd872391d6d"
+    },
+    {
+      "name": "20261023150000_key_step_measure",
+      "hash": "01c7779df46f77d744c06348ac7fb084ee8868fcc8e03d77da9a25b2993b44f9"
+    },
+    {
+      "name": "20261023160000_add_measure_estimate",
+      "hash": "7743198fbda1033e9ec0e0116957afc3f85c96263c17a15d3364411df2d59aed"
+    },
+    {
+      "name": "20261023170000_add_work_item_budget",
+      "hash": "4c82572a733ff24927ea3a12db225c71a1a0b07a5ece7c45f6f6329c50d3692d"
+    },
+    {
+      "name": "20261025120000_add_resource_use",
+      "hash": "8dee665434e29b5cd2c5401ed2c3db90223acd5998000015362ba4e3755cc5ba"
+    },
+    {
+      "name": "20261025130000_add_resource_runtime",
+      "hash": "f873f5b5e0dd8fd38d69873c9bbdcd9d885f5c4bd3d898eee35d8bd5c788e90b"
+    },
+    {
+      "name": "20261026120000_add_command_journal_person",
+      "hash": "d13aabc415043f0a115d72569a07643acc065d60e57c9b703335b3a6aa29d646"
+    },
+    {
+      "name": "20261026130000_widen_organization_audit_machine_tokens",
+      "hash": "7be4354b51b58f19db28be94e98a2ef8f78411a6d99496e4326a39688af75d2a"
+    },
+    {
+      "name": "20261028100000_add_agent_pool",
+      "hash": "1eec00f1c8b271f6f7d660daf42f51e1b0a82c9cbc5da7a1cc461c1bcfc54eb5"
+    },
+    {
+      "name": "20261028100100_widen_organization_audit_agent_pools",
+      "hash": "6c5fef01fff700bfac8ad9e52909fce3f60452cbaa5bdc6c6fb25e23b9bd1476"
+    },
+    {
+      "name": "20261101100000_widen_organization_audit_directory_capacity",
+      "hash": "2f5e7561c68fe0dc5dc07048e42727cac2bf742ec92fe700f0942b310074a72c"
+    },
+    {
+      "name": "20261101100100_add_resource_directory_capacity",
+      "hash": "e007286e2e2f3ad5e202b6f2760f1961fe184112536b1f6f9bfe6c288d291bf1"
+    },
+    {
+      "name": "20261101120000_add_host_job_projection",
+      "hash": "15a7bf9f9a25fa2483833386c4cc6f2676bda7dac16b6f5b912c74d17aeefcde"
+    },
+    {
+      "name": "20261102120000_add_access_grants",
+      "hash": "73e7f971820864c82cc1895e44b627fdefb92a8dc96f6c4ab14ac3ba314c0d83"
+    },
+    {
+      "name": "20261102130000_widen_organization_audit_access",
+      "hash": "a6ebb6bc966243d9f916c8bca3ad993621b260c17354e17816c9916fab295dfd"
+    },
+    {
+      "name": "20261103110000_add_initial_access_offers",
+      "hash": "f9b37ea43a0a4e170217fd3ab12c33e0bf7de4b5e55e3848859da8ad209b1ebb"
+    }
+  ],
+  "record": {
+    "path": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt",
+    "sha256": "de64834e3ef5e6e09b658c60663a4a9bc5f49d317256206a2e4ff8729481ff44",
+    "bytes": 12954,
+    "formats": {
+      "canonical": 1,
+      "storedAcceptance": 1,
+      "receipt": 1,
+      "state": 1
+    },
+    "receiptCount": 3
+  },
+  "receipt": "/tmp/task-698-1.3-postproof2-legacy-runtime-http-capture1.json",
+  "qualifications": [
+    "Real original authority/claim/write production owners and SQLite HTTP integration",
+    "Original canonical strings/digests/accepted row strings and receipts retained verbatim; no retargeting",
+    "Replay+lookup returned original receipts and exact runtime tables remained unchanged",
+    "One preparatory unique-anchor assertion failed before writing helper; no capture attempt occurred then"
+  ]
+}

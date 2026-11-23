@@ -2,6 +2,7 @@ import { SEEDED_MEASURE_DEFINITIONS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * Measure definitions (`wbs-measure-budgets` slice 1) under organization
@@ -56,11 +57,11 @@ describe('measure definitions in an organization', () => {
     for (const username of ['ada', 'grace', 'moe', 'sue', 'vic']) await h.register(username);
     h.organization('org-a');
     h.organization('org-b');
-    h.member('org-a', 'ada', 'admin');
-    h.member('org-a', 'moe', 'member');
-    h.member('org-a', 'sue', 'super_admin');
-    h.member('org-a', 'vic', 'viewer');
-    h.member('org-b', 'grace', 'member');
+    h.member('org-a', 'ada', 'admin', ['org-admin']);
+    h.member('org-a', 'moe', 'member', ['project-contributor']);
+    h.member('org-a', 'sue', 'super_admin', ['org-super-admin']);
+    h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+    h.member('org-b', 'grace', 'member', ['org-admin']);
     for (const username of ['ada', 'moe', 'sue', 'vic']) h.bind(username, 'org-a');
     h.bind('grace', 'org-b');
     h.activate();
@@ -170,7 +171,7 @@ describe('measure definitions in an organization', () => {
     expect((await listed('grace')).find((each) => each.key === 'tokens')?.name).toBe('Tokens');
   });
 
-  // Design D70: defining a measure changes what every project's figures mean.
+  // Design D70: defining a measure changes what every work package's figures mean.
   it('refuses a member every definition write, an admin and a super-admin allowed', async () => {
     const tokens = await idOf('ada', 'tokens');
     for (const command of [
@@ -178,9 +179,9 @@ describe('measure definitions in an organization', () => {
       { kind: 'patchMeasure', measureId: tokens, patch: { name: 'Member tokens' } },
       { kind: 'deleteMeasure', measureId: tokens },
     ])
-      expect(await directory('moe', [command]), command.kind).toEqual({
+      expect(await directory('moe', [command]), command.kind).toMatchObject({
         status: 403,
-        body: { at: 0, kind: command.kind, error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
     expect((await listed('moe')).map(({ key }) => key)).toEqual(SEEDED_KEYS);
     expect((await listed('moe')).find(({ key }) => key === 'tokens')?.name).toBe('Tokens');
@@ -199,7 +200,10 @@ describe('measure definitions in an organization', () => {
   });
 
   it('refuses a viewer every write and a malformed command at the boundary', async () => {
-    expect(await directory('vic', [GPU])).toEqual({ status: 403, body: { error: 'forbidden' } });
+    expect(await directory('vic', [GPU])).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(await directory('ada', [{ ...GPU, key: 'GPU' }])).toEqual({
       status: 400,
       body: { at: 0, kind: 'createMeasure', error: 'key_must_be_a_measure_key' },
@@ -213,24 +217,19 @@ describe('budgets and money bases in an organization', () => {
     h = OrganizationHarness.openComposed();
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
   });
 
-  /** A project of org-a with parent P over leaves L and R, and the first step's id. */
+  /** A work package of org-a with parent P over leaves L and R, and the first step's id. */
   async function plan() {
-    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Budgets' });
-    if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-    const projectId = (created.body as { project: { id: string } }).project.id;
-    const dev = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-      .all(projectId)
-      .map(({ id }) => id)
-      .at(0);
-    if (dev === undefined) throw new Error('the project has no step');
+    const workPackageId = await createFixturePackage(h, 'ada', 'Budgets');
+    const { steps } = await readFixturePackage(h, 'ada', workPackageId);
+    const dev = steps.find(({ code }) => code === 'fixture-dev')?.id;
+    if (dev === undefined) throw new Error('the work package has no step');
     const run = (commands: readonly unknown[]) =>
-      h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+      h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
     const built = await run([
       { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
       {
@@ -258,7 +257,7 @@ describe('budgets and money bases in an organization', () => {
       if (id === undefined) throw new Error(`no ${ref}`);
       return id;
     };
-    return { projectId, dev, run, idOf };
+    return { workPackageId, dev, run, idOf };
   }
 
   const cost = (workItemId: string, stepId: string, rateCardDigest?: string) => ({
@@ -273,7 +272,7 @@ describe('budgets and money bases in an organization', () => {
   // Proof: with the `rate_card_required` arm removed from work-item-shapes.ts,
   // this case answered 500 for the unpriced cost fact; watched 2026-10-23.
   it('answers 409 for an unpriced cost fact and reads a parent mixing two cards, naming both', async () => {
-    const { projectId, dev, run, idOf } = await plan();
+    const { workPackageId, dev, run, idOf } = await plan();
     const [P, L, R] = ['P', 'L', 'R'].map(idOf);
     const unpriced = await run([cost(L, dev)]);
     expect(unpriced).toMatchObject({
@@ -290,7 +289,7 @@ describe('budgets and money bases in an organization', () => {
         ])
       ).status,
     ).toBe(200);
-    const read = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/work-items`);
     const rows = (read.body as { workItems: { id: string; [field: string]: unknown }[] }).workItems;
     const parent = rows.find((each) => each.id === P);
     expect(parent?.['mixedRateCards']).toEqual({

@@ -31,11 +31,11 @@ type Person = Extract<
 >['body']['people'][number];
 type Kind = 'cleanup_requested' | 'cleanup_blocked' | 'retained' | 'release_reported';
 type ListView =
-  | { kind: 'loading'; projectId: string; scopeKey: string }
-  | { kind: 'failure'; projectId: string; scopeKey: string; message: string }
+  | { kind: 'loading'; workPackageId: string; scopeKey: string }
+  | { kind: 'failure'; workPackageId: string; scopeKey: string; message: string }
   | {
       kind: 'ready';
-      projectId: string;
+      workPackageId: string;
       scopeKey: string;
       uses: readonly Use[];
       nextCursor: string | null;
@@ -92,15 +92,15 @@ function refusal(error: string): string {
 }
 
 export interface ResourceUsesPanelProps {
-  projectId: string;
+  workPackageId: string;
   shown: boolean;
   onDirtyChange: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
 }
 
-/** Reports of resource use in this project; no event here verifies host cleanup. */
+/** Reports of resource use in this work package; no event here verifies host cleanup. */
 export function ResourceUsesPanel({
-  projectId,
+  workPackageId,
   shown,
   onDirtyChange,
   onBusyChange,
@@ -111,7 +111,7 @@ export function ResourceUsesPanel({
     scope.organization.kind === 'legacy' ? 'legacy' : scope.organization.organizationId;
   const generation = useRef(0);
   const writeGeneration = useRef(0);
-  const [list, setList] = useState<ListView>({ kind: 'loading', projectId, scopeKey });
+  const [list, setList] = useState<ListView>({ kind: 'loading', workPackageId, scopeKey });
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeForm, setActiveForm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,8 +132,8 @@ export function ResourceUsesPanel({
 
   const read = useCallback(
     async (cursor: string | null, append: boolean, version: number) => {
-      const reply = await client.getApiProjectsByIdResourceUses({
-        params: { id: projectId },
+      const reply = await client.getApiWorkPackagesByIdResourceUses({
+        params: { id: workPackageId },
         query: cursor === null ? {} : { cursor },
       });
       if (version !== generation.current) return;
@@ -141,12 +141,12 @@ export function ResourceUsesPanel({
       if (reply.kind === 'success') {
         setList((previous) => ({
           kind: 'ready',
-          projectId,
+          workPackageId,
           scopeKey,
           uses:
             append &&
             previous.kind === 'ready' &&
-            previous.projectId === projectId &&
+            previous.workPackageId === workPackageId &&
             previous.scopeKey === scopeKey
               ? [...previous.uses, ...reply.body.uses]
               : reply.body.uses,
@@ -163,24 +163,24 @@ export function ResourceUsesPanel({
         setList((previous) =>
           append &&
           previous.kind === 'ready' &&
-          previous.projectId === projectId &&
+          previous.workPackageId === workPackageId &&
           previous.scopeKey === scopeKey
             ? { ...previous, pageError: `More resource uses could not be read. ${message}` }
-            : { kind: 'failure', projectId, scopeKey, message },
+            : { kind: 'failure', workPackageId, scopeKey, message },
         );
       }
     },
-    [client, projectId, scopeKey],
+    [client, workPackageId, scopeKey],
   );
 
   const reread = useCallback(
     (keepCurrent = false) => {
       const version = ++generation.current;
       setLoadingMore(false);
-      if (!keepCurrent) setList({ kind: 'loading', projectId, scopeKey });
+      if (!keepCurrent) setList({ kind: 'loading', workPackageId, scopeKey });
       return read(null, false, version);
     },
-    [projectId, scopeKey, read],
+    [workPackageId, scopeKey, read],
   );
 
   useEffect(() => {
@@ -189,11 +189,11 @@ export function ResourceUsesPanel({
     setBusy(false);
     setPeople(null);
     setPeopleError('');
-  }, [projectId, scopeKey]);
+  }, [workPackageId, scopeKey]);
 
   useEffect(() => {
     if (!shown) return;
-    // Proof: changing projects while a request is in flight must retire that answer.
+    // Proof: changing work packages while a request is in flight must retire that answer.
     void reread();
     const version = generation;
     return () => {
@@ -219,19 +219,19 @@ export function ResourceUsesPanel({
     if (
       shown &&
       list.kind === 'ready' &&
-      list.projectId === projectId &&
+      list.workPackageId === workPackageId &&
       list.scopeKey === scopeKey &&
       list.uses.some((use) => use.retention !== null) &&
       people === null &&
       peopleError === ''
     )
       void loadPeople();
-  }, [shown, list, projectId, scopeKey, people, peopleError, loadPeople]);
+  }, [shown, list, workPackageId, scopeKey, people, peopleError, loadPeople]);
 
   function replaceUse(next: Use): void {
     setList((previous) =>
       previous.kind === 'ready' &&
-      previous.projectId === projectId &&
+      previous.workPackageId === workPackageId &&
       previous.scopeKey === scopeKey
         ? { ...previous, uses: previous.uses.map((use) => (use.id === next.id ? next : use)) }
         : previous,
@@ -240,14 +240,14 @@ export function ResourceUsesPanel({
 
   async function write(
     use: Use,
-    body: Parameters<typeof client.postApiProjectsByIdResourceUsesByUseIdEvents>[0]['body'],
+    body: Parameters<typeof client.postApiWorkPackagesByIdResourceUsesByUseIdEvents>[0]['body'],
   ): Promise<string | null> {
     setBusy(true);
     const version = generation.current;
     const writeVersion = ++writeGeneration.current;
     try {
-      const reply = await client.postApiProjectsByIdResourceUsesByUseIdEvents({
-        params: { id: projectId, useId: use.id },
+      const reply = await client.postApiWorkPackagesByIdResourceUsesByUseIdEvents({
+        params: { id: workPackageId, useId: use.id },
         body,
       });
       if (version !== generation.current) return null;
@@ -267,9 +267,9 @@ export function ResourceUsesPanel({
   }
 
   const current =
-    list.projectId === projectId && list.scopeKey === scopeKey
+    list.workPackageId === workPackageId && list.scopeKey === scopeKey
       ? list
-      : { kind: 'loading' as const, projectId, scopeKey };
+      : { kind: 'loading' as const, workPackageId, scopeKey };
   return (
     <section aria-label="Resource uses" className="border-border flex flex-col gap-3 border-t pt-4">
       <h3 className="m-0 text-base font-semibold">Resource uses</h3>
@@ -306,9 +306,9 @@ export function ResourceUsesPanel({
             >
               {current.uses.map((use) => (
                 <UseRow
-                  key={`${projectId}:${use.id}`}
+                  key={`${workPackageId}:${use.id}`}
                   use={use}
-                  projectId={projectId}
+                  workPackageId={workPackageId}
                   shown={shown}
                   active={activeForm === use.id}
                   busy={busy}
@@ -359,7 +359,7 @@ export function ResourceUsesPanel({
 type ResourceClient = ReturnType<typeof useResourceClient<typeof SHAPES>>;
 interface UseRowProps {
   use: Use;
-  projectId: string;
+  workPackageId: string;
   shown: boolean;
   active: boolean;
   busy: boolean;
@@ -368,13 +368,13 @@ interface UseRowProps {
   onChoose: (open: boolean) => void;
   onPeople: () => void;
   onWrite: (
-    body: Parameters<ResourceClient['postApiProjectsByIdResourceUsesByUseIdEvents']>[0]['body'],
+    body: Parameters<ResourceClient['postApiWorkPackagesByIdResourceUsesByUseIdEvents']>[0]['body'],
   ) => Promise<string | null>;
   client: ResourceClient;
 }
 function UseRow({
   use,
-  projectId,
+  workPackageId,
   shown,
   active,
   busy,
@@ -452,8 +452,8 @@ function UseRow({
     const version = ++historyGeneration.current;
     setHistoryBusy(true);
     if (cursor === null) setHistory({ kind: 'loading' });
-    const reply = await client.getApiProjectsByIdResourceUsesByUseIdHistory({
-      params: { id: projectId, useId: use.id },
+    const reply = await client.getApiWorkPackagesByIdResourceUsesByUseIdHistory({
+      params: { id: workPackageId, useId: use.id },
       query: cursor === null ? {} : { cursor },
     });
     if (version !== historyGeneration.current || !shown) return;

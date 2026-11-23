@@ -1,18 +1,21 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
 const AUDIT_WIDENING = '20261022140100_widen_organization_audit_compute_providers';
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
 const NEWER = [
+  INITIAL_ACCESS,
+  '20261102130000_widen_organization_audit_access',
   '20261102120000_add_access_grants',
   '20261101120000_add_host_job_projection',
   '20261101100100_add_resource_directory_capacity',
@@ -39,13 +42,17 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** A store migrated to the latest, with an organization, an account, an agent person and a resource. */
-function migratedStore(): { root: string; dbPath: string } {
+/** The store through initial access for rollback, or through the provider audit widening for vocabulary checks. */
+function migratedStore(through: typeof INITIAL_ACCESS | typeof AUDIT_WIDENING = INITIAL_ACCESS): {
+  root: string;
+  dbPath: string;
+} {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   run(dbPath, [
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
@@ -94,11 +101,8 @@ function auditSchemaOf(dbPath: string): { type: string; name: string; sql: strin
 function limitsOnlyStore(): string {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, ...NEWER])
-    rmSync(join(root, 'drizzle', name), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, copyRecoveryPrefix(root, LIMITS_AUDIT));
   return dbPath;
 }
 
@@ -231,7 +235,7 @@ describe(AUDIT_WIDENING, () => {
   // action CHECK made this fail with `CHECK constraint failed` on `a6`;
   // watched 2026-10-22.
   it('admits the three new actions and the kind, and the outgoing release keeps writing', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(AUDIT_WIDENING);
     run(dbPath, [
       audit('a1', 'compute_provider_registered', 'compute_provider'),
       audit('a2', 'compute_provider_updated', 'compute_provider'),

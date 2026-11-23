@@ -99,28 +99,28 @@ export function optionsFor(
  * value here; narrowing is still derived by {@link usePlanFilter}, so nothing
  * stores an answer alongside rows that can change underneath it.
  */
-export function usePlanFilterState({ projectId }: { projectId: string }) {
+export function usePlanFilterState({ workPackageId }: { workPackageId: string }) {
   /**
    * The deferred Find value the filter owner has accepted.
    *
-   * The project travels with it. During a project switch the old owner's value
+   * The work package travels with it. During a work package switch the old owner's value
    * is immediately ineligible, before the new toolbar's effect publishes its
    * initial blank; a delayed effect from the old toolbar is refused as well.
    * The narrowing itself remains {@link narrowTree} of current rows and this
    * string, re-derived after every peer update.
    */
-  const [ownedQuery, setOwnedQuery] = useState({ projectId, query: '' });
-  const query = ownedQuery.projectId === projectId ? ownedQuery.query : '';
+  const [ownedQuery, setOwnedQuery] = useState({ workPackageId, query: '' });
+  const query = ownedQuery.workPackageId === workPackageId ? ownedQuery.query : '';
   const commitQuery = useCallback(
     (owner: string, nextQuery: string) => {
-      if (owner !== projectId) return;
+      if (owner !== workPackageId) return;
       setOwnedQuery((current) =>
-        current.projectId === owner && current.query === nextQuery
+        current.workPackageId === owner && current.query === nextQuery
           ? current
-          : { projectId: owner, query: nextQuery },
+          : { workPackageId: owner, query: nextQuery },
       );
     },
-    [projectId],
+    [workPackageId],
   );
 
   /**
@@ -134,27 +134,27 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
    * most likely support question this change could create. Named, deliberate
    * criteria you come back to are saved views — F4, and the opposite gesture.
    *
-   * Not the URL either: which project is open lives in localStorage
-   * (`project-page.tsx`) and `/` names none of it, so there is nothing here a
+   * Not the URL either: which work package is open lives in localStorage
+   * (`work-package-page.tsx`) and `/` names none of it, so there is nothing here a
    * link could carry to somebody else yet.
    */
-  const [ownedFacets, setOwnedFacets] = useState({ projectId, facets: NO_FACETS });
-  const facets = ownedFacets.projectId === projectId ? ownedFacets.facets : NO_FACETS;
+  const [ownedFacets, setOwnedFacets] = useState({ workPackageId, facets: NO_FACETS });
+  const facets = ownedFacets.workPackageId === workPackageId ? ownedFacets.facets : NO_FACETS;
   const setFacets = useCallback<Dispatch<SetStateAction<Omit<FilterCriteria, 'query'>>>>(
     (next) => {
       setOwnedFacets((current) => {
-        const currentFacets = current.projectId === projectId ? current.facets : NO_FACETS;
+        const currentFacets = current.workPackageId === workPackageId ? current.facets : NO_FACETS;
         return {
-          projectId,
+          workPackageId,
           facets: typeof next === 'function' ? next(currentFacets) : next,
         };
       });
     },
-    [projectId],
+    [workPackageId],
   );
 
   /**
-   * The filters this browser has named and saved for this project — F4, and
+   * The filters this browser has named and saved for this work package — F4, and
    * the deliberate opposite of {@link facets} beside it: this **is**
    * remembered across a reload, because naming one and picking it back up is
    * a deliberate act and not a restored session nobody asked for.
@@ -163,25 +163,25 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
    * reason: an effect would open the panel with nothing in it for one frame.
    */
   const [savedViews, setSavedViews] = useState<SavedView[]>(
-    () => rememberedSavedViews(projectId).value,
+    () => rememberedSavedViews(workPackageId).value,
   );
 
-  /** Which project the saved views above belong to, so a save cannot pair it with another. */
-  const savedViewsProject = useRef(projectId);
+  /** Which work package the saved views above belong to, so a save cannot pair it with another. */
+  const savedViewsWorkPackage = useRef(workPackageId);
 
   /**
-   * Swaps the saved views whole when the project does.
+   * Swaps the saved views whole when the work package does.
    *
-   * Nothing is written here, for {@link widthProject}'s effect's reason: Save
+   * Nothing is written here, for {@link widthWorkPackage}'s effect's reason: Save
    * and Delete are the only writers, so there is no first-save-after-a-switch
    * to guard against — only the read, which would otherwise offer one
-   * project's views on another's plan.
+   * work package's views on another's plan.
    */
   useEffect(() => {
-    if (savedViewsProject.current === projectId) return;
-    savedViewsProject.current = projectId;
-    setSavedViews(rememberedSavedViews(projectId).value);
-  }, [projectId]);
+    if (savedViewsWorkPackage.current === workPackageId) return;
+    savedViewsWorkPackage.current = workPackageId;
+    setSavedViews(rememberedSavedViews(workPackageId).value);
+  }, [workPackageId]);
   return { query, commitQuery, facets, setFacets, savedViews, setSavedViews };
 }
 

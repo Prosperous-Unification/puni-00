@@ -7,10 +7,9 @@ import fc from 'fast-check';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { UserRepository } from './user';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ISSUER = 'https://tenant.test/';
 const SEED = 20261011;
 
@@ -247,9 +246,10 @@ describe('several verified pairs per user, by model', () => {
     await fc.assert(
       fc.asyncProperty(commands, async (history) => {
         const dir = mkdtempSync(join(tmpdir(), 'wbs-user-oidc-model-'));
+        const custody = { hasUnknownOwner: false };
         try {
           const path = join(dir, 'test.db');
-          runMigrations(path, FOLDER);
+          migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
           const db = openDatabase(path);
           db.run(
             "UPDATE organization_activation SET state = 'activated', activated_at = 1 WHERE singleton = 1",
@@ -265,7 +265,7 @@ describe('several verified pairs per user, by model', () => {
             history,
           );
         } finally {
-          rmSync(dir, { recursive: true, force: true });
+          if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
         }
       }),
       { seed: SEED, numRuns: 60 },

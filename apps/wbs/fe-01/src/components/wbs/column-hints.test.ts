@@ -4,14 +4,14 @@ import { type ColumnHintState, hintFor, UnexplainedColumnError } from './column-
 import { POINTS } from './estimate-draft';
 import { FIXED_COLUMNS, FLEXIBLE_COLUMNS } from './table-frame';
 
-/** A project on a calendar, which is what the schedule columns hold real dates in. */
-const ON_CALENDAR: ColumnHintState = { hasProjectStartDate: true };
-/** A project with no start date, where the same columns hold day numbers. */
-const OFF_CALENDAR: ColumnHintState = { hasProjectStartDate: false };
+/** A work package on a calendar, which is what the schedule columns hold real dates in. */
+const ON_CALENDAR: ColumnHintState = { hasWorkPackageStartDate: true };
+/** A work package with no start date, where the same columns hold day numbers. */
+const OFF_CALENDAR: ColumnHintState = { hasWorkPackageStartDate: false };
 
 /**
  * A step's four columns, by the suffixes the table names them with. The step
- * half of the id is whatever the project called the step, so `r7` here stands
+ * half of the id is whatever the work package called the step, so `r7` here stands
  * for any of them.
  */
 const STEP_COLUMNS = ['r7-final', 'r7-assignee', ...POINTS.map((point) => `r7-${point}`)];
@@ -97,7 +97,7 @@ describe('the hints say what changing the column does to the plan', () => {
    *
    * Asserted as a **pair** — the ordering effect and the hard-constraint
    * effect — because a hint that names only Fast's would be as wrong for a
-   * project on PRI as the old sentence was for every project.
+   * work package on PRI as the old sentence was for every work package.
    */
   it('says a deadline moves the plan, both ways the two shipped engines move it', () => {
     const hint = hintFor('deadline', ON_CALENDAR);

@@ -1,14 +1,17 @@
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
+import { bindFixtureSteps } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -21,13 +24,14 @@ const F = 'account-f';
  * 1.5, legacy access): root names, and the panel's two-statement batch undone
  * by one Undo.
  */
-/** One project with leaf `090` and the plan-command runner over a fresh memory source. */
+/** One work package with leaf `090` and the plan-command runner over a fresh memory source. */
 async function planOfOneLeaf(extraLeaf = false) {
-  const { source } = openMemorySourceFixture();
+  const fixture = openMemorySourceFixture();
+  const source = ownTestSource(fixture.source);
   const broadcast = recordingBroadcaster();
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -37,21 +41,63 @@ async function planOfOneLeaf(extraLeaf = false) {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('L', F));
-  const projectId = created.project.id;
-  for (const step of created.steps)
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-      { at: 1, by: F },
-    );
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  await bindFixtureSteps(
+    source,
+    'fixture-legacy-org',
+    [
+      {
+        definition: {
+          id: 'command-dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'command-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+      {
+        definition: {
+          id: 'command-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'command-qa-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
+        },
+      },
+    ],
+    { at: 1, by: F },
+  );
+  const created = expectCreated(await graph.workPackages.create('L', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+
   await source.stores.workItems.insert(
-    workItemRow({ id: '090', projectId, parentId: null, position: 1 }),
+    workItemRow({ id: '090', workPackageId, parentId: null, position: 1 }),
     [],
     { at: 1, by: F },
   );
   if (extraLeaf)
     await source.stores.workItems.insert(
-      workItemRow({ id: '095', projectId, parentId: null, position: 2 }),
+      workItemRow({ id: '095', workPackageId, parentId: null, position: 2 }),
       [],
       { at: 1, by: F },
     );
@@ -67,12 +113,12 @@ async function planOfOneLeaf(extraLeaf = false) {
         broadcast: announcements,
       }),
   });
-  return { source, graph, runner, projectId, steps: created.steps };
+  return { source, graph, runner, workPackageId, steps: created.steps };
 }
 
 describe('demands on the tree read before activation', () => {
   it('names root resources, and one Undo takes a two-statement batch back', async () => {
-    const { source, graph, runner, projectId } = await planOfOneLeaf();
+    const { source, graph, runner, workPackageId } = await planOfOneLeaf();
     const declared = await runner.runDirectory(F, [
       { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
       { kind: 'createResource', name: 'ram', resourceKind: 'divisible', unitLabel: 'GB' },
@@ -81,18 +127,18 @@ describe('demands on the tree read before activation', () => {
     const [staging, ram] = declared.results.map(({ id }) => id);
     if (staging === undefined || ram === undefined) throw new Error('a resource minted no id');
 
-    const before = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    const before = await graph.workItems.treeWithin(workPackageId, LEGACY_ACCESS);
     expect(before).not.toHaveProperty('demands');
     expect(before).not.toHaveProperty('demandedResources');
 
-    const applied = await runner.run(projectId, F, [
+    const applied = await runner.run(workPackageId, F, [
       { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
       { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 4 },
     ]);
     expect(applied.ok).toBe(true);
     // Proof: with the legacy branch answering the tree alone, this failed on
     // `expect(received).toMatchObject(expected)` with no `demands`; watched 2026-10-25.
-    expect(await graph.workItems.treeWithin(projectId, LEGACY_ACCESS)).toMatchObject({
+    expect(await graph.workItems.treeWithin(workPackageId, LEGACY_ACCESS)).toMatchObject({
       demands: [
         { workItemId: '090', resourceId: ram, units: 4 },
         { workItemId: '090', resourceId: staging, units: 1 },
@@ -103,9 +149,9 @@ describe('demands on the tree read before activation', () => {
       ].sort((a, b) => a.id.localeCompare(b.id)),
     });
 
-    const undone = await graph.workItems.undo(projectId, F);
+    const undone = await graph.workItems.undo(workPackageId, F);
     expect(undone).toMatchObject({ ok: true });
-    const back = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    const back = await graph.workItems.treeWithin(workPackageId, LEGACY_ACCESS);
     expect(back).not.toHaveProperty('demands');
     await source.close();
   });
@@ -113,14 +159,14 @@ describe('demands on the tree read before activation', () => {
 
 describe('a resource removed between the tree read and its labels', () => {
   it('labels a bar of a resource removed between the two reads', async () => {
-    const { source, graph, runner, projectId, steps } = await planOfOneLeaf(true);
+    const { source, graph, runner, workPackageId, steps } = await planOfOneLeaf(true);
     const declared = await runner.runDirectory(F, [
       { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
     ]);
     if (!declared.ok) throw new Error('the resource was not declared');
     const staging = declared.results[0]?.id;
     if (staging === undefined) throw new Error('staging minted no id');
-    const applied = await runner.run(projectId, F, [
+    const applied = await runner.run(workPackageId, F, [
       ...['090', '095'].flatMap((workItemId) => [
         ...steps.map((step) => ({
           kind: 'setEstimate' as const,
@@ -133,7 +179,7 @@ describe('a resource removed between the tree read and its labels', () => {
       { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
     ]);
     expect(applied.ok).toBe(true);
-    const levelled = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    const levelled = await graph.workItems.treeWithin(workPackageId, LEGACY_ACCESS);
     expect(levelled).toHaveProperty('resourceLabels');
     // The catalog read beside the labels answers after a cascade removed
     // staging: the schedule just read still waits for it.
@@ -150,7 +196,7 @@ describe('a resource removed between the tree read and its labels', () => {
       }
       return listResources();
     };
-    const after = await graph.workItems.treeWithin(projectId, LEGACY_ACCESS);
+    const after = await graph.workItems.treeWithin(workPackageId, LEGACY_ACCESS);
     expect(after).not.toHaveProperty('resourceLabels');
     expect(after).not.toHaveProperty('demands');
     await source.close();

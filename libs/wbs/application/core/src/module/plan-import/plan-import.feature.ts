@@ -5,21 +5,23 @@ import {
   decideMeasureCreate,
   definitionsOrUnowned,
   type LimitCrossed,
-  mayDefineMeasuresInOrganization,
   type MeasureDefinition,
+  type Permission,
 } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
 import type { CommandCaller } from '../../ports/command-access';
 import type { RefusedOrganizationAccess, ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
+import type { Broadcaster } from '../../ports/work-package-event';
 import type {
   ImportDependencyRefusal,
   ImportedPlanResource,
+  ImportSettingsConflict,
   ImportTransaction,
 } from './imported-plan.resource';
+import type { ImportCatalogueRefusal } from './imported-steps.resource';
 import {
   type ImportPreparation,
   type PreparedImport,
@@ -28,6 +30,11 @@ import {
   prepareImport,
 } from './prepare-import';
 import { resolveImportDependencies } from './resolve-import-dependencies';
+
+/** Omission preserves the default refusal of codes absent from the actual catalogue. */
+export interface ImportOptions {
+  readonly defineMissing: boolean;
+}
 
 export interface ImportServiceOptions {
   clock: Clock;
@@ -38,7 +45,7 @@ export interface ImportServiceOptions {
 
 export interface ImportAdmission {
   ok: true;
-  projectId: string;
+  workPackageId: string;
   rows: number;
   created: {
     teams: string[];
@@ -55,10 +62,14 @@ export interface ImportAdmission {
 export interface ImportSourceRefusal {
   ok: false;
   code:
+    | 'not_found'
     | 'source_refused'
     | 'abbreviation_taken'
     | 'abbreviation_exhausted'
-    | 'external_dependencies_inactive';
+    | 'external_dependencies_inactive'
+    | 'unknown_step'
+    | 'step_not_resolved'
+    | 'type_conflict';
   path: string;
   detail: string | null;
 }
@@ -67,6 +78,7 @@ export interface ImportSourceRefusal {
 export interface ImportForbidden {
   ok: false;
   code: 'forbidden';
+  readonly permission?: Permission;
   /** The whole document: nothing in it was read. */
   path: '';
   detail: null;
@@ -92,6 +104,8 @@ export type ImportOutcome =
   | ImportSourceRefusal
   | ImportForbidden
   | ImportLimitRefusal
+  | ImportSettingsConflict
+  | ImportCatalogueRefusal
   | Extract<ImportPreparation, { ok: false }>;
 
 type AdmittedImportOutcome =
@@ -99,7 +113,9 @@ type AdmittedImportOutcome =
   | ImportSourceRefusal
   | ImportForbidden
   | ImportDependencyRefusal
-  | ImportLimitRefusal;
+  | ImportLimitRefusal
+  | ImportSettingsConflict
+  | ImportCatalogueRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -174,8 +190,8 @@ const MEASURE_SHAPE_FIELDS = [
  * Matches every measure definition the file names by key among the
  * organization's and defines the ones it lacks (`wbs-measure-budgets` design
  * D63, D65). Under legacy access the organization is the legacy one, which
- * owns the created project before activation; only when none exists is the
- * created project owned by no organization, so the file's definitions are
+ * owns the created work package before activation; only when none exists is the
+ * created work package owned by no organization, so the file's definitions are
  * matched against the seeded four it answers and none is defined (design D19).
  *
  * Every fact, trio and budget was checked against the file's definitions by
@@ -183,7 +199,7 @@ const MEASURE_SHAPE_FIELDS = [
  * hold in the organization too, and the stores throw on a key they do not
  * hold as the backstop.
  *
- * The answer is the definitions the created project holds (null when no
+ * The answer is the definitions the created work package holds (null when no
  * organization owns it), or the first refusal in file order, which rolls the
  * import back: a held definition of another shape (`measure_shape_mismatch`,
  * at the first differing field), one no organization would own
@@ -210,22 +226,32 @@ async function resolveMeasures(
     const found = definitionsOrUnowned(held).find(({ key }) => key === definition.key);
     if (found !== undefined) {
       // Proof: with this refusal skipped, `refuses a defined measure under
-      // legacy access, writing no project` (import-service-source-contract.ts,
+      // legacy access, writing no work package` (import-service-source-contract.ts,
       // memory source) imported tokens counted in kilotokens; watched 2026-10-23.
       const differing = MEASURE_SHAPE_FIELDS.find((field) => found[field] !== definition[field]);
       if (differing !== undefined) return refused(`${path}.${differing}`, 'measure_shape_mismatch');
       continue;
     }
     // Proof: with this refusal skipped, `refuses a defined measure under
-    // legacy access, writing no project` (import-service-source-contract.ts)
+    // legacy access, writing no work package` (import-service-source-contract.ts)
     // threw from `addMeasureWithin` instead; watched 2026-10-23.
     if (held === null) return refused(`${path}.key`, 'unknown_measure');
     // Defining a measure is an admin's act (design D70), whichever way it arrives.
     // Proof: with this refusal skipped, `refuses a member's import that would
     // define a measure, writing nothing` (measure-export.controller.db.test.ts)
     // answered 201 with gpu_minutes defined; watched 2026-10-24.
-    if (access.kind === 'scoped' && !mayDefineMeasuresInOrganization(access.scope.role))
-      return { ok: false, refusal: { ok: false, code: 'forbidden', path: '', detail: null } };
+    // Proof: import-measure-grant fault failed 'import defining measure rows' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (access.kind === 'scoped' && !(await writes.mayDefineDirectory()))
+      return {
+        ok: false,
+        refusal: {
+          ok: false,
+          code: 'forbidden',
+          path: '',
+          detail: null,
+          permission: 'organization.manage_directory',
+        },
+      };
     if (definition.derived) return refused(`${path}.derived`, 'derived_measure');
     const measure: MeasureDefinition = { id: newId(), ...definition };
     const decided = decideMeasureCreate(held, measure);
@@ -241,7 +267,9 @@ async function resolveMeasures(
 async function resolveNamed(
   entries: ReadonlyMap<string, PreparedNamedEntry>,
   existing: Map<string, string>,
-  create: (name: string) => Promise<{ id: string } | null>,
+  create: (
+    name: string,
+  ) => Promise<{ ok: true; value: { id: string } } | { ok: false; reason: string }>,
 ): Promise<Map<string, string>> {
   const resolved = new Map<string, string>();
   for (const entry of entries.values()) {
@@ -251,8 +279,8 @@ async function resolveNamed(
       continue;
     }
     const created = await create(entry.name);
-    if (created === null) throw new Error(`prepared directory name became invalid: ${entry.name}`);
-    resolved.set(entry.fileId, created.id);
+    if (!created.ok) throw new Error(`prepared directory creation was refused: ${created.reason}`);
+    resolved.set(entry.fileId, created.value.id);
   }
   return resolved;
 }
@@ -267,7 +295,7 @@ async function resolveNamed(
  * only entries created by this import receive file-owned metadata.
  * Successful admission records actual shared-person consequences in the same
  * unit of work, delivers those rows after release, then publishes collected
- * directory, project-settings and full-tree refreshes. Import creation does
+ * directory, work-package-settings and full-tree refreshes. Import creation does
  * not append undo or plan-history rows.
  */
 export class ImportService {
@@ -278,11 +306,11 @@ export class ImportService {
    * The mapped transaction supplies current access for every callback operation.
    * Persisted binding freshness does not reverify API secret rotation or
    * upstream/delegation expiry; production external authoring remains inactive.
-   * Under scoped access the project is the organization's, every directory
+   * Under scoped access the work package is the organization's, every directory
    * name resolves among the organization's own entries under their local
    * names and anything missing is created there, a solution reference is left
    * off (slugs are still unique across the deployment, so keeping one would
-   * reveal another organization's), and only the organization's projects are
+   * reveal another organization's), and only the organization's work packages are
    * told the directory changed.
    *
    * Proof: reading the tags through legacy access made `imports into the
@@ -290,17 +318,37 @@ export class ImportService {
    * `import-export-organization.controller.db.test.ts` create a second
    * `Release` tag instead of resolving A's own; watched 2026-09-27.
    */
-  async import(document: PlanDocumentImport, caller: CommandCaller): Promise<ImportOutcome> {
+  async import(
+    document: PlanDocumentImport,
+    caller: CommandCaller,
+    projectId: string,
+    options: ImportOptions = { defineMissing: false },
+  ): Promise<ImportOutcome> {
+    const defineMissing = options.defineMissing;
+    // Proof: omission lost the four programmatic input refusals (catalogue-import-fault-options-v1).
+    if (typeof defineMissing !== 'boolean')
+      throw new TypeError('import defineMissing must be boolean');
+    if (typeof projectId !== 'string' || projectId.trim() === '')
+      throw new Error('package import parent is missing');
+    // Proof: removing this snapshot admitted owning-account grants after queued machine evidence removal; queued import admission fault/restored pass, 2026-11-09.
+    caller = structuredClone(caller);
     // Proof: omitting this guard let the direct read-scope integration import enter the writer and commit (2026-10-22).
     if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
       return { ok: false, error: 'insufficient_scope' };
     const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
-    const preparation = prepareImport(document, this.opts.scheduler);
+    const preparation = prepareImport(document, this.opts.scheduler, 'catalogue');
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
     const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
       caller,
-      { ok: false, code: 'forbidden', path: '', detail: null },
+      projectId,
+      (permission) => ({
+        ok: false,
+        code: 'forbidden',
+        path: '',
+        detail: null,
+        ...(permission === undefined ? {} : { permission }),
+      }),
       collector,
       async ({ writes, services: graph }, access) => {
         const external = preparation.value.externalDependencies.at(0);
@@ -308,6 +356,18 @@ export class ImportService {
           const dormant = writes.checkExternalAuthoring(external.path);
           if (dormant !== null) return { commit: false, value: dormant };
         }
+        const settingsConflict = await writes.checkBudgetFactor(
+          preparation.value.settings.budgetFactor,
+        );
+        if (settingsConflict !== null) return { commit: false, value: settingsConflict };
+        const stamp = this.opts.clock.stampFor(actorId);
+        const reconciled = await writes.resolveSteps(
+          preparation.value.steps,
+          defineMissing,
+          stamp,
+          () => this.opts.clock.newId(),
+        );
+        if (!reconciled.ok) return { commit: false, value: reconciled };
         const directory = graph.directory;
         const [services, teams, people, tags, types, systems, resources] = await Promise.all([
           directory.listWithin('services', access),
@@ -356,6 +416,18 @@ export class ImportService {
           importsNewName(prepared.typeByFileId, types) ||
           importsNewName(prepared.externalSystemByFileId, systems) ||
           importsNewName(prepared.resourceByFileId, resources);
+        // Proof: import-directory-grant fault failed 'import defining directory rows' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        if (directoryChanged && !(await writes.mayDefineDirectory()))
+          return {
+            commit: false,
+            value: {
+              ok: false,
+              code: 'forbidden',
+              path: '',
+              detail: null,
+              permission: 'organization.manage_directory',
+            },
+          };
         const servicesByFileId = await resolveNamed(
           prepared.serviceByFileId,
           existingIds(services),
@@ -370,7 +442,7 @@ export class ImportService {
             continue;
           }
           const created = await directory.addWithin('teams', actorId, team.name, access);
-          if (created === null) throw new Error(`prepared team name became invalid: ${team.name}`);
+          if (!created.ok) throw new Error(`prepared team creation was refused: ${created.reason}`);
           const serviceIds = team.serviceFileIds.map((fileId) => {
             const id = servicesByFileId.get(fileId);
             if (id === undefined)
@@ -378,13 +450,13 @@ export class ImportService {
             return id;
           });
           const patched = await directory.patchTeamWithin(
-            created.id,
+            created.value.id,
             actorId,
             { serviceIds },
             access,
           );
           if (!patched.ok) throw new Error(`created team metadata was refused: ${patched.reason}`);
-          teamsByFileId.set(team.fileId, created.id);
+          teamsByFileId.set(team.fileId, created.value.id);
         }
         const heldPeople = existingIds(people);
         const peopleByFileId = new Map<string, string>();
@@ -431,7 +503,7 @@ export class ImportService {
         // authoritative for its unit label; one of another kind is refused,
         // because every demand on it was checked against the file's kind.
         // Proof: with the kind comparison removed, `refuses a resource the
-        // directory holds under another kind, writing no project`
+        // directory holds under another kind, writing no work package`
         // (import-service-source-contract.ts, memory source) imported the plan
         // onto the divisible resource; watched 2026-10-20.
         const heldResources = new Map(resources.map((each) => [each.name, each] as const));
@@ -465,41 +537,23 @@ export class ImportService {
           requested === null
             ? 'none'
             : // Proof: skipping this admitted lookup made concurrent memory imports both
-              // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
+              // answer `kept` and leaked SQLite's `workPackage.solution_slug` uniqueness error.
               (await writes.isSolutionSlugHeld(requested.slug, access))
               ? 'left-off'
               : 'kept';
-        const stamp = this.opts.clock.stampFor(actorId);
         const measures = await resolveMeasures(writes, prepared, access, stamp, () =>
           this.opts.clock.newId(),
         );
         if (!measures.ok) return { commit: false, value: measures.refusal };
-        const projectId = this.opts.clock.newId();
+        const workPackageId = this.opts.clock.newId();
         const settings = prepared.settings;
-        const steps = prepared.steps.map((step) => ({
-          id: this.opts.clock.newId(),
-          projectId,
-          name: step.name,
-          position: step.position,
-          code: step.code,
-          allowancePercent: step.allowancePercent,
-          // Proof: forcing workdays failed native units in the composed minute round trip.
-          estimateUnit: step.estimateUnit,
-        }));
-        const stepsByFileId = new Map(
-          prepared.steps.map((step, at) => {
-            const written = steps.at(at);
-            if (written === undefined)
-              throw new Error('prepared steps changed length during import');
-            return [step.fileId, written.id] as const;
-          }),
-        );
-        // Proof: routing this through ProjectService.create made the source contract
+        const stepsByFileId = reconciled.stepIds;
+        // Proof: routing this through WorkPackageService.create made the source contract
         // read `[Dev@10, QA@20]` instead of `[Discover@10, Build@30, Verify@70]`.
-        const project = {
-          id: projectId,
+        const workPackage = {
+          id: workPackageId,
           name: settings.name,
-          ownerId: actorId,
+          projectId,
           restricted: settings.restricted,
           estimateMethod: settings.estimateMethod,
           depReach: settings.depReach,
@@ -512,52 +566,68 @@ export class ImportService {
           optimizationEnabled: settings.optimizationEnabled,
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
+          // Historical scalar-field lineage, before project inheritance:
           // Version 11 states it; earlier versions read as 1 (design D63).
           // Proof: with the factor left off, `round-trips a version-11 plan’s
           // trios, budgets and factor byte for byte`
           // (import-service-source-contract.ts, memory source) failed; watched
           // 2026-10-23.
-          budgetFactor: settings.budgetFactor,
+          // The inherited project factor was checked above; import never writes its ancestor.
         };
-        const creationRefusal = await writes.createProject(project, steps, stamp, access);
+        const creatorGrant =
+          access.kind === 'scoped'
+            ? { id: this.opts.clock.newId(), auditId: this.opts.clock.newId() }
+            : null;
+        const creationRefusal = await writes.createWorkPackage(
+          workPackage,
+          stamp,
+          access,
+          creatorGrant,
+        );
         // Proof: forcing commit:true leaked new directory, ownership and person_team rows in both mounted counter/family exhaustion tests (2026-10-22).
         if (creationRefusal !== null)
           return {
             commit: false,
-            value: { ok: false, code: creationRefusal, path: 'project', detail: null },
+            value: { ok: false, code: creationRefusal, path: 'work_package', detail: null },
           };
-        await writes.replacePriorityBands(projectId, prepared.priorityBands, stamp);
+        await writes.initializeStepValues(workPackageId, stamp);
+        await writes.replacePriorityBands(workPackageId, prepared.priorityBands, stamp);
         for (const capacity of prepared.capacity) {
           const teamId = teamsByFileId.get(capacity.teamFileId);
           if (teamId === undefined)
             throw new Error(`prepared capacity team mapping disappeared: ${capacity.teamFileId}`);
-          await writes.setCapacity(projectId, teamId, capacity.size, stamp);
+          await writes.setCapacity(workPackageId, teamId, capacity.size, stamp);
         }
         // Every capacity against the cap before any is written, and the import
-        // whole: a refusal rolls back the project and directory entries
+        // whole: a refusal rolls back the work package and directory entries
         // written above (L9). A file states each resource at most once.
         // Proof, watched 2026-10-22 in capacity-limit.controller.db.test.ts:
         // with this check removed, `refuses an import stating past the cap,
-        // writing nothing` and the import beside another project were
-        // admitted (10 pass, 2 fail); with the other projects' sum read as 0 in
+        // writing nothing` and the import beside another workPackage were
+        // admitted (10 pass, 2 fail); with the other work packages' sum read as 0 in
         // `refuseCapacityWithin`, `refuses an import that would state past the
-        // cap beside another project, the export’s source among them` was
+        // cap beside another work package, the export’s source among them` was
         // admitted (11 pass, 1 fail).
         const capacities = prepared.resourceCapacities.map((stated) => ({
           resourceId: resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
           units: stated.units,
         }));
         for (const { resourceId, units } of capacities) {
-          const crossed = await writes.refuseCapacityWithin(access, projectId, resourceId, units);
+          const crossed = await writes.refuseCapacityWithin(
+            access,
+            workPackageId,
+            resourceId,
+            units,
+          );
           if (crossed !== null)
             return { commit: false, value: { ok: false, code: 'capacity_limit', ...crossed } };
         }
         for (const { resourceId, units } of capacities)
-          await writes.setResourceCapacity(projectId, resourceId, units, stamp);
+          await writes.setResourceCapacity(workPackageId, resourceId, units, stamp);
         for (const marker of prepared.calendarMarkers) {
           await writes.createCalendarMarker({
             id: this.opts.clock.newId(),
-            projectId,
+            workPackageId,
             date: marker.date,
             name: marker.name,
             color: marker.color,
@@ -565,15 +635,15 @@ export class ImportService {
           });
         }
         // Proof: mapping each row to its file id made the in-memory source replace
-        // the original project's three snapshotted rows; its reread became `[]`.
+        // the original work package's three snapshotted rows; its reread became `[]`.
         const rowsByFileId = new Map(
           prepared.workItems.map((row) => [row.fileId, this.opts.clock.newId()] as const),
         );
-        await writes.insertSubtree(
+        const inserted = await writes.insertSubtree(
           {
             rows: parentsFirst(prepared.workItems).map((row) => ({
               id: resolvedId(rowsByFileId, row.fileId, 'work item'),
-              projectId,
+              workPackageId,
               parentId:
                 row.parentFileId === null
                   ? null
@@ -608,6 +678,9 @@ export class ImportService {
               revision: 0,
               teamIds: row.teamFileIds.map((fileId) =>
                 resolvedId(teamsByFileId, fileId, 'team label'),
+              ),
+              typeIds: row.typeFileIds.map((fileId) =>
+                resolvedId(typesByFileId, fileId, 'type label'),
               ),
             })),
             respaced: [],
@@ -669,7 +742,7 @@ export class ImportService {
             ),
             dependencies: prepared.dependencies.map((dependency) => ({
               id: this.opts.clock.newId(),
-              projectId,
+              workPackageId,
               predecessorId: resolvedId(
                 rowsByFileId,
                 dependency.predecessorFileId,
@@ -688,6 +761,41 @@ export class ImportService {
           },
           stamp,
         );
+        if (inserted !== 'written') {
+          const rowIndex = prepared.workItems.findIndex(
+            (row) => rowsByFileId.get(row.fileId) === inserted.workItemId,
+          );
+          const row = prepared.workItems.at(rowIndex);
+          if (rowIndex < 0 || row === undefined)
+            throw new Error('refused imported step value has no prepared row');
+          const section =
+            inserted.kind === 'estimate_refused'
+              ? 'estimates'
+              : inserted.fact === 'actual'
+                ? 'actuals'
+                : inserted.fact === 'progress'
+                  ? 'progress'
+                  : 'measures';
+          const valueIndex = row[section].findIndex(
+            (point) => stepsByFileId.get(point.stepFileId) === inserted.stepId,
+          );
+          let path: string;
+          if (valueIndex >= 0)
+            path =
+              'workItems[' + String(rowIndex) + '].' + section + '[' + String(valueIndex) + ']';
+          else {
+            if (section !== 'measures')
+              throw new Error('refused imported step value has no prepared field');
+            const measureIndex = prepared.measureFacts.findIndex(
+              (point) =>
+                rowsByFileId.get(point.workItemId) === inserted.workItemId &&
+                stepsByFileId.get(point.stepId) === inserted.stepId,
+            );
+            if (measureIndex < 0) throw new Error('refused imported measure has no prepared field');
+            path = 'measureFacts[' + String(measureIndex) + ']';
+          }
+          return { commit: false, value: { ok: false, code: inserted.reason, path, detail: null } };
+        }
         // After the tree, whose legacy token estimates are the single-point
         // tokens trios (design D28); preparation refused a trio beside one.
         // Proof: with either loop below skipped, `round-trips a version-11
@@ -738,12 +846,12 @@ export class ImportService {
             stamp,
           );
         }
-        // Plan document version 7 names the zone; `createProject` wrote `UTC`.
-        // Proof: this write skipped made `round-trips a Kyiv project whose
+        // Legacy documents name an explicit zone, including UTC, which may differ from inheritance.
+        // Historical non-UTC override evidence; explicit UTC has a separate inherited-parent control.
+        // Proof: this write skipped made `round-trips a Kyiv workPackage whose
         // 010.dev holds attempts…` read the copy's zone as `UTC` for
         // `Europe/Kyiv`; watched 2026-10-12.
-        if (settings.timezone !== 'UTC')
-          await writes.setTimezone(projectId, settings.timezone, stamp);
+        await writes.setTimezone(workPackageId, settings.timezone, stamp);
         for (const row of prepared.workItems) {
           for (const { stepFileId, personFileId, ...attempt } of row.attempts) {
             await writes.restoreAttempt(
@@ -765,13 +873,17 @@ export class ImportService {
         // Proof: the former per-edge allocation failed SQLite `allocates every relationship before the first insert` (2026-10-22).
         const relationships = resolveImportDependencies(
           prepared,
-          projectId,
+          workPackageId,
           rowsByFileId,
           stepsByFileId,
           () => this.opts.clock.newId(),
         );
-        const dependencyRefusal = await writes.writeDependencies(projectId, relationships, stamp);
-        // Proof: commit:true here leaked project/directory/fact rows after concealed missing-reference refusals (real SQLite, 2026-10-22).
+        const dependencyRefusal = await writes.writeDependencies(
+          workPackageId,
+          relationships,
+          stamp,
+        );
+        // Proof: commit:true here leaked work-package/directory/fact rows after concealed missing-reference refusals (real SQLite, 2026-10-22).
         if (dependencyRefusal !== null) return { commit: false, value: dependencyRefusal };
         for (const [at, row] of prepared.workItems.entries()) {
           const written = await writes.labelWorkItem(
@@ -806,25 +918,27 @@ export class ImportService {
             };
           }
         }
+        for (const id of reconciled.workPackageIds)
+          await collector.publish(id, { type: 'step_catalogue_changed' });
         if (directoryChanged || measures.created) {
-          // Proof: omitting this fan-out left an existing project's subscriber
+          // Proof: omitting this fan-out left an existing work package's subscriber
           // with no refresh, so its post-import directory read never saw `Billing`.
-          for (const told of await writes.listToldProjectIds(actorId, access)) {
+          for (const told of await writes.listToldWorkPackageIds(actorId, access)) {
             await collector.publish(told, { type: 'directory_changed' });
           }
         }
-        await collector.publish(projectId, {
-          type: 'project_settings_changed',
+        await collector.publish(workPackageId, {
+          type: 'work_package_settings_changed',
           optimizationEnabled: settings.optimizationEnabled,
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
         });
-        await graph.workItems.announceTreeNow(projectId);
+        await graph.workItems.announceTreeNow(workPackageId);
         return {
           commit: true,
           value: {
             ok: true,
-            projectId,
+            workPackageId,
             rows: prepared.workItems.length,
             created,
             solutionRef,
@@ -833,7 +947,7 @@ export class ImportService {
       },
     );
     // Proof: moving this drain inside the unit of work made the held-publisher
-    // contract time out while its queued ordinary project write waited for admission.
+    // contract time out while its queued ordinary work package write waited for admission.
     if (admitted.ok) await collector.send();
     return admitted;
   }

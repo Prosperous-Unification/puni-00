@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -31,7 +32,16 @@ export const readSessionPolicy = defineEndpointShape({
     organizationRefusal,
     organizationContextRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-readSessionPolicy) failed `keeps the catalog permission vocabulary at getApiOrganizationSession-policy`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
   ],
   document: { summary: 'Read the active organization session policy.' },
 });
@@ -61,7 +71,16 @@ export const setSessionPolicy = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-setSessionPolicy) failed `keeps the catalog permission vocabulary at putApiOrganizationSession-policy`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
   ],
   document: { summary: 'Set or clear the active organization session policy.' },
 });

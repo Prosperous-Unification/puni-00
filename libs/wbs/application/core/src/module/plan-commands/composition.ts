@@ -4,18 +4,18 @@ import type { CommandAccess, CommandCaller } from '../../ports/command-access';
 import type { DependencyContext } from '../../ports/dependency-context';
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
-import type { BeforeProjectUpdate, BeforeStepRemoval } from '../../ports/fanout-capture-store';
+import type { BeforeStepRemoval, BeforeWorkPackageUpdate } from '../../ports/fanout-capture-store';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Digest } from '../../ports/runtime';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
+import { authorizePackage } from '../../service/authorize';
 import {
   type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
+  type CommittedWorkPackageEvent,
   recordCommittedFanout,
 } from '../../service/committed-fanout';
 import { createDependencyContext } from '../../service/dependency-context';
-import { isClaimAdmin } from '../work-item/claims';
 import {
   type AdmittedGraphFactory,
   AdmittedScope,
@@ -70,7 +70,7 @@ export interface AdmittedWriteSource {
     broadcast: Broadcaster,
     admission: EditAdmission,
     dependencies: DependencyContext,
-    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeWorkPackageUpdate?: BeforeWorkPackageUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) => AdmittedServices;
   announcements: Broadcaster;
@@ -85,7 +85,7 @@ export function commandTransaction(
 ): CommandTransaction {
   return {
     run: async (act, settled) => {
-      let committed: readonly CommittedProjectEvent[] = [];
+      let committed: readonly CommittedWorkPackageEvent[] = [];
       const value = await uow.run(async (rawScope) => {
         let observing = true;
         const assertObservation = () => {
@@ -100,7 +100,7 @@ export function commandTransaction(
           const addressedCauses: string[] = [];
           const resources: CommandAdmission = {
             authorizeRuntime: (identity) => authorizeRuntimeScope(rawScope, identity),
-            releaseExpiredLeases: async (projectId, broadcast) => {
+            releaseExpiredLeases: async (workPackageId, broadcast) => {
               // Proof: removing this assertion changed the escaped lifecycle negative's
               // refusal to a borrowed snapshot error (2026-10-23).
               assertObservation();
@@ -111,7 +111,7 @@ export function commandTransaction(
               if (resolveOwner === undefined && rawScope.stores.livePlans !== undefined)
                 throw new Error('claim lease lifecycle ownership is missing');
               if (capture !== undefined && resolveOwner !== undefined) {
-                const owner = await resolveOwner(projectId);
+                const owner = await resolveOwner(workPackageId);
                 assertObservation();
                 if (owner.kind === 'absent') return 0;
                 if (owner.kind === 'scoped') {
@@ -128,11 +128,11 @@ export function commandTransaction(
                     throw new Error('committed fan-out delivery is missing');
                 }
               }
-              const workingPlan = createWorkingPlan(rawScope, projectId);
+              const workingPlan = createWorkingPlan(rawScope, workPackageId);
               const dependencies = createDependencyContext(
                 rawScope.stores,
                 {
-                  projectId: null,
+                  workPackageId: null,
                   actorId: 'claim-lease-sweep',
                   access: LEGACY_ACCESS,
                   admission: NO_ADMISSION,
@@ -147,11 +147,11 @@ export function commandTransaction(
                   NO_ADMISSION,
                   dependencies.context,
                 );
-                const released = await graph.workItems.releaseExpiredLeases(projectId);
+                const released = await graph.workItems.releaseExpiredLeases(workPackageId);
                 assertObservation();
                 // Proof: omitting this cause lost both connected recipients despite
                 // releasing the claim in the mounted integration test (2026-10-23).
-                if (released > 0) addressedCauses.push(projectId);
+                if (released > 0) addressedCauses.push(workPackageId);
                 return released;
               } finally {
                 dependencies.close();
@@ -166,7 +166,7 @@ export function commandTransaction(
             refuseOutsideScope: async (...args) => {
               const refusal = await scope.refuseOutsideScope(...args);
               if (refusal !== null) return refusal;
-              captureState.organizationId = args[2].organizationId;
+              captureState.organizationId = args[2].scope.organizationId;
               const capture = rawScope.fanoutCapture;
               if (capture === undefined) {
                 // Legacy fixtures have no live-plan source; a shared production source must fail closed.
@@ -185,12 +185,12 @@ export function commandTransaction(
               return null;
             },
             listCrossReferenceKinds: (...args) => scope.listCrossReferenceKinds(...args),
-            openCommandGraph: (projectId, broadcast, authority) => {
+            openCommandGraph: (workPackageId, broadcast, authority) => {
               assertObservation();
-              if (projectId !== null && projectId !== authority.projectId)
-                throw new Error('retained project does not match dependency owner');
+              if (workPackageId !== null && workPackageId !== authority.workPackageId)
+                throw new Error('retained work package does not match dependency owner');
               const workingPlan =
-                projectId === null ? undefined : createWorkingPlan(rawScope, projectId);
+                workPackageId === null ? undefined : createWorkingPlan(rawScope, workPackageId);
               const dependencies = createDependencyContext(
                 rawScope.stores,
                 authority,
@@ -283,7 +283,7 @@ export function commandTransaction(
 export function createAdmittedWrites(source: AdmittedWriteSource) {
   const transaction: AdmittedWriteTransaction = {
     run: async <T>(
-      projectId: string,
+      workPackageId: string | null,
       caller: CommandCaller,
       broadcast: Broadcaster,
       act: (
@@ -291,16 +291,21 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
         access: ResourceAccess,
       ) => Promise<AdmittedWriteDecision<T>>,
     ) => {
-      let committed: readonly CommittedProjectEvent[] = [];
+      let committed: readonly CommittedWorkPackageEvent[] = [];
       const value = await source.uow.run<T | AuthorityRefusal>(async (scope) => {
-        // Proof: using request access instead returned 200 for queued project revocation in the mounted current-authority matrix.
+        // Proof: using request access instead returned 200 for queued work package revocation in the mounted current-authority matrix.
         const resolved = await source.commandAccess.resolve(caller);
         if (!resolved.ok) return { commit: false, value: resolved };
         const captureState: { before: CapturedFanout | null; organizationId: string | null } = {
           before: null,
           organizationId: null,
         };
-        const beforeProjectUpdate: BeforeProjectUpdate = async (projectId, actorId, access) => {
+        const beforeWorkPackageUpdate: BeforeWorkPackageUpdate = async (
+          workPackageId,
+          actorId,
+          access,
+          patch,
+        ) => {
           if (access.kind === 'legacy') return { ok: true };
           const capture = scope.fanoutCapture;
           if (capture === undefined) {
@@ -309,8 +314,13 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
             return { ok: true };
           }
           // Proof: bypassing this borrowed-store recheck sent a queued-demoted
-          // project edit into broken capture (500 instead of typed 403).
-          const admitted = await capture.authorizeProjectUpdate(projectId, actorId, access);
+          // work package edit into broken capture (500 instead of typed 403).
+          const admitted = await capture.authorizeWorkPackageUpdate(
+            workPackageId,
+            actorId,
+            access,
+            patch,
+          );
           if (!admitted.ok) return admitted;
           captureState.organizationId = access.scope.organizationId;
           captureState.before = await capture.capture(access.scope.organizationId);
@@ -322,7 +332,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
             throw new Error('admitted fan-out delivery is missing');
           return { ok: true };
         };
-        const beforeStepRemoval: BeforeStepRemoval = async (projectId, actorId, access) => {
+        const beforeStepRemoval: BeforeStepRemoval = async (workPackageId, actorId, access) => {
           if (access.kind === 'legacy') return { ok: true };
           const capture = scope.fanoutCapture;
           if (capture === undefined) {
@@ -332,7 +342,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
           }
           // Proof: replacing this fresh borrowed-store check with success let a
           // stale member scope remove a step after DB demotion (ok:true, expected forbidden).
-          const admitted = await capture.authorizeStepRemoval(projectId, actorId, access);
+          const admitted = await capture.authorizeStepRemoval(workPackageId, actorId, access);
           if (!admitted.ok) return admitted;
           captureState.organizationId = access.scope.organizationId;
           captureState.before = await capture.capture(access.scope.organizationId);
@@ -344,12 +354,12 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
             throw new Error('bare step fan-out delivery is missing');
           return { ok: true };
         };
-        // Proof: independently omitting project or bare-step hook made mounted
+        // Proof: independently omitting work package or bare-step hook made mounted
         // fan-out receive 3/4 or 2/3 recipient rows; both faults were watched.
         const dependencies = createDependencyContext(
           scope.stores,
           {
-            projectId,
+            workPackageId,
             actorId: caller.kind === 'human' ? caller.principal.id : caller.actorId,
             access: resolved.access,
             admission: NO_ADMISSION,
@@ -364,7 +374,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
               broadcast,
               NO_ADMISSION,
               dependencies.context,
-              beforeProjectUpdate,
+              beforeWorkPackageUpdate,
               beforeStepRemoval,
             ),
             resolved.access,
@@ -453,8 +463,8 @@ function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
         return Promise.resolve({ ok: false, reason: 'runtime_scope_unavailable' });
       // Proof: F21 delayed this copy until admission; queued organization mutation redirected the read.
       const organizationId = context.access.scope.organizationId;
-      // Proof: F20 delayed these copies; queued project/person/actor/credential tests returned refusals.
-      const { projectId, personId } = context;
+      // Proof: F20 delayed these copies; queued work-package/person/actor/credential tests returned refusals.
+      const { workPackageId, personId } = context;
       const actorId = context.actor.id;
       // Proof: dropping this verified pin made eight machine/consent public read, acquisition and
       // historical lookup cases in runtime-credential-pin.db.test.ts answer 200 instead of 403, 2026-10-22.
@@ -469,7 +479,7 @@ function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
       return uow.run<T | RuntimeReadRefusal>(async (scope) => {
         const admitted = await authorizeRuntimeScope(scope, {
           organizationId,
-          projectId,
+          workPackageId,
           personId,
           actorId,
           authentication,
@@ -486,48 +496,70 @@ async function authorizeRuntimeScope(
   scope: Scope,
   identity: RuntimeAdmissionIdentity,
 ): Promise<RuntimeAdmission | RuntimeReadRefusal> {
-  const { organizationId, projectId, personId, actorId, authentication, credential } = identity;
-  const resolveScope = scope.fanoutCapture?.resolveProjectWriteScope;
+  const { organizationId, workPackageId, personId, actorId, authentication, credential } = identity;
+  const resolveScope = scope.fanoutCapture?.resolveWorkPackageWriteScope;
   // Proof: F10 removed this diagnostic; the absent-capability negative received an unclassified TypeError.
-  if (resolveScope === undefined) throw new Error('runtime project scope resolver is missing');
+  if (resolveScope === undefined) throw new Error('runtime work package scope resolver is missing');
   // Proof: P3-01 bypassed fresh resolution; a viewer replay received the old accepted authority.
-  const admission = await resolveScope(projectId, organizationId, actorId, authentication);
+  const admission = await resolveScope(workPackageId, organizationId, actorId, authentication);
   // Proof: F18 skipped refusal forwarding; the viewer negative threw instead of returning forbidden.
   if (!admission.ok) return admission;
   // Proof: F05 substituted incoming scope; queued admin-to-member demotion incorrectly read an unbound person.
-  const access = { kind: 'scoped', scope: admission.scope } as const;
+  const access = {
+    kind: 'scoped',
+    scope: admission.scope,
+    principal: structuredClone({ id: actorId, authentication }),
+  } as const;
   const people = await scope.stores.directory.listInOrganization('people', organizationId);
   // Proof: F06 bypassed person ownership; a bound foreign person received local facts.
   if (!people.some(({ id }) => id === personId)) return { ok: false, reason: 'unknown_person' };
   // Proof: F07 bypassed binding; an otherwise authorized unbound-person read succeeded.
-  if (!isClaimAdmin(access) && (await scope.stores.claims.boundAccountOf(personId)) !== actorId)
-    return { ok: false, reason: 'person_not_bound' };
+  if ((await scope.stores.claims.boundAccountOf(personId)) !== actorId) {
+    const workPackage = await scope.stores.workPackages.findInOrganization(
+      workPackageId,
+      organizationId,
+    );
+    if (workPackage === null) throw new Error('runtime claim work package disappeared');
+    const authority = await authorizePackage(
+      scope.stores.accessDecisions,
+      access,
+      workPackage,
+      actorId,
+      'package.claim_for_others',
+    );
+    // Proof: converting the decision to person_not_bound failed the mounted current-runtime-person permission test, 2026-11-09.
+    // Proof: runtime-claim-grant-projection fault failed 'claim_for_others on current runtime person refusal' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (!authority.ok) return authority;
+  }
   const pinnedPersonId = await scope.stores.claims.pinnedPersonOf(credential);
   // Proof: F08 bypassed pin comparison; the real pinned admin credential read as another person.
   if (pinnedPersonId !== null && pinnedPersonId !== personId)
     return { ok: false, reason: 'credential_not_for_person' };
 
   return {
-    scope: { organizationId, projectId, personId },
+    scope: { organizationId, workPackageId, personId },
     actorId,
     commands: new RuntimeCommands(scope.stores.runtimeCommands, {
       organizationId,
-      projectId,
+      workPackageId,
       personId,
     }),
     access,
     credential,
-    listClaims: () => scope.stores.claims.listByProject(projectId),
-    findClaim: (claimId) => scope.stores.claims.findById(projectId, claimId),
+    listClaims: () => scope.stores.claims.listByWorkPackage(workPackageId),
+    findClaim: (claimId) => scope.stores.claims.findById(workPackageId, claimId),
     observe: async () => {
-      const project = await scope.stores.projects.findInOrganization(projectId, organizationId);
+      const workPackage = await scope.stores.workPackages.findInOrganization(
+        workPackageId,
+        organizationId,
+      );
       // Proof: F09 removed this diagnostic; the broken borrowed-read test received null dereference instead.
-      if (project === null) throw new Error('admitted runtime project disappeared');
-      const rows = await scope.stores.workItems.listByProject(projectId);
-      const steps = await scope.stores.steps.listByProject(projectId);
+      if (workPackage === null) throw new Error('admitted runtime work package disappeared');
+      const rows = await scope.stores.workItems.listByWorkPackage(workPackageId);
+      const steps = await scope.stores.steps.listByWorkPackage(workPackageId);
       const observation: RuntimeObservation = {
-        scope: { organizationId, projectId, personId },
-        projectRevision: project.revision,
+        scope: { organizationId, workPackageId, personId },
+        workPackageRevision: workPackage.revision,
         workItems: rows.map(({ id, parentId, revision, externalRefs }) => ({
           id,
           parentId,

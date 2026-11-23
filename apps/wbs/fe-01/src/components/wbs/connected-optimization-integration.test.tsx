@@ -2,11 +2,11 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { clientFromShapes, getWorkItems } from '@wbs/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { httpProjectApi } from '@/lib/wbs-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { httpWorkPackageApi } from '@/lib/wbs-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 // eslint-disable-next-line @nx/enforce-module-boundaries -- Runner-free real producer fixture for the HTTP and mounted view contract.
 import { createConnectedBlockageTree } from '../../../../../../libs/wbs/application/core/src/testing/connected-blockage.fixture';
@@ -26,7 +26,11 @@ afterEach(() => {
 
 function serveTree(tree: unknown) {
   const fetchTree = vi.fn((url: string) => {
-    if (!['A', 'B', 'C'].some((projectId) => url === `/api/projects/${projectId}/work-items`))
+    if (
+      !['A', 'B', 'C'].some(
+        (workPackageId) => url === `/api/work-packages/${workPackageId}/work-items`,
+      )
+    )
       throw new Error(`unexpected connected fixture request ${url}`);
     return Promise.resolve(
       new Response(JSON.stringify(tree), {
@@ -46,7 +50,7 @@ it.each(['idle', 'pending', 'failed'] as const)(
     const serialized: unknown = JSON.parse(JSON.stringify(tree));
     const decoded = await clientFromShapes([getWorkItems], () =>
       Promise.resolve({ kind: 'json', status: 200, body: serialized }),
-    )['getApiProjectsByIdWork-items']({ params: { id: 'B' } });
+    )['getApiWorkPackagesByIdWork-items']({ params: { id: 'B' } });
     if (decoded.kind !== 'success')
       throw new Error(`decoder refused fixture: ${JSON.stringify(decoded)}`);
     expect(decoded.body).toEqual(tree);
@@ -60,7 +64,7 @@ it.each(['idle', 'pending', 'failed'] as const)(
     expect(tree.optimization?.finishDays).toEqual({ fast: 1.2 });
     expect(tree.optimization?.sameOrderAsFast).toEqual({});
     serveTree(tree);
-    expect((await httpProjectApi('token').tree('B')).optimization).toEqual(tree.optimization);
+    expect((await httpWorkPackageApi('token').tree('B')).optimization).toEqual(tree.optimization);
   },
 );
 
@@ -71,11 +75,13 @@ it.each(['ready', 'boundary-infeasible', 'pending', 'floor'] as const)(
     const serialized: unknown = JSON.parse(JSON.stringify(tree));
     const decoded = await clientFromShapes([getWorkItems], () =>
       Promise.resolve({ kind: 'json', status: 200, body: serialized }),
-    )['getApiProjectsByIdWork-items']({ params: { id: 'A' } });
+    )['getApiWorkPackagesByIdWork-items']({ params: { id: 'A' } });
     if (decoded.kind !== 'success')
       throw new Error(`decoder refused fixture: ${JSON.stringify(decoded)}`);
     expect(decoded.body).toEqual(tree);
-    expect(tree.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'C')).toMatchObject({
+    expect(
+      tree.optimization?.scope?.fixed.find((fixed) => fixed.workPackageId === 'C'),
+    ).toMatchObject({
       start: 8,
       finish: 9,
     });
@@ -88,9 +94,9 @@ it.each(['ready', 'boundary-infeasible', 'pending', 'floor'] as const)(
       expect((final.workItems[0]?.schedule?.earliestStart ?? NaN) + 2).toBe(6);
     }
     serveTree(tree);
-    expect((await httpProjectApi('token').tree('A')).optimization).toEqual(tree.optimization);
-    await expect(httpProjectApi('token').tree('B')).rejects.toThrow(
-      'connected_optimization_project_mismatch',
+    expect((await httpWorkPackageApi('token').tree('A')).optimization).toEqual(tree.optimization);
+    await expect(httpWorkPackageApi('token').tree('B')).rejects.toThrow(
+      'connected_optimization_work_package_mismatch',
     );
   },
 );
@@ -100,17 +106,17 @@ it.each(['missing-calendar', 'required-engine'] as const)(
   async (reason) => {
     const tree = createUnavailableConnectedOptimizationTree(reason);
     const fetchTree = serveTree(tree);
-    const http = httpProjectApi('token');
+    const http = httpWorkPackageApi('token');
     const read = await http.tree('B');
     expect(read.optimization).toBeUndefined();
     expect(read.scheduleError).toEqual(tree.scheduleError);
     expect(read.typedDependencies).toHaveLength(1);
     expect(read.workItems[0]?.nodeReadings).toEqual(tree.workItems[0]?.nodeReadings);
-    const api = fakeProjectApi();
-    api.tree = (projectId) => http.tree(projectId);
+    const api = fakeWorkPackageApi();
+    api.tree = (workPackageId) => http.tree(workPackageId);
     const retry = vi.spyOn(api, 'retryOptimization');
     const mounted = render(
-      <WbsTableOverClient projectId="B" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="B" workPackageServices={workPackageServicesOf(api)} />,
     );
     const name = await screen.findByDisplayValue('b');
     expect(name).toBeEnabled();
@@ -125,13 +131,13 @@ it.each(['missing-calendar', 'required-engine'] as const)(
     expect(screen.queryByRole('button', { name: /is the active schedule/ })).toBeNull();
     expect(document.body).toHaveTextContent(
       reason === 'missing-calendar'
-        ? 'Dates are unavailable because a dependency project has no start date: A · A.'
+        ? 'Dates are unavailable because a dependency work package has no start date: A · A.'
         : 'The required optimized scheduling engine is unavailable.',
     );
     fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to 010').closest('td')!);
     expect(await screen.findByRole('link', { name: 'Open A.010' })).toHaveAttribute(
       'href',
-      '/?project=A&workItem=a',
+      '/?workPackage=A&workItem=a',
     );
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     fireEvent.resize(window);
@@ -148,7 +154,7 @@ it.each(['missing-calendar', 'required-engine'] as const)(
     fireEvent.click(screen.getByRole('button', { name: 'Depends on for 010' }));
     expect(await screen.findByRole('link', { name: 'Open A.010' })).toHaveAttribute(
       'href',
-      '/?project=A&workItem=a',
+      '/?workPackage=A&workItem=a',
     );
     mounted.unmount();
     expect(fetchTree.mock.calls.length).toBeGreaterThan(1);
@@ -170,17 +176,17 @@ it.each(['unknown-state', 'unknown-evidence', 'sibling-objective', 'sibling-byte
     if (fault === 'sibling-bytes')
       Reflect.set(terminal.certificate.question, 'stageBytes', 'foreign');
     serveTree(tree);
-    await expect(httpProjectApi('token').tree('B')).rejects.toThrow('invalid_response');
+    await expect(httpWorkPackageApi('token').tree('B')).rejects.toThrow('invalid_response');
   },
 );
 
 it('mounts fractional Fast dates, bars and card spans beside captured terminal evidence', async () => {
   const tree = createFractionalConnectedOptimizationTree();
   serveTree(tree);
-  const http = httpProjectApi('token');
-  const api = fakeProjectApi();
-  api.tree = (projectId) => http.tree(projectId);
-  render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(api)} />);
+  const http = httpWorkPackageApi('token');
+  const api = fakeWorkPackageApi();
+  api.tree = (workPackageId) => http.tree(workPackageId);
+  render(<WbsTableOverClient workPackageId="B" workPackageServices={workPackageServicesOf(api)} />);
   expect(await screen.findByDisplayValue('b')).toBeEnabled();
   expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Fast');
   expect(document.querySelector('[data-start]')?.textContent).toBe('5 Oct');
@@ -209,11 +215,11 @@ it.each(['ready', 'floor'] as const)(
   async (state) => {
     const tree = createConnectedOptimizationTree(state);
     serveTree(tree);
-    const http = httpProjectApi('token');
-    const api = fakeProjectApi();
-    api.tree = (projectId) => http.tree(projectId);
+    const http = httpWorkPackageApi('token');
+    const api = fakeWorkPackageApi();
+    api.tree = (workPackageId) => http.tree(workPackageId);
     const mounted = render(
-      <WbsTableOverClient projectId="A" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="A" workPackageServices={workPackageServicesOf(api)} />,
     );
     await screen.findAllByDisplayValue('a');
     expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
@@ -224,14 +230,16 @@ it.each(['ready', 'floor'] as const)(
     expect(cue.getAttribute('data-fact')).toContain(
       state === 'floor'
         ? 'Published placement retains the captured baseline'
-        : 'Earlier project deadline by 6 days',
+        : 'Earlier work package deadline by 6 days',
     );
     expect(screen.getByRole('status')).toHaveTextContent(
       'The selected Finish-first schedule remains displayed',
     );
     mounted.unmount();
     serveTree(createConnectedOptimizationTree(state, 'C'));
-    render(<WbsTableOverClient projectId="C" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="C" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByDisplayValue('c');
     expect(document.querySelector('[data-start]')?.textContent).toBe(
       state === 'ready' ? '13 Oct' : '15 Oct',
@@ -255,27 +263,27 @@ function serveActions(read: () => unknown) {
       path,
       body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
     });
-    if (method === 'GET' && /^\/api\/projects\/[ABC]\/work-items$/.test(path))
+    if (method === 'GET' && /^\/api\/work-packages\/[ABC]\/work-items$/.test(path))
       return Promise.resolve(
         new Response(JSON.stringify(read()), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         }),
       );
-    if (method === 'POST' && /^\/api\/projects\/[ABC]\/optimization\/retry$/.test(path))
+    if (method === 'POST' && /^\/api\/work-packages\/[ABC]\/optimization\/retry$/.test(path))
       return Promise.resolve(
         new Response(JSON.stringify({ state: 'retrying', generation: 1, inputHash: 'accepted' }), {
           status: 202,
           headers: { 'Content-Type': 'application/json' },
         }),
       );
-    if (method === 'PATCH' && /^\/api\/projects\/[ABC]$/.test(path))
+    if (method === 'PATCH' && /^\/api\/work-packages\/[ABC]$/.test(path))
       return Promise.resolve(new Response('injected unexpected settings write', { status: 500 }));
     throw new Error(`unexpected connected request ${method} ${path}`);
   });
-  const http = httpProjectApi('token');
+  const http = httpWorkPackageApi('token');
   const api = {
-    ...fakeProjectApi(),
+    ...fakeWorkPackageApi(),
     tree: http.tree.bind(http),
     retryOptimization: http.retryOptimization.bind(http),
     setOptimizationSettings: http.setOptimizationSettings.bind(http),
@@ -283,7 +291,7 @@ function serveActions(read: () => unknown) {
   let changed: SubscriptionHandlers['onChange'] = () => {
     throw new Error('missing mounted subscription');
   };
-  const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+  const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
     changed = handlers.onChange;
     return { seen: () => undefined, unsubscribe: () => undefined };
   };
@@ -293,7 +301,7 @@ function serveActions(read: () => unknown) {
     subscribe,
     refresh: () => {
       act(() => {
-        changed('project_settings_changed');
+        changed('work_package_settings_changed');
       });
     },
   };
@@ -328,8 +336,8 @@ it.each([1024, 390])(
     const draw = () =>
       render(
         <WbsTableOverClient
-          projectId="B"
-          projectServices={projectServicesOf(transport.api)}
+          workPackageId="B"
+          workPackageServices={workPackageServicesOf(transport.api)}
           subscribe={transport.subscribe}
         />,
       );
@@ -372,8 +380,8 @@ it.each([1024, 390])(
     const transport = serveActions(() => current);
     render(
       <WbsTableOverClient
-        projectId="B"
-        projectServices={projectServicesOf(transport.api)}
+        workPackageId="B"
+        workPackageServices={workPackageServicesOf(transport.api)}
         subscribe={transport.subscribe}
       />,
     );
@@ -396,7 +404,7 @@ it.each([1024, 390])(
       expect(transport.requests.filter((request) => request.method !== 'GET')).toEqual([
         {
           method: 'POST',
-          path: '/api/projects/B/optimization/retry',
+          path: '/api/work-packages/B/optimization/retry',
           body: { objective: 'pri', inputHash: 'current-connected' },
         },
       ]);
@@ -407,7 +415,12 @@ it.each([1024, 390])(
 
 it('announces the pending sibling while retaining terminal scope and real dates', async () => {
   const transport = serveActions(() => createFractionalConnectedOptimizationTree('pending'));
-  render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />);
+  render(
+    <WbsTableOverClient
+      workPackageId="B"
+      workPackageServices={workPackageServicesOf(transport.api)}
+    />,
+  );
   await screen.findByDisplayValue('b');
   expect(screen.getByRole('status')).toHaveTextContent('Priority-first: Optimizing');
   expect(document.querySelector('[data-cue-dot]')).toHaveAttribute('data-cue-dot', 'solving');
@@ -423,7 +436,12 @@ it.each([1024, 390])(
   async (width) => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     const transport = serveActions(() => createConnectedOptimizationTree('ready-sibling'));
-    render(<WbsTableOverClient projectId="A" projectServices={projectServicesOf(transport.api)} />);
+    render(
+      <WbsTableOverClient
+        workPackageId="A"
+        workPackageServices={workPackageServicesOf(transport.api)}
+      />,
+    );
     const rows = await screen.findAllByDisplayValue('a');
     expect(rows).toHaveLength(2);
     for (const row of rows) expect(row).toBeEnabled();
@@ -465,21 +483,21 @@ function serveReconciliation() {
       path,
       body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
     });
-    if (method === 'GET' && /^\/api\/projects\/[BC]\/work-items$/.test(path)) {
+    if (method === 'GET' && /^\/api\/work-packages\/[BC]\/work-items$/.test(path)) {
       const captured = current;
       if (holdRead) await new Promise<void>((resolve) => reads.push(resolve));
       return json(captured, 200);
     }
-    if (method === 'POST' && path === '/api/projects/B/optimization/retry') {
+    if (method === 'POST' && path === '/api/work-packages/B/optimization/retry') {
       await new Promise<void>((resolve) => refusals.push(resolve));
       return json({ code: 'not-retryable', state: 'boundary-infeasible' }, 409);
     }
     if (method === 'PATCH') return new Response('unexpected settings write', { status: 500 });
     throw new Error(`unexpected reconciliation request ${method} ${path}`);
   });
-  const http = httpProjectApi('token');
+  const http = httpWorkPackageApi('token');
   const compose = () => ({
-    ...fakeProjectApi(),
+    ...fakeWorkPackageApi(),
     tree: http.tree.bind(http),
     retryOptimization: http.retryOptimization.bind(http),
     setOptimizationSettings: http.setOptimizationSettings.bind(http),
@@ -543,7 +561,12 @@ it.each(
   async ({ width, state }) => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     const transport = serveReconciliation();
-    render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />);
+    render(
+      <WbsTableOverClient
+        workPackageId="B"
+        workPackageServices={workPackageServicesOf(transport.api)}
+      />,
+    );
     await screen.findByDisplayValue('b');
     const oldFact = readCueFact();
     expect(oldFact).toContain('Question hash q1-time');
@@ -553,7 +576,7 @@ it.each(
       expect(transport.requests.filter((request) => request.method === 'POST')).toEqual([
         {
           method: 'POST',
-          path: '/api/projects/B/optimization/retry',
+          path: '/api/work-packages/B/optimization/retry',
           body: { objective: 'pri', inputHash: 'q1' },
         },
       ]);
@@ -590,12 +613,12 @@ it.each(
         expect(transport.requests.filter((request) => request.method === 'POST')).toEqual([
           {
             method: 'POST',
-            path: '/api/projects/B/optimization/retry',
+            path: '/api/work-packages/B/optimization/retry',
             body: { objective: 'pri', inputHash: 'q1' },
           },
           {
             method: 'POST',
-            path: '/api/projects/B/optimization/retry',
+            path: '/api/work-packages/B/optimization/retry',
             body: { objective: 'pri', inputHash: 'q2' },
           },
         ]);
@@ -621,12 +644,15 @@ it.each(
 );
 
 it.each([1024, 390])(
-  'ignores delayed producer HTTP 409 after runtime and project replacement at width %s',
+  'ignores delayed producer HTTP 409 after runtime and work package replacement at width %s',
   async (width) => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     const transport = serveReconciliation();
     const mounted = render(
-      <WbsTableOverClient projectId="B" projectServices={projectServicesOf(transport.api)} />,
+      <WbsTableOverClient
+        workPackageId="B"
+        workPackageServices={workPackageServicesOf(transport.api)}
+      />,
     );
     await screen.findByDisplayValue('b');
     retryPri();
@@ -634,8 +660,10 @@ it.each([1024, 390])(
       expect(transport.requests.filter((request) => request.method === 'POST')).toHaveLength(1);
     });
     transport.setTree(createFractionalConnectedOptimizationTree('failed', 'replacement'));
-    const replacementServices = projectServicesOf(transport.compose());
-    mounted.rerender(<WbsTableOverClient projectId="B" projectServices={replacementServices} />);
+    const replacementServices = workPackageServicesOf(transport.compose());
+    mounted.rerender(
+      <WbsTableOverClient workPackageId="B" workPackageServices={replacementServices} />,
+    );
     await waitFor(() => {
       expect(readCueFact()).toContain('Question hash replacement-time');
     });
@@ -656,13 +684,15 @@ it.each([1024, 390])(
       inputHash: 'replacement',
     });
     transport.setTree(createConnectedOptimizationTree('ready', 'C'));
-    mounted.rerender(<WbsTableOverClient projectId="C" projectServices={replacementServices} />);
+    mounted.rerender(
+      <WbsTableOverClient workPackageId="C" workPackageServices={replacementServices} />,
+    );
     await screen.findByDisplayValue('c');
-    const projectFact = readCueFact();
-    const afterProject = [...transport.requests];
+    const workPackageFact = readCueFact();
+    const afterWorkPackage = [...transport.requests];
     await transport.refuse();
-    expect(transport.requests).toEqual(afterProject);
-    expect(readCueFact()).toBe(projectFact);
+    expect(transport.requests).toEqual(afterWorkPackage);
+    expect(readCueFact()).toBe(workPackageFact);
     expect(screen.getByDisplayValue('c')).toBeEnabled();
     expect(screen.queryByDisplayValue('b')).toBeNull();
     expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
@@ -675,7 +705,7 @@ it.each(['hold', 'step'] as const)(
   async (kind) => {
     const tree = createConnectedBlockageTree(kind, true);
     serveTree(tree);
-    const http = httpProjectApi('token');
+    const http = httpWorkPackageApi('token');
     const read = await http.tree('C');
     expect(read.remoteBlockageLabels).toEqual([
       {
@@ -686,16 +716,18 @@ it.each(['hold', 'step'] as const)(
         label: kind === 'hold' ? 'A.010 · Remote root' : 'A.010 · Remote root · Build',
       },
     ]);
-    const api = fakeProjectApi();
-    api.tree = (projectId) => http.tree(projectId);
-    render(<WbsTableOverClient projectId="C" projectServices={projectServicesOf(api)} />);
+    const api = fakeWorkPackageApi();
+    api.tree = (workPackageId) => http.tree(workPackageId);
+    render(
+      <WbsTableOverClient workPackageId="C" workPackageServices={workPackageServicesOf(api)} />,
+    );
     expect(await screen.findByDisplayValue('c')).toBeEnabled();
     expect(document.querySelector('[data-node-reading]')).toHaveAttribute(
       'data-node-reading',
       'blocked_by_proxy',
     );
     expect(document.body).toHaveTextContent(
-      'Dates are unavailable because a dependency project has no start date: B · B.',
+      'Dates are unavailable because a dependency work package has no start date: B · B.',
     );
     fireEvent.mouseEnter(document.querySelector('[data-final="build"]')!);
     expect(
@@ -733,17 +765,17 @@ it.each([1024, 390])(
         }),
       ),
     );
-    const http = httpProjectApi('token');
-    const api = fakeProjectApi();
-    api.tree = (projectId) => http.tree(projectId);
+    const http = httpWorkPackageApi('token');
+    const api = fakeWorkPackageApi();
+    api.tree = (workPackageId) => http.tree(workPackageId);
     let changed: SubscriptionHandlers['onChange'] = () => {
       throw new Error('missing subscription');
     };
     render(
       <WbsTableOverClient
-        projectId="C"
-        projectServices={projectServicesOf(api)}
-        subscribe={(_projectId, handlers) => {
+        workPackageId="C"
+        workPackageServices={workPackageServicesOf(api)}
+        subscribe={(_work_packageId, handlers) => {
           changed = handlers.onChange;
           return { seen: () => undefined, unsubscribe: () => undefined };
         }}
@@ -761,13 +793,13 @@ it.each([1024, 390])(
     tree = createConnectedBlockageTree('step', false, 'Renamed root');
     expect(tree.remoteBlockageLabels?.[0]?.root).toEqual(identity);
     act(() => {
-      changed('project_settings_changed');
+      changed('work_package_settings_changed');
     });
     expect(await screen.findByText('Cause: A.010 · Renamed root · Build')).toBeVisible();
     expect(screen.queryByText('Cause: A.010 · Remote root · Build')).toBeNull();
     tree = createConnectedBlockageTree('clear');
     act(() => {
-      changed('project_settings_changed');
+      changed('work_package_settings_changed');
     });
     await waitFor(() =>
       expect(
@@ -786,6 +818,6 @@ it.each(['kind', 'identity', 'label'] as const)(
     if (fault === 'identity') Reflect.deleteProperty(entry.root, 'nodeId');
     if (fault === 'label') Reflect.set(entry, 'label', null);
     serveTree(tree);
-    await expect(httpProjectApi('token').tree('C')).rejects.toThrow('invalid_response');
+    await expect(httpWorkPackageApi('token').tree('C')).rejects.toThrow('invalid_response');
   },
 );

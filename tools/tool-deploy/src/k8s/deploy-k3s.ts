@@ -96,7 +96,7 @@ export function boundsFor(
   | 'rolloutTimeoutSeconds'
   | 'jobTimeoutSeconds'
   | 'drainTimeoutMs'
-  | 'anonymousProjectsStatus'
+  | 'anonymousWorkPackagesStatus'
   | 'leaseDurationSeconds'
 > {
   if (environment === 'local') {
@@ -104,7 +104,7 @@ export function boundsFor(
       rolloutTimeoutSeconds: 120,
       jobTimeoutSeconds: 300,
       drainTimeoutMs: 10_000,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       leaseDurationSeconds: 20,
     };
   }
@@ -112,7 +112,7 @@ export function boundsFor(
     rolloutTimeoutSeconds: 600,
     jobTimeoutSeconds: 1800,
     drainTimeoutMs: 300_000,
-    anonymousProjectsStatus: 401,
+    anonymousWorkPackagesStatus: 401,
     leaseDurationSeconds: 120,
   };
 }

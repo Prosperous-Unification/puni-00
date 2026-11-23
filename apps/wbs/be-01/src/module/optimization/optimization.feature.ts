@@ -11,10 +11,11 @@ import {
   buildSolverRequestPair,
   type SolverRequestPair,
 } from '@wbs/contracts/solver/solver-request-pair';
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { ScopedPrincipal } from '@wbs/core/ports/access-decisions';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
 import type { OptimizationCapture, OptimizationInput } from '@wbs/core/ports/optimization-input';
+import type { Permission } from '@wbs/domain';
 import type { ConnectedOptimizationStage } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -51,12 +52,12 @@ export interface OptimizationCoordinatorOptions {
   /** Fresh 128-bit token source; the production root supplies `randomUUID`. */
   readonly attemptToken: () => string;
   /** Rebuild the current canonical input for a durable queue entry after restart. */
-  readonly inputOf: (projectId: string) => Promise<ScheduleInput | null>;
-  /** Whether an edit-triggered read may spend solver capacity for this project. */
-  readonly enabledOf: (projectId: string) => Promise<boolean>;
-  /** One project-owned observation of shared input and enablement, closed before admission. */
+  readonly inputOf: (workPackageId: string) => Promise<ScheduleInput | null>;
+  /** Whether an edit-triggered read may spend solver capacity for this work package. */
+  readonly enabledOf: (workPackageId: string) => Promise<boolean>;
+  /** One work-package-owned observation of shared input and enablement, closed before admission. */
   readonly hashConnectedBytes?: ConnectedDigest;
-  readonly captureOf?: (projectId: string) => Promise<
+  readonly captureOf?: (workPackageId: string) => Promise<
     | OptimizationCapture
     | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
     | { readonly kind: 'not_found' }
@@ -74,7 +75,7 @@ export interface OptimizationCoordinatorOptions {
   readonly spawn: ReservedSpawner;
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
-  readonly deliverCommitted: (events: readonly CommittedProjectEvent[]) => Promise<void>;
+  readonly deliverCommitted: (events: readonly CommittedWorkPackageEvent[]) => Promise<void>;
   readonly editDebounceMs?: number;
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly setInterval?: (callback: () => void, milliseconds: number) => unknown;
@@ -83,7 +84,8 @@ export interface OptimizationCoordinatorOptions {
 
 /** A manual Retry decision, including current scoped-authority refusals. */
 export type OptimizationRetryResult =
-  | { readonly kind: 'forbidden' | 'not_found' }
+  | { readonly kind: 'forbidden'; readonly permission?: Permission }
+  | { readonly kind: 'not_found' }
   | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
   | {
       readonly kind: 'not-retryable';
@@ -121,7 +123,7 @@ export class OptimizationCoordinator {
   private reconcileRequested = false;
 
   /** Register postcommit delivery before consuming any admission outcome. */
-  private trackCommittedDelivery(envelopes: readonly CommittedProjectEvent[]): void {
+  private trackCommittedDelivery(envelopes: readonly CommittedWorkPackageEvent[]): void {
     // Proof: omitting this guard called delivery four times for the real
     // adapter's empty envelopes instead of zero in the mounted read test.
     if (envelopes.length === 0) return;
@@ -218,11 +220,11 @@ export class OptimizationCoordinator {
     this.inFlight.add(tracked);
   }
 
-  /** Coalesce project events, then admit both absent variants for the newest input. */
-  inputChanged(projectId: string): void {
-    const epoch = (this.editEpoch.get(projectId) ?? 0) + 1;
-    this.editEpoch.set(projectId, epoch);
-    const tracked = this.optimizeAfterEdit(projectId, epoch)
+  /** Coalesce work package events, then admit both absent variants for the newest input. */
+  inputChanged(workPackageId: string): void {
+    const epoch = (this.editEpoch.get(workPackageId) ?? 0) + 1;
+    this.editEpoch.set(workPackageId, epoch);
+    const tracked = this.optimizeAfterEdit(workPackageId, epoch)
       .catch((error: unknown) => {
         this.options.onChildError(error);
       })
@@ -230,31 +232,31 @@ export class OptimizationCoordinator {
     this.inFlight.add(tracked);
   }
 
-  private async optimizeAfterEdit(projectId: string, epoch: number): Promise<void> {
+  private async optimizeAfterEdit(workPackageId: string, epoch: number): Promise<void> {
     await (this.options.sleep ?? sleep)(
       this.options.editDebounceMs ?? OPTIMIZATION_EDIT_DEBOUNCE_MS,
     );
-    if (this.editEpoch.get(projectId) !== epoch) return;
-    this.editEpoch.delete(projectId);
+    if (this.editEpoch.get(workPackageId) !== epoch) return;
+    this.editEpoch.delete(workPackageId);
     if (this.options.captureOf !== undefined) {
-      const captured = await this.options.captureOf(projectId);
+      const captured = await this.options.captureOf(workPackageId);
       if (captured.kind !== 'scheduled' || !captured.enabled) return;
       // Proof: the mounted upstream-only edit test failed with no elsewhere
       // when this branch fell through to the local input reader.
-      await this.admitCaptured({ projectId, input: captured.input, enabled: true });
+      await this.admitCaptured({ workPackageId, input: captured.input, enabled: true });
       return;
     }
-    if (!(await this.options.enabledOf(projectId))) return;
-    const input = await this.options.inputOf(projectId);
+    if (!(await this.options.enabledOf(workPackageId))) return;
+    const input = await this.options.inputOf(workPackageId);
     if (input === null) return;
-    const enabled = await this.options.enabledOf(projectId);
+    const enabled = await this.options.enabledOf(workPackageId);
     if (!enabled) return;
-    await this.readPlan({ projectId, objective: 'pri', input, enabled });
+    await this.readPlan({ workPackageId, objective: 'pri', input, enabled });
   }
 
   private slotOf(request: ReservedSpawnRequest) {
     return {
-      projectId: request.key.projectId,
+      workPackageId: request.key.workPackageId,
       contractVersion: request.key.contractVersion,
       generation: request.generation,
       objective: request.objective,
@@ -295,7 +297,11 @@ export class OptimizationCoordinator {
       // recipient row absent from its delivered batch after exact-slot release.
       // Awaiting delivery here instead retained the exact slot while transport held.
       this.trackCommittedDelivery([
-        { projectId: decision.event.projectId, event: decision.event, recorded: decision.recorded },
+        {
+          workPackageId: decision.event.workPackageId,
+          event: decision.event,
+          recorded: decision.recorded,
+        },
         ...envelopes,
       ]);
     }
@@ -451,7 +457,7 @@ export class OptimizationCoordinator {
       if (next.kind === 'empty' || next.kind === 'capacity-full') return;
 
       const slot = {
-        projectId: next.entry.projectId,
+        workPackageId: next.entry.workPackageId,
         contractVersion: next.entry.contractVersion,
         generation: next.entry.generation,
         objective: next.entry.objective,
@@ -471,7 +477,7 @@ export class OptimizationCoordinator {
         const captured =
           this.options.captureOf === undefined
             ? undefined
-            : await this.options.captureOf(next.entry.projectId);
+            : await this.options.captureOf(next.entry.workPackageId);
         // Proof: bypassing this typed refusal sent an unavailable capture to
         // the hash port and broke the queued pump before its next FIFO entry.
         if (captured !== undefined && captured.kind !== 'scheduled') continue;
@@ -492,7 +498,7 @@ export class OptimizationCoordinator {
           ) {
             await releaseUnlaunched();
             await this.admitCaptured({
-              projectId: next.entry.projectId,
+              workPackageId: next.entry.workPackageId,
               input: captured.input,
               enabled: true,
             });
@@ -515,7 +521,7 @@ export class OptimizationCoordinator {
           if (observed.decision.generation !== next.entry.generation) {
             await releaseUnlaunched();
             await this.admitCaptured({
-              projectId: next.entry.projectId,
+              workPackageId: next.entry.workPackageId,
               input: captured.input,
               enabled: true,
             });
@@ -531,7 +537,7 @@ export class OptimizationCoordinator {
         }
         const input =
           captured === undefined
-            ? await this.options.inputOf(next.entry.projectId)
+            ? await this.options.inputOf(next.entry.workPackageId)
             : this.localInput(captured.input);
         if (input === null) continue;
         // Proof: omitting this captured enablement guard launched PRI despite
@@ -543,11 +549,11 @@ export class OptimizationCoordinator {
           await releaseUnlaunched();
           const enabled =
             captured === undefined
-              ? await this.options.enabledOf(next.entry.projectId)
+              ? await this.options.enabledOf(next.entry.workPackageId)
               : captured.enabled;
           if (!enabled) continue;
           await this.readPlan({
-            projectId: next.entry.projectId,
+            workPackageId: next.entry.workPackageId,
             objective: next.entry.objective,
             input,
             enabled,
@@ -575,7 +581,7 @@ export class OptimizationCoordinator {
 
         this.startReserved({
           key: {
-            projectId: next.entry.projectId,
+            workPackageId: next.entry.workPackageId,
             inputHash: next.inputHash,
             contractVersion: next.entry.contractVersion,
             budgetMs: next.entry.budgetMs,
@@ -591,7 +597,7 @@ export class OptimizationCoordinator {
         // Proof: a thrown shared capture left a counted `starting` slot; the
         // restart test saw it until this unlaunched cleanup released it.
         // A handed-off child keeps its seat until terminal evidence arrives.
-        // Proof: omitting this await let the next queued project dequeue while
+        // Proof: omitting this await let the next queued work package dequeue while
         // the first unlaunched starting slot's durable release was held.
         if (!handedOff) await releaseUnlaunched();
       }
@@ -600,21 +606,22 @@ export class OptimizationCoordinator {
 
   /**
    * Admit one manual Retry in the contract's stale → retryable → live → capacity order.
-   * A scoped attempt reclassifies project authority and records recovery in the
+   * A scoped attempt reclassifies work package authority and records recovery in the
    * same immediate write as its retry admission. The retained marker remains
    * the read authority until this attempt commits.
    */
   readonly retry = async (ask: {
-    readonly projectId: string;
+    readonly workPackageId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput | OptimizationInput;
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> => {
+    ask = { ...ask, ...(ask.scoped === undefined ? {} : { scoped: structuredClone(ask.scoped) }) };
     if ('kind' in ask.input && ask.input.kind === 'connected')
       return this.retryConnected({ ...ask, stage: ask.input.stage });
     const input = this.localInput(ask.input);
@@ -623,7 +630,7 @@ export class OptimizationCoordinator {
       return { kind: 'stale-input-hash', currentInputHash };
     }
     const key = {
-      projectId: ask.projectId,
+      workPackageId: ask.workPackageId,
       inputHash: currentInputHash,
       contractVersion: this.options.contractVersion,
       budgetMs: this.options.budgetMs,
@@ -648,7 +655,7 @@ export class OptimizationCoordinator {
         ask.objective
       ];
       const slot = {
-        projectId: ask.projectId,
+        workPackageId: ask.workPackageId,
         contractVersion: key.contractVersion,
         generation: decision.generation,
         objective: ask.objective,
@@ -712,7 +719,7 @@ export class OptimizationCoordinator {
     if (question.contractVersion !== this.options.contractVersion)
       throw new Error('connected optimizer contract differs from installed runtime');
     return {
-      projectId: question.projectId,
+      workPackageId: question.workPackageId,
       inputHash: question.inputHash,
       contractVersion: question.contractVersion,
       budgetMs: question.budgetMs,
@@ -728,7 +735,7 @@ export class OptimizationCoordinator {
 
   /** Admit detached current questions only after their capture owner has closed. */
   readonly admitCaptured = async (ask: {
-    readonly projectId: string;
+    readonly workPackageId: string;
     readonly input: ScheduleInput | OptimizationInput;
     readonly enabled: boolean;
   }): Promise<void> => {
@@ -737,7 +744,7 @@ export class OptimizationCoordinator {
       return;
     }
     if (!ask.enabled) return;
-    if (ask.projectId !== ask.input.stage.projectId)
+    if (ask.workPackageId !== ask.input.stage.workPackageId)
       throw new Error('connected capture target differs');
     const prepared = this.prepareConnected(ask.input.stage);
     const key = this.connectedKey(prepared);
@@ -751,7 +758,7 @@ export class OptimizationCoordinator {
       if (observed.generation === null) throw new Error('connected miss lacks generation');
       const reserved = await this.options.repository.reserveSlot({
         questions: key.questions,
-        projectId: key.projectId,
+        workPackageId: key.workPackageId,
         contractVersion: key.contractVersion,
         generation: observed.generation,
         objective: asked.objective,
@@ -762,9 +769,9 @@ export class OptimizationCoordinator {
       });
       this.trackCommittedDelivery(reserved.envelopes);
       const admission = reserved.decision;
-      if (admission.kind === 'project-full' || admission.kind === 'global-full') {
+      if (admission.kind === 'work-package-full' || admission.kind === 'global-full') {
         await this.options.repository.enqueueRequest({
-          projectId: key.projectId,
+          workPackageId: key.workPackageId,
           contractVersion: key.contractVersion,
           generation: observed.generation,
           objective: asked.objective,
@@ -800,7 +807,7 @@ export class OptimizationCoordinator {
       return true;
     }
     const slot = {
-      projectId: key.projectId,
+      workPackageId: key.workPackageId,
       contractVersion: key.contractVersion,
       generation,
       objective,
@@ -826,17 +833,18 @@ export class OptimizationCoordinator {
   }
 
   private async retryConnected(ask: {
-    readonly projectId: string;
+    readonly workPackageId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly stage: ConnectedOptimizationStage;
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<OptimizationRetryResult> {
-    if (ask.projectId !== ask.stage.projectId) throw new Error('connected Retry target differs');
+    if (ask.workPackageId !== ask.stage.workPackageId)
+      throw new Error('connected Retry target differs');
     const prepared = this.prepareConnected(ask.stage);
     const key = this.connectedKey(prepared);
     // Proof: bypassing this comparison made mounted stale Retry report boundary-infeasible instead of stale-input-hash.
@@ -870,7 +878,7 @@ export class OptimizationCoordinator {
   readonly readPlan: OptimizedScheduleReader = async (ask) => {
     const inputHash = this.options.hashInput(ask.input);
     const key = {
-      projectId: ask.projectId,
+      workPackageId: ask.workPackageId,
       inputHash,
       contractVersion: this.options.contractVersion,
       budgetMs: this.options.budgetMs,
@@ -910,7 +918,7 @@ export class OptimizationCoordinator {
     let requests: SolverRequestPair | undefined;
     for (const request of observed.requests) {
       const committed = await this.options.repository.reserveSlot({
-        projectId: request.key.projectId,
+        workPackageId: request.key.workPackageId,
         contractVersion: request.key.contractVersion,
         generation,
         objective: request.objective,
@@ -919,14 +927,14 @@ export class OptimizationCoordinator {
         attemptToken: this.options.attemptToken(),
         now,
       });
-      // Proof: omitting this registration lost the real project-full
+      // Proof: omitting this registration lost the real work-package-full
       // reservation's test-injected durable envelopes; awaiting delivery
       // here instead withheld a committed reservation behind held transport.
       this.trackCommittedDelivery(committed.envelopes);
       const admission = committed.decision;
-      if (admission.kind === 'project-full' || admission.kind === 'global-full') {
+      if (admission.kind === 'work-package-full' || admission.kind === 'global-full') {
         await this.options.repository.enqueueRequest({
-          projectId: request.key.projectId,
+          workPackageId: request.key.workPackageId,
           contractVersion: request.key.contractVersion,
           generation,
           objective: request.objective,
@@ -943,7 +951,7 @@ export class OptimizationCoordinator {
         );
         const built = requests[request.objective];
         const slot = {
-          projectId: request.key.projectId,
+          workPackageId: request.key.workPackageId,
           contractVersion: request.key.contractVersion,
           generation,
           objective: request.objective,
@@ -1006,7 +1014,7 @@ export class OptimizationCoordinator {
 
   /** Compatibility seam for queue callbacks and tests that need only the selected schedule. */
   readonly read = (ask: {
-    readonly projectId: string;
+    readonly workPackageId: string;
     readonly objective: SolverObjectiveName;
     readonly input: ScheduleInput;
   }): Promise<Schedule | null> =>

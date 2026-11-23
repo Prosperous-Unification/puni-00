@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  awaitLegacyRelease,
   holdLegacyLock,
   legacyHoldDirectory,
   type LegacyLock,
@@ -284,8 +285,8 @@ function interruptedCode(signal: NodeJS.Signals): 129 | 130 | 143 {
  *
  * To concurrent: verify every launcher checkout carries the shim and every eligible type is
  * catalogued; stop intake (the fence on new tickets, S6B-A16); wait for the pool to drain of the
- * tickets already queued and every unreleased compute entry; take the shell lock through its
- * own library as {@link SWITCH_LABEL} with what is left of the budget, which proves every
+ * tickets already queued and every unreleased compute entry; take the shared mutex through
+ * its native owner as {@link SWITCH_LABEL} with what is left of the budget, which proves every
  * legacy holder and every waiter ahead has finished; refuse while any waiter is queued behind it
  * (a launcher still on the legacy path); then flip the mode in one ledger transaction with the
  * operator's record, and let go of the lock. To observe (rollback): stop intake, wait for the
@@ -359,72 +360,119 @@ export async function switchPoolMode(
     );
   // A function, not the property: the signal flips between awaits, which narrowing cannot see.
   const stopped = (): boolean => stop.signal.aborted;
-  const deadline = deps.now() + request.waitSeconds * 1000;
-  try {
-    // Tickets queued before the fence keep their place (S6B-A16): the switch waits for them,
-    // and for every unreleased compute entry, before it takes the shell lock.
-    for (;;) {
-      if (stopped()) throw interrupted();
-      const ahead = runtime.modeDrain();
-      if (ahead.length === 0) break;
-      if (deps.now() >= deadline)
-        throw new OpsRefusal(
-          75,
-          `ops pool switch-mode: the pool did not drain of host jobs within ${String(request.waitSeconds)}s: ${ahead.join(', ')}`,
-        );
-      await Promise.race([
-        Bun.sleep(request.pollSeconds * 1000),
-        new Promise((resolveStop) => {
-          stop.signal.addEventListener('abort', resolveStop);
-        }),
-      ]);
-    }
-    evidence.push('pool drained of host jobs');
-    if (request.target === 'observe')
-      return runtime.completeModeSwitch('observe', request.operator, deps.account, evidence);
-    const remaining = Math.max(0, Math.ceil((deadline - deps.now()) / 1000));
-    const outcome = await holdLegacyLock(
-      deps.legacyLock,
-      {
-        holdFile: switchHoldFile(configuration.root),
-        label: SWITCH_LABEL,
-        waitSeconds: remaining,
-        pollSeconds: request.pollSeconds,
-        signal: stop.signal,
-        report: deps.report,
-      },
-      deps.environment,
-    );
-    // Proof: without it `a switch-mode interrupted while it queues withdraws its ticket`
-    // (host-pool-mode.test.ts) waited out its budget (2026-11-02, review H3).
-    if (outcome.kind === 'cancelled') throw interrupted();
-    if (outcome.kind !== 'held')
-      throw new OpsRefusal(
-        outcome.exitCode === 75 ? 75 : 70,
-        `ops pool switch-mode: the shell lock's holders and waiters did not drain within ${String(remaining)}s (exit ${String(outcome.exitCode)}${outcome.reason === undefined ? '' : `: ${outcome.reason}`})`,
-      );
+  const executeSwitch = async (): Promise<ModeRecord> => {
     try {
-      if (stopped()) throw interrupted();
-      const queue = readLegacyQueue(deps.legacyLock);
-      // Proof: without it `refuses while a legacy waiter queues behind it`
-      // (host-pool-mode.test.ts) flipped with a legacy launcher still queued (2026-11-02).
-      if (queue.waiters.length > 0)
-        throw new OpsRefusal(
-          75,
-          `ops pool switch-mode: legacy waiters queued behind the switch: ${queue.waiters.map((waiter) => `${waiter.label} (pid ${String(waiter.pid)}, age ${String(waiter.ageSeconds)}s)`).join(', ')}; a launcher still takes the legacy path`,
-        );
-      evidence.push(
-        `shell lock ${deps.legacyLock.lockPath} drained: held by the switch, no waiter`,
+      const deadline = deps.now() + request.waitSeconds * 1000;
+      // Tickets queued before the fence keep their place (S6B-A16): the switch waits for them,
+      // and for every unreleased compute entry, before it takes the shell lock.
+      for (;;) {
+        if (stopped()) throw interrupted();
+        const ahead = runtime.modeDrain();
+        if (ahead.length === 0) break;
+        if (deps.now() >= deadline)
+          throw new OpsRefusal(
+            75,
+            `ops pool switch-mode: the pool did not drain of host jobs within ${String(request.waitSeconds)}s: ${ahead.join(', ')}`,
+          );
+        await Promise.race([
+          Bun.sleep(request.pollSeconds * 1000),
+          new Promise((resolveStop) => {
+            stop.signal.addEventListener('abort', resolveStop);
+          }),
+        ]);
+      }
+      evidence.push('pool drained of host jobs');
+      if (request.target === 'observe')
+        return runtime.completeModeSwitch('observe', request.operator, deps.account, evidence);
+      const remaining = Math.max(0, Math.ceil((deadline - deps.now()) / 1000));
+      const outcome = await holdLegacyLock(
+        deps.legacyLock,
+        {
+          holdFile: switchHoldFile(configuration.root),
+          label: SWITCH_LABEL,
+          waitSeconds: remaining,
+          pollSeconds: request.pollSeconds,
+          signal: stop.signal,
+          report: deps.report,
+        },
+        deps.environment,
       );
-      return runtime.completeModeSwitch('concurrent', request.operator, deps.account, evidence);
-    } finally {
-      outcome.hold.release();
-      await outcome.hold.exited.catch(() => undefined);
+      // Proof: without it `a switch-mode interrupted while it queues withdraws its ticket`
+      // (host-pool-mode.test.ts) waited out its budget (2026-11-02, review H3).
+      if (outcome.kind === 'cancelled') throw interrupted();
+      if (outcome.kind !== 'held')
+        throw new OpsRefusal(
+          outcome.exitCode === 75 ? 75 : 70,
+          `ops pool switch-mode: the shell lock's holders and waiters did not drain within ${String(remaining)}s (exit ${String(outcome.exitCode)}: ${outcome.reason})`,
+        );
+      let completion:
+        { kind: 'completed'; record: ModeRecord } | { kind: 'failed'; cause: unknown };
+      try {
+        if (stopped()) throw interrupted();
+        const queue = await readLegacyQueue(deps.legacyLock);
+        // Proof: SIGTERM then SIGINT during gated queue observation committed concurrent without this recheck; the exact first-signal control now refuses 143 before commit (2026-11-11).
+        if (stopped()) throw interrupted();
+        // Proof: without it `refuses while a legacy waiter queues behind it`
+        // (host-pool-mode.test.ts) flipped with a legacy launcher still queued (2026-11-02).
+        if (queue.waiters.length > 0)
+          throw new OpsRefusal(
+            75,
+            `ops pool switch-mode: legacy waiters queued behind the switch: ${queue.waiters.map((waiter) => `${waiter.label} (pid ${String(waiter.pid)}, age ${String(waiter.ageSeconds)}s)`).join(', ')}; a launcher still takes the legacy path`,
+          );
+        evidence.push(
+          `shell lock ${deps.legacyLock.lockPath} drained: held by the switch, no waiter`,
+        );
+        completion = {
+          kind: 'completed',
+          record: runtime.completeModeSwitch(
+            'concurrent',
+            request.operator,
+            deps.account,
+            evidence,
+          ),
+        };
+      } catch (cause) {
+        completion = { kind: 'failed', cause };
+      }
+      try {
+        outcome.hold.release();
+        // Proof: omitting native settlement hid cleanup failure after a committed mode in switch-mode-cleanup.test.ts; restoration passed (2026-11-11).
+        await awaitLegacyRelease(outcome.hold);
+      } catch (cleanupFailure) {
+        // Proof: throwing only cleanupFailure lost the mode-transaction cause in switch-mode-cleanup.test.ts; restoration passed (2026-11-11).
+        if (completion.kind === 'failed')
+          throw new AggregateError(
+            [completion.cause, cleanupFailure],
+            'pool mode switch and native hold cleanup failed',
+            { cause: cleanupFailure },
+          );
+        throw cleanupFailure;
+      }
+      if (completion.kind === 'failed') throw completion.cause;
+      return completion.record;
+    } catch (cause) {
+      return refusalOf(cause);
     }
+  };
+  let execution: { kind: 'completed'; record: ModeRecord } | { kind: 'failed'; cause: unknown };
+  try {
+    execution = { kind: 'completed', record: await executeSwitch() };
   } catch (cause) {
-    return refusalOf(cause);
-  } finally {
-    for (const signal of signals) process.removeListener(signal, onSignal);
-    runtime.abandonModeSwitch();
+    execution = { kind: 'failed', cause };
   }
+  for (const signal of signals) process.removeListener(signal, onSignal);
+  try {
+    runtime.abandonModeSwitch();
+  } catch (fenceFailure) {
+    // Proof: injected transaction, native settlement and fence failures previously retained only the fence error; the three-cause identity control now retains all originals (2026-11-11).
+    if (execution.kind === 'failed')
+      throw new AggregateError(
+        [execution.cause, fenceFailure],
+        'pool mode switch and intake fence cleanup failed',
+        { cause: fenceFailure },
+      );
+    throw fenceFailure;
+  }
+  if (execution.kind === 'failed') throw execution.cause;
+  return execution.record;
 }

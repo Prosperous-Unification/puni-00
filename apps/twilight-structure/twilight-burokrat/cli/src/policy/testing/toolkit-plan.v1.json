@@ -1,0 +1,19 @@
+{
+  "sourceBase": "5e70b5e81b2a2313557b5b1d12664977c32eecac",
+  "request": {
+    "tag": "wiki-v0.0.1",
+    "sourceRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "bunVersion": "1.4.2",
+    "roleBytes": {
+      "launcher.sh": "historical reviewed launcher.sh\n",
+      "snapshotter.ts": "historical reviewed snapshotter.ts\n",
+      "validator.mjs": "historical reviewed validator.mjs\n",
+      "prepare-activation.mjs": "historical reviewed prepare-activation.mjs\n",
+      "prepare-relocation-activation.mjs": "historical reviewed prepare-relocation-activation.mjs\n"
+    },
+    "trustedNodeModules": ["typescript"],
+    "trustedNodeModulesIdentity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "descriptor": "{\"bunVersion\":\"1.4.2\",\"roles\":{\"launcher.sh\":\"06097f32fa0c30057a8b8c9953e6cb12fc17f088f5ac21907436b7ea65f0cdcd\",\"prepare-activation.mjs\":\"abd150327a8d81d171a9edf2cee4f41ec9490a6fdbd16e410f5a23101508daf6\",\"prepare-relocation-activation.mjs\":\"4abf899e65ea3a45927c89816176e14d742582e0099a1efdba9436f4b357d41e\",\"snapshotter.ts\":\"ca9acb718497a869840d9b70dfcade12e58ce2c7d336897e27e15d6f90426195\",\"validator.mjs\":\"3eae6ab90c80a02789480502da295a1765f15e6b1d4238b0744c4da0f01762b6\"},\"schemaVersion\":1,\"sourceRevision\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tag\":\"wiki-v0.0.1\",\"trustedNodeModules\":[\"typescript\"],\"trustedNodeModulesIdentity\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}\n",
+  "checksums": "06097f32fa0c30057a8b8c9953e6cb12fc17f088f5ac21907436b7ea65f0cdcd  ./launcher.sh\nca9acb718497a869840d9b70dfcade12e58ce2c7d336897e27e15d6f90426195  ./snapshotter.ts\n3eae6ab90c80a02789480502da295a1765f15e6b1d4238b0744c4da0f01762b6  ./validator.mjs\nabd150327a8d81d171a9edf2cee4f41ec9490a6fdbd16e410f5a23101508daf6  ./prepare-activation.mjs\n4abf899e65ea3a45927c89816176e14d742582e0099a1efdba9436f4b357d41e  ./prepare-relocation-activation.mjs\n4a1ef614096a621b56d418fe3a3c05875df2fee89ad707953b56061e4e62761d  ./toolkit.json\n"
+}

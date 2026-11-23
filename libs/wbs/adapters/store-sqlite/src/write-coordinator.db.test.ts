@@ -9,10 +9,10 @@ import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
 import { type ScopedBatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
-import { ProjectService } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -35,22 +35,23 @@ import { EstimateRepository } from './estimate';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN, WriteCoordinator } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
-import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
-import { ProjectRepository } from './project';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
+import { StepCatalogueRepository } from './step-catalogue';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { TypedDependencyRepository } from './typed-dependency';
-import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 import { WorkItemBudgetRepository } from './work-item-budget';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const OWNER_ORG = 'fixture-legacy-org';
+const PROJECT = 'fixture-project';
 
 /**
  * A promise the test resolves, and the promise that says it has been reached.
@@ -85,43 +86,49 @@ function suspension(): {
 let dir: string;
 let db: Drizzle;
 let runner: PlanCommandRunner;
-let steps: StepService;
-let stepStore: StepRepository;
+let catalogue: StepCatalogueRepository;
+let custody: { hasUnknownOwner: boolean };
 let workItemStore: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let hold: ReturnType<typeof suspension>;
 let coordinator: WriteCoordinator;
 let publicDirectory: DirectoryRepository;
 let publicEventLog: DrizzleEventLogStore;
-let publicProjects: ProjectRepository;
+let publicWorkPackages: WorkPackageRepository;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-coordinator-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  ownerId = crypto.randomUUID();
+  custody = { hasUnknownOwner: false };
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: OWNER_ORG,
+      projectId: PROJECT,
+      stamp: { at: 1, by: ownerId },
+      definitions: [],
+    },
+    custody,
+  );
   db = openDrizzle(path);
 
   // The process's one coordinator, exactly as `boot.ts` builds it.
   coordinator = new WriteCoordinator();
   // The batch's stores hold no turn: `PlanCommandRunner` holds it for them.
-  const projectStore = new ProjectRepository(db, OPEN);
+  const workPackageStore = new WorkPackageRepository(db, OPEN);
   const directoryStore = new DirectoryRepository(db, OPEN);
   const capacityStore = new CapacityRepository(db, OPEN);
   const bandStore = new PriorityBandRepository(db, OPEN);
   workItemStore = new WorkItemRepository(db, OPEN);
   // The route's do, which is the whole subject of this file.
-  stepStore = new StepRepository(db, coordinator);
+  catalogue = new StepCatalogueRepository(db, coordinator, 'owned');
   publicDirectory = new DirectoryRepository(db, coordinator);
   publicEventLog = new DrizzleEventLogStore(db, coordinator);
-  publicProjects = new ProjectRepository(db, coordinator);
+  publicWorkPackages = new WorkPackageRepository(db, coordinator);
   const broadcast = recordingBroadcaster();
-
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    { at: 1, by: ownerId },
-  );
 
   hold = suspension();
   // The suspension is a *store* method rather than a service one, because the
@@ -145,7 +152,7 @@ beforeEach(async () => {
   const serviceOptions = {
     scheduler: fastScheduler,
     workItems: suspendingWorkItems,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: new EstimateRepository(db, OPEN),
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
@@ -166,7 +173,7 @@ beforeEach(async () => {
     stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: suspendingWorkItems,
       estimates: new EstimateRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
@@ -179,7 +186,7 @@ beforeEach(async () => {
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
   const servicesWith = (selectedBroadcast: Broadcaster) => ({
     workItems: new WorkItemService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
       ...serviceOptions,
       broadcast: selectedBroadcast,
@@ -190,42 +197,42 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       capacity: capacityStore,
       resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
-    projects: new ProjectService({
+    workPackages: new WorkPackageService({
       dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
-        projects: projectStore,
+        workPackages: workPackageStore,
       }),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
       dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
-        projects: projectStore,
+        workPackages: workPackageStore,
       }),
       clock: testClock,
-      projects: projectStore,
-      steps: stepStore,
+      workPackages: workPackageStore,
+      steps: new StepRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     calendarMarkers: new CalendarMarkerService({
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       markers: new CalendarMarkerRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
@@ -240,35 +247,44 @@ beforeEach(async () => {
     }),
     announcements: broadcast,
   });
-  // The route's own service, built exactly as `buildServices` builds it: the
-  // step store on the process connection, and no knowledge of the batch at all.
-  steps = new StepService({
+  const created = await new WorkPackageService({
     dependencyContext: createLocalDependencyContext({
       ...buildStores(db, OPEN),
-      projects: projectStore,
+      workPackages: workPackageStore,
     }),
     clock: testClock,
-    projects: projectStore,
-    steps: stepStore,
-    broadcast,
-  });
-
-  const created = await new ProjectService({
-    dependencyContext: createLocalDependencyContext({
-      ...buildStores(db, OPEN),
-      projects: projectStore,
-    }),
-    clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
-  }).create('Rewire the shed', ownerId);
+  }).create('Rewire the shed', PROJECT, ownerId);
   if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
-  projectId = created.project.id;
+  workPackageId = created.workPackage.id;
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
+
+function addWiring() {
+  return catalogue.defineAndBindStep(
+    OWNER_ORG,
+    {
+      id: 'wiring',
+      code: 'wiring',
+      name: 'Wiring',
+      position: 10,
+      defaultAllowancePercent: 0,
+      defaultEstimateUnit: 'workdays',
+    },
+    {
+      bindingId: 'binding-wiring',
+      scopeKind: 'project',
+      scopeId: PROJECT,
+      workItemTypeId: null,
+      position: 10,
+    },
+    { at: 1, by: ownerId },
+  );
+}
 
 /** Two creates and a refusal: the second create is where the batch suspends. */
 const REFUSED_BATCH: PlanCommand[] = [
@@ -291,13 +307,13 @@ const REFUSED_BATCH: PlanCommand[] = [
 
 describe('the write coordinator', () => {
   it('does not roll a route write back with a batch it never belonged to', async () => {
-    const batch: Promise<ScopedBatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch: Promise<ScopedBatchOutcome> = runner.run(workPackageId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     // Started while the batch holds the transaction open, and deliberately not
     // awaited yet: what this case is about is where the write *lands*, and on a
     // process whose route writes take no turn it lands inside the batch.
-    const added = steps.add(projectId, ownerId, 'Wiring', 0);
+    const added = addWiring();
     hold.release();
 
     const outcome = await batch;
@@ -306,15 +322,16 @@ describe('the write coordinator', () => {
     expect(step.ok).toBe(true);
 
     // The batch's own two rows went with its refusal, which is ADR 0007 working.
-    expect(await workItemStore.listByProject(projectId)).toEqual([]);
+    expect(await workItemStore.listByWorkPackage(workPackageId)).toEqual([]);
     // The step did not. It was a different request, and nobody refused it.
-    // Proof: `StepRepository.add`'s `this.gate` replaced by `OPEN` — the shape
-    // this process had before the coordinator existed, where a route's write
-    // takes no turn. Failed on `Expected to contain: "Wiring" · Received:
-    // [ "Dev", "QA" ]`: the insert landed inside the batch's `BEGIN IMMEDIATE`
-    // and its refusal took the step with it, while `steps.add` had answered
-    // `ok`. Watched 2026-09-08, and again on `main` before the fix existed.
-    expect((await stepStore.listByProject(projectId)).map((each) => each.name)).toContain('Wiring');
+    // Proof: selecting borrowed mode bypassed the coordinator and returned
+    // success inside the batch; its rollback erased Wiring from the catalogue.
+    expect((await catalogue.readCatalogue(OWNER_ORG))?.definitions).toMatchObject([
+      { id: 'wiring', name: 'Wiring' },
+    ]);
+    expect((await publicWorkPackages.stepsOf(workPackageId)).map(({ id }) => id)).toEqual([
+      'wiring',
+    ]);
   });
 
   it("makes every public transactional store wait for the batch's turn", async () => {
@@ -327,37 +344,39 @@ describe('the write coordinator', () => {
     // is a few turns late, not synchronous, so the sample was satisfied for the
     // wrong reason.
     const stamp = { at: 1, by: ownerId };
-    const batch = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch = runner.run(workPackageId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     const writes = [
-      stepStore.add(
-        {
-          id: crypto.randomUUID(),
-          projectId,
-          name: 'Wiring',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        stamp,
-      ),
+      addWiring(),
       publicDirectory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp),
-      publicEventLog.recordEvent(`project:${projectId}`, { type: 'saved_plans_changed' }, 1),
-      publicProjects.update(projectId, { name: 'Rewire the shed, again' }, stamp),
+      publicEventLog.recordEvent(
+        `work-package:${workPackageId}`,
+        { type: 'saved_plans_changed' },
+        1,
+      ),
+      publicWorkPackages.update(workPackageId, { name: 'Rewire the shed, again' }, stamp),
     ];
     hold.release();
 
     expect((await batch).ok).toBe(false);
     await Promise.all(writes);
 
-    // Proof: `publicProjects` built over `OPEN` instead of the coordinator —
+    // Proof: `publicWorkPackages` built over `OPEN` instead of the coordinator —
     // the shape every store had before this change. Failed on `expected
     // 'Rewire the shed' to be 'Rewire the shed, again'`: the rename landed
     // inside the batch's transaction and its refusal took it. Watched
     // 2026-09-08.
-    expect((await publicProjects.findById(projectId))?.name).toBe('Rewire the shed, again');
-    expect((await stepStore.listByProject(projectId)).map((each) => each.name)).toContain('Wiring');
+    expect((await publicWorkPackages.findById(workPackageId))?.name).toBe('Rewire the shed, again');
+    expect((await catalogue.readCatalogue(OWNER_ORG))?.definitions).toMatchObject([
+      { id: 'wiring', name: 'Wiring' },
+    ]);
+    expect((await publicWorkPackages.stepsOf(workPackageId)).map(({ id }) => id)).toEqual([
+      'wiring',
+    ]);
     expect((await publicDirectory.listTags()).map((each) => each.name)).toContain('urgent');
-    expect(await publicEventLog.latestSeq(`project:${projectId}`)).toBeGreaterThanOrEqual(0);
+    expect(await publicEventLog.latestSeq(`work-package:${workPackageId}`)).toBeGreaterThanOrEqual(
+      0,
+    );
   });
 });

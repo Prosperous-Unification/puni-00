@@ -1,53 +1,43 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  bindFixtureSteps,
+  createBoundFixturePackage,
+  type FixtureStepBinding,
+} from '@wbs/core/testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
-import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
-import { inMemoryBudgets } from '@wbs/store-memory/budget-fixture';
-import { inMemoryMeasureEstimates } from '@wbs/store-memory/measure-estimate-fixture';
-import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
-import { inMemorySteps } from '@wbs/store-memory/step-fixture';
-import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
-import { testResourceStores } from '@wbs/store-memory/testing/service-fixtures';
-import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
+import type { StoredDependency, WorkItem, WorkPackage, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { rollbackTo } from '../repository/migrate-down';
 import { PriorityBandRepository } from '../repository/priority-band';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryEstimates } from '../testing/estimate-fixture';
-import { inMemoryMeasures, memoryMeasureTable } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { inMemoryProgress } from '../testing/progress-fixture';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { withSnappedRollUps } from '../testing/snapped-roll-ups';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
-import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
 import { fastScheduler } from './optimizer-wiring';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 /** The tip before this change: the schema every existing plan is on when the migration runs. */
 const PRE_BANDS = '20260813120000_add_project_team_capacity';
 /**
  * The stamp every replayed write carries. The oracle was captured before a write
- * recorded who made it, so the project's own owner stands in for the actor and
+ * recorded who made it, so the work package's own owner stands in for the actor and
  * the instant is fixed — these replays are claims about the ladder, not either.
  */
 const STAMP: WriteStamp = { at: 1, by: 'owner' };
@@ -67,7 +57,7 @@ interface CapturedRow {
 }
 
 interface CapturedPlan {
-  projectId: string;
+  workPackageId: string;
   stepIds: string[];
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
   startDate: string | null;
@@ -89,8 +79,8 @@ const oracle = captured as unknown as Oracle;
  * The capacities every plan in the corpus is bounded by, as `(team → slots)`.
  *
  * The oracle was captured from a be-01 in which a team's size was **global**, so
- * every plan saw every sized team's number — and `capacity-per-project`'s
- * migration seeded exactly that, one row per (project, sized team). Replaying
+ * every plan saw every sized team's number — and `capacity-per-work-package`'s
+ * migration seeded exactly that, one row per (work package, sized team). Replaying
  * with no capacities at all would therefore not be replaying the captured plans:
  * every capacity floor would be gone, and the first prioritised plan's
  * `earliestStart` moves 7.5 → 3 with `boundBy` falling back to `'stepOrder'`.
@@ -98,7 +88,7 @@ const oracle = captured as unknown as Oracle;
  * map.
  *
  * Taken from the oracle's own `teams` rather than from a migrated database:
- * whether the migration writes these numbers is `capacity-per-project`'s claim
+ * whether the migration writes these numbers is `capacity-per-work-package`'s claim
  * and is asserted in its own two files. What this file needs is only that both
  * of its replays are bounded identically, so the *ladder* is the one thing that
  * differs between them.
@@ -127,7 +117,7 @@ const RECUT: readonly PriorityBand[] = [
 
 /**
  * **A priority band moves no date**, against the same sixteen plans
- * `capacity-per-project` measured itself against.
+ * `capacity-per-work-package` measured itself against.
  *
  * This is the claim the whole change rests on, and it is the one Dany's brief
  * said to stop and report on if it turned out false: priority already drives the
@@ -146,16 +136,16 @@ const RECUT: readonly PriorityBand[] = [
  *   pass a build in which the ladder reached the scheduler and simply happened to
  *   agree with the defaults.
  *
- * The oracle is `capacity-per-project`'s, unchanged and deliberately reused: it
+ * The oracle is `capacity-per-work-package`'s, unchanged and deliberately reused: it
  * was captured at `050fd45` by a script committed before that branch had a line
  * of implementation in it, so it predates **both** changes. Re-capturing it for
  * this change would replace a pin taken from a be-01 that no longer exists with
- * one taken from the code under test. `capacity-per-project`'s design.md D7 has
+ * one taken from the code under test. `capacity-per-work-package`'s design.md D7 has
  * the full argument for why the oracle is data rather than a copied function.
  */
 describe('a priority ladder moves no date', () => {
   it('has a corpus worth measuring, and one that is mostly prioritised', () => {
-    // The non-vacuity rule. `capacity-per-project`'s own version of this asserts
+    // The non-vacuity rule. `capacity-per-work-package`'s own version of this asserts
     // the capacity coverage; what *this* differential needs is priorities, and a
     // corpus of unprioritised rows would make both replays below identical for a
     // reason that has nothing to do with the claim.
@@ -202,9 +192,9 @@ describe('a priority ladder moves no date', () => {
 
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
-      if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
+      if (answer === undefined) throw new Error(`no captured answer for ${plan.workPackageId}`);
       const tree = await replay(plan, seeded);
-      expect(narrowed({ project: plan.projectId, ...lifted(tree) })).toEqual(
+      expect(narrowed({ workPackage: plan.workPackageId, ...lifted(tree) })).toEqual(
         narrowed(expected(plan, answer, seeded)),
       );
     }
@@ -218,10 +208,10 @@ describe('a priority ladder moves no date', () => {
     // moves not one of its dates.
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
-      if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
-      expect(narrowed({ project: plan.projectId, ...lifted(await replay(plan, RECUT)) })).toEqual(
-        narrowed(expected(plan, answer, RECUT)),
-      );
+      if (answer === undefined) throw new Error(`no captured answer for ${plan.workPackageId}`);
+      expect(
+        narrowed({ workPackage: plan.workPackageId, ...lifted(await replay(plan, RECUT)) }),
+      ).toEqual(narrowed(expected(plan, answer, RECUT)));
     }
   });
 
@@ -240,7 +230,7 @@ describe('a priority ladder moves no date', () => {
     for (const plan of oracle.plans) {
       const underDefault = lifted(await replay(plan, DEFAULT_PRIORITY_BANDS));
       const underRecut = lifted(await replay(plan, RECUT));
-      expect({ ...underRecut, priorityBands: null }, plan.projectId).toEqual({
+      expect({ ...underRecut, priorityBands: null }, plan.workPackageId).toEqual({
         ...underDefault,
         priorityBands: null,
       });
@@ -292,71 +282,78 @@ describe('a priority ladder moves no date', () => {
     second: number,
     bands: readonly PriorityBand[],
   ): Promise<Record<string, unknown>> {
-    const projects = inMemoryProjects();
-    const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-      workItems.listByProject(projectId),
+    const { source } = await createLegacyWorkPackageFixture(
+      STAMP.by,
+      'identity-fixture-legacy',
+      PARENT_PROJECT_ID,
     );
-    const workItems = inMemoryWorkItems(directory);
-    const estimates = inMemoryEstimates(workItems);
-    const actuals = inMemoryActuals(workItems);
-    const measureTable = memoryMeasureTable();
-    const measures = inMemoryMeasures(workItems, measureTable);
-    const progress = inMemoryProgress(workItems);
-    const dependencies = inMemoryDependencies();
-    const resourceStores = testResourceStores(workItems);
-    const service = new WorkItemService({
-      dependencyContext: createLocalDependencyContext({
-        projects: projects,
-        workItems: workItems,
-        estimates: estimates,
-        dependencies: dependencies,
-        typedDependencies: inMemoryTypedDependencies(),
-      }),
-      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
-      scheduler: fastScheduler,
-      clock: testClock,
+    const {
+      workPackages,
+      directory,
       workItems,
-      projects,
       estimates,
       actuals,
       measures,
-      measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
-      budgets: inMemoryBudgets(workItems),
       progress,
-      attempts: inMemoryAttempts(workItems),
-      blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
-      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
+      typedDependencies,
+      measureEstimates,
+      budgets,
+      attempts,
+      blockages,
+      stepParallels,
+      subtrees,
+      journal,
+      demands,
+      resourceCapacity,
+    } = source.stores;
+    const service = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        workPackages: workPackages,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
+      admission: LEGACY_EDIT_ADMISSION,
+      scheduler: fastScheduler,
+      clock: testClock,
+      workItems,
+      workPackages,
+      estimates,
+      actuals,
+      measures,
+      measureEstimates,
+      budgets,
+      progress,
+      attempts,
+      blockages,
+      stepParallels,
+      dependencies,
+      typedDependencies,
       directory,
       capacity: inMemoryCapacity(),
-      ...resourceStores,
+      demands,
+      resourceCapacity,
       priorityBands: inMemoryPriorityBands({ contended: bands }),
-      subtrees: inMemorySubtrees({
-        workItems,
-        estimates,
-        actuals,
-        measures,
-        progress,
-        dependencies,
-        directory,
-        demands: resourceStores.demands,
-      }),
-      journal: inMemoryCommandJournal(),
+      subtrees,
+      journal,
       broadcast: recordingBroadcaster(),
     });
     await directory.addPerson({ id: 'ada', name: 'Ada' }, [], STAMP);
-    await projects.create(
-      projectRow({
+    await createBoundFixturePackage(
+      source,
+      'identity-fixture-legacy',
+      workPackageRow({
         id: 'contended',
         name: 'Two things, one person',
-        ownerId: 'owner',
+        projectId: PARENT_PROJECT_ID,
         estimateMethod: 'realistic',
         // The arithmetic this capture was taken under: a step's figure reached
         // the schedule as the fraction the method produced. See
         // `estimate-weights-and-rounding`, which made `ceil` the default for
-        // every project and left `exact` as the arm an oracle replays on.
+        // every work package and left `exact` as the arm an oracle replays on.
         estimateRounding: 'exact',
         // The `anchor-slice` reach, for the reason the replayed plans below
         // carry it: this fixture's figures were derived before a reach existed.
@@ -364,13 +361,21 @@ describe('a priority ladder moves no date', () => {
       }),
       [
         {
-          id: 'dev',
-          projectId: 'contended',
-          name: 'Dev',
-          position: STEP_POSITION_STEP,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
+          definition: {
+            id: 'dev',
+            code: 'dev',
+            name: 'Dev',
+            position: STEP_POSITION_STEP,
+            defaultAllowancePercent: 0,
+            defaultEstimateUnit: 'workdays',
+          },
+          binding: {
+            bindingId: 'contended-dev-binding',
+            scopeKind: 'project',
+            scopeId: PARENT_PROJECT_ID,
+            workItemTypeId: null,
+            position: STEP_POSITION_STEP,
+          },
         },
       ],
       STAMP,
@@ -382,7 +387,7 @@ describe('a priority ladder moves no date', () => {
       await workItems.insert(
         workItemRow({
           id,
-          projectId: 'contended',
+          workPackageId: 'contended',
           position,
           name: id,
           priority,
@@ -562,9 +567,27 @@ describe('a priority ladder moves no date', () => {
           nodeResources,
           blockages,
           blockageCauses,
+          steps,
           charged,
           ...row
         }) => {
+          expect(steps).toEqual(
+            row.rolledUp
+              ? undefined
+              : tree.steps.map(({ id, name }) => ({
+                  stepId: id,
+                  name,
+                  code: suggestStepCode(name, new Set()),
+                  via: [
+                    {
+                      bindingId: id + ':identity-binding',
+                      scopeKind: 'project',
+                      scopeId: PARENT_PROJECT_ID,
+                      workItemTypeId: null,
+                    },
+                  ],
+                })),
+          );
           // Native charges retain the workday figures pinned by the historical oracle.
           // Proof: replacing production finalsOf charged with {} failed both historical
           // replays and the ladder comparison here on 2026-10-13.
@@ -677,7 +700,7 @@ describe('a priority ladder moves no date', () => {
                 ),
           );
           // The capture predates blockage fields. An unstated leaf has no facts and an empty
-          // cause list for every project step; parents expose neither field.
+          // cause list for every work package step; parents expose neither field.
           // Proof (2026-10-14): phantom facts, omitted step causes and parent field leakage
           // each failed both historical replays and this file's ladder comparison.
           expect(blockages).toEqual(row.rolledUp ? undefined : {});
@@ -710,9 +733,9 @@ describe('a priority ladder moves no date', () => {
     bands: readonly PriorityBand[],
   ): Record<string, unknown> {
     return {
-      project: plan.projectId,
+      workPackage: plan.workPackageId,
       ...answer,
-      // `capacity-per-project`'s addition, carrying {@link CAPACITIES} in the
+      // `capacity-per-work-package`'s addition, carrying {@link CAPACITIES} in the
       // order `listFor` gives. Identical across both replays.
       teamCapacities: Object.entries(CAPACITIES)
         .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
@@ -736,7 +759,7 @@ describe('a priority ladder moves no date', () => {
   });
 
   /**
-   * The oracle's projects written the way the release being replaced wrote them,
+   * The oracle's work packages written the way the release being replaced wrote them,
    * then migrated forward — and the ladder `listFor` reads back.
    *
    * The `INSERT`s are written out rather than built through drizzle, exactly as
@@ -746,8 +769,7 @@ describe('a priority ladder moves no date', () => {
   async function ladderAfterTheMigration(): Promise<PriorityBand[]> {
     dir = mkdtempSync(join(tmpdir(), 'wbs-band-identity-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    rollbackTo(path, FOLDER, PRE_BANDS);
+    runMigrations(path, copyRecoveryPrefix(dir, PRE_BANDS));
     const before = openDatabase(path);
     try {
       before.run(
@@ -757,24 +779,52 @@ describe('a priority ladder moves no date', () => {
         before.run(
           'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
             ` VALUES (?, ?, 'u', 0, ?, ?, 0, 1)`,
-          [plan.projectId, `Plan ${plan.projectId}`, plan.estimateMethod, plan.startDate],
+          [plan.workPackageId, `Plan ${plan.workPackageId}`, plan.estimateMethod, plan.startDate],
         );
       }
     } finally {
       before.close();
     }
 
-    runMigrations(path, FOLDER);
+    const organizationPrefix = join(dir, 'organization-prefix');
+    mkdirSync(organizationPrefix);
+    runMigrations(
+      path,
+      copyRecoveryPrefix(organizationPrefix, '20260927130000_add_organization_ownership'),
+    );
+    const mapping = openDatabase(path);
+    try {
+      mapping.run(
+        "INSERT INTO organization(id,name,legacy,created_at) VALUES('oracle-legacy','Oracle legacy',1,1)",
+      );
+      for (const plan of oracle.plans)
+        mapping.run(
+          "INSERT INTO project_organization(resource_id,organization_id) VALUES(?,'oracle-legacy')",
+          [plan.workPackageId],
+        );
+    } finally {
+      mapping.close();
+    }
+
+    // This historical capacity/ladder seed oracle finishes through the modern
+    // work-package columns at 116. Current catalogue replay uses the separate
+    // actual Memory Source; this SQL seed makes no 117 apply/window claim.
+    const readerPrefix = join(dir, 'reader-prefix');
+    mkdirSync(readerPrefix);
+    runMigrations(
+      path,
+      copyRecoveryPrefix(readerPrefix, '20261115120000_add_step_migration_report'),
+    );
 
     const store = new PriorityBandRepository(openDrizzle(path), OPEN);
     const first = oracle.plans.at(0);
     if (first === undefined) throw new Error('the oracle holds no plans');
-    const seeded = await store.listFor(first.projectId);
-    // Every project, not only the first: the seeding is a cartesian one row per
-    // project per rung, and a `SELECT` that reached one project would pass an
+    const seeded = await store.listFor(first.workPackageId);
+    // Every work package, not only the first: the seeding is a cartesian one row per
+    // work package per rung, and a `SELECT` that reached one work package would pass an
     // assertion made about one.
     for (const plan of oracle.plans) {
-      expect(await store.listFor(plan.projectId)).toEqual(seeded);
+      expect(await store.listFor(plan.workPackageId)).toEqual(seeded);
     }
     return seeded;
   }
@@ -784,60 +834,65 @@ describe('a priority ladder moves no date', () => {
     plan: CapturedPlan,
     bands: readonly PriorityBand[],
   ): Promise<NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>> {
-    const projects = inMemoryProjects();
-    const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-      workItems.listByProject(projectId),
+    const { source } = await createLegacyWorkPackageFixture(
+      STAMP.by,
+      'identity-fixture-legacy',
+      PARENT_PROJECT_ID,
     );
-    const workItems = inMemoryWorkItems(directory);
-    const estimates = inMemoryEstimates(workItems);
-    const actuals = inMemoryActuals(workItems);
-    const measureTable = memoryMeasureTable();
-    const measures = inMemoryMeasures(workItems, measureTable);
-    const progress = inMemoryProgress(workItems);
-    const dependencies = inMemoryDependencies();
-    const resourceStores = testResourceStores(workItems);
-    const service = new WorkItemService({
-      dependencyContext: createLocalDependencyContext({
-        projects: projects,
-        workItems: workItems,
-        estimates: estimates,
-        dependencies: dependencies,
-        typedDependencies: inMemoryTypedDependencies(),
-      }),
-      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
-      scheduler: fastScheduler,
-      clock: testClock,
+    const {
+      workPackages,
+      directory,
       workItems,
-      projects,
       estimates,
       actuals,
       measures,
-      measureEstimates: inMemoryMeasureEstimates(workItems, measureTable),
-      budgets: inMemoryBudgets(workItems),
       progress,
-      attempts: inMemoryAttempts(workItems),
-      blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
-      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
+      typedDependencies,
+      measureEstimates,
+      budgets,
+      attempts,
+      blockages,
+      stepParallels,
+      subtrees,
+      journal,
+      demands,
+      resourceCapacity,
+    } = source.stores;
+    const service = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        workPackages: workPackages,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
+      admission: LEGACY_EDIT_ADMISSION,
+      scheduler: fastScheduler,
+      clock: testClock,
+      workItems,
+      workPackages,
+      estimates,
+      actuals,
+      measures,
+      measureEstimates,
+      budgets,
+      progress,
+      attempts,
+      blockages,
+      stepParallels,
+      dependencies,
+      typedDependencies,
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.
-      capacity: inMemoryCapacity({ [plan.projectId]: CAPACITIES }),
-      ...resourceStores,
-      priorityBands: inMemoryPriorityBands({ [plan.projectId]: bands }),
-      subtrees: inMemorySubtrees({
-        workItems,
-        estimates,
-        actuals,
-        measures,
-        progress,
-        dependencies,
-        directory,
-        demands: resourceStores.demands,
-      }),
-      journal: inMemoryCommandJournal(),
+      capacity: inMemoryCapacity({ [plan.workPackageId]: CAPACITIES }),
+      demands,
+      resourceCapacity,
+      priorityBands: inMemoryPriorityBands({ [plan.workPackageId]: bands }),
+      subtrees,
+      journal,
       broadcast: recordingBroadcaster(),
     });
 
@@ -845,15 +900,15 @@ describe('a priority ladder moves no date', () => {
       await directory.addTeam({ id: team.id, name: team.name }, STAMP);
     for (const who of oracle.people) await directory.addPerson({ ...who }, [], STAMP);
 
-    const project: Project = projectRow({
-      id: plan.projectId,
-      name: `Plan ${plan.projectId}`,
-      ownerId: 'owner',
+    const workPackage: WorkPackage = workPackageRow({
+      id: plan.workPackageId,
+      name: `Plan ${plan.workPackageId}`,
+      projectId: PARENT_PROJECT_ID,
       estimateMethod: plan.estimateMethod,
       // The arithmetic this capture was taken under: a step's figure reached
       // the schedule as the fraction the method produced. See
       // `estimate-weights-and-rounding`, which made `ceil` the default for
-      // every project and left `exact` as the arm an oracle replays on.
+      // every work package and left `exact` as the arm an oracle replays on.
       estimateRounding: 'exact',
       // The oracle was captured at a tip whose engine had no reach at all and
       // waited on the anchor slice, so these plans are replayed on
@@ -863,20 +918,31 @@ describe('a priority ladder moves no date', () => {
       depReach: 'anchor-slice',
       startDate: plan.startDate,
     });
-    const steps: Step[] = plan.stepIds.map((id, place) => ({
-      id,
-      projectId: plan.projectId,
-      name: `Step ${String(place)}`,
-      code: `step-${String(place)}`,
-      position: (place + 1) * STEP_POSITION_STEP,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
+    const bindings: FixtureStepBinding[] = plan.stepIds.map((id, place) => ({
+      definition: {
+        id,
+        code: 'step-' + String(place),
+        name: 'Step ' + String(place),
+        position: (place + 1) * STEP_POSITION_STEP,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      binding: {
+        bindingId: id + ':identity-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position: (place + 1) * STEP_POSITION_STEP,
+      },
     }));
-    await projects.create(project, steps, STAMP);
+    await bindFixtureSteps(source, 'identity-fixture-legacy', bindings, STAMP);
+    const created = await workPackages.create(workPackage, [], STAMP);
+    if (typeof created === 'string')
+      throw new Error('Identity fixture package creation refused: ' + created);
     for (const row of plan.rows) {
       const stored: WorkItem = workItemRow({
         id: row.id,
-        projectId: plan.projectId,
+        workPackageId: plan.workPackageId,
         parentId: row.parentId,
         position: row.position,
         name: row.name,
@@ -899,7 +965,7 @@ describe('a priority ladder moves no date', () => {
       for (const predecessorId of row.dependsOn) {
         const edge: StoredDependency = {
           id: `${predecessorId}->${row.id}`,
-          projectId: plan.projectId,
+          workPackageId: plan.workPackageId,
           predecessorId,
           successorId: row.id,
         };
@@ -907,8 +973,8 @@ describe('a priority ladder moves no date', () => {
       }
     }
 
-    const tree = await service.tree(plan.projectId);
-    if (tree === null) throw new Error(`${plan.projectId} vanished on replay`);
+    const tree = await service.tree(plan.workPackageId);
+    if (tree === null) throw new Error(`${plan.workPackageId} vanished on replay`);
     return tree;
   }
 });

@@ -331,6 +331,7 @@ function realFixture(): RealFixture {
   const repository = mkdtempSync(join(tmpdir(), 'tool-wiki-entry-candidate-'));
   const trust = mkdtempSync(join(tmpdir(), 'tool-wiki-entry-trust-'));
   scratchPaths.push(repository, trust);
+  symlinkSync(join(workspace, 'node_modules'), join(trust, 'trusted-node-modules'), 'dir');
   git(repository, 'init', '--initial-branch=main');
   git(repository, 'config', 'user.email', 'entrypoint@example.test');
   git(repository, 'config', 'user.name', 'Entrypoint Fixture');
@@ -1148,7 +1149,9 @@ Bun.build = async (configuration) => {
     writeFileSync(${JSON.stringify(dependency)}, reviewedBytes);
   }
 };
-await import(${JSON.stringify(productionSnapshotter)});
+const { snapshotValidator } = await import(${JSON.stringify(productionSnapshotter)});
+const [bindingPath, validatorPath, candidateDirectory, destination] = process.argv.slice(2);
+await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destination });
 `,
     );
     write(join(paths.activationRoot, 'snapshotter-path'), `${raceSnapshotter}\n`);
@@ -1236,7 +1239,10 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(project.targets['lint']).toMatchObject({
       cache: false,
       inputs: ['{workspaceRoot}/**/*'],
-      options: { command: 'bash bin/tool-wiki-lint.sh working . HEAD' },
+      options: {
+        command:
+          '/usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts working . HEAD',
+      },
     });
     expect(project.targets['lint:source']?.options?.command).toBe(
       'bunx eslint apps/twilight-structure/twilight-burokrat/cli/src',
@@ -1308,7 +1314,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}');
     expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
     expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
-    expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
+    expect(lefthook).toContain(
+      'run: /usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts staged . HEAD',
+    );
     expect(hostSteps).toContain('--exclude=twilight-burokrat');
     expect(hostSteps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const runtime = readFileSync(
@@ -1435,7 +1443,9 @@ await import(${JSON.stringify(productionSnapshotter)});
       );
       expect(step?.if, `${name} must be paused`).toBe(false);
     }
-    expect(hook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
+    expect(hook).toContain(
+      'run: /usr/bin/env -u BUN_OPTIONS -u BUN_INSPECT_PRELOAD -u NODE_OPTIONS -u BUN_BE_BUN bun --no-env-file --config=/dev/null bin/tool-wiki-lint.ts staged . HEAD',
+    );
   });
 
   const provisioningSteps = [
@@ -1936,7 +1946,24 @@ await import(${JSON.stringify(productionSnapshotter)});
     const paths = realFixture();
     write(join(paths.repository, 'src', 'untracked.ts'), 'export const untracked = true;\n');
 
-    const invocation = runRealAdapter('working', paths);
+    // The launcher rebuilds PATH from the Bun directory before running its validated snapshot.
+    const bin = mkdtempSync(join(tmpdir(), 'tool-wiki-entry-bin-'));
+    scratchPaths.push(bin);
+    symlinkSync(process.execPath, join(bin, 'bun'));
+    write(
+      join(bin, 'git'),
+      `#!/usr/bin/env bun
+const git = Bun.spawnSync(['/usr/bin/git', ...Bun.argv.slice(2)], {
+  env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' },
+  stdin: 'inherit',
+  stdout: 'inherit',
+  stderr: 'inherit',
+});
+process.exit(git.exitCode);
+`,
+    );
+    chmodSync(join(bin, 'git'), 0o755);
+    const invocation = runRealAdapter('working', paths, { PATH: bin + ':/usr/bin:/bin' });
     const output = `${streamText(invocation.stdout, 'lint stdout')}${streamText(
       invocation.stderr,
       'lint stderr',

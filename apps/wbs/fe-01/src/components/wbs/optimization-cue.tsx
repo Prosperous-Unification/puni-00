@@ -1,7 +1,7 @@
 import type {
   PlanOptimizationView,
-  ProjectOptimizationPatch,
   ScheduleObjectiveView,
+  WorkPackageOptimizationPatch,
 } from '@/lib/wbs-api';
 
 import { type MenuAction, MenuControl } from './actions-menu';
@@ -23,7 +23,7 @@ export interface OptimizationCueProps {
   readonly optimization: PlanOptimizationView;
   /** The plan on screen may have moved under this comparison. */
   readonly stale?: boolean;
-  readonly projectStart: string | null;
+  readonly workPackageStart: string | null;
   readonly today: Date;
   readonly workItemName: (id: string) => string | null;
   /** Whether this cue's menu is the open one. Held by the caller: one at a time. */
@@ -33,16 +33,16 @@ export interface OptimizationCueProps {
   /** A write is in flight, so the items show unavailable rather than leaving the menu. */
   readonly busy: boolean;
   /**
-   * Moves the project onto another schedule.
+   * Moves the work package onto another schedule.
    *
    * Absent on a screen with no settings writer, and that absence is the whole
    * of the permission rule: `schedule_engine` and `schedule_objective` are
-   * **project-wide**, so one reader's switch moves every collaborator's plan,
+   * **work-package-wide**, so one reader's switch moves every collaborator's plan,
    * and a cue that offered the switch to somebody who cannot make it would be
    * a control that fails with a toast. Such a screen still reads everything —
    * see the second arm of the pill below.
    */
-  readonly onChoose?: (patch: ProjectOptimizationPatch) => void;
+  readonly onChoose?: (patch: WorkPackageOptimizationPatch) => void;
   /** Asks for one more solve of a variant whose own state a Retry may recover. */
   readonly onRetry?: (objective: ScheduleObjectiveView, inputHash: string) => void;
 }
@@ -136,14 +136,14 @@ const DOT: Readonly<
 function unmeetableLine(
   unmeetable: UnmeetableDeadline,
   nameOf: (id: string) => string,
-  projectStart: string | null,
+  workPackageStart: string | null,
   today: Date,
 ): string {
   const who =
     unmeetable.ownerWorkItemId === unmeetable.boundWorkItemId
       ? nameOf(unmeetable.boundWorkItemId)
       : `${nameOf(unmeetable.ownerWorkItemId)} → ${nameOf(unmeetable.boundWorkItemId)}`;
-  const deadline = deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today);
+  const deadline = deadlineWords(workPackageStart, unmeetable.effectiveDeadlineOffset, today);
   const effective = deadline.isEffectiveWorkday ? ' (effective workday)' : '';
   return `${who} · Work item deadline${effective} ${deadline.text}`;
 }
@@ -233,7 +233,7 @@ function rowWords(row: CueRow): string {
  * **It replaced a full-width banner above the table** (tasks.md 8b.6). The
  * banner said one sentence about the variant on screen and, because the plan
  * read only compared *that* variant, drew nothing at all while Fast was
- * displayed — which is the state a project spends its first solve in and the
+ * displayed — which is the state a work package spends its first solve in and the
  * state the toggle leaves it in. Both halves are gone: the plan read now
  * compares every ready variant, and this says so in the width of a control.
  *
@@ -247,7 +247,7 @@ function rowWords(row: CueRow): string {
  * - **The reading is a `data-fact`**, drawn by {@link HintLayer} like every
  *   other explanation in this app — one layer, one card, one set of rules for
  *   the pointer, the keyboard, Escape and touch. `data-fact` and **not**
- *   `data-hint`: this is information about the **project**, not about what a
+ *   `data-hint`: this is information about the **work package**, not about what a
  *   control does, so it opens at once and behind no wait ring (Dany,
  *   2026-09-08; `tool-hints-wait` is the change that split the two). Everything
  *   the optimizer knows about this plan is in it — every row's figures, its
@@ -266,7 +266,7 @@ function rowWords(row: CueRow): string {
 export function OptimizationCue({
   optimization,
   stale = false,
-  projectStart,
+  workPackageStart,
   today,
   workItemName,
   menuOpen,
@@ -278,7 +278,7 @@ export function OptimizationCue({
 }: OptimizationCueProps) {
   // No state at all, and that is the point: the pill's words come from the plan
   // read, its menu's open flag is the caller's, and its card belongs to
-  // `HintLayer`. A project with optimization off has nothing to say — the
+  // `HintLayer`. A work package with optimization off has nothing to say — the
   // settings panel is where its one sentence lives ("Fast is active while
   // optimization is off").
   if (!optimization.enabled) return null;
@@ -297,7 +297,7 @@ export function OptimizationCue({
           const active = row.which === reading.active;
           return {
             id: `schedule-${row.which}`,
-            // A check on the one the project is on, and **no refusal**: a
+            // A check on the one the work package is on, and **no refusal**: a
             // refused item carries its reason as a `data-fact`, `MenuControl`
             // focuses its first item the moment it opens, and the first item is
             // Fast — so an active Fast popped a card over the menu on every
@@ -310,7 +310,7 @@ export function OptimizationCue({
               ? {}
               : { refusedBecause: row.refusedBecause }),
             run: () => {
-              // Taking the schedule the project is already on is a write that
+              // Taking the schedule the work package is already on is a write that
               // changes nothing and a plan read nobody needs.
               if (active) return;
               onChoose(
@@ -336,7 +336,7 @@ export function OptimizationCue({
         }));
   const actions = [...switches, ...retries];
   const fact = factWords(reading, optimization, (unmeetable) =>
-    unmeetableLine(unmeetable, nameOf, projectStart, today),
+    unmeetableLine(unmeetable, nameOf, workPackageStart, today),
   );
 
   const dot = dotState(optimization);

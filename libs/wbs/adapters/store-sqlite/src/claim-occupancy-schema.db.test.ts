@@ -8,19 +8,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const MIGRATION = '20261020130000_add_claim_occupancy';
 const BASELINE = '20261020120000_add_resources';
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-claim-occupancy-schema-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, PREFIX);
+  runMigrations(path, migrations);
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
@@ -93,7 +96,9 @@ describe(MIGRATION, () => {
   });
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
-    expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+    expect(rollbackTo(path, migrations, MIGRATION)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -125,13 +130,15 @@ describe(MIGRATION, () => {
     ]);
     occupy('c1', 'ram', 4);
     const before = db.query('SELECT * FROM __drizzle_migrations').all();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
     expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -165,7 +172,7 @@ describe(MIGRATION, () => {
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(
       [],
     );
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     occupy('c1', 'ram', 4);
     expect(count()).toBe(1);
   });

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { DiBagServiceReadinessError } from 'di-bag';
 
@@ -12,11 +13,9 @@ import { buildApp } from './app';
 import { bootBe01, type BootOptions, type RunningBe } from './boot';
 import type { McpServiceSettings } from './config';
 import { openDatabase } from './repository/db';
-import { runMigrations } from './repository/migrate';
 import { addAgentPerson, issueApiKey } from './testing/machine-credential-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const SECRET = 'mcp-secret-0123456789abcdefghijklmn';
 const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const SETTINGS: McpServiceSettings = {
@@ -37,9 +36,13 @@ afterEach(async () => {
 /** A migrated store with ada as org-a's admin and claire her agent, activated when asked. */
 function store(activated: boolean): string {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-machine-grant-boot-'));
-  dirs.push(dir);
   const dbPath = join(dir, 'test.db');
-  runMigrations(dbPath, FOLDER);
+  const custody = { hasUnknownOwner: false };
+  try {
+    migrateEmptyCatalogueFixture({ path: dbPath, directory: dir, reportedAt: 1 }, custody);
+  } finally {
+    if (!custody.hasUnknownOwner) dirs.push(dir);
+  }
   const seed = openDatabase(dbPath);
   try {
     seed.run(
@@ -174,7 +177,7 @@ describe('machine grants at boot', () => {
     expect(issued.status).toBe(200);
     const { grant } = (await issued.json()) as { grant: string };
     const listed = await app.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: { authorization: `Bearer ${grant}`, [MCP_INTERNAL_SECRET_HEADER]: SECRET },
       }),
     );

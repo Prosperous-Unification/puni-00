@@ -208,11 +208,11 @@ export function bind<const S extends EndpointShape>(
     shape,
     handle: async (input) => {
       // Proof: bypassing this binding made the enabled boot composition write
-      // a stale-cookie project (200 instead of 409) in
+      // a stale-cookie work package (200 instead of 409) in
       // organization-context.boot.db.test.ts; watched 2026-10-13.
       const policy = shape.policies.find((entry) => entry.kind === 'organization-resource');
       if (policy === undefined) return handle(input);
-      // Proof: removing this guard reached the mounted project handler after
+      // Proof: removing this guard reached the mounted work package handler after
       // its identity policy was lost; mount.test.ts caught calls=1, watched 2026-10-13.
       if (!('principal' in input) || !('id' in input.principal))
         throw new Error(`Organization resource lacks a user identity: ${shape.operationId}`);

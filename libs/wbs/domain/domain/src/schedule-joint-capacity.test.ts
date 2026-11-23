@@ -178,7 +178,7 @@ describe('a block labelled with two teams waits for both of them', () => {
     //
     // Proof: `reserve` narrowed to `poolIds[0]` — the shape of spending one
     // team's days and none of the other's — and this failed on `after-beta`
-    // coming back at 0 where 3 was owed, `boundBy: 'projectStart'`; watched
+    // coming back at 0 where 3 was owed, `boundBy: 'workPackageStart'`; watched
     // 2026-08-14.
     const rows = [
       item('both', { priority: 1 }),
@@ -224,7 +224,7 @@ describe('a block labelled with two teams waits for both of them', () => {
       item('holds-alpha', { priority: 1 }),
       item('holds-beta', { priority: 1 }),
       item('both', { priority: 2 }),
-      // An unpooled tail, so the project finish is past the block and there is
+      // An unpooled tail, so the work package finish is past the block and there is
       // real slack in the plan for the float claim to be about.
       item('tail', { priority: 3 }),
     ];
@@ -313,7 +313,7 @@ describe('a block labelled with two teams waits for both of them', () => {
     for (const id of ['first', 'second']) {
       expect(planned(found, id)).toMatchObject({
         earliestStart: 0,
-        boundBy: 'projectStart',
+        boundBy: 'workPackageStart',
         capacityTeamId: null,
         capacityPredecessorIds: [],
       });

@@ -14,7 +14,7 @@ import { expect, test } from 'bun:test';
 
 import { readDocument, toolsFromDocument } from './openapi-tools';
 
-test('derives all marker tools with project id and markerId in separate locations', () => {
+test('derives all marker tools with work package id and markerId in separate locations', () => {
   const excluded = [
     '/api/auth/login',
     '/internal/forward',
@@ -52,7 +52,7 @@ test('derives all marker tools with project id and markerId in separate location
     }
   })();
   expect(tools).toHaveLength(4);
-  const create = tools.find((tool) => tool.name === 'postApiProjectsByIdCalendar-markers');
+  const create = tools.find((tool) => tool.name === 'postApiWorkPackagesByIdCalendar-markers');
   expect(create?.locations).toEqual({
     id: 'path',
     markerId: 'body',
@@ -62,7 +62,7 @@ test('derives all marker tools with project id and markerId in separate location
   });
   expect(create?.inputSchema.required).toEqual(['id', 'date', 'name']);
   const patch = tools.find(
-    (tool) => tool.name === 'patchApiProjectsByIdCalendar-markersByMarkerId',
+    (tool) => tool.name === 'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
   );
   expect(patch?.locations).toEqual({ id: 'path', markerId: 'path', name: 'body', color: 'body' });
 });

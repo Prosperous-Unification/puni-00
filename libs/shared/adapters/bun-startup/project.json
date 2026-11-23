@@ -1,0 +1,42 @@
+{
+  "name": "shared-bun-startup",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/adapters/bun-startup/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:adapter", "runtime:bun", "ring:adapter", "product:shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/bun-startup/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/out-tsc"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/shared/adapters/bun-startup/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/bun-startup/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+        "cwd": "libs/shared/adapters/bun-startup"
+      }
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts ./src --timeout=30000",
+        "cwd": "libs/shared/adapters/bun-startup"
+      }
+    }
+  }
+}

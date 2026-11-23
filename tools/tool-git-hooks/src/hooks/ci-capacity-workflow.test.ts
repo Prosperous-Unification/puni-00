@@ -78,18 +78,20 @@ test('Python jobs pin the Fleet and standard hosted runtime tuples', () => {
   }
 });
 
-// Proof: the original production workspace 75m failed this consumer expecting 105m;
-// dedicated 75m and whole-job 120m/90m controls remain, restoration passed.
+// Proof: restoring the workspace 75m phase failed this workflow test.
+// Proof: after run 45092559956 timed out, restoring the old 135m backend job
+// failed the 165m assertion. Restoring only the 120m phase failed the
+// production timeout-command assertion.
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
-  for (const [partition, title] of [
-    ['workspace', 'Gate'],
-    ['backend', 'Backend'],
-    ['frontend', 'Frontend'],
-  ]) {
+  for (const [partition, title, jobMinutes, phaseMinutes] of [
+    ['workspace', 'Gate', 120, 105],
+    ['backend', 'Backend', 165, 150],
+    ['frontend', 'Frontend', 90, 75],
+  ] as const) {
     const runtime = job(`gate_${partition}`);
     const shared = partition === 'workspace';
     expect(runtime.needs).toBe('gate_mode');
-    expect(runtime['timeout-minutes'], partition).toBe(shared ? 120 : 90);
+    expect(runtime['timeout-minutes'], partition).toBe(jobMinutes);
     expect(runtime.if).toBe(
       shared
         ? "${{ needs.gate_mode.outputs.mode != 'docs' }}"
@@ -99,7 +101,7 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
     // The workspace step text is shared with the heavy leaves, so it names its partition and
     // budget once (partition=workspace, phase_limit=105) and reads them everywhere else.
     if (shared) {
-      expect(execution.run).toContain('partition=workspace\nphase_limit=105\n');
+      expect(execution.run).toContain(`partition=workspace\nphase_limit=${String(phaseMinutes)}\n`);
       expect(execution.run).toContain(
         'timeout --signal=TERM --kill-after=30s "${phase_limit}m" \\',
       );
@@ -111,7 +113,9 @@ test('each whole-project runtime has a finite Nx phase and whole-job limit with 
         'runtime phase end partition=%s utc=%s elapsedSeconds=%s exit=%s',
       );
     } else {
-      expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
+      expect(execution.run).toContain(
+        `timeout --signal=TERM --kill-after=30s ${String(phaseMinutes)}m \\`,
+      );
       expect(execution.run).toContain(
         `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
       );

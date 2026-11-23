@@ -28,7 +28,7 @@ export function createOptimizationObservationOwner(
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('optimization observation lacks borrowed ownership and capture');
       if (key.questions !== undefined) {
-        const owner = await capture.resolveLifecycleOwner(key.projectId);
+        const owner = await capture.resolveLifecycleOwner(key.workPackageId);
         if (owner.kind === 'absent')
           return { commit: true, value: { decision: { kind: 'idle' as const }, envelopes: [] } };
       }
@@ -40,13 +40,13 @@ export function createOptimizationObservationOwner(
           Object.values(
             readConnectedOptimizationPair(db, { questions: key.questions }).variants,
           ).every((outcome) => outcome.kind !== 'miss')) ||
-        reusesEnabledGeneration(db, key.projectId, key.contractVersion, key.inputHash)
+        reusesEnabledGeneration(db, key.workPackageId, key.contractVersion, key.inputHash)
       )
         return {
           commit: true,
           value: { decision: observeForAdmissionIn(db, key, now), envelopes: [] },
         };
-      const owner = await capture.resolveLifecycleOwner(key.projectId);
+      const owner = await capture.resolveLifecycleOwner(key.workPackageId);
       const organizationId = owner.kind === 'scoped' ? owner.organizationId : null;
       const before = organizationId === null ? null : await capture.capture(organizationId);
       // Proof: moving observation before this source turn read uncommitted
@@ -60,14 +60,14 @@ export function createOptimizationObservationOwner(
       // Proof: detaching source.ts capture onto a read-only connection also
       // missed staged H1 deletion and lost B while generation 2 committed.
       const after = await capture.capture(organizationId);
-      const cause = key.projectId;
+      const cause = key.workPackageId;
       // Proof: omitting dependency membership lost C←B after scoped connected generation eviction in connected-publication.test.ts.
       // Connected members live in the dependency capture, outside ordinary shared/local facts.
       const addressed =
         before.localFacts.has(cause) ||
         after.localFacts.has(cause) ||
-        before.dependency?.projects.has(cause) === true ||
-        after.dependency?.projects.has(cause) === true;
+        before.dependency?.workPackages.has(cause) === true ||
+        after.dependency?.workPackages.has(cause) === true;
       // Proof: dropping the addressed cause left B silent when H2 evicted
       // selected H1; bypassing recording independently lost the same row.
       const envelopes = await recordCommittedFanout(

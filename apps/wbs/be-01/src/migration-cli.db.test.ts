@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -17,16 +18,45 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import type { SavedEstimateUnits } from '@wbs/store-sqlite/estimate-unit-rollback';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
-import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
+const BEFORE_CATALOGUE = '20261115120000_add_step_migration_report';
+const EXTERNAL_DEPENDENCIES = '20261022211000_add_external_dependencies';
+const BEFORE_ATTEMPTS = '20261012090200_widen_organization_audit';
+const ATTEMPTS = '20261012120000_add_step_node_attempts';
+const ESTIMATE_UNIT = '20261012130000_add_step_estimate_unit';
+const CLAIM = '20261019120000_add_claim';
+const RESOURCES = '20261020120000_add_resources';
 const roots: string[] = [];
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+/** Places an exact historical prefix where the CLI resolves its relative drizzle path. */
+function copyCliMigrations(root: string, through: string): string {
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
+  return folder;
+}
+
+/** Seeds one package under an actual project in the renamed schema. */
+function seedPackage(sqlite: ReturnType<typeof openDatabase>): void {
+  sqlite.run(
+    "INSERT INTO project (id,organization_id,name,created_at,created_by) VALUES ('parent','o','Parent',1,'u')",
+  );
+  sqlite.run(
+    "INSERT INTO work_package (id,project_id,name,created_at,created_by) VALUES ('p','parent','WorkPackage',1,'u')",
+  );
+  sqlite.run(
+    "INSERT INTO work_package_organization (resource_id,organization_id) VALUES ('p','o')",
+  );
+}
 
 async function runCli(file: string, dbPath: string, ...args: string[]) {
   return runCliFrom(APP_ROOT, file, dbPath, ...args);
@@ -209,15 +239,10 @@ describe('migration deploy entrypoints', () => {
       const root = mkdtempSync(join(tmpdir(), 'wbs-activation-capture-'));
       roots.push(root);
       const dbPath = join(root, 'plan.db');
-      const candidate = join(root, 'drizzle');
+      const candidate = copyCliMigrations(root, INITIAL_ACCESS);
       const baseline = join(root, 'baseline');
-      cpSync(MIGRATIONS, candidate, { recursive: true });
       mkdirSync(baseline);
-      for (const name of readdirSync(MIGRATIONS)) {
-        if (name <= '20261022211000_add_external_dependencies')
-          cpSync(join(MIGRATIONS, name), join(baseline, name), { recursive: true });
-      }
-      runMigrations(dbPath, baseline);
+      runMigrations(dbPath, copyRecoveryPrefix(baseline, EXTERNAL_DEPENDENCIES));
       const baselineLedger = migrationLedgerAt(dbPath);
       const identity = [
         '--target=wbs-be-01',
@@ -235,7 +260,31 @@ describe('migration deploy entrypoints', () => {
       const capturePath = join(root, 'capture.json');
       writeFileSync(capturePath, captured.stdout);
       runMigrations(dbPath, candidate);
-      if (enabled) seedDependencyAuthority(dbPath);
+      if (enabled) {
+        // Persist a valid enabled receipt in the original namespace without creating any edges.
+        const sqlite = openDatabase(dbPath);
+        try {
+          sqlite.run(
+            'INSERT INTO cross_project_dependency_activation_receipt (id,receipt) VALUES (1,?)',
+            [
+              JSON.stringify({
+                protocol: 'wbs-dependency-activation',
+                version: 1,
+                activationId: 'synthetic-storage-fixture',
+                databaseIdentity: 'isolated-test-database',
+                candidateImage: `fixture@sha256:${'a'.repeat(64)}`,
+                rollbackImage: `fixture@sha256:${'b'.repeat(64)}`,
+                participantProofSha256: 'c'.repeat(64),
+                migrationCaptureSha256: 'd'.repeat(64),
+                activatedAt: 1,
+              }),
+            ],
+          );
+          sqlite.run("UPDATE cross_project_dependency_activation SET state='ENABLED' WHERE id=1");
+        } finally {
+          sqlite.close();
+        }
+      }
       const beforeSchema = schemaAt(dbPath);
       const beforeLedger = migrationLedgerAt(dbPath);
       const beforeRows = tableRowsAt(dbPath);
@@ -382,13 +431,12 @@ describe('migration deploy entrypoints', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    const migrations = join(root, 'drizzle');
+    const migrations = copyCliMigrations(root, INITIAL_ACCESS);
     const capturePath = join(root, 'capture.json');
     const candidateName = '20261001020000_older_candidate_probe';
-    cpSync(MIGRATIONS, migrations, { recursive: true });
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, migrations);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261102120000_add_access_grants');
+    expect(baselineLedger.at(-1)?.name).toBe(INITIAL_ACCESS);
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -463,14 +511,14 @@ describe('migration deploy entrypoints', () => {
     const capturePath = join(root, 'capture.json');
     const lifecycle = '20261001020000_older_candidate_probe';
     const addition = '20991012010000_add_after_lifecycle';
-    cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+    const migrations = copyCliMigrations(root, INITIAL_ACCESS);
     addMigration(
       root,
       lifecycle,
       'CREATE TABLE older_candidate_probe (id text PRIMARY KEY);',
       'DROP TABLE older_candidate_probe;',
     );
-    runMigrations(dbPath, join(root, 'drizzle'));
+    runMigrations(dbPath, migrations);
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run("INSERT INTO older_candidate_probe (id) VALUES ('retained')");
@@ -765,8 +813,7 @@ describe('migration deploy entrypoints', () => {
     const capturePath = join(root, 'capture.json');
     const first = '20991012010000_first_after_baseline';
     const second = '20991012020000_second_after_baseline';
-    cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyCliMigrations(root, INITIAL_ACCESS));
     const baseline = migrationLedgerAt(dbPath);
     addMigration(root, first, 'CREATE TABLE first_after (id text);', 'DROP TABLE first_after;');
     addMigration(root, second, 'CREATE TABLE second_after (id text);', 'DROP TABLE second_after;');
@@ -1139,8 +1186,8 @@ describe('migration deploy entrypoints', () => {
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/space-rollback'"],
       ],
       [
-        'project-rank-rollback-cli.ts',
-        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/project-rank-rollback'"],
+        'work-package-rank-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-package-rank-rollback'"],
       ],
       [
         'step-node-attempt-rollback-cli.ts',
@@ -1157,17 +1204,16 @@ describe('migration deploy entrypoints', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-migration-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    const baselineMigrations = join(root, 'baseline-migrations');
-    const names = readdirSync(MIGRATIONS).sort();
-    const latest = names.at(-1);
-    const baseline = names.at(-2);
-    if (latest === undefined || baseline === undefined) {
-      throw new Error('migration CLI round trip requires at least two migrations');
-    }
-    for (const name of names.slice(0, -1)) {
-      cpSync(join(MIGRATIONS, name), join(baselineMigrations, name), { recursive: true });
-    }
-    runMigrations(dbPath, baselineMigrations);
+    const latest = '20261118210000_add_step_retirements';
+    const baseline = '20261118180000_add_resource_use_locations';
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory: root, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(latest);
+    const prepared = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
+    expect(prepared).toEqual({ exitCode: 0, stderr: '', stdout: `rolled back: ${latest}\n` });
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(baseline);
     const priorSchema = schemaAt(dbPath);
 
     // Proof: importing `@wbs/store-sqlite/migrate-missing` from migrate-cli.ts
@@ -1192,7 +1238,8 @@ describe('migration deploy entrypoints', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-claim-down-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    runMigrations(dbPath, MIGRATIONS);
+    const migrations = copyCliMigrations(root, INITIAL_ACCESS);
+    runMigrations(dbPath, migrations);
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
@@ -1213,7 +1260,8 @@ describe('migration deploy entrypoints', () => {
     const ledger = migrationLedgerAt(dbPath);
     // Proof: with down.sql's guard statements removed, this down exited 0 and
     // the claim table was gone with its row; watched 2026-10-19.
-    const down = await runCli(
+    const down = await runCliFrom(
+      root,
       'migrate-down-cli.ts',
       dbPath,
       '--to=20261015110000_add_step_node_parallelism',
@@ -1222,43 +1270,7 @@ describe('migration deploy entrypoints', () => {
     expect(down.stderr).toContain('claims exist');
     // The newer migrations reverse first, each in its own transaction,
     // so the guarded migration's refusal leaves them reversed.
-    expect(migrationLedgerAt(dbPath)).toEqual(
-      ledger.filter(
-        ({ name }) =>
-          name !== '20261019130000_add_person_account' &&
-          name !== '20261019130100_add_external_identity_person' &&
-          name !== '20261020120000_add_resources' &&
-          name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022100000_add_machine_credential' &&
-          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
-          name !== '20261022110100_check_machine_credential_id' &&
-          name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022210000_add_project_abbreviations' &&
-          name !== '20261022211000_add_external_dependencies' &&
-          name !== '20261022212000_add_cross_project_dependency_activation' &&
-          name !== '20261022213000_add_optimization_boundary_certificates' &&
-          name !== '20261022121000_add_runtime_commands' &&
-          name !== '20261022130000_add_organization_limits' &&
-          name !== '20261022130100_widen_organization_audit_organization_limits' &&
-          name !== '20261022140000_add_resource_provider' &&
-          name !== '20261022140100_widen_organization_audit_compute_providers' &&
-          name !== '20261023100000_add_claim_lease' &&
-          name !== '20261023140000_add_measure' &&
-          name !== '20261023150000_key_step_measure' &&
-          name !== '20261023160000_add_measure_estimate' &&
-          name !== '20261023170000_add_work_item_budget' &&
-          name !== '20261025120000_add_resource_use' &&
-          name !== '20261025130000_add_resource_runtime' &&
-          name !== '20261026120000_add_command_journal_person' &&
-          name !== '20261026130000_widen_organization_audit_machine_tokens' &&
-          name !== '20261028100000_add_agent_pool' &&
-          name !== '20261028100100_widen_organization_audit_agent_pools' &&
-          name !== '20261101100000_widen_organization_audit_directory_capacity' &&
-          name !== '20261101100100_add_resource_directory_capacity' &&
-          name !== '20261101120000_add_host_job_projection' &&
-          name !== '20261102120000_add_access_grants',
-      ),
-    );
+    expect(migrationLedgerAt(dbPath)).toEqual(ledger.filter(({ name }) => name <= CLAIM));
     const after = openDatabase(dbPath);
     try {
       expect(after.query<{ id: string }, []>('SELECT id FROM claim').all()).toEqual([{ id: 'c' }]);
@@ -1266,21 +1278,23 @@ describe('migration deploy entrypoints', () => {
     } finally {
       after.close();
     }
-    const empty = await runCli(
+    const empty = await runCliFrom(
+      root,
       'migrate-down-cli.ts',
       dbPath,
       '--to=20261015110000_add_step_node_parallelism',
     );
     expect(empty.exitCode).toBe(0);
     expect(empty.stdout).toContain('rolled back: 20261019120000_add_claim');
-    expect(schemaAt(dbPath)).not.toContain('CREATE TABLE `claim`');
+    expect(schemaAt(dbPath).join('\n')).not.toContain('CREATE TABLE `claim`');
   }, 60_000);
 
   it('refuses to reverse add_resources while any resource row exists, then reverses and reapplies', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-resources-down-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    runMigrations(dbPath, MIGRATIONS);
+    const migrations = copyCliMigrations(root, INITIAL_ACCESS);
+    runMigrations(dbPath, migrations);
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
@@ -1305,44 +1319,16 @@ describe('migration deploy entrypoints', () => {
     const ledger = migrationLedgerAt(dbPath);
     // Proof: with down.sql's guard statements removed, this down exited 0 and
     // the three tables were gone with their rows; watched 2026-10-20.
-    const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
+    const down = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261019120000_add_claim',
+    );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
     // The newer empty migrations reverse first before this guarded resource rollback.
-    expect(migrationLedgerAt(dbPath)).toEqual(
-      ledger.filter(
-        ({ name }) =>
-          name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022100000_add_machine_credential' &&
-          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
-          name !== '20261022110100_check_machine_credential_id' &&
-          name !== '20261022120000_scope_trusted_issuer_audience' &&
-          name !== '20261022210000_add_project_abbreviations' &&
-          name !== '20261022211000_add_external_dependencies' &&
-          name !== '20261022212000_add_cross_project_dependency_activation' &&
-          name !== '20261022213000_add_optimization_boundary_certificates' &&
-          name !== '20261022121000_add_runtime_commands' &&
-          name !== '20261022130000_add_organization_limits' &&
-          name !== '20261022130100_widen_organization_audit_organization_limits' &&
-          name !== '20261022140000_add_resource_provider' &&
-          name !== '20261022140100_widen_organization_audit_compute_providers' &&
-          name !== '20261023100000_add_claim_lease' &&
-          name !== '20261023140000_add_measure' &&
-          name !== '20261023150000_key_step_measure' &&
-          name !== '20261023160000_add_measure_estimate' &&
-          name !== '20261023170000_add_work_item_budget' &&
-          name !== '20261025120000_add_resource_use' &&
-          name !== '20261025130000_add_resource_runtime' &&
-          name !== '20261026120000_add_command_journal_person' &&
-          name !== '20261026130000_widen_organization_audit_machine_tokens' &&
-          name !== '20261028100000_add_agent_pool' &&
-          name !== '20261028100100_widen_organization_audit_agent_pools' &&
-          name !== '20261101100000_widen_organization_audit_directory_capacity' &&
-          name !== '20261101100100_add_resource_directory_capacity' &&
-          name !== '20261101120000_add_host_job_projection' &&
-          name !== '20261102120000_add_access_grants',
-      ),
-    );
+    expect(migrationLedgerAt(dbPath)).toEqual(ledger.filter(({ name }) => name <= RESOURCES));
     const after = openDatabase(dbPath);
     try {
       after.run('DELETE FROM work_item_resource_demand');
@@ -1350,7 +1336,8 @@ describe('migration deploy entrypoints', () => {
     } finally {
       after.close();
     }
-    const onlyResource = await runCli(
+    const onlyResource = await runCliFrom(
+      root,
       'migrate-down-cli.ts',
       dbPath,
       '--to=20261019120000_add_claim',
@@ -1363,7 +1350,12 @@ describe('migration deploy entrypoints', () => {
     } finally {
       cleared.close();
     }
-    const empty = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
+    const empty = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261019120000_add_claim',
+    );
     expect(empty.exitCode).toBe(0);
     // The empty occupancy migration was reversed by the first, refused attempt.
     expect(empty.stdout).toContain('rolled back: 20261020120000_add_resources');
@@ -1375,8 +1367,8 @@ describe('migration deploy entrypoints', () => {
       'work_item_resource_demand',
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
-    runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261102120000_add_access_grants');
+    runMigrations(dbPath, migrations);
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(INITIAL_ACCESS);
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 
@@ -1384,7 +1376,7 @@ describe('migration deploy entrypoints', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-selection-preview-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, INITIAL_ACCESS));
     const previewed = await runCli('organization-selection-preview-cli.ts', dbPath);
     expect(previewed.exitCode).toBe(0);
     expect(JSON.parse(previewed.stdout)).toEqual({ marker: 'pre_activation', users: [] });
@@ -1396,18 +1388,18 @@ describe('migration deploy entrypoints', () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-backfill-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_CATALOGUE));
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
       );
-      sqlite.run(
-        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-          " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
-      );
+      sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      seedPackage(sqlite);
       // The outgoing release's statement: it names no `code`.
-      sqlite.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+      sqlite.run(
+        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s', 'p', 'Dev', 10)",
+      );
     } finally {
       sqlite.close();
     }
@@ -1415,7 +1407,7 @@ describe('migration deploy entrypoints', () => {
     const first = await runCli('backfill-step-codes-cli.ts', dbPath);
     expect(first).toEqual({
       exitCode: 0,
-      stdout: 'coded step s in project p as dev\nstep codes backfilled: 1\n',
+      stdout: 'coded step s in work package p as dev\nstep codes backfilled: 1\n',
       stderr: '',
     });
     const again = await runCli('backfill-step-codes-cli.ts', dbPath);
@@ -1437,7 +1429,7 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'spaces.json');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_CATALOGUE));
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run(
@@ -1445,14 +1437,10 @@ describe('migration deploy entrypoints', () => {
       );
       sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
-      );
-      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
-      sqlite.run(
         "INSERT INTO space (id,organization_id,name,revision,created_at,created_by) VALUES ('s','o','Q3',1,1,'u')",
       );
       sqlite.run(
-        "INSERT INTO space_project (space_id,project_id,organization_id,position,created_at,created_by) VALUES ('s','p','o',10,1,'u')",
+        "INSERT INTO project (id,organization_id,name,created_at,created_by,space_id,space_position) VALUES ('p','o','Project',1,'u','s',10)",
       );
     } finally {
       sqlite.close();
@@ -1464,7 +1452,7 @@ describe('migration deploy entrypoints', () => {
     });
     expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
       format: 'space-save',
-      version: 1,
+      version: 2,
       spaces: [{ id: 's', members: [{ projectId: 'p', position: 10 }] }],
     });
     expect(await runCli('space-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
@@ -1479,9 +1467,9 @@ describe('migration deploy entrypoints', () => {
     });
     const restored = openDatabase(dbPath);
     try {
-      expect(restored.query('SELECT space_id, project_id FROM space_project').all()).toEqual([
-        { space_id: 's', project_id: 'p' },
-      ]);
+      expect(
+        restored.query("SELECT space_id, space_position FROM project WHERE id='p'").get(),
+      ).toEqual({ space_id: 's', space_position: 10 });
     } finally {
       restored.close();
     }
@@ -1501,52 +1489,96 @@ describe('migration deploy entrypoints', () => {
     expect(absentFile.stderr).toContain('ENOENT');
   }, 60_000);
 
-  it('saves, removes and restores project ranks through the rollback CLI', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-project-rank-cli-'));
+  it('saves, removes and restores work package ranks through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-work-package-rank-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'ranks.json');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_CATALOGUE));
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
       sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      seedPackage(sqlite);
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
-      );
-      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
-      sqlite.run(
-        "INSERT INTO project_rank (project_id,organization_id,position,created_at,updated_at,created_by) VALUES ('p','o',10,1,1,'u')",
+        "INSERT INTO work_package_rank (work_package_id,organization_id,position,created_at,updated_at,created_by) VALUES ('p','o',10,1,1,'u')",
       );
     } finally {
       sqlite.close();
     }
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
       exitCode: 0,
-      stdout: 'project ranks saved: 1\n',
+      stdout: 'work package ranks saved: 1\n',
       stderr: '',
     });
     expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
+      format: 'work-package-rank-save',
+      version: 2,
+      ranks: [{ workPackageId: 'p', organizationId: 'o', position: 10 }],
+    });
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'work package ranks removed: 1\n',
+      stderr: '',
+    });
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual(
+      {
+        exitCode: 0,
+        stdout: 'work package ranks restored: 1\n',
+        stderr: '',
+      },
+    );
+    const savedBytes = readFileSync(savedPath, 'utf8');
+    const current = JSON.parse(savedBytes) as {
+      ranks: {
+        workPackageId: string;
+        organizationId: string;
+        position: number;
+        createdAt: number;
+        updatedAt: number | null;
+        createdBy: string;
+      }[];
+    };
+    const legacy = {
       format: 'project-rank-save',
       version: 1,
-      ranks: [{ projectId: 'p', organizationId: 'o', position: 10 }],
-    });
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
-      exitCode: 0,
-      stdout: 'project ranks removed: 1\n',
-      stderr: '',
-    });
-    expect(await runCli('project-rank-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
-      exitCode: 0,
-      stdout: 'project ranks restored: 1\n',
-      stderr: '',
-    });
-    const invalid = await runCli('project-rank-rollback-cli.ts', dbPath, 'erase', savedPath);
+      ranks: current.ranks.map(({ workPackageId, ...facts }) => ({
+        projectId: workPackageId,
+        ...facts,
+      })),
+    };
+    const legacyPath = join(root, 'legacy-ranks1.json'),
+      legacyBytes = JSON.stringify(legacy);
+    writeFileSync(legacyPath, legacyBytes);
+    expect(await runCli('work-package-rank-rollback-cli.ts', dbPath, 'remove', legacyPath)).toEqual(
+      { exitCode: 0, stdout: 'work package ranks removed: 1\n', stderr: '' },
+    );
+    expect(
+      await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore', legacyPath),
+    ).toEqual({ exitCode: 0, stdout: 'work package ranks restored: 1\n', stderr: '' });
+    const checked = openDatabase(dbPath);
+    try {
+      expect(checked.query('SELECT * FROM work_package_rank').all()).toEqual([
+        {
+          work_package_id: 'p',
+          organization_id: 'o',
+          position: 10,
+          created_at: 1,
+          updated_at: 1,
+          created_by: 'u',
+        },
+      ]);
+    } finally {
+      checked.close();
+    }
+    expect(readFileSync(legacyPath, 'utf8')).toBe(legacyBytes);
+    expect(readFileSync(savedPath, 'utf8')).toBe(savedBytes);
+    const invalid = await runCli('work-package-rank-rollback-cli.ts', dbPath, 'erase', savedPath);
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
-    const missingArgument = await runCli('project-rank-rollback-cli.ts', dbPath, 'restore');
+    const missingArgument = await runCli('work-package-rank-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
@@ -1556,16 +1588,7 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'attempts.json');
-    // Every migration before the attempts table, so `save` meets a database
-    // that has never held one.
-    const unmigrated = join(root, 'migrations');
-    mkdirSync(unmigrated);
-    for (const name of readdirSync(MIGRATIONS).filter(
-      (entry) => !entry.endsWith('_add_step_node_attempts'),
-    )) {
-      cpSync(join(MIGRATIONS, name), join(unmigrated, name), { recursive: true });
-    }
-    runMigrations(dbPath, unmigrated);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_ATTEMPTS));
     const refused = await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'save', savedPath);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr).toContain('step_node_attempt does not exist');
@@ -1583,16 +1606,7 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'units.json');
-    // Every migration before the attempts table, so `save` meets a database
-    // that has never held one.
-    const unmigrated = join(root, 'migrations');
-    mkdirSync(unmigrated);
-    for (const name of readdirSync(MIGRATIONS).filter(
-      (entry) => !entry.endsWith('_add_step_estimate_unit'),
-    )) {
-      cpSync(join(MIGRATIONS, name), join(unmigrated, name), { recursive: true });
-    }
-    runMigrations(dbPath, unmigrated);
+    runMigrations(dbPath, copyRecoveryPrefix(root, ATTEMPTS));
     const refused = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'save', savedPath);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr).toContain('step.estimate_unit does not exist');
@@ -1610,7 +1624,7 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'units.json');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyCliMigrations(root, ESTIMATE_UNIT));
     const read = () => {
       const sqlite = openDatabase(dbPath);
       try {
@@ -1627,7 +1641,9 @@ describe('migration deploy entrypoints', () => {
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
-      sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Project','u',1)");
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','WorkPackage','u',1)",
+      );
       sqlite.run(
         "INSERT INTO step (id,project_id,name,position,estimate_unit) VALUES ('dev','p','Dev',10,'minutes'),('qa','p','QA',20,'minutes')",
       );
@@ -1716,14 +1732,10 @@ describe('migration deploy entrypoints', () => {
       ],
       rows: [],
     });
-    const down = await runCli(
-      'migrate-down-cli.ts',
-      dbPath,
-      '--to=20261012120000_add_step_node_attempts',
-    );
+    const down = await runCliFrom(root, 'migrate-down-cli.ts', dbPath, `--to=${ATTEMPTS}`);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect((await runCli('migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
     for (const [fault, damaged, message] of [
       [
         'missing-step',
@@ -1793,13 +1805,8 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'attempts.json');
-    const names = readdirSync(MIGRATIONS).sort();
-    const attemptsAt = names.findIndex((name) => name.endsWith('_add_step_node_attempts'));
-    const baseline = attemptsAt < 1 ? undefined : names.at(attemptsAt - 1);
-    if (baseline === undefined) {
-      throw new Error('the attempts migration needs one below it');
-    }
-    runMigrations(dbPath, MIGRATIONS);
+    const baseline = BEFORE_ATTEMPTS;
+    runMigrations(dbPath, copyCliMigrations(root, ATTEMPTS));
     const rows = [
       "('a','dev',1,100,150,'failed',NULL,'PR #11',NULL,1,2,'u')",
       "('a','dev',3,160,NULL,NULL,'kat',NULL,'retry',3,3,'u')",
@@ -1824,7 +1831,7 @@ describe('migration deploy entrypoints', () => {
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
       );
       sqlite.run(
         "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
@@ -1849,7 +1856,7 @@ describe('migration deploy entrypoints', () => {
       { work_item_id: 'a', step_id: 'dev', issued: 3 },
       { work_item_id: 'a', step_id: 'qa', issued: 2 },
     ]);
-    const refused = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
+    const refused = await runCliFrom(root, 'migrate-down-cli.ts', dbPath, `--to=${baseline}`);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr).toContain('step-node-attempt-rollback-cli.ts');
     expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
@@ -1862,10 +1869,10 @@ describe('migration deploy entrypoints', () => {
       stdout: 'step node attempts removed: 3, marks: 2\n',
       stderr: '',
     });
-    const down = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
+    const down = await runCliFrom(root, 'migrate-down-cli.ts', dbPath, `--to=${baseline}`);
     expect(down.stderr).toBe('');
     expect(down.stdout).toContain('rolled back: 20261012120000_add_step_node_attempts');
-    expect(await runCli('migrate-cli.ts', dbPath)).toEqual({
+    expect(await runCliFrom(root, 'migrate-cli.ts', dbPath)).toEqual({
       exitCode: 0,
       stdout: 'migrations applied\n',
       stderr: '',
@@ -1920,17 +1927,16 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'holds.json');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_CATALOGUE));
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
+      sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      seedPackage(sqlite);
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
-      );
-      sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name,revision,hold) VALUES ('a','p',1,'A',0,'on_hold')",
+        "INSERT INTO work_item (id,work_package_id,position,name,revision,hold) VALUES ('a','p',1,'A',0,'on_hold')",
       );
     } finally {
       sqlite.close();
@@ -1988,20 +1994,19 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const savedPath = join(root, 'typed.json');
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, copyRecoveryPrefix(root, BEFORE_CATALOGUE));
     const sqlite = openDatabase(dbPath);
     try {
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
+      sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      seedPackage(sqlite);
       sqlite.run(
-        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+        "INSERT INTO work_item (id,work_package_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
       );
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
-      );
-      sqlite.run(
-        "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at) VALUES ('link','p','a','whole','b','whole','FS',12)",
+        "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at) VALUES ('link','p','a','whole','b','whole','FS',12)",
       );
     } finally {
       sqlite.close();

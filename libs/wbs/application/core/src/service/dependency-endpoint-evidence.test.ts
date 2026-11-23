@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
-import type { Project } from '../ports/project-store';
 import type { Step } from '../ports/step-store';
+import type { WorkPackage } from '../ports/work-package-store';
 import { workItemRow } from '../testing/work-item-fixture';
 import { createEndpointEvidence, type EndpointEvidenceReads } from './dependency-endpoint-evidence';
 
@@ -9,12 +9,12 @@ function observation() {
   let active = true;
   const calls: string[] = [];
   const rows = [
-    workItemRow({ id: 'a', projectId: 'owner', name: 'Owner' }),
-    workItemRow({ id: 'b', projectId: 'remote', name: 'Restricted predecessor', revision: 4 }),
+    workItemRow({ id: 'a', workPackageId: 'owner', name: 'Owner' }),
+    workItemRow({ id: 'b', workPackageId: 'remote', name: 'Restricted predecessor', revision: 4 }),
   ];
   const step: Step = {
     id: 'design',
-    projectId: 'remote',
+    workPackageId: 'remote',
     name: 'Design',
     code: 'design',
     position: 100,
@@ -22,12 +22,12 @@ function observation() {
     estimateUnit: 'workdays',
   };
   const reads: EndpointEvidenceReads = {
-    projects: {
+    workPackages: {
       findInOrganization: (id, organizationId) => {
         calls.push(`admit:${id}:${organizationId}`);
         return Promise.resolve(
           ['owner', 'remote'].includes(id)
-            ? ({ id, abbreviation: id.toUpperCase() } as Project)
+            ? ({ id, abbreviation: id.toUpperCase() } as WorkPackage)
             : null,
         );
       },
@@ -44,19 +44,20 @@ function observation() {
         calls.push(`row:${id}`);
         return Promise.resolve(rows.find((row) => row.id === id) ?? null);
       },
-      listByProject: (id) => {
+      listByWorkPackage: (id) => {
         calls.push(`tree:${id}`);
-        return Promise.resolve(rows.filter((row) => row.projectId === id));
+        return Promise.resolve(rows.filter((row) => row.workPackageId === id));
       },
     },
   };
   const authority = {
     kind: 'scoped' as const,
-    projectId: 'owner',
+    workPackageId: 'owner',
     actorId: 'actor',
     access: {
+      principal: { id: 'actor' },
       kind: 'scoped' as const,
-      scope: { organizationId: 'org', userId: 'actor', role: 'member' as const },
+      scope: { cap: null, organizationId: 'org', userId: 'actor', role: 'member' as const },
     },
     assertActive: () => {
       if (!active) throw new Error('closed evidence');
@@ -77,7 +78,7 @@ function observation() {
 test('reads detached scoped endpoint labels and revisions after organization ownership', async () => {
   const scope = observation();
   const endpoint = {
-    projectId: 'remote',
+    workPackageId: 'remote',
     scope: 'node' as const,
     workItemId: 'b',
     stepId: 'design',
@@ -89,7 +90,7 @@ test('reads detached scoped endpoint labels and revisions after organization own
       isLeaf: true,
       revision: 4,
       name: 'Restricted predecessor',
-      projectAbbreviation: 'REMOTE',
+      workPackageAbbreviation: 'REMOTE',
       workItemNumber: '010',
       step: { id: 'design', name: 'Design', code: 'design', position: 100 },
     },
@@ -97,23 +98,27 @@ test('reads detached scoped endpoint labels and revisions after organization own
   expect(scope.calls[0]).toBe('admit:remote:org');
   expect(
     await scope.evidence.readRevisions([
-      { projectId: 'remote', workItemId: 'b' },
-      { projectId: 'remote', workItemId: 'b' },
+      { workPackageId: 'remote', workItemId: 'b' },
+      { workPackageId: 'remote', workItemId: 'b' },
     ]),
-  ).toEqual({ ok: true, revisions: [{ projectId: 'remote', workItemId: 'b', revision: 4 }] });
+  ).toEqual({ ok: true, revisions: [{ workPackageId: 'remote', workItemId: 'b', revision: 4 }] });
 });
 
-test('conceals absent projects and rows belonging to another project', async () => {
+test('conceals absent work packages and rows belonging to another work package', async () => {
   const scope = observation();
   expect(
-    await scope.evidence.readEndpoint({ projectId: 'foreign', scope: 'whole', workItemId: 'b' }),
+    await scope.evidence.readEndpoint({
+      workPackageId: 'foreign',
+      scope: 'whole',
+      workItemId: 'b',
+    }),
   ).toEqual({ ok: false, reason: 'not_found' });
   expect(scope.calls).toEqual(['admit:foreign:org']);
   expect(
-    await scope.evidence.readEndpoint({ projectId: 'owner', scope: 'whole', workItemId: 'b' }),
+    await scope.evidence.readEndpoint({ workPackageId: 'owner', scope: 'whole', workItemId: 'b' }),
   ).toEqual({ ok: false, reason: 'not_found' });
   expect(
-    await scope.evidence.readRevisions([{ projectId: 'remote', workItemId: 'missing' }]),
+    await scope.evidence.readRevisions([{ workPackageId: 'remote', workItemId: 'missing' }]),
   ).toEqual({ ok: false, reason: 'not_found' });
 });
 
@@ -121,7 +126,7 @@ test('conceals missing external steps while preserving local unknown_step', asyn
   const scope = observation();
   expect(
     await scope.evidence.readEndpoint({
-      projectId: 'remote',
+      workPackageId: 'remote',
       scope: 'node',
       workItemId: 'b',
       stepId: 'missing',
@@ -129,7 +134,7 @@ test('conceals missing external steps while preserving local unknown_step', asyn
   ).toEqual({ ok: false, reason: 'not_found' });
   expect(
     await scope.evidence.readEndpoint({
-      projectId: 'owner',
+      workPackageId: 'owner',
       scope: 'node',
       workItemId: 'a',
       stepId: 'missing',
@@ -146,7 +151,7 @@ test('refuses evidence after closure and across an awaited read', async () => {
     return row;
   };
   const endpoint = await scope.evidence
-    .readEndpoint({ projectId: 'remote', scope: 'whole', workItemId: 'b' })
+    .readEndpoint({ workPackageId: 'remote', scope: 'whole', workItemId: 'b' })
     .then(
       () => null,
       (cause: unknown) => cause,
@@ -161,19 +166,19 @@ test('refuses evidence after closure and across an awaited read', async () => {
   expect(revisions instanceof Error ? revisions.message : revisions).toContain('closed evidence');
 });
 
-for (const fault of ['step-identity', 'step-project'] as const)
+for (const fault of ['step-identity', 'step-work-package'] as const)
   test(`refuses remote ${fault} misdelivery after genuine scoped row and tree reads`, async () => {
     const scope = observation();
-    const readSteps = scope.reads.projects.stepsOf;
-    scope.reads.projects.stepsOf = async (projectId) =>
-      (await readSteps(projectId)).map((step) =>
+    const readSteps = scope.reads.workPackages.stepsOf;
+    scope.reads.workPackages.stepsOf = async (workPackageId) =>
+      (await readSteps(workPackageId)).map((step) =>
         fault === 'step-identity'
           ? { ...step, id: 'other-design' }
-          : { ...step, projectId: 'owner' },
+          : { ...step, workPackageId: 'owner' },
       );
     expect(
       await scope.evidence.readEndpoint({
-        projectId: 'remote',
+        workPackageId: 'remote',
         scope: 'node',
         workItemId: 'b',
         stepId: 'design',

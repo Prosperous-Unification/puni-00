@@ -18,6 +18,8 @@ export async function verifyRecoveryHistory(
   const history = decodeRecoveryHistory(candidate);
   const verify = async (pair: RecoveryExchangeValue<unknown>, subject: RecoveryEvidenceSubject) => {
     const verified = await readRecoveryExchange(artifacts, pair.envelope.artifact, subject);
+    // Proof: dash-recovery-independent-pair: omitting independently reread envelope/body equality.
+    // 'verified recovery compares allowed public extensions against actual bytes' failed; exact restoration passed.
     if (!equalRecords(verified.exchange, pair))
       // Proof: R2F05 removed only this check; 'verified recovery rereads complete values and rejects a coherent same-reference rewrite' lost its required rejection. Exact restoration passed.
       throw new Error('recovery value differs from actual artifact');

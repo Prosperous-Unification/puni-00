@@ -1,0 +1,2866 @@
+{
+  "schemaVersion": 1,
+  "scope": "installed parent launcher/control and dedicated typed facade; local component proof epoch",
+  "sourceBase": "065dee48d41f6f930c1ba7d5beb0b64452a4ef06",
+  "proofCount": 67,
+  "proofs": [
+    {
+      "id": "broker-parent-delivery",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+      "edits": [
+        {
+          "find": "      recordInterrupt(signal);",
+          "replacement": "      void signal;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+      "pattern": "records ordered parent controls",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=records ordered parent controls"
+      ],
+      "state": "killed-restored",
+      "testName": "records ordered parent controls through the same first-reason broker",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs/broker-parent-delivery.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs/broker-parent-delivery.green.log",
+      "beforeHash": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b",
+      "mutantHash": "d7e694b8004fa22f4c925239069ccb30f59ff8a3d23211f4d2c4f3c14a2af04b",
+      "afterHash": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b",
+      "redLogHash": "06b5ebede1ca73ad9eb5167c06abca90760e78691804bd4d74271c10f42e5654",
+      "greenLogHash": "af1718da494e93dc3435ac6cd90ec3bc20250cfe6d94a84c5575dc919803fbf4",
+      "receipt": "/tmp/puni-installed-control-proofs.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "broker-parent-closed",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+      "edits": [
+        {
+          "find": "      if (isDisposed) throw new Error('lint interrupt source is closed');\n      recordInterrupt(signal);",
+          "replacement": "      recordInterrupt(signal);"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+      "pattern": "refuses parent control after",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=refuses parent control after"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses parent control after the executable releases its broker",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs/broker-parent-closed.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs/broker-parent-closed.green.log",
+      "beforeHash": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b",
+      "mutantHash": "95a153111f3d18ebbf59f44bfc2c8896e5be8422109f97647e3fa62f4cf9a5d0",
+      "afterHash": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b",
+      "redLogHash": "8d92149dabe2d0ca758272591c123047dbc095eb13d689aac156ea3682d5d502",
+      "greenLogHash": "ffd475214b1226fb83b80554e4e588eda4aad09d19e4f7bf993d05c02701c7b7",
+      "receipt": "/tmp/puni-installed-control-proofs.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-ipc-required",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "  if (!process.connected) throw new Error('installed lint parent control requires an IPC channel');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "requires real IPC",
+      "scope": "fixed boundary diagnostic; later sender failure also refuses",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=requires real IPC"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > requires real IPC when private parent control is requested",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs/child-ipc-required.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs/child-ipc-required.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "1cf6ebb7887a4c7a8a278e5ac49870bea2139899c4fb172d061ba99555d559a6",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "e9584b4f6095c754be5c4289d60d0cccf22096e1bc54bfe3c653233664dcedd0",
+      "greenLogHash": "672ba06d3bb1c5f359cff407390ef670f6a912c7e13a2b5f3034dd33e5d73a60",
+      "receipt": "/tmp/puni-installed-control-proofs.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-sender-required",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    if (typeof process.send !== 'function')\n      throw new Error('installed lint parent control requires an IPC sender');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child missing-sender",
+      "scope": "fixed boundary diagnostic; native missing sender also refuses",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child missing-sender"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child missing-sender failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs/child-sender-required.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs/child-sender-required.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "74204e220881b64c9f9cbda567f3c9e737068ff5df31f10a1262d38ef25c84e0",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "3cc91e4c3e845a3ed08a3b43b684deb6702cbe70ca02623b1e5681550c450251",
+      "greenLogHash": "44b82116a722a5566963a1b84ea20d471df48c8956465546dda54b97884e12b0",
+      "receipt": "/tmp/puni-installed-control-proofs.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-first-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    failure ??= cause;",
+          "replacement": "    failure = cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "preserves the first control failure",
+      "scope": "first failure retention",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves the first control failure"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves the first control failure while another invalid control arrives during cleanup",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs/child-first-failure.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs/child-first-failure.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "dfd384f5225cda7bf460cbb98e866867e15050aa79fdf86e56c1fe794956855e",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "b79f4fbe02674f61c29b6feabe7adaea83a86e7fca747d3cab9cabedcb7ea8d1",
+      "greenLogHash": "8c92075dc75cf409dfd595ab2ddf2fb2ee4181f667192f16ac67da490e0e18c5",
+      "receipt": "/tmp/puni-installed-control-proofs.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-failure-termination",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    start.resolve({ kind: 'failed', cause: failure });\n    interrupts.recordInterrupt('SIGTERM');",
+          "replacement": "    start.resolve({ kind: 'failed', cause: failure });"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "cleans its actual live stage after duplicate-start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=cleans its actual live stage after duplicate-start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > cleans its actual live stage after duplicate-start",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-failure-termination.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-failure-termination.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "ff80475d7215592c3e2212e390933e82a3d1cc8481dfe238cfa0cf1943c4dbdf",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "0bb92dbd2015683d5c80fc12d1691b0ca24c546776dd0b8c8cfe43b9e09bde2c",
+      "greenLogHash": "66fd6ea2798f9fe78b4076b7f16fe330d50e9543371028b20968d1e81d7a7cde",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-duplicate-start",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "        if (hasStarted) {",
+          "replacement": "        if (false) {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "cleans its actual live stage after duplicate-start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=cleans its actual live stage after duplicate-start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > cleans its actual live stage after duplicate-start",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-duplicate-start.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-duplicate-start.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "b21f752e4750540ae353dcd9c85663a45db3a9c59fcc7b74fe1400b343a4b547",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "4d90fc3cd9d0cc87f5577c0fbd35270045429758614c46b907216a8791828e26",
+      "greenLogHash": "cc4fea6d1c1582b44b16ef4161a4481b8b41234f481b107f6a085eb7b2a92062",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-unknown-control",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "        failControl(new Error('invalid parent control'));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "rejects unknown control without echoing",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=rejects unknown control without echoing"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > rejects unknown control without echoing its payload or starting a stage",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-unknown-control.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-unknown-control.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "0df3b789bdb22d49465b4389451d568a3aab9d0ce419f3b2cb30f46f9df1f82d",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "7e991840146866e4c9e07771a4e6bd986e7b9b8e0b30c30d4ad913d96dd406f9",
+      "greenLogHash": "556df80de69ae5ba001dc34f94d618c15893796aad993507d9ea1fa856952cfc",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-disconnect-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    failControl(new Error('parent control channel closed before executable settlement'));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "refuses parent disconnect before start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=refuses parent disconnect before start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > refuses parent disconnect before start without running a stage",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-disconnect-failure.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-disconnect-failure.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "c2c6b0275a0de1edf4ca863fc4facef10a5f7a57d8e074e6b4ae62372e208fd1",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "ed6a99b9b1276b5371a60b02aa70917b8ad5d98a75e194eaf9c3ad75e7549c48",
+      "greenLogHash": "44ed728c6bf925d05427de88319761a47f1f3f3a499a15836b9435c58e525a44",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-late-message",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "  function receiveControl(message: unknown): void {\n    if (isReleased) return;",
+          "replacement": "  function receiveControl(message: unknown): void {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child release-finished-late",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child release-finished-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child release-finished-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-late-message.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-late-message.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "a8c8ca815c3ddb58d6eb529707a8967e32b2e48284843c216b0fae17b5d44678",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "48885c9b8df21a5454428d0233403933b8ed4f907ebbaf045c4323d71d7a630f",
+      "greenLogHash": "c06db03de6d205a56405148885747da1613781a824b784394d21bd0d6c5e7f3d",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-late-disconnect",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "  function disconnectControl(): void {\n    if (isReleased) return;",
+          "replacement": "  function disconnectControl(): void {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child disconnect-finished-late",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child disconnect-finished-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child disconnect-finished-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-late-disconnect.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-late-disconnect.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "edbdfcf9802575014f2983afcce9bab2bf3dcf6f1fc30b8470b9de7bf0ebd795",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "54dc6f9b2f557f30c6fb101927ddbcc838cb9d95deb9bbd111a411f1d905d30a",
+      "greenLogHash": "31638200983a0bdec1cd7b9153054bdad560e011c5539629a8d24a377227f4f3",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-logical-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    isReleased = true;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child release-finished-late",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child release-finished-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child release-finished-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-logical-release.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-logical-release.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "840f635c4509e47b88e4c554687773272f3f37ad0c9dafe67196aaa8551fac17",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "4867886b279ca9e034ac21bfdb6805e6cf7ee192518650fa691b27024f67349d",
+      "greenLogHash": "7c258eb194ffb37c3fe73d4bb4b0b24bf7acd5483680c5077f992db8374e9e99",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-release-remaining",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "        failures.push(cause);",
+          "replacement": "        throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child release failures",
+      "scope": "attempt all removals after first failure",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child release failures"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child release failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-release-remaining.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-release-remaining.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "7cca9a4d65cbd4f1e7938e3f85407129a1d40827792c26194ef9a86deb32b200",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "9273efdf87225c4459c365cce88522eb1ff2768c8cec2f30eb13979c89c2bbc2",
+      "greenLogHash": "c685448a1299d42a51a32744e43d4185603458090adde77fe728e670a3aec127",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-release-subscription",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "        if (subscription.kind === 'registered') subscription.release();",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child subscription-release",
+      "scope": "subscription release failure propagation",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child subscription-release"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child subscription-release failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-release-subscription.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-release-subscription.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "e86070dfadc7133d990b4a895fc91bfeac73d1fcf1dbf413fc0072cbc47fc00d",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "f5f891030afc07ef6156cd0460f2356d2798c2eeb0e318b5f7ae8ff72169cc70",
+      "greenLogHash": "d9d74657e29aca19768adcaa4e01577fbebd478690ebf265fde31924b674b3ef",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-partial-rollback",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "      releaseControl();",
+          "replacement": "      void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child registration-release",
+      "scope": "partial registration rollback failure retention",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child registration-release"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child registration-release failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-partial-rollback.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-partial-rollback.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "913915221ed7a49a2e321a2ae17c823d4393232834fa2f7e61f8e922bbc27af6",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "4b9fc2c85f6e79249834c8b1fab5e8f92bc2fd8619390ee9ef58b82ab7b07318",
+      "greenLogHash": "537e9af30e6e86265c2412a1d1207909ca51c2303753f909ee246c337774e314",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "child-ready-delivery",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "    sendNotice(lintControl.ready);",
+          "replacement": "    void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "does not launch a stage before start",
+      "scope": "required READY notice delivery, not handler registration ordering",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=does not launch a stage before start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > does not launch a stage before start and reports finished after lifecycle settlement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-ready-after-registration.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-ready-after-registration.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "5e895d534ff95e6e4c01406774c348ccfc0736376342d329be73445fa11b6201",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "4a694cea767c01b262d1586f982eb208f80f5cb08efe4551b52a4f4e9c575433",
+      "greenLogHash": "9660115793ba4219cb28a74483f0d729b0cce9d58a63fabad6c2580131bbffe8",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1",
+      "originalAttemptId": "child-ready-after-registration"
+    },
+    {
+      "id": "child-finished-notice",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "edits": [
+        {
+          "find": "      sendNotice(lintControl.finished);",
+          "replacement": "      void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "does not launch a stage before start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=does not launch a stage before start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > does not launch a stage before start and reports finished after lifecycle settlement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/child-finished-notice.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/child-finished-notice.green.log",
+      "beforeHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "mutantHash": "38838e5a8cb8234db51eec01f0abe732ee444deccd34a3fc3b8300ee6d7749b9",
+      "afterHash": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292",
+      "redLogHash": "1eb7a6096227b941615ae543f173b18e58a629fcae913282c7f0568f3c7ed3fe",
+      "greenLogHash": "3540a1492423cee641eab582a5fcee2dfea558c3066048093ab6fa6d0525db56",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-private-argc",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "const isParent = argv.length === 1 && argv[0] === lintParentMode;",
+          "replacement": "const isParent = argv[0] === lintParentMode;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "refuses extra private parent argv",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=refuses extra private parent argv"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses extra private parent argv before handshake or request IO",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-private-argc.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-private-argc.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "169650435e9f76c4ddd62cee3e02af3bb847b70d6f3d7c7829b8b597ded52cac",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "5cf392add0e0cc98d59ea670a74e3b693d0cf09a15089f0f57a26af8cb423f55",
+      "greenLogHash": "cf820316899e4904b83bde116f17bb552e4a49a69aceb02b4dc87db853169be7",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-start-failure-before-io",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "    if (start.kind === 'failed') throw start.cause;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start invalid",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=typed request after pre-start invalid"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start invalid",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-start-failure-before-io.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-start-failure-before-io.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "c90b5daf1178f31a16413f8cf0a4945d898fac3f6584c69c6baed08b9594fc2d",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "d6b1d790a266145f3b6602af8f4b52127f1b11360ccab39ba47ce9fddf066825",
+      "greenLogHash": "1bd41d56624c4cb164d23865797b6a38aed7bf7531960d03c29a12ff9dd1b086",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-start-cancel-before-io",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "      start.kind === 'cancelled'",
+          "replacement": "      false"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start cancel",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=typed request after pre-start cancel"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start cancel",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-start-cancel-before-io.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-start-cancel-before-io.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "7a0d7f14ffacb9ae718a8fb3ed7c65cdb7a4b39e3d8cbf8bf9ae3bfaf95bbc6e",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "974ba3dca563dd12830195d948c9a7ff83bd258a377a0e3917f73c112df5ee42",
+      "greenLogHash": "de00c908ee384e85ecce1e2a5b8b322e1e79e85a6b37b773c0af4dded1ef4fb6",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-read-control-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "    if (failure !== undefined) throw failure;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "cleans its actual live stage after duplicate-start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=cleans its actual live stage after duplicate-start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > cleans its actual live stage after duplicate-start",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-read-control-failure.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-read-control-failure.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "88531cdd25a9b6aad62c5fc4f25af02bf5a8fe1dd59a66d0298f566623a8d000",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "ae8007407709e99ac2d8ab7eeea98b33b299dd1c6a9d3b96ecadf3a2924f7aa0",
+      "greenLogHash": "ad23f3264ea83fb46a75576df51f246158af051e1af3edc7ac55f95fc78f7f14",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-typed-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "isParent ? ['--puni-lint-v1'] : argv",
+          "replacement": "argv"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "does not launch a stage before start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=does not launch a stage before start"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed launcher ordered parent control > does not launch a stage before start and reports finished after lifecycle settlement",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-typed-mode.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-typed-mode.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "118d820c5610123e80c5f8d6cf85467ae306e27c4bc759dbbb532ff0da7f221e",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "b0d185136a2c1b39ae42867eb9135eaa7107f199d21fd2077f0d6e487b83023c",
+      "greenLogHash": "a6ce4046b7dee43a647654e5d6f1e961508a4e2775c947373681479ba33a8450",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-control-before-dispose",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "      parent.releaseControl();",
+          "replacement": "      void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child broker-dispose-late",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child broker-dispose-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child broker-dispose-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-control-before-dispose.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-control-before-dispose.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "d13659f1b0edc4acee019dfa1aee39939a53a6e6a51282407f547b54ccd52acd",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "9b3bde061e9ac37ed9f2c2b5cf43f76ae1d060608b12d434fe2b005b5772e111",
+      "greenLogHash": "67123f8f28233c7bec38bd52eea8f87042c25757dd5ade4643ed35381e954424",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-release-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "      parent.releaseControl();\n    } catch (cause) {\n      status = await reportFailure(cause);",
+          "replacement": "      parent.releaseControl();\n    } catch (cause) {\n      throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child release failures",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child release failures"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child release failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-release-contained.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-release-contained.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "6266d59a76ab8878d13525a367b3ea997fbd757094a310664a96426e1a4c4997",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "c89f876892325294f60be2ef1994e1fbd34ad35ebcd227e16d0661a03ca94b67",
+      "greenLogHash": "d30045e011c603161ca48ed18fd8bf2536a10dd200babaac0880aeb6e3b42af0",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-finished-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "      parent.finishLifecycle();\n    } catch (cause) {\n      status = await reportFailure(cause);",
+          "replacement": "      parent.finishLifecycle();\n    } catch (cause) {\n      throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "actual child finished-late",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual child finished-late"
+      ],
+      "state": "killed-restored",
+      "testName": "contains actual child finished-late failures within its owned executable boundary",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-finished-contained.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-finished-contained.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "da5e9ca8bdb52e5a05bf191825fd06e96b66d8da71f1f2193a99209a4efd3991",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "bad827adbae46fc11a159c28c771803eae5e58e702148d0701c3448481940ae5",
+      "greenLogHash": "f81f3368fb44e87775413dd92cb41cbf0644d8cef7228406ca6f4a7501fd7f8d",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-duplicate-ready",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "message === lintControl.ready && !isReady && !hasFinished",
+          "replacement": "message === lintControl.ready && !hasFinished"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "actual launcher duplicate-ready",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual launcher duplicate-ready"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses actual launcher duplicate-ready notices despite a normal native exit0",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-duplicate-ready.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-duplicate-ready.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "f483e336aaf9f37f6b4085b9450584024e5d11f09a8cd7521eef09bf7b40ceb2",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "c712101e9720b0b96b15bf21d7a3437fb637e74b643513895703aff4818d8068",
+      "greenLogHash": "2fbaf19ff2125ae0c33f3ea5a541904ad468b2a316aacb79d5a25904fbd3b191",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-duplicate-finished",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "message === lintControl.finished && isReady && hasStarted && !hasFinished",
+          "replacement": "message === lintControl.finished && isReady && hasStarted"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "actual launcher duplicate-finished",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual launcher duplicate-finished"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses actual launcher duplicate-finished notices despite a normal native exit0",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-duplicate-finished.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-duplicate-finished.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "96285afde6e697352a6247e88bce7a75e7295eb9499aea12132284575222d09c",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "b3fed47a6d3768f64fe407ba0f332e4b056d1382b78dd59035a9966165e76384",
+      "greenLogHash": "0560e98934506c66981b65547c4dd67490432c84999a690c3c5d3779ee257e45",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-send-cause",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      recordFailure(cause);\n      disconnectLauncher();",
+          "replacement": "      disconnectLauncher();"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns send failure",
+      "scope": "original send failure retention",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns send failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns send failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-send-cause.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-send-cause.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "a0e3fed26d6f55c5891e0680700ee71223de44486cc7faea91a4fc6c7a8f5d37",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "e06973f982a7e67ae6639c90fd569db0f71f7b6bc3f400ba15fc7aad8f7fe5b9",
+      "greenLogHash": "2169a3fdd8c388a6cfaaeab04f53a227c7331fb975507fb3a748e828c706943a",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-disconnect-cause",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      child.disconnect();\n    } catch (cause) {\n      recordFailure(cause);",
+          "replacement": "      child.disconnect();\n    } catch (cause) {\n      void cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns disconnect failure",
+      "scope": "additional native disconnect failure retention",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns disconnect failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns disconnect failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-disconnect-cause.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-disconnect-cause.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "06f2d0075e2e9c56640326a57e3e6986a260b23c81f64d440cc37c15e446320e",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "f0069a6a32918c591c493f1b50eecb78d7282af61ab05584c40bf024078f5a9d",
+      "greenLogHash": "874436866235324f3d19217f5b4a54d65de9bbabb2292edfe10db77cfe79e000",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-queue-controls",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      queued.push(signal);",
+          "replacement": "      void signal;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "queues startup SIGINT/SIGTERM",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=queues startup SIGINT/SIGTERM"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > queues startup SIGINT/SIGTERM without native coalescing or reason reversal",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-queue-controls.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-queue-controls.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "f49218891118e8bd7830919fdb3ea812a615e57b64d55536f9d4035a87a798b5",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "87181654ed0ce4db13a7e9e9aa9cf3394e25d06beb04d62cf188654e7c0f1bb3",
+      "greenLogHash": "9f97c152d0e7706ff1421bdad95bb5535c868c1285e6ea2a2003b4a09fc4784e",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-queued-before-start",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      for (const signal of queued.splice(0)) if (!sendControl(lintControl[signal])) return;",
+          "replacement": "      queued.splice(0);"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "queues startup SIGINT/SIGTERM",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=queues startup SIGINT/SIGTERM"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > queues startup SIGINT/SIGTERM without native coalescing or reason reversal",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-queued-before-start.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-queued-before-start.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "2f5b061623284398c4f0bfd0909d869c6c89daa169b530d4099baa9ad593a575",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "d9b7d46d17ef328ad5a9bea80a5d9537b6b1de576e16278531b8a0dc15096c56",
+      "greenLogHash": "5b887b1459c4de68d35d66984d9daef89d0ea98812348b735b15d493822b2921",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-later-controls",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    sendControl(lintControl[signal]);",
+          "replacement": "    void signal;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "bounded first-signal cleanup",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=bounded first-signal cleanup"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > preserves grandchild grace and bounded first-signal cleanup through the actual parent",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-later-controls.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-later-controls.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "da0beaa107bfec4fc2e9e10457ffc24496b891917f23411e366110e7941a9a83",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "4d599395c3c877509a77e24f7b831286bcf64abe4e514b239fdff7635774d23f",
+      "greenLogHash": "cc3c88882ad87a8f1f4b88983236b8ee0a2c69bdeca848a10a2af4e66b903426",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-peer-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "Promise.resolve(emit(next.value)), failed.promise",
+          "replacement": "Promise.resolve(emit(next.value))"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves the first output failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves the first output failure"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > preserves the first output failure and releases a simultaneously stalled peer before cleanup",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-peer-release.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-peer-release.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "4029fc6623c60e05ef3a1aba1f3f7b145c761ae467f6ffc167c97da34cc2f5c9",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "416694c4253b8ed6e23220b4efa8303cf0e75d215bd6c0a7aa4d60813431f147",
+      "greenLogHash": "3924734dca090a2e3e8e556b9f42912db054af4acbf7f2e181dcbfedd503b6b7",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-output-terminate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "            terminateLauncher();",
+          "replacement": "            void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves the first output failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves the first output failure"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > preserves the first output failure and releases a simultaneously stalled peer before cleanup",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-output-terminate.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-output-terminate.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "3e0b3ee9387855cd1c45c21808417a88c7621cb43afbd9554d24dbf71d28451a",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "797188908f7396d86a623d00d07be2883d619ebf44b8f138d95d7762716188d1",
+      "greenLogHash": "bebc936df3c046b48c157e29bfab91fcfa1580508a5ee657245fb14bf919fed7",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-reader-catch",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      } catch (cause) {\n        recordFailure(cause);\n        terminateLauncher();\n      } finally {",
+          "replacement": "      } catch (cause) {\n        throw cause;\n      } finally {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns reader failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns reader failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns reader failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-reader-catch.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-reader-catch.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "7ad50a016a4ebed9e97cf82020ce9dd04fbf1244b10bbd2ea3530c974b524041",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "cef6f837cd375eabc9ce9b58e32269d9c035ba12990b2e6a614d51c34f2beced",
+      "greenLogHash": "817059ae51ac5e832265360c9008daa0ffac30135967de1fdf28c3f4c4ff6b38",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-reader-read-catch",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      } catch (cause) {\n        recordFailure(cause);\n        terminateLauncher();\n      } finally {",
+          "replacement": "      } catch (cause) {\n        throw cause;\n      } finally {"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns reader-read failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns reader-read failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns reader-read failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-reader-read-catch.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-reader-read-catch.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "7ad50a016a4ebed9e97cf82020ce9dd04fbf1244b10bbd2ea3530c974b524041",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "d4d24a49f340f3736ccf4689daa7673ade3553bcec5c6cc9eddad8e4e9a764b1",
+      "greenLogHash": "3b40d3458ad908a354d8f7648b0c3363bb30faecaf8895a4215c497d583b0aa4",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-reader-unacquired-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "          if (reader === undefined) await stream.cancel();",
+          "replacement": "          if (reader === undefined) void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns reader-cancel failure",
+      "scope": "actual cancelled source and additional failure retention",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns reader-cancel failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns reader-cancel failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-reader-unacquired-cancel.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-reader-unacquired-cancel.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "60875230c127b7d09d34d5b3492e18f3d21a0ccbdcf1293d9d578a5fbb4296a4",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "afb8065307079988b21596e3ee4cb9621d931548520a26b56210b1c57261b05f",
+      "greenLogHash": "dc931c1969123eeef8995adf7b9a010986bac39dfb98e8f19f8f2fcb9b085eb9",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-reader-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "          else reader.releaseLock();",
+          "replacement": "          else void 0;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns reader-release failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns reader-release failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns reader-release failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-reader-release.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-reader-release.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "95cdf8c586c7d90168cf578b81ba5b39548964b36b8bebee272d7a00054f3ecf",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "98290f3872c6585e084c9abed9c00f5407c4ad9ab4421e799a0990b711342f24",
+      "greenLogHash": "3675a39ac2f7f45a599c3f3b9648adb887b1f62e962e7320fda461af7e9e5860",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-reader-release-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "          recordFailure(cause);\n          terminateLauncher();",
+          "replacement": "          void cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns reader-release failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns reader-release failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns reader-release failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-reader-release-failure.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-reader-release-failure.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "64152106471732c4aa2a64f7f53884869de6135a21d63c4de87d507952bb9216",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "88474261c4b86958b3f745043ce1607bf288cbb57f16c42ca5c8b7cce301b071",
+      "greenLogHash": "da9122d9031c792b714da5c62a56bfb8dea231278dedc6e7ba85b68243339d16",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-getter-catch",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "      } catch (cause) {\n        recordFailure(cause);\n        terminateLauncher();\n        return { kind: 'failed' };",
+          "replacement": "      } catch (cause) {\n        throw cause;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-getter failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-getter failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-getter failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-getter-catch.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-getter-catch.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "b01b317fb0f105bd5c9fe34bcccdedc91f96c9af813cf359e65efdadb49a13b5",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "ad74f2e62fec968d432d4fdbef368fb8057df0a8bafa5454a795c29c0c586e53",
+      "greenLogHash": "1b283c4d601ef7c9a1f5a3d4c90d6fa982b8545d31c8b3890f9f191f8178f126",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-integer-null",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "        if (!isInteger(status))\n          throw new Error('installed lint launcher exit observation is not an integer');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-null failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-null failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-null failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-null.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-null.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "c54eec92e5b335e62b80d2eae5ce8adb3d2a290afa75e50609c273cdce0aa4bb",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "3e369e1544c7d1cc557d15de993e191292679dab05dffe9d83c2d5d531b4dcf7",
+      "greenLogHash": "600fb91f584a0a304981d9dce66792c497474f85d34bc9137cfbfe766f69167f",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-integer-fraction",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "        if (!isInteger(status))\n          throw new Error('installed lint launcher exit observation is not an integer');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-fraction failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-fraction failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-fraction failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-fraction.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-fraction.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "c54eec92e5b335e62b80d2eae5ce8adb3d2a290afa75e50609c273cdce0aa4bb",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "33ab4d4d6a64fdab219972dc2e739c4092ea4a92b2f80a0be198bd88158783b4",
+      "greenLogHash": "ab7a54bb12cb2275f2951bf22424f5df52bd3c834c56e3f03eb30a021873552a",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-integer-string",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "        if (!isInteger(status))\n          throw new Error('installed lint launcher exit observation is not an integer');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-string failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-string failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-string failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-string.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-string.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "c54eec92e5b335e62b80d2eae5ce8adb3d2a290afa75e50609c273cdce0aa4bb",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "cfde8e1c363433dd7027b3d1a13a0097f6d215cabf343c3a465c89c42c343391",
+      "greenLogHash": "c947fc5c02c7dca623fb8eb0e7551229bf4d9c15e571231b56f39caa73c24703",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-integer-nan",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "        if (!isInteger(status))\n          throw new Error('installed lint launcher exit observation is not an integer');",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-nan failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-nan failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-nan failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-nan.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-integer-nan.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "c54eec92e5b335e62b80d2eae5ce8adb3d2a290afa75e50609c273cdce0aa4bb",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "72059948c9ce8ced8f63fea0704069d081b9c05ddc4293189d532845f4b12830",
+      "greenLogHash": "bb8e39c0c4d39557614ab45e4bec33a8d4d0619b0159ab422c12f956a4b0726b",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-negative",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "status < 0 || status > 255",
+          "replacement": "status > 255"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-negative failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-negative failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-negative failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-negative.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-negative.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "089bcee4da1ba1314be684d9d9d6ecdec94653694db5a419c2d0fc4d0e7ba646",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "83095305b20bd46f81d558e8d3019c4c15dccebc14a87fd8f18601fec153c80a",
+      "greenLogHash": "50dd1946da3b03b8dbaa9a64b0b86424b95f7e4d24fe7d5e1f73ae4940f6916b",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-exit-range",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "status < 0 || status > 255",
+          "replacement": "status < 0"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns exit-range failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns exit-range failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns exit-range failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-exit-range.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-exit-range.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "51723c922928cb1994eb0f5179ba1f3a0829017fee90ebdffe58e63c5d8d942f",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "c2f14bc82e44c69edb53346886557651359ef0ccc2f5c9100af5118ac71a3829",
+      "greenLogHash": "60628fb7d36bec30465732fce43aabaaf1ad064d5981574b2df277a718018b76",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-native-signal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    if (owned.signalCode !== null)\n      recordFailure(new Error('installed lint launcher ended by ' + owned.signalCode));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "owns signal-zero failure",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=owns signal-zero failure"
+      ],
+      "state": "killed-restored",
+      "testName": "owns signal-zero failure through remaining launcher operations before refusing",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-native-signal.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-native-signal.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "b23ec8b6b7f5908ab0b026961305da318e01410e21cac427ec07753c100dbb7a",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "69f0e1984a7c48acdc2f8631e4ae94e26fa4a16b97e7b3d865fb03e9a155a51e",
+      "greenLogHash": "583288e851a25d55276c92c82e14e1796051791937aebf03d8da413e9ba5e075",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-stdout-delivery",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "drainOutput(owned.stdout, context.stdout, false),",
+          "replacement": "Promise.resolve(undefined),"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "full large binary stdout/stderr",
+      "scope": "stdout drain/delivery, not independently awaiting an active drain",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=full large binary stdout/stderr"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves full large binary stdout/stderr and status37 through the actual installed chain",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-await-output.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-await-output.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "6700836480081b3b265eac71b6d425975b70e0bf180ba7507370699a3e575940",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "bfa5e05fa2865b747ea902fe8da01cbfd9b0606836a95528a916f0745b08b1bd",
+      "greenLogHash": "f52ad234f6f2abe8a490d670b4e9e3c0a46fdb8dbde31b6572f0013c43cf5993",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1",
+      "originalAttemptId": "parent-await-output"
+    },
+    {
+      "id": "parent-cancel-exit1",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "if (status === 1 && interruption !== undefined && discardedStderr.length > 0)",
+          "replacement": "if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "normal exit1 and visible PID/scratch",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=normal exit1 and visible PID/scratch"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > retains normal exit1 and visible PID/scratch diagnostics after cancellation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-cancel-exit1.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-cancel-exit1.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "7f4efd1c05e553c11081317024aeb0e32d679ff848fed5a5fe64196bd6322702",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "99205f841f04769e4d87234152029c0f5cf92755bf09cb0e6d5634e23a0aa30d",
+      "greenLogHash": "dd6e0f93393d4d2bfd973028cfd0d0f5e369008a58c636b9668a1d4aa377e62d",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-diagnostic-only-discarded",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "context.reportDiagnostic(Buffer.concat(discardedStderr))",
+          "replacement": "context.reportDiagnostic(Buffer.concat(stderr))"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "normal exit1 and visible PID/scratch",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=normal exit1 and visible PID/scratch"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > retains normal exit1 and visible PID/scratch diagnostics after cancellation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-diagnostic-only-discarded.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-diagnostic-only-discarded.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "ddb8b4f7d924891768211132a043cefb47e2689ee34d32a3f8d44a66607adfd2",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "40da5f56de5e87b07fdcc307dcbed7a7b4151e480f87fcd955e242d6d85a0bf2",
+      "greenLogHash": "54001513b82d1c17d97619764dbee49ed19043f77b60e5c1ecb7db7aa3994fba",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-diagnostic-abandoned",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "        if (diagnostic.kind === 'abandoned')",
+          "replacement": "        if (false)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "normal exit1 and abandoned diagnostic bytes",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=normal exit1 and abandoned diagnostic bytes"
+      ],
+      "state": "killed-restored",
+      "testName": "actual installed parent nested ownership > retains normal exit1 and abandoned diagnostic bytes after cancellation",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-diagnostic-abandoned.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-diagnostic-abandoned.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "4499a6caf7ce666ebb6cbac08bcfd9748c1e46fff00249cdad26be0c3334a510",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "777aeacd6acebc97f4e6f13cc07a525db49128c69c0a0ffd594c76d2f9ca065c",
+      "greenLogHash": "f2cea304361262876a36a18b73f63fcf403d964b552b6519fcb5a73385a1d39d",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-cancel-zero",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    if (status === 0 && interruption !== undefined) return interruption === 'SIGINT' ? 130 : 143;",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves terminal 0 semantics",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves terminal 0 semantics"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves terminal 0 semantics when cancellation abandons outward bytes after launcher exit",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-cancel-zero.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-cancel-zero.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "81fc5258d4b87f55c6930f11cb94b621ea7187a28e341f2fbbc50e41ed73d936",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "2c782a3d0939723784f034082e5c6fa7f3f32d230d952d94f43d83a7d4a11fb9",
+      "greenLogHash": "47930b2da06b74dd07252a3dee7d6f75a9e33cf6cda5199fbfbe191fa285d9e4",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "parent-preserve-exit1",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    if (status === 0 && interruption !== undefined)",
+          "replacement": "    if (interruption !== undefined)"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves terminal 1 semantics",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves terminal 1 semantics"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves terminal 1 semantics when cancellation abandons outward bytes after launcher exit",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-preserve-exit1.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-preserve-exit1.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "33d42c71584015819864dee625988fe14028e6613fa2c95f44cfa3c28895a073",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "d6a52d89e5a8a172e13956fcc0e89faf1841d6cc99670d40016b48de1ea7e15a",
+      "greenLogHash": "a0f4386ce24e5bb0a8308f7272a7b2b20a5e30e59539f3f874d117f9e77b7885",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-distinct-mode",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "'launcher.mjs')), lintParentMode]",
+          "replacement": "'launcher.mjs')), '--puni-lint-v1']"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "controlled v1-only launcher",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=controlled v1-only launcher"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses a controlled v1-only launcher before its operation marker and never retries standalone mode",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-distinct-mode.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-distinct-mode.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "747ad2b34c1385fa5e9eb00ea2c9084984fea36172c9ee8267fecf1b8411d12f",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "b8c769e2d88297a4a67e1e928e76b6b4379fccea3e077a6ec4c0518c6b95a517",
+      "greenLogHash": "b50a150394be70696cfc70e1e8ae2cd92c96fdf509839009dca45830280bb0d5",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-required",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "TOOL_WIKI_REQUIRE_CERTIFIED: context.required ? '1' : '0'",
+          "replacement": "TOOL_WIKI_REQUIRE_CERTIFIED: '0'"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves required certificate refusal",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves required certificate refusal"
+      ],
+      "state": "killed-restored",
+      "testName": "installed Bun lint typed execution > preserves required certificate refusal status78 and its report bytes",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-required.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-required.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "9be670e0a80ad45c1af109a1bd3b7ca237b589e01139e8dbee831611c295c16a",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "60acf5c5e85796376d85e18342e7baf65f0f0e7bee45213eda2b2e6a2ca2f560",
+      "greenLogHash": "aadb566b40c81cd436d12de72059f6879809c789ebfa868b49d915fdf22913dd",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-tmpdir",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "TMPDIR: anchorPath(context.scratchDirectory, context.callerDirectory),",
+          "replacement": "TMPDIR: context.scratchDirectory,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "passes only frozen environment",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=passes only frozen environment"
+      ],
+      "state": "killed-restored",
+      "testName": "passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-tmpdir.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-tmpdir.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "41811d4c88e0d12a4b84e622c7c081c125eaad5f6ef85a449207e860805efa56",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "49768411b1d8cf5c9c0eb72a127adcc61d23f7424970c96b6756b6474e87ebe0",
+      "greenLogHash": "d3c1c3c358311db2dcceafc26913eb773c3769cb6135214bfde5c77ddae96ddf",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-environment",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    ...selected.runtime.environment,",
+          "replacement": "    ...process.env, ...selected.runtime.environment,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "passes only frozen environment",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=passes only frozen environment"
+      ],
+      "state": "killed-restored",
+      "testName": "passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-environment.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-environment.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "6ced28111332b7de939d9e07deb0807aef68c03ba6d9592835e6177aa9e72c43",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "2f8bf34440c17ffff15502dfbffe3cfd74cca0ef84dd4006bda7d5b092372661",
+      "greenLogHash": "6284006c6d0a769f82b8b49ed31e2f7a4f220cb6834087229702d84a7b7a523f",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-cwd",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    directory: selected.toolkit.directory,",
+          "replacement": "    directory: context.callerDirectory,"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "passes only frozen environment",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=passes only frozen environment"
+      ],
+      "state": "killed-restored",
+      "testName": "passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-cwd.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-cwd.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "750bd7b93bfd7edcea189418513a3553ec233756dd96d9d676d44a8b6ccada62",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "5d50e0af7239391afff6e8036d9015f865edb4f0ae86d37b5c9d6dc575fe8386",
+      "greenLogHash": "5269802b6bdf4c3f4082699809175b634f9f68a4fa551970875553cbfc50be2b",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-activation",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    environment['TOOL_WIKI_ACTIVATION_ROOT'] = context.activationRoot;",
+          "replacement": "    void context.activationRoot;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "passes only frozen environment",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=passes only frozen environment"
+      ],
+      "state": "killed-restored",
+      "testName": "passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-activation.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-activation.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "430f25d4ce8c1dbb0e63b0ef024db920a6ec76215508e65b0b5c959d86f7008e",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "1bf2e430d61c4dcb8be67e0bcf4f7f803b35639927f86c03c097bf811dcfff20",
+      "greenLogHash": "c99036ebf39b1c79360218a23142dcbefbf22ea066ed9380e84b47ed33312a20",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-closure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "    environment['TOOL_WIKI_TRUSTED_NODE_MODULES'] = context.trustedNodeModules;",
+          "replacement": "    void context.trustedNodeModules;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "passes only frozen environment",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=passes only frozen environment"
+      ],
+      "state": "killed-restored",
+      "testName": "passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-closure.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-closure.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "1acd8efba1ce003c4674e45835d469132567e8947b7a9fe773bda3210c581998",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "e5fc555ffdb6723c4341065b024970dd7f7cf54a695e04bdba6e2609e3ec1754",
+      "greenLogHash": "835540019e726b85ed139cff8898451a28a14ed2d9dba77ebed59fed1c8ebfd9",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-caller",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "const invocation = { version: 1 as const, callerDirectory: context.callerDirectory, request };",
+          "replacement": "const invocation = { version: 1 as const, callerDirectory: context.installedDirectory, request };"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "retains caller-relative repository",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=retains caller-relative repository"
+      ],
+      "state": "killed-restored",
+      "testName": "installed Bun lint typed execution > retains caller-relative repository and activation operands while launcher cwd is external",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-caller.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-caller.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "b962b7d55cc18d4d8e74091be8fea0de9eadd36cf0df89c9614f7f629085f5d1",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "abe8d803a599e500a22e1539cf5c64d68e3b7bcaf2cb3045b2d5fa90b045710f",
+      "greenLogHash": "b94188a90e7d9c1a891dbf28d33b138293a482b6cde9a3a4b6c5b64a9caab666",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "facade-request",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "edits": [
+        {
+          "find": "const invocation = { version: 1 as const, callerDirectory: context.callerDirectory, request };",
+          "replacement": "const invocation = { version: 1 as const, callerDirectory: context.callerDirectory, request: {...request,kind:'committed'} };"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "maps typed working",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=maps typed working"
+      ],
+      "state": "killed-restored",
+      "testName": "installed Bun lint typed execution > maps typed working through the actual selected snapshotter and captured validator",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/facade-request.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/facade-request.green.log",
+      "beforeHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "mutantHash": "9586a6e4f7f1f4015b28bac50805af9d34f26ef5eabf4b090a75766b2ee4ada1",
+      "afterHash": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019",
+      "redLogHash": "f254705e4b6156e8bc1eea2ffc3146c48428afe1d9fde493bb77b45f44f68d0f",
+      "greenLogHash": "ae0f58a87108ec315da024bbf4ecfd75a985fdd5256bd53f26a0a9c69d744e24",
+      "receipt": "/tmp/puni-installed-control-proofs2.json",
+      "testEpoch": "epoch1"
+    },
+    {
+      "id": "executable-start-gate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "const start = parent.kind === 'connected' ? await parent.start : { kind: 'started' as const };",
+          "replacement": "const start = { kind: 'started' as const };"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "typed request after pre-start cancel",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=typed request after pre-start cancel"
+      ],
+      "state": "killed-restored",
+      "testName": "does not read the typed request after pre-start cancel",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs3/executable-start-gate.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs3/executable-start-gate.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "a19cfdaa716c740dcd5ea3b10a3389ff8f89900d51ad7f1444db353f06391df7",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "010ccdc6959be9796026fb8a98231ca6db92b6a991c0cd5a31917514b0029240",
+      "greenLogHash": "52425e2630cf2870c4013d1e49f81f12df315b1430311d83d9bec523684964e8",
+      "receipt": "/tmp/puni-installed-control-proofs3.json",
+      "testEpoch": "epoch2"
+    },
+    {
+      "id": "parent-unknown-notice",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    recordFailure(new Error('invalid installed lint launcher notice'));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "actual launcher duplicate-finished",
+      "scope": "invalid notice refusal after completed lifecycle",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual launcher duplicate-finished"
+      ],
+      "state": "killed-restored",
+      "testName": "refuses actual launcher duplicate-finished notices despite a normal native exit0",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs3/parent-unknown-notice.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs3/parent-unknown-notice.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "d2b0862dddb0fc140bb0f1da054966a6b5099c666e7b29137acb6a0772ed96f1",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "4e5645aa74c81ff1780988132bf18634db569c7f416015f4cd9ff2d81e980673",
+      "greenLogHash": "6c3f386854e8f4290ccd13e2b3effd9041bf050e106e3378970152325a1519ee",
+      "receipt": "/tmp/puni-installed-control-proofs3.json",
+      "testEpoch": "epoch2"
+    },
+    {
+      "id": "parent-first-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    first ??= signal;",
+          "replacement": "    first = signal;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves terminal 0 semantics",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves terminal 0 semantics"
+      ],
+      "state": "killed-restored",
+      "testName": "preserves terminal 0 semantics when cancellation abandons outward bytes after launcher exit",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs3/parent-first-reason.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs3/parent-first-reason.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "e7dfe9b367738680d65c68328a67e85221e1326d8961de5bf47c0999c0f60b67",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "b05e9ff87ef0572a7a4d223aae3fd1e06a7e4f845fea4f4158e2ff4f7028039d",
+      "greenLogHash": "ff2d78f2cf59fb2b478b68b71dd123d569c1891d086133b3f3df494e9c207354",
+      "receipt": "/tmp/puni-installed-control-proofs3.json",
+      "testEpoch": "epoch2"
+    },
+    {
+      "id": "parent-await-active-stdout",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "drainOutput(owned.stdout, context.stdout, false),",
+          "replacement": "(void drainOutput(owned.stdout, context.stdout, false), Promise.resolve(undefined)),"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "awaits gated stdout",
+      "scope": "await an already-running output drain before reading final cancellation and returning",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=awaits gated stdout"
+      ],
+      "state": "killed-restored",
+      "testName": "awaits gated stdout after actual native exit and channel settlement before returning",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-await-stdout2.red.log",
+      "greenLog": "/tmp/puni-installed-await-stdout2.green.log",
+      "beforeHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "mutantHash": "559a3ff992bdca70be660d9a9a51184a1c21a34c4410ebcc66ba6564602e9378",
+      "afterHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "redLogHash": "3d98e58dba3bb92a718af35274added35613ccf6676e40b311bc331a6cf36987",
+      "greenLogHash": "b710930ea32ba25ffc39a88d28a5c49664e67164be00df48a5790625bdef223c",
+      "testEpoch": "epoch4",
+      "archivedSource": "/tmp/puni-installed-control-proof-epoch4/installed-lint-launcher.ts"
+    },
+    {
+      "id": "parent-await-active-stderr",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "drainOutput(owned.stderr, context.stderr, true),",
+          "replacement": "(void drainOutput(owned.stderr, context.stderr, true), Promise.resolve(undefined)),"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "pattern": "awaits gated stderr",
+      "scope": "await an already-running output drain before reading final cancellation and returning",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=awaits gated stderr"
+      ],
+      "state": "killed-restored",
+      "testName": "awaits gated stderr after actual native exit and channel settlement before returning",
+      "redExit": 1,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-await-stderr.red.log",
+      "greenLog": "/tmp/puni-installed-await-stderr.green.log",
+      "beforeHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "mutantHash": "e4350bf135cdc40cef4597c3c8247acffc2469e47dac69fc9f933a10baf73183",
+      "afterHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "redLogHash": "e363ff25e9f7effadbae56682d7ca7d31c98dcf34bf669d46c7d6c499acf30c6",
+      "greenLogHash": "a23bfe03924454ad561d0cc954dc2f8321cd11e380fce1b97fcb7806834774cb",
+      "testEpoch": "epoch5",
+      "archivedSource": "/tmp/puni-installed-control-proof-epoch5/installed-lint-launcher.ts"
+    }
+  ],
+  "excludedAttempts": [
+    {
+      "id": "executable-start-gate",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "edits": [
+        {
+          "find": "const start = parent.kind === 'connected' ? await parent.start : { kind: 'started' as const };",
+          "replacement": "const start = { kind: 'started' as const };"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "pattern": "does not launch a stage before start",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=does not launch a stage before start"
+      ],
+      "state": "unproven",
+      "redExit": 0,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/executable-start-gate.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/executable-start-gate.green.log",
+      "beforeHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "mutantHash": "a19cfdaa716c740dcd5ea3b10a3389ff8f89900d51ad7f1444db353f06391df7",
+      "afterHash": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824",
+      "redLogHash": "13cfdc5f0c7eeb9099652768f87de78979eaff9fb3565461b44d4180ba26001e",
+      "greenLogHash": "c9a8a0ea946cc507d07686b5920ed418505873dd3c7c80c9bb98efb8904d22b6",
+      "receipt": "/tmp/puni-installed-control-proofs2.json"
+    },
+    {
+      "id": "parent-unknown-notice",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    recordFailure(new Error('invalid installed lint launcher notice'));",
+          "replacement": ""
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "actual launcher unknown",
+      "scope": "notice failure retention, lifecycle refusal overlaps",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=actual launcher unknown"
+      ],
+      "state": "unproven",
+      "redExit": 0,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-unknown-notice.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-unknown-notice.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "d2b0862dddb0fc140bb0f1da054966a6b5099c666e7b29137acb6a0772ed96f1",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "87b27b71aa5e64029e1d617bb3486b31a68f84d6aba05284a6563e6b539cf8e1",
+      "greenLogHash": "fd53f4eedd613a980b4306f62d2b7ab5c0ce7579ebeefc66078487219d800791",
+      "receipt": "/tmp/puni-installed-control-proofs2.json"
+    },
+    {
+      "id": "parent-first-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "    first ??= signal;",
+          "replacement": "    first = signal;"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "queues startup SIGINT/SIGTERM",
+      "scope": "independent behavior",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=queues startup SIGINT/SIGTERM"
+      ],
+      "state": "unproven",
+      "redExit": 0,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-control-proofs2/parent-first-reason.red.log",
+      "greenLog": "/tmp/puni-installed-control-proofs2/parent-first-reason.green.log",
+      "beforeHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "mutantHash": "e7dfe9b367738680d65c68328a67e85221e1326d8961de5bf47c0999c0f60b67",
+      "afterHash": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d",
+      "redLogHash": "8013f7ccd901be076df303b578c85a8075fb93e1071725bf4763a9b5652bfc9b",
+      "greenLogHash": "058c393ccb9be2b30e399b5e234de7c1dc5b10392665ac8072c144e9a7294e9b",
+      "receipt": "/tmp/puni-installed-control-proofs2.json"
+    },
+    {
+      "id": "parent-await-active-stdout",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "edits": [
+        {
+          "find": "drainOutput(owned.stdout, context.stdout, false),",
+          "replacement": "(void drainOutput(owned.stdout, context.stdout, false), Promise.resolve(undefined)),"
+        }
+      ],
+      "test": "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "pattern": "preserves terminal 0 semantics",
+      "scope": "await an already-running output drain before reading final cancellation and returning",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "--timeout=16000",
+        "--test-name-pattern=preserves terminal 0 semantics"
+      ],
+      "state": "unproven",
+      "testName": "preserves terminal 0 semantics when cancellation abandons outward bytes after launcher exit",
+      "redExit": 0,
+      "greenExit": 0,
+      "redLog": "/tmp/puni-installed-await-stdout.red.log",
+      "greenLog": "/tmp/puni-installed-await-stdout.green.log",
+      "beforeHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "mutantHash": "559a3ff992bdca70be660d9a9a51184a1c21a34c4410ebcc66ba6564602e9378",
+      "afterHash": "28b09d8259cff69ab9a4cdeed762884cc5b5c053822140fe5d2bde544477f4d1",
+      "redLogHash": "285c37dc2fddc8b452e45866e49197824d1e3a23ce4bde022264020411fcebe2",
+      "greenLogHash": "4b59cd38e27776d98b82cc3346700961524735f6d6da83e75f9c8893fc3a19ce",
+      "testEpoch": "epoch3",
+      "archivedSource": "/tmp/puni-installed-control-proof-epoch3/installed-lint-launcher.ts"
+    }
+  ],
+  "sourceEpochs": {
+    "epoch1": {
+      "path": "/tmp/puni-installed-control-proof-epoch1/hashes.json",
+      "hashes": [
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+          "sha256": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+          "sha256": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+          "sha256": "41f6665e22e083e69a0139a5e04a6894e82fca35df2cbb7b7a8a58851472f37c"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+          "sha256": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+          "sha256": "ba44ac40289012506a22b2fcb4e4626fd78b47ebaaf36911a45f64790d668c95"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+          "sha256": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+          "sha256": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+          "sha256": "7fb8bf2ee7c503023d967cd462c049362c1268ce2cd4bedfa0856a2c28c234fb"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+          "sha256": "c3214244372fc886f06aad3d5e0a57a41f98d438b2cde92892e74d2085cbebf3"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+          "sha256": "a25f4b465b2045703936c133630bacb5a58f81d4608eaaf398aefef8e409a71a"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+          "sha256": "7715b60acc299be995828b25164348e14c4910d3b56842f5fa75edc3684dd199"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-death-probe.ts",
+          "sha256": "9ef1359602f7b457af0ac6a9f29a61aa84edec6dbdfa43840063e7121ac4c39f"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-fixtures.ts",
+          "sha256": "5d72a494ead94c17b235fb64938965ba5ebfcb9d3e97dcbfe34722dabecaf9a0"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-operation-probe.ts",
+          "sha256": "9077711bdba7ca39664ac700c26b3cf52486a5a771694b0f4f0b068930aca986"
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-probe.ts",
+          "sha256": "f9dd1dd1a564265e00c1f297975ba300700fec2de8dd32e1129d2723219107d5"
+        },
+        {
+          "path": "docs/adr/0082-order-installed-lint-controls-over-private-ipc.md",
+          "sha256": "806adfd88fe02085136b97bae5e4f126d4f97430df83dca441d5e5223279ee68"
+        },
+        {
+          "path": "openspec/changes/puni-cli/design.md",
+          "sha256": "54c3fbe612c261da271dd042ba959edf643547864a77776e044e65adca89368d"
+        },
+        {
+          "path": "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+          "sha256": "bcedb548ae21814ea16fb5deaf417545b2b62964088453cdbf85bec5b9464913"
+        }
+      ]
+    },
+    "epoch2": {
+      "note": "Only terminal0/1 tests add synchronous SIGTERM after SIGINT; all production unchanged",
+      "runtimeTestSha256": "7492db4edcaf1f9ff46d4e0311c3fb1fc563fc7f8b138a31047a192c98bd0192"
+    }
+  },
+  "beforeProofComments": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+      "sha256": "76b71ce408461cbb52d67016b5d0f1eb3c5eb859a7876a840c24ea6b5c53db0b"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "sha256": "0c99f48e032a6743ddbc642ad6c244c76c55e7f09e1f51f7b04903efb3a41292"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "sha256": "0c26cf93c297d7cc7f6052b5acd69997b89133e36383c104383f3f92bfde4824"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "sha256": "31614f0bf3f887ff7090def088a58b1e5981022493798e70f5c3d941ca4aa50d"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "a4565f361d7537b83a68415c1c907de8b2b4abd54484b413217456d97a8a3019"
+    }
+  ],
+  "setupRefusals": [
+    {
+      "log": "/tmp/puni-installed-control-proofs-run.log",
+      "reason": "nonunique mutation anchor before child-failure-termination; no mutant applied for that row; first5 successful rows retained"
+    }
+  ],
+  "testHarnessFailures": [
+    {
+      "log": "/tmp/puni-installed-operation-green2.log",
+      "reason": "13 case test expansion initially passed unsupported third createLaunch arg, so signal preload was ignored;12/1 is setup failure, no production failure credited"
+    },
+    {
+      "reason": "First oracle writer had missing formatted array anchor and refused before writing; no test or mutation credited"
+    }
+  ],
+  "limits": [
+    "missing IPC/sender probes prove fixed boundary diagnostics; later native errors also refuse",
+    "reader-cancel/disconnect probes prove additional failure retention",
+    "unknown-notice retry proves invalid post-finished notice refusal; original pre-ready selector overlapped lifecycle guard",
+    "no whole public PUNI package, host gate, deployment or macOS process qualification"
+  ],
+  "distinctSourceFaults": 63,
+  "proofNotes": [
+    "67 named negative input cases exercise63 distinct source mutations; reader catch repeats for acquisition/read, integer guard repeats for4 value classes",
+    "READY deletion proves required notice delivery, not installation ordering",
+    "All3 original surviving selectors preserved as excluded attempts; start gate retry observes request stream IO, invalid notice retry follows FINISHED, first-signal retry abandons completed output after2ordered signals",
+    "Proof-era18 source files are actual archived bytes, not inferred originals; epoch2 modifies only terminal0/1 input sequence; later asymmetric matcher unknown casts are erased types only",
+    "The original stronger stdout-await mutation survived the exit-marker-only selector and is excluded. New output-gate probes wait actual native child.exited and IPC disconnect before sampling noncompletion, then cancel/release output; separate stdout/stderr faults each return0 early under mutation and130 after restoration.",
+    "The source archives for epochs3/4/5 retain actual owned production bytes. Files named runtime-lint.test.ts inside epochs4/5 contain the selected runtime-lint-operation.test.ts bytes because the temporary writer retained the original archive label; they are not the older runtime test."
+  ],
+  "componentState": {
+    "task1_2b": true,
+    "task1_2c": true,
+    "parent1_2": false,
+    "task1_2d": false,
+    "wholeGoal": "active"
+  },
+  "finalSourceHashes": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+      "sha256": "c05575f17417edb174563bc0375f014ea6a564607a6b34ead3a62dd6c6aacd4a"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+      "sha256": "b1b68e0069d2458cbc028f58247a0d487c18081ea4daab6459df8a2d9ac92324"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+      "sha256": "41f6665e22e083e69a0139a5e04a6894e82fca35df2cbb7b7a8a58851472f37c"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+      "sha256": "5f2a3e1df6044c85acf42c2f826766b477767fc5fd3e9585fe156b9ed5102c78"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+      "sha256": "b4bc9e41d3e1d452ab95ed40fe5701a9eb6ec991175c65821b89837d7142a4b2"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+      "sha256": "76f4354445c112f5a7d15705568e65e096f1e690de379e5ceaae3148719d1ed7"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+      "sha256": "7f59fb49957b57909da7d1004ca9012ddfbfe3388c3347a706b23dc4b2670c97"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+      "sha256": "7fb8bf2ee7c503023d967cd462c049362c1268ce2cd4bedfa0856a2c28c234fb"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+      "sha256": "3622d6e0f84367b145975e211c0e6abcfd2e28a7baa6b6ee39d51f3d0341eced"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+      "sha256": "a25f4b465b2045703936c133630bacb5a58f81d4608eaaf398aefef8e409a71a"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+      "sha256": "d332d46d2b7aae169d24357690581e56f548f4dfd44a82c66c87b841885328d8"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-death-probe.ts",
+      "sha256": "9ef1359602f7b457af0ac6a9f29a61aa84edec6dbdfa43840063e7121ac4c39f"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-fixtures.ts",
+      "sha256": "5d72a494ead94c17b235fb64938965ba5ebfcb9d3e97dcbfe34722dabecaf9a0"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-operation-probe.ts",
+      "sha256": "1956cb243b4e1f34a0f4b52e742405cd86c0b584eb908136aa5f62cc790df635"
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-probe.ts",
+      "sha256": "f9dd1dd1a564265e00c1f297975ba300700fec2de8dd32e1129d2723219107d5"
+    },
+    {
+      "path": "docs/adr/0082-order-installed-lint-controls-over-private-ipc.md",
+      "sha256": "806adfd88fe02085136b97bae5e4f126d4f97430df83dca441d5e5223279ee68"
+    },
+    {
+      "path": "openspec/changes/puni-cli/design.md",
+      "sha256": "e56e02673cbb92633d68380d0514624f3c66f0a59019bc7bca6f134087537e31"
+    },
+    {
+      "path": "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+      "sha256": "bcedb548ae21814ea16fb5deaf417545b2b62964088453cdbf85bec5b9464913"
+    },
+    {
+      "path": "openspec/changes/puni-cli/tasks.md",
+      "sha256": "0545b835ade22491bbaf17dc1b35787c1955311d3c6362463341e8244f222fb1"
+    },
+    {
+      "path": "openspec/changes/puni-cli/verify.md",
+      "sha256": "c4ef43e412fec0d19b6767363b42ed9357275f86a582bed184cfec2c66f03a06"
+    }
+  ],
+  "checks": [
+    {
+      "id": "combined-regression3",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "observed": {
+        "pass": 363,
+        "fail": 0,
+        "assertions": 1314,
+        "files": 14,
+        "seconds": 118.23
+      },
+      "log": "/tmp/puni-installed-control-regression3.log",
+      "logSha256": "1478d89b02a9fee72ad315970d4011ba13faae859d789276e4706638c5caee32"
+    },
+    {
+      "id": "forced-types5",
+      "exitCode": 0,
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "log": "/tmp/puni-installed-control-types5.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "regression4",
+      "exitCode": 0,
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/run-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-child.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/toolkit.test.ts",
+        "--timeout=30000"
+      ],
+      "log": "/tmp/puni-installed-control-regression4.log",
+      "logSha256": "6efac72b1e34dfbef95d5c7fe155d66b12ca3cf80bd5c0f64bb9884281668735",
+      "logBytes": 42520
+    },
+    {
+      "id": "types6",
+      "exitCode": 0,
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/typescript/lib/tsc.js",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "log": "/tmp/puni-installed-control-types6.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logBytes": 0
+    },
+    {
+      "id": "lint7",
+      "exitCode": 0,
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/eslint/bin/eslint.js",
+        "apps/twilight-structure/twilight-burokrat/cli/src/installed-lint-launcher.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-cli.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-interrupts.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/lint-parent-control.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-facade.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-death.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-operation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint-output.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/runtime-lint.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-death-probe.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-fixtures.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-operation-probe.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/testing/installed-lint-probe.ts"
+      ],
+      "log": "/tmp/puni-installed-control-lint7.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logBytes": 0
+    },
+    {
+      "id": "openspec2",
+      "exitCode": 0,
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/@fission-ai/openspec/bin/openspec.js",
+        "validate",
+        "--all",
+        "--json"
+      ],
+      "log": "/tmp/puni-installed-control-openspec2.log",
+      "logSha256": "96e19e5fccd669cc8adcd3a5bc46b739ab056e73f845867eaef8d7b513b75034",
+      "logBytes": 328379
+    },
+    {
+      "id": "diff2",
+      "exitCode": 0,
+      "argv": ["git", "diff", "--check"],
+      "log": "/tmp/puni-installed-control-diff2.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "logBytes": 0
+    }
+  ],
+  "failedChecks": [
+    {
+      "id": "lint6",
+      "log": "/tmp/puni-installed-control-lint6.log",
+      "exitCode": 1,
+      "reason": "4 Bun asymmetric matcher any assignments in tests; explicit unknown boundaries added; finalrepeat recorded separately"
+    }
+  ],
+  "finalRegression": {
+    "pass": 365,
+    "fail": 0,
+    "files": 14,
+    "summary": "\n 365 pass\n 0 fail\n 1318 expect() calls\nRan 365 tests across 14 files. [119.64s]\n"
+  },
+  "review": {
+    "source": "Astra final independent and incremental read-only clearance, no runtime blocker",
+    "audit": "/tmp/puni-installed-control-independent-audit.json",
+    "incrementalAudit": "/tmp/puni-installed-control-independent-audit-incremental.json",
+    "testsIndependentlyRerun": false
+  }
+}

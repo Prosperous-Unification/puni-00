@@ -1,8 +1,15 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  getWorkItems as getWorkItemsShape,
+  listExternalSystems as listExternalSystemsShape,
+} from '@wbs/contracts';
 
 import { TAKEOVER_MS } from '../src/components/wbs/cell-card-store';
 import { cardIsOnTopAt } from './card-paint';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * Every cell card leaves its own column clear, measured by a browser.
@@ -57,7 +64,7 @@ async function showReferenceColumns(page: Page): Promise<void> {
 async function seedPlan(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030']) {
@@ -110,12 +117,17 @@ async function seedPlan(page: Page): Promise<void> {
   await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
 }
 
-async function jsonGet<T>(page: Page, path: string): Promise<T> {
-  return page.evaluate(async (at) => {
-    const response = await fetch(at);
-    if (!response.ok) throw new Error(`GET ${at} failed: ${String(response.status)}`);
-    return response.json() as Promise<T>;
-  }, path);
+async function jsonGet<T>(page: Page, shape: EndpointShape, path: string): Promise<T> {
+  return page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const at = fixtureInput;
+
+      const response = await fetch(at, { headers: requestHeaders.selected });
+      if (!response.ok) throw new Error(`GET ${at} failed: ${String(response.status)}`);
+      return response.json() as Promise<T>;
+    },
+    { requestHeaders: { selected: createOrdinaryHeaders(shape) }, fixtureInput: path },
+  );
 }
 
 /**
@@ -126,50 +138,62 @@ async function jsonGet<T>(page: Page, path: string): Promise<T> {
  * contextual, which is the thing this fixture has to get past.
  */
 async function linkEveryRow(page: Page): Promise<void> {
-  // The **open** project, off the same key the app selects from. Taking the
-  // last of `/api/projects` instead linked the previous test's plan and left
+  // The **open** work package, off the same key the app selects from. Taking the
+  // last of `/api/work-packages` instead linked the previous test's plan and left
   // this one's Links cells empty, which reads as "the card would not open":
-  // one file, two projects, and that list is not in the order they were made.
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id to link');
+  // one file, two work packages, and that list is not in the order they were made.
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id to link');
   const vocabulary = await jsonGet<{ externalSystems: { id: string; name: string }[] }>(
     page,
+    listExternalSystemsShape,
     '/api/external-systems',
   );
   const jira = vocabulary.externalSystems.find((each) => each.name === 'jira-issue')?.id;
   if (jira === undefined) throw new Error('be-01 seeded no jira-issue system');
   const tree = await jsonGet<{ workItems: { id: string; number: string }[] }>(
     page,
-    `/api/projects/${projectId}/work-items`,
+    getWorkItemsShape,
+    `/api/work-packages/${workPackageId}/work-items`,
   );
   for (const row of tree.workItems) {
     await page.evaluate(
-      async ({ at, value }) => {
+      async ({ requestHeaders, fixtureInput }) => {
+        const { at, value } = fixtureInput;
+
         const response = await fetch(at, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+            ...{ 'content-type': 'application/json' },
+          },
           body: JSON.stringify(value),
         });
         if (!response.ok) throw new Error(`POST ${at} failed: ${String(response.status)}`);
       },
       {
-        at: `/api/projects/${projectId}/commands`,
-        value: {
-          commands: [
-            {
-              kind: 'patchWorkItem',
-              workItemId: row.id,
-              patch: {
-                externalRefs: [
-                  {
-                    systemId: jira,
-                    url: `https://acme.atlassian.net/browse/AB-${row.number}`,
-                    name: `AB-${row.number} A linked ticket`,
-                  },
-                ],
+        requestHeaders: {
+          applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+        },
+        fixtureInput: {
+          at: `/api/work-packages/${workPackageId}/commands`,
+          value: {
+            commands: [
+              {
+                kind: 'patchWorkItem',
+                workItemId: row.id,
+                patch: {
+                  externalRefs: [
+                    {
+                      systemId: jira,
+                      url: `https://acme.atlassian.net/browse/AB-${row.number}`,
+                      name: `AB-${row.number} A linked ticket`,
+                    },
+                  ],
+                },
               },
-            },
-          ],
+            ],
+          },
         },
       },
     );
@@ -266,7 +290,7 @@ const LANES: readonly Lane[] = [
   },
   {
     // The folded step column, whose `data-column` is the step's own id —
-    // minted when the project was made, so it is reached through the box
+    // minted when the work package was made, so it is reached through the box
     // inside it, the way `hover-cards.spec.ts` reaches the same cell.
     what: 'the folded Dev step',
     cellOf: (page, number) =>

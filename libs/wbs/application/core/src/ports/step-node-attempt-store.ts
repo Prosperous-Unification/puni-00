@@ -66,13 +66,13 @@ export type AttemptEnded =
  * measures move from.
  */
 export interface StepNodeAttemptStore {
-  /** Every attempt in the project, by work item, then step position, then number ascending. */
-  listByProject(projectId: string): Promise<StoredAttempt[]>;
+  /** Every attempt in the work package, by work item, then step position, then number ascending. */
+  listByWorkPackage(workPackageId: string): Promise<StoredAttempt[]>;
   /**
-   * {@link listByProject} narrowed to the requested work items of the project;
+   * {@link listByWorkPackage} narrowed to the requested work items of the work package;
    * an id outside it reads nothing.
    */
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredAttempt[]>;
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredAttempt[]>;
   /** One work item's attempts keyed by step id, each list in ascending number. */
   listOfWorkItem(workItemId: string): Promise<ReadonlyMap<string, readonly StoredAttempt[]>>;
   /**
@@ -107,11 +107,11 @@ export interface StepNodeAttemptStore {
    */
   restore(attempt: StoredAttempt, stamp: WriteStamp): Promise<void>;
   /**
-   * The marks of the requested work items of the project, by work item then
+   * The marks of the requested work items of the work package, by work item then
    * step id; an id outside it reads nothing. Read before a delete for its undo:
    * the marks cascade with their work item.
    */
-  listIssued(projectId: string, ids: readonly string[]): Promise<IssuedAttemptNumber[]>;
+  listIssued(workPackageId: string, ids: readonly string[]): Promise<IssuedAttemptNumber[]>;
   /**
    * Raises each node's mark to the one given when it is higher, never lowering
    * it: how the restore of a deleted branch puts back numbers its attempts no

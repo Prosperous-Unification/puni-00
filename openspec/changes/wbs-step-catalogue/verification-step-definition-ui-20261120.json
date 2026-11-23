@@ -1,0 +1,829 @@
+{
+  "schema": "puni-step-definition-ui-v1",
+  "recordedAt": "2026-11-20T00:26:33.351Z",
+  "scope": "Organization definition management through actual browser resource client, plus undo/redo current protected-pair refusal projection. Full catalogue/settings/entity/CLI goal remains open.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+      "sha256": "749aa7b3980b5da88618a2ca7faa7c9dba4f3bc8a97369e48c2731b530886bf1",
+      "bytes": 14634,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+      "sha256": "57fe560459a9a685126ba8fb6307be017ad9fba9d20bfbc9a8da144566f9a14d",
+      "bytes": 12655,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+      "sha256": "f9a1128b1ec234f24278a768506768f8c6e93a2c979c676cc71b2de49f68b791",
+      "bytes": 4970,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+      "sha256": "e955b623313c7867952bfc28cfcbb6b5211c3e5d625519b1f72d3b1a7112e7af",
+      "bytes": 56767,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+      "sha256": "75e85de56e7e7266a8c03b8cf5e4614402d7ce01b8411c096f5d6f3dc27c49c1",
+      "bytes": 21591,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "Organization → Steps retains its loading/empty/read failure/retry/newer-refresh/access-loss states and now creates an organization definition and every-type binding atomically through bindCatalogueStep. Scope identity comes from the owning resource context; no free-form organization ID or role-derived grant is used.",
+    "Edits update name/default unit/integer allowance only through patchStepDefinition. Codes remain immutable, package values are not written, and successful mutations reread the authoritative catalogue. Default form values are explicit workdays and zero allowance; both initial positions are explicitly10 with existing stable tie-breaking, not a claimed append/reorder operation.",
+    "Retirement requires confirmation, explains retained history and code/name reservations, calls retireStepDefinition and renders late step_bound refusal. Code/name conflict drafts survive. Server forbidden/not-member responses decide access.",
+    "One synchronous ref owns pending definition writes. The editor lifetime fences late reply callbacks after refresh replaces it. Decimal validation preserves integer hundredths and refuses empty/whitespace rather than converting to zero. User unit choices are narrowed before submission.",
+    "Current WorkPackageApi undo/redo step_nodes_in_use refusals now retain the named affected rows/steps/fact families through the plan writer; history code extraction is exhaustive. No retry, reread, journal mutation or server admission policy is added."
+  ],
+  "verification": {
+    "initialConfiguration": {
+      "name": "step-definition-ui-red-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v1.receipt.json",
+        "sha256": "8862d7b8999f8bc36527e55feed74b01a22fdb80a645ee8182d30046952722f9",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v1.log",
+        "sha256": "c5e78aa43cfe3cc829848993e2109715addd1f8d4bdfdde4ed0ec685d422a0db",
+        "bytes": 640,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--configLoader",
+          "runner",
+          "--reporter",
+          "verbose",
+          "src/components/organization/step-definition-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "initialForkWorker": {
+      "name": "step-definition-ui-red-v2",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v2.receipt.json",
+        "sha256": "3704e4c8818e5b4516e1981beb51a958db93f977990fa3d05e85700cc90853f0",
+        "bytes": 1505,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v2.log",
+        "sha256": "ce4f0ae650bd16f987edec96e54a0f97eabee8a7e435835da204f2db74d6ba5b",
+        "bytes": 1362,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--configLoader",
+          "bundle",
+          "--reporter",
+          "verbose",
+          "src/components/organization/step-definition-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "red": {
+      "name": "step-definition-ui-red-v3",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v3.receipt.json",
+        "sha256": "17cfc6ebd68187ee553e38aa84aecd9e057911e74e638cd7b3662f292ddfd4da",
+        "bytes": 1577,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-red-v3.log",
+        "sha256": "fd7790325ddcf3bfbe1dd8d97b1f6250a6ca4b1187f9e0de4f17578b5c9a8712",
+        "bytes": 133197,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--configLoader",
+          "bundle",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "--testTimeout",
+          "2000",
+          "src/components/organization/step-definition-management.test.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "historyRed": {
+      "name": "current-history-browser-refusal-red-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-history-browser-refusal-red-v1.receipt.json",
+        "sha256": "90b4dd98ac17749ec6af53d1848258eb8c29ad35ec7c8be5b7c0aa68192acf31",
+        "bytes": 1577,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-history-browser-refusal-red-v1.log",
+        "sha256": "0aa71bbd767c3977727fe9852b3f861fcfbf0dd4782f22117c60769812c66d74",
+        "bytes": 5481,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose",
+          "--testNamePattern",
+          "reports current protected step pairs",
+          "src/modules/plan-writer/plan-writer.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "firstGreen": {
+      "name": "step-definition-ui-green-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-green-v1.receipt.json",
+        "sha256": "f7250ce07f0d13f031acc938e5a1355bc114d4b77990e00a329137c0c1c89f5a",
+        "bytes": 1469,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-green-v1.log",
+        "sha256": "bb080abedeaeeeee9ec124a28a23cba35e594ef60af46de8d9b081aa6e9bd954",
+        "bytes": 7982,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--configLoader",
+          "bundle",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "expandedGreen": {
+      "name": "step-definition-ui-green-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-green-v2.receipt.json",
+        "sha256": "b3509fded51dd651acc961420e350df71c8ccf77a51bbb61f0c17dd8d29c7579",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-green-v2.log",
+        "sha256": "ad9af5841935a57a025ca690a9250968df5e5a0ac0fdf7a5721d9a8fbf95e234",
+        "bytes": 12368,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "afterSevenFaults": {
+      "name": "step-definition-ui-after-proofs-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-after-proofs-v1.receipt.json",
+        "sha256": "c67d7f069e0e586a537626aae44cf2cf4e3f63186ad6951c9d183b607d90d64f",
+        "bytes": 1444,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-after-proofs-v1.log",
+        "sha256": "358114d0e97dfa1d4dc8009ace81675822f41f679442826d7871908ac1c42191",
+        "bytes": 12648,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "final": {
+      "name": "step-definition-ui-final-tests-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-tests-v1.receipt.json",
+        "sha256": "4e2aa9af29adbec97664a7e3bb280f4fad768b7eb1f33796f1a5e9b6a51aad6c",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-tests-v1.log",
+        "sha256": "1fe2c9a4fa00971166d464e76f22679be7dc1a3489140b92832d00692b46324f",
+        "bytes": 12648,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "/tmp/puni-combined-step-ui.config.mjs",
+          "--pool",
+          "threads",
+          "--reporter",
+          "verbose"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "summary": {
+      "passed": 80,
+      "failed": 0,
+      "files": 5,
+      "newEditorTests": 13,
+      "newHistoryClientTests": 2,
+      "qualification": "Actual React organization panel/page, typed resource client, actual API decoder and plan writer; only HTTP transport is controlled. Not a mounted server, live authority, real browser/Playwright, installed CLI or host gate certificate."
+    },
+    "initialTypes": {
+      "name": "step-definition-ui-types-v1",
+      "exit": 2,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-types-v1.receipt.json",
+        "sha256": "e42f51e9aab47e303d2ba036c39706a796b8eaf1d0ae6e8fdc76fdf5b16f7113",
+        "bytes": 1409,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-types-v1.log",
+        "sha256": "0e4e86ee10ce558c633f60621563e215211f0baa2d35c172ac72df60e8e2cab4",
+        "bytes": 2686,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.app.json",
+          "apps/wbs/fe-01/tsconfig.spec.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "types": {
+      "name": "step-definition-ui-final-types-v1",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-types-v1.receipt.json",
+        "sha256": "e3d127a2fb016f090ef43962e710efdfa7f0eca5c201fc457bc5d7a8db7bf615",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.app.json",
+          "apps/wbs/fe-01/tsconfig.spec.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "initialLint": {
+      "name": "step-definition-ui-lint-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-lint-v1.receipt.json",
+        "sha256": "9dece98fab2735939a8e168005938e10cd3bb4a94ba52b355682fd077658f532",
+        "bytes": 1537,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-lint-v1.log",
+        "sha256": "de8485cf62cb5af0af00880bbee38fe7e9499e08ccb9b755d0ebda9ce9ec43fd",
+        "bytes": 3281,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "intermediateLint": {
+      "name": "step-definition-ui-lint-v3",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-lint-v3.receipt.json",
+        "sha256": "60ee56515a0d82cafc900d7717cb18c44632dbf1517ff4b027c854de1d4f021a",
+        "bytes": 1663,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-lint-v3.log",
+        "sha256": "6864b56ed589791a8ace378941f5af490d1cbc7df229a624710ceeed287c1299",
+        "bytes": 456,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "proofCommentLint": {
+      "name": "step-definition-ui-final-lint-v1",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-lint-v1.receipt.json",
+        "sha256": "fdd3494df9c32e4cd6f78df5ab120463311160a3bea011ba61fa84fda6761fb6",
+        "bytes": 1675,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-lint-v1.log",
+        "sha256": "d0b8877d3881b430e630f93c091111967b14e491d14d48072b6b65bf72e938f0",
+        "bytes": 378,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "lint": {
+      "name": "step-definition-ui-final-lint-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-lint-v2.receipt.json",
+        "sha256": "4568307d85e9a548e6d124a77adac80b8cdca497bfae1fdcef00f7210d33983b",
+        "bytes": 1673,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings=0",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "sourceFormat": {
+      "name": "step-definition-ui-source-format-v2",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-source-format-v2.receipt.json",
+        "sha256": "c7d99acf7f6c3cef5b4f41cdd261d1230aedfb355d558e0fb61404effa1da942",
+        "bytes": 1677,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-source-format-v2.log",
+        "sha256": "8163930c9a376187f035fce7f47de947e00a0dfc177cbf1b622325cd00e6e0e3",
+        "bytes": 373,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "apps/wbs/fe-01/src/components/organization/step-definition-management.test.tsx",
+          "apps/wbs/fe-01/src/components/organization/steps-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "qualification": "First runner attempt failed at imported __dirname; bundle configuration located under owned /tmp resolves it. Bun forks worker did not start (60s), while explicit threads pool collected and ran the actual tests. These setup failures are not semantic RED evidence. Eleven initial semantic tests failed on absent forms/buttons; real undo/redo tests failed at unreachable. First typecheck exited2, while the wrapper expected1; native custody is terminal and explicitly retained. It also exposed the existing history mapper gap. Fixed object property narrowing without casts and implemented the history projection. Lint corrected scoped labels, void callbacks, string conversions and grouped-case fallthrough proof comments. Final comment-only changes have identical emitted production, so the80-test after-control remains applicable. Final all8file format/OpenSpec/state are recorded in the continuation state."
+  },
+  "proofs": {
+    "manifest": {
+      "path": "/tmp/puni-step-definition-ui-proofs-v1/effects.json",
+      "sha256": "8094a7ece1e4e3d24624acc9acd596ff4e84e3dffed51925c9378328e7816136",
+      "bytes": 10237,
+      "mode": 384
+    },
+    "effects": [
+      {
+        "id": "pending",
+        "target": "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "from": "    if (pending.current) return;",
+        "to": "",
+        "test": "^admits only one pending definition write across repeated form submissions$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+          "bytes": 13793,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/pending.mutant.txt",
+          "sha256": "e981e14da2bf070f1d6f5e732f136567b6facf39d32414e034b45247d7330c0b",
+          "bytes": 13761,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-pending-v1.receipt.json",
+          "sha256": "c014660712eda50cbceddc3fbc3c5ab82c49ba2e6858b0950d31611da41d3b29",
+          "bytes": 1630,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-pending-v1.log",
+          "sha256": "b8d529067ef6702cf5cbd0f390fb51e9396d9f6bd55e39aaeac49472c8348808",
+          "bytes": 19382,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "late-reply",
+        "target": "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "from": "      if (!live.current) return;",
+        "to": "",
+        "test": "^ignores a definition write reply after refresh replaces its editor$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+          "bytes": 13793,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/late-reply.mutant.txt",
+          "sha256": "c27bdb6f826b9798ae5a284948ab99e65e734f2273cc5cc747abdea2c70c0693",
+          "bytes": 13761,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-late-reply-v1.receipt.json",
+          "sha256": "a8fe21d26bf0056e506dec209c60adfd1d88b8f01959b3eaeaad610abf76c5fa",
+          "bytes": 1628,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-late-reply-v1.log",
+          "sha256": "0fd146be48a426e4c18e4d8cd8bc0f89cd32d64389e7ec53e76339f2abdeba09",
+          "bytes": 3088,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "allowance",
+        "target": "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "from": "    if (defaultAllowanceBps === null) {",
+        "to": "    if (false) {",
+        "test": "^refuses lossy allowance input before sending a definition mutation$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+          "bytes": 13793,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/allowance.mutant.txt",
+          "sha256": "9c8801adc411ca4154a7526aa7e1e25781ad3736fff6680ad9382359a07fdd73",
+          "bytes": 13770,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-allowance-v1.receipt.json",
+          "sha256": "d9f946f3f70fd01cf409aa6249b58593289eb8bde2fad2dd33da7cf829a70e6e",
+          "bytes": 1626,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-allowance-v1.log",
+          "sha256": "2760dcea913cfa7e6cf26d970341974cd4676e761ee1861c0fe2bc34fb0f3f87",
+          "bytes": 3266,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "unit",
+        "target": "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "from": "    if (unit !== 'workdays' && unit !== 'minutes') {",
+        "to": "    if (false) {",
+        "test": "^renders invalid estimate-unit input without sending a definition mutation$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+          "bytes": 13793,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/unit.mutant.txt",
+          "sha256": "9d595b3e3a2c6cbb37e587fb855ad3b536a263f76a2e6e00720b8f5350bdf178",
+          "bytes": 13757,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-unit-v1.receipt.json",
+          "sha256": "2e35c07f5cd08aef9f107d4cf2873320ea31cedaac1ac32569d52dfd0803ae12",
+          "bytes": 1623,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-unit-v1.log",
+          "sha256": "db7e83fac5c8e9a711ba47d184744df07dbe41ea880ff7a4e265875dbb6b311e",
+          "bytes": 3192,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "membership-loss",
+        "target": "apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "from": "    case 'not_a_member':\n",
+        "to": "",
+        "test": "^withdraws organization access on a real definition write refusal$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+          "bytes": 13793,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/membership-loss.mutant.txt",
+          "sha256": "b0fc2ffa87d42f15883b34c4ccb7f34d795a22ccbcedd754ed706ca7846dfeaa",
+          "bytes": 13768,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-membership-loss-v1.receipt.json",
+          "sha256": "98551a635b7b8e75367e06de0ed02c68450e8da378230ed79a7b02ceef9a6675",
+          "bytes": 1636,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-membership-loss-v1.log",
+          "sha256": "67131c02943f5db7ced1678ffc1cc22c3544d36de8c226f71ce9432ce3ce0aed",
+          "bytes": 5253,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "history-code",
+        "target": "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+        "from": "    case 'stale_undo':\n    case 'step_nodes_in_use':",
+        "to": "    case 'stale_undo':",
+        "test": "^reports current protected step pairs from the real (undo|redo) client without retry or reread$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "sha256": "3fecf710ebdfce73ab64517017b73fc38173ae36d2de9173b8697772c4dafeea",
+          "bytes": 56435,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/history-code.mutant.txt",
+          "sha256": "1a49f251385e80172ed68de4d67c0272fd12f551bb00cd5a24c97fe671fbc05f",
+          "bytes": 56405,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-history-code-v1.receipt.json",
+          "sha256": "0722174108e73969f89997939e068fdd1c8856cc52cb01c84d31048d729c75ee",
+          "bytes": 1639,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-history-code-v1.log",
+          "sha256": "c2e529c20f10f01f2b2167e924c9d90b258cff4fc34b272ea5025004ac82a582",
+          "bytes": 5641,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "history-sentence",
+        "target": "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+        "from": " ||\n        problem.operation === 'postApiWorkPackagesByIdUndo' ||\n        problem.operation === 'postApiWorkPackagesByIdRedo'",
+        "to": "",
+        "test": "^reports current protected step pairs from the real (undo|redo) client without retry or reread$",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "sha256": "3fecf710ebdfce73ab64517017b73fc38173ae36d2de9173b8697772c4dafeea",
+          "bytes": 56435,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-definition-ui-proofs-v1/history-sentence.mutant.txt",
+          "sha256": "786953faf5614b93f26df994a5b99f7a0a30b1b061cf8821151cd1e4002757b9",
+          "bytes": 56309,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-history-sentence-v1.receipt.json",
+          "sha256": "c188cdac27ebe56ca01593137362ba5499446adb319ba568aeb630cb131c3ac6",
+          "bytes": 1647,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-history-sentence-v1.log",
+          "sha256": "044c6a03f3d0bce722171d890f639e6debc5323fafd0c5e857a6d02fc11c0390",
+          "bytes": 5623,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      }
+    ],
+    "blank": {
+      "canonicalSha256": "bed99ba0f339e3758884f7b97fb11049ff9290659db0bf648d19a64fd683b487",
+      "mutantSha256": "86197718150ed6f0ad8c819028527fc98f128f5837478c24d5e9f6ca8d1d01df",
+      "receiptPath": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-blank-v1.receipt.json",
+      "logPath": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-blank-v1.log",
+      "restored": true,
+      "exitCode": 1,
+      "selectedFailure": true,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-blank-v1.receipt.json",
+        "sha256": "04a8c56bfa12d0b42ed06bcd36dc7834f9c1930dc505e78cc85ca4225042e147",
+        "bytes": 1581,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/step-definition-ui-fault-blank-v1.log",
+        "sha256": "2f41c0ae451b7f6c6876b4e3a203ca41a58969367c38498371cab561d466f1f2",
+        "bytes": 4564,
+        "mode": 384
+      }
+    },
+    "productionEmission": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+        "canonicalSource": "e94a509bd9661014207544a2667bd3562d6424c8fa02d8be8c6dd7dbfc754a10",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/step-definitions.tsx",
+          "sha256": "749aa7b3980b5da88618a2ca7faa7c9dba4f3bc8a97369e48c2731b530886bf1",
+          "bytes": 14634,
+          "mode": 436
+        },
+        "canonicalEmission": "235f06942fb430639586d0cf256d15525b149c76f563c491ca011d0ea82b74c3",
+        "currentEmission": "235f06942fb430639586d0cf256d15525b149c76f563c491ca011d0ea82b74c3"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+        "canonicalSource": "3fecf710ebdfce73ab64517017b73fc38173ae36d2de9173b8697772c4dafeea",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+          "sha256": "e955b623313c7867952bfc28cfcbb6b5211c3e5d625519b1f72d3b1a7112e7af",
+          "bytes": 56767,
+          "mode": 436
+        },
+        "canonicalEmission": "be9d381d3845fddcec7e50bd84954a790e83929617db5fe937bee4157d8e1177",
+        "currentEmission": "be9d381d3845fddcec7e50bd84954a790e83929617db5fe937bee4157d8e1177"
+      }
+    ],
+    "qualification": "Eight independent finite production omissions, each terminal/reaped and exact-restored before continuing: pending admission1failure/twoPOSTs; late reply1failure/stale callback; allowance1failure/local precision refusal; unit1failure/local choice refusal; membership1failure/removed callback absent with modeled Error Boundary fault; history-code2failures; history-sentence2failures; blank parsing2failures/zero submission instead of explicit allowance.11selected failures across8faults are not distinct healthy tests. Allowance/unit omissions are local-message proofs; lower API schema validation still refuses those invalid values. No authority is inferred from a browser check."
+  },
+  "assumptions": [
+    "Continue the already authorized whole-scope design without a new approval pause.",
+    "Definition creation here binds organization/every-type; scoped/type-specific binding controls are the next ordered slices. Initial position10 relies on the existing stable tie-breaking until explicit reorder controls are added.",
+    "Show management affordances without turning membership display roles into permission grants; render actual named server refusals."
+  ],
+  "pending": [
+    "Tasks4.1.1-5 and parent4.1 remain unchecked. Complete actual space/project owner integration, real type choices/provenance, scoped bind/unbind/reorder previews/count/cap/stale conflicts.",
+    "The old real browser WbsApi/plan facade/toolbar/work-package Steps panel still exposes add/rename/remove against retired package endpoints. Preserve package unit/allowance editing and remove old methods/fakes/demo/unmounted legacy HTTP models only after corresponding replacement flows exist.",
+    "Per-leaf rendered resolution/type-conflict/preflight and actual Playwright/product checks remain open. No real browser screenshot/E2E was run in this slice.",
+    "Core/backend/MCP full checks were not rerun because their production code is unchanged; the previous full core run remains2062pass29fail. No whole-core or host completion inferred.",
+    "All original15history guarantees, all13fact paths/Source move bypass/preview/lifetimes/concurrency/cleanup, entity/settings/spaces/CLI/Bun client inventory/install/exactSHA gates/release remain open.",
+    "Requested Astra review remains unavailable until recordedNov22,2026 10:09AM, timezone unspecified. No retry/spawn/substitute review."
+  ],
+  "publicActions": "No install or public commit/push/PR update/merge/deploy. Protected originals and rejected CLI archive source remain untouched."
+}

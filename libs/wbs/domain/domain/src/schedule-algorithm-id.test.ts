@@ -1,7 +1,12 @@
-import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
+
+import { type } from 'arktype';
+import { beforeAll, describe, expect, it } from 'bun:test';
 
 import type { PlannedRow } from './derive-numbers';
 import type { DependencyReach } from './index';
+import { readLegacyPlainSchedule1 } from './saved-plan/legacy-plain-schedule1';
+import { readSavedPlainScheduleBody } from './saved-plan/versioned-plain-schedule';
 import type {
   DependencyEdge,
   PoolSizes,
@@ -11,27 +16,6 @@ import type {
   Slice,
 } from './schedule';
 import { schedule, SCHEDULE_ALGORITHM_ID } from './schedule';
-
-/**
- * The enforcement `SCHEDULE_ALGORITHM_ID` cannot supply on its own.
- *
- * A saved plan stores that string so a reader can ask "were these dates
- * computed by the engine running now?". The value only answers that question if
- * it moves when the engine's behaviour moves, and a constant has no way to
- * notice that it did not. So the behaviour is digested over a fixed corpus and
- * the digest is pinned **beside** the id: a semantics change turns one test red
- * naming both, and the fix is to bump the id and re-pin the digest in the same
- * commit.
- *
- * The digest is over behaviour, not over `schedule.ts`'s bytes, and the
- * difference is the whole point. A source hash moves on a comment edit, so it
- * would be re-pinned by rote within a month and would then be noise rather than
- * a gate; a behavioural digest is silent through every refactor and rename, and
- * speaks exactly when some input produces a different `Schedule`.
- *
- * **What it does not do** is decide the new id for you. It cannot: it detects
- * that behaviour changed, and whether that is a bump or a bug is a human call.
- */
 
 /** The engine's own signature, so the negatives below can stand in for it. */
 type ScheduleFn = (
@@ -189,6 +173,7 @@ const semanticPart = (result: Schedule): Record<string, unknown> => {
   const source = result as unknown as Record<string, unknown>;
   return Object.fromEntries(
     Object.keys(source)
+      // Proof: also omitting futureField failed the added-field comparison at the top level.
       .filter((key) => key !== INSTRUMENTATION_KEY)
       .map((key) => [key, source[key]]),
   );
@@ -234,41 +219,23 @@ const digestOf = (text: string): string => {
   return `${pass(0x811c9dc5)}${pass(0x9e3779b9)}`;
 };
 
-/**
- * The whole corpus through one engine, as one string.
- *
- * A **pure function of the engine passed in**, which is what makes the
- * negatives below arguments rather than a note: the sensitivity of this digest
- * is re-measured on every run, against engines that differ from the real one in
- * exactly one field.
- */
-export const scheduleBehaviourDigest = (run: ScheduleFn): string =>
-  digestOf(
-    JSON.stringify(
-      CORPUS.map((plan) => [
-        plan.name,
-        stable(
-          semanticPart(
-            run(plan.rows, plan.edges, plan.slices, plan.notBefore, plan.poolSizes, plan.reach),
-          ),
+/** Every raw engine fact in the original case order, excluding only run instrumentation. */
+function serializeCorpus(run: ScheduleFn): string {
+  return JSON.stringify(
+    CORPUS.map((plan) => [
+      plan.name,
+      stable(
+        semanticPart(
+          run(plan.rows, plan.edges, plan.slices, plan.notBefore, plan.poolSizes, plan.reach),
         ),
-      ]),
-    ),
+      ),
+    ]),
   );
+}
 
 /**
- * The behaviour `SCHEDULE_ALGORITHM_ID` names, pinned.
+ * The Fast arithmetic identity and digest originally measured in the plain1 vocabulary.
  *
- * **Re-pin this and bump the id together, or neither.** A red assertion here
- * means some input now produces a different `Schedule`; if that was intended,
- * `SCHEDULE_ALGORITHM_ID` is stale as of the same commit.
- */
-const PINNED = {
-  id: 'slice-leveling-v4',
-  digest: 'f0145c81759486b5',
-} as const;
-
-/**
  * `v1` was `5f5d507bdf199577`, and this is what moved it: tasks.md 5.1 and 5.2.
  *
  * **Recorded because the digest cannot say what changed and this file's whole
@@ -292,6 +259,57 @@ const PINNED = {
  * v3 engine; weighted cases are asserted in `schedule-weighted.test.ts`.
  */
 
+const PINNED = {
+  id: 'slice-leveling-v4',
+  digest: 'f0145c81759486b5',
+} as const;
+
+/** The plain1 writer at c8018843e captured each original corpus case with a null calendar anchor. */
+const captures = type(['string', 'unknown'])
+  .array()
+  .assert(
+    JSON.parse(
+      readFileSync(
+        new URL('../fixtures/schedule-algorithm-v4-plain1.json', import.meta.url),
+        'utf8',
+      ),
+    ),
+  );
+
+type CapturedTiming = ReturnType<typeof readLegacyPlainSchedule1>['workItems'][string];
+
+/** The original producer used a null calendar anchor for every case. */
+function capturedTimings(timings: Readonly<Record<string, CapturedTiming>>) {
+  return new Map(
+    Object.entries(timings).map(([key, { startsOn, endsOn, ...timing }]) => {
+      expect(startsOn).toBeNull();
+      expect(endsOn).toBeNull();
+      return [key, timing] as const;
+    }),
+  );
+}
+
+/** Recover the original raw facts or the production reader's forward projection of those facts. */
+function serializeCapturedCorpus(version: 1 | 3): string {
+  return JSON.stringify(
+    captures.map(([name, capture]) => {
+      const body =
+        version === 1 ? readLegacyPlainSchedule1(capture) : readSavedPlainScheduleBody(capture, 1);
+      const { version: bodyVersion, algorithmId, slices, workItems, ...counts } = body;
+      expect(bodyVersion).toBe(version);
+      expect(algorithmId).toBe(PINNED.id);
+      return [
+        name,
+        stable({
+          ...counts,
+          slices: capturedTimings(slices),
+          workItems: capturedTimings(workItems),
+        }),
+      ];
+    }),
+  );
+}
+
 /** One perturbed value of the same shape — the smallest change a real edit makes. */
 const perturbed = (value: unknown): unknown => {
   if (typeof value === 'number') return value + 1;
@@ -303,7 +321,7 @@ const perturbed = (value: unknown): unknown => {
 
 /** The real engine with one field of one slice moved, standing in for a semantics change. */
 const engineWithSliceFieldMoved =
-  (field: string): ScheduleFn =>
+  (field: string, change = perturbed): ScheduleFn =>
   (...args) => {
     const real = schedule(...args);
     const slices = new Map(real.slices);
@@ -311,7 +329,7 @@ const engineWithSliceFieldMoved =
     const target = slices.get(firstKey) as unknown as Record<string, unknown>;
     slices.set(firstKey, {
       ...target,
-      [field]: perturbed(target[field]),
+      [field]: change(target[field]),
     } as unknown as ScheduledSlice);
     return { ...real, slices };
   };
@@ -355,6 +373,12 @@ const COUNT_FIELDS = Object.keys(semanticPart(sample)).filter(
   (key) => key !== 'slices' && key !== 'workItems',
 );
 
+let projectedCorpus: string;
+
+beforeAll(() => {
+  projectedCorpus = serializeCapturedCorpus(3);
+});
+
 describe('the scheduling algorithm identity', () => {
   it('is a monotonically versioned engine name', () => {
     expect(SCHEDULE_ALGORITHM_ID).toMatch(/^[a-z][a-z0-9-]*-v[1-9][0-9]*$/);
@@ -367,27 +391,33 @@ describe('the scheduling algorithm identity', () => {
     expect(SCHEDULE_ALGORITHM_ID).toBe(PINNED.id);
   });
 
-  it('names the behaviour that is pinned beside it', () => {
-    expect(scheduleBehaviourDigest(schedule)).toBe(PINNED.digest);
+  it('reproduces the original v4 digest from all eight plain1 captures in order', () => {
+    expect(captures.map(([name]) => name)).toEqual(CORPUS.map((plan) => plan.name));
+    // Proof: increasing one original slice's earliestFinish failed this historical pin.
+    expect(digestOf(serializeCapturedCorpus(1))).toBe(PINNED.digest);
+  });
+
+  it('matches every current engine fact against the forward-projected original captures', () => {
+    // Proof: projecting the start floor to predecessor or adding one to the engine's slice
+    // duration independently failed this comparison.
+    expect(serializeCorpus(schedule)).toBe(projectedCorpus);
   });
 });
 
-describe('the digest notices a semantics change', () => {
-  const baseline = scheduleBehaviourDigest(schedule);
-
+describe('the v4 corpus notices a semantics change', () => {
   it('reads every field of a scheduled slice, whatever they are', () => {
     // A precondition, not decoration: an empty field list would make every
     // `it.each` below vacuous and the suite would pass having proved nothing.
     expect(SLICE_FIELDS.length).toBeGreaterThan(5);
     for (const field of SLICE_FIELDS) {
-      expect(scheduleBehaviourDigest(engineWithSliceFieldMoved(field))).not.toBe(baseline);
+      expect(serializeCorpus(engineWithSliceFieldMoved(field))).not.toBe(projectedCorpus);
     }
   });
 
   it('reads every field of a work item projection, whatever they are', () => {
     expect(WORK_ITEM_FIELDS.length).toBeGreaterThan(5);
     for (const field of WORK_ITEM_FIELDS) {
-      expect(scheduleBehaviourDigest(engineWithWorkItemFieldMoved(field))).not.toBe(baseline);
+      expect(serializeCorpus(engineWithWorkItemFieldMoved(field))).not.toBe(projectedCorpus);
     }
   });
 
@@ -395,8 +425,25 @@ describe('the digest notices a semantics change', () => {
     expect(COUNT_FIELDS).toContain('waitingForPerson');
     expect(COUNT_FIELDS).toContain('waitingForCapacity');
     for (const field of COUNT_FIELDS) {
-      expect(scheduleBehaviourDigest(engineWithCountMoved(field))).not.toBe(baseline);
+      expect(serializeCorpus(engineWithCountMoved(field))).not.toBe(projectedCorpus);
     }
+  });
+
+  it('detects an added field at every level', () => {
+    for (const change of [
+      engineWithSliceFieldMoved,
+      engineWithWorkItemFieldMoved,
+      engineWithCountMoved,
+    ]) {
+      expect(serializeCorpus(change('futureField'))).not.toBe(projectedCorpus);
+    }
+  });
+
+  it('detects a current engine that emits the historical start-floor spelling', () => {
+    const legacyFloor = (value: unknown) => (value === 'workPackageStart' ? 'projectStart' : value);
+    expect(serializeCorpus(engineWithSliceFieldMoved('boundBy', legacyFloor))).not.toBe(
+      projectedCorpus,
+    );
   });
 
   it('stays silent on instrumentation, which is the one thing it excludes', () => {
@@ -404,10 +451,10 @@ describe('the digest notices a semantics change', () => {
       ...schedule(...args),
       eventsVisited: schedule(...args).eventsVisited + 1000,
     });
-    expect(scheduleBehaviourDigest(withOtherEventCount)).toBe(baseline);
+    expect(serializeCorpus(withOtherEventCount)).toBe(projectedCorpus);
   });
 
   it('is stable across runs of the same engine', () => {
-    expect(scheduleBehaviourDigest(schedule)).toBe(baseline);
+    expect(serializeCorpus(schedule)).toBe(projectedCorpus);
   });
 });

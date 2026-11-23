@@ -16,8 +16,10 @@ Live: <https://wbs.bulletpoints.club>
 ```sh
 bun install
 bun run dev:setup    # writes the .env files dev needs; fails if the checkout is incomplete
-bun run dev          # be + gw + fe
+PUNI_EXECUTABLE="/absolute/reviewed/puni/entrypoint" bun run --shell=bun dev  # all four tiers
 ```
+
+Select a separately provisioned reviewed PUNI installation; the entrypoint above is an operator-supplied absolute path, not a checkout or PATH fallback. See [local development](docs/local-dev.md#run-all-four-at-once) for provisioning and capture.
 
 Then <http://localhost:4200>. Full detail, including troubleshooting and the
 observability stack: **[docs/local-dev.md](./docs/local-dev.md)**.

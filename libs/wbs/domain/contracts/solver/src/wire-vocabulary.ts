@@ -75,7 +75,7 @@
  * or a decoder function (2), the plan-read block's own name beside its ten
  * members (1), `PARALLEL` and `publication` beside tuples they qualify (2), the
  * canonical-input *fact* list beside the slice fields it contains (1), and 3b.1's
- * project-settings columns, still genuinely unnamed (1). Rule (b) as 2.1 writes
+ * work-package-settings columns, still genuinely unnamed (1). Rule (b) as 2.1 writes
  * it — "a run mixing two vocabularies or naming a non-member is not [legal]" —
  * rejects a mixed run *by construction*, so naming the second vocabulary cannot
  * close one: `attribute` picks a single winner by overlap and every other member
@@ -318,7 +318,7 @@ function collectRequired(
  * these are literals carrying the tasks.md item that defines them.
  *
  * They exist so that rule (b) can attribute a table enumeration to the table it
- * describes. Without them every `projectId, inputHash, objective` run overlaps
+ * describes. Without them every `workPackageId, inputHash, objective` run overlaps
  * the wire sets on `objective` alone and a check that does not know its own
  * vocabularies misattributes every table tuple to the wire.
  */
@@ -326,7 +326,7 @@ export const TABLE_VOCABULARIES: readonly Vocabulary[] = [
   {
     name: 'cache-key',
     members: new Set([
-      'projectId',
+      'workPackageId',
       'inputHash',
       'objective',
       'contractVersion',
@@ -342,7 +342,7 @@ export const TABLE_VOCABULARIES: readonly Vocabulary[] = [
   {
     name: 'optimization-generation',
     members: new Set([
-      'projectId',
+      'workPackageId',
       'contractVersion',
       'generation',
       'inputHash',
@@ -355,7 +355,7 @@ export const TABLE_VOCABULARIES: readonly Vocabulary[] = [
   {
     name: 'solver-queue',
     members: new Set([
-      'projectId',
+      'workPackageId',
       'contractVersion',
       'objective',
       'budgetMs',
@@ -407,7 +407,7 @@ export const NEIGHBOUR_VOCABULARIES: readonly Vocabulary[] = [
     name: 'canonical-row',
     members: new Set(['id', 'parentId', 'position', 'frozenNumber', 'priority']),
     source:
-      'libs/wbs/domain/domain/src/canonical-schedule-input.ts:184-188 — the hashed `PlannedRow` facts, as the canonicalizer projects them',
+      'libs/wbs/domain/domain/src/canonical-schedule-input.ts:184-188 — the hashed `PlannedRow` facts, as the canonicalizer work packages them',
   },
   {
     name: 'fencing',

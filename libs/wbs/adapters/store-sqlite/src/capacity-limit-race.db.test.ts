@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OrganizationLimitGauge, PlanCommand, ResourceAccess, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -16,11 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -31,8 +31,9 @@ const RESOURCES = ['ram', 'worktrees'] as const;
 const SEED = 20261022;
 
 const accessOf = (userId: string): ResourceAccess => ({
+  principal: { id: userId },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId },
 });
 
 /**
@@ -55,7 +56,10 @@ let source: SqliteSource;
 function openFresh(prefix: string): void {
   directory = mkdtempSync(join(tmpdir(), prefix));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -72,24 +76,29 @@ afterEach(async () => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-/** The units of `resourceId` A's projects state, summed (L2). */
+/** The units of `resourceId` A's work packages state, summed (L2). */
 function declared(resourceId: string): number {
   return source.db.get<{ n: number }>(
-    sql`SELECT coalesce(sum(units), 0) AS n FROM project_resource_capacity WHERE resource_id = ${resourceId}`,
+    sql`SELECT coalesce(sum(units), 0) AS n FROM work_package_resource_capacity WHERE resource_id = ${resourceId}`,
   ).n;
 }
 
 /**
  * Organization A with both accounts as admins, a capacity cap of `cap`, the
- * resources `ram` and `worktrees`, and two projects of A, P and Q.
+ * resources `ram` and `worktrees`, and two work packages of A, P and Q.
  */
 async function seeded(cap: number, counting: { source: CountSource }) {
   for (const id of ACCOUNTS)
     source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES (${id}, ${id}, 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
   for (const id of ACCOUNTS)
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ${id}, 'admin', 1)`,
+    );
+  for (const id of ACCOUNTS)
+    source.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(${'race-' + id},'org-a','organization','org-a','user',${id},'org-admin','route',1)`,
     );
   source.db.run(
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 50, 200, ${cap}, 1)`,
@@ -104,20 +113,27 @@ async function seeded(cap: number, counting: { source: CountSource }) {
   }
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const projectIds: string[] = [];
+  const workPackageIds: string[] = [];
   for (const name of ['P', 'Q']) {
-    const created = expectCreated(await graph.projects.create(name, 'dany'));
-    source.db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${created.project.id}, 'org-a')`,
+    const created = expectCreated(
+      await seedOrganizationPackage(
+        source.stores.workPackages,
+        options.clock,
+        'org-a',
+        'fixture-project',
+        'dany',
+        name,
+      ),
     );
-    projectIds.push(created.project.id);
+
+    workPackageIds.push(created.workPackage.id);
   }
   const hold: Hold = { reached: () => undefined, release: Promise.resolve(), armed: false };
   /** What the stale sum answers, per resource: the sums before the batch was asked for. */
@@ -129,8 +145,12 @@ async function seeded(cap: number, counting: { source: CountSource }) {
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
       readDirectoryCapacityLimit: (organizationId, resourceId) =>
         gauge.readDirectoryCapacityLimit(organizationId, resourceId),
-      readCapacityCap: async (organizationId, resourceId, exceptProjectId) => {
-        const reading = await gauge.readCapacityCap(organizationId, resourceId, exceptProjectId);
+      readCapacityCap: async (organizationId, resourceId, exceptWorkPackageId) => {
+        const reading = await gauge.readCapacityCap(
+          organizationId,
+          resourceId,
+          exceptWorkPackageId,
+        );
         if (hold.armed) {
           hold.armed = false;
           hold.reached();
@@ -139,7 +159,7 @@ async function seeded(cap: number, counting: { source: CountSource }) {
         if (counting.source === 'turn') return reading;
         const own =
           source.db.get<{ n: number } | undefined>(
-            sql`SELECT units AS n FROM project_resource_capacity WHERE project_id = ${exceptProjectId} AND resource_id = ${resourceId}`,
+            sql`SELECT units AS n FROM work_package_resource_capacity WHERE work_package_id = ${exceptWorkPackageId} AND resource_id = ${resourceId}`,
           )?.n ?? 0;
         return { ...reading, current: Math.max(0, (staleSums.get(resourceId) ?? 0) - own) };
       },
@@ -161,9 +181,9 @@ async function seeded(cap: number, counting: { source: CountSource }) {
         },
       ),
   });
-  const run = (projectId: string, userId: string, commands: PlanCommand[]) =>
+  const run = (workPackageId: string, userId: string, commands: PlanCommand[]) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       { id: userId, username: userId, scopes: ['write'] },
       commands,
       accessOf(userId),
@@ -184,8 +204,8 @@ async function seeded(cap: number, counting: { source: CountSource }) {
   const readSumsBeforeQueueing = () => {
     staleSums = new Map(RESOURCES.map((id) => [id, declared(id)]));
   };
-  const [p, q] = [projectIds.at(0), projectIds.at(1)];
-  if (p === undefined || q === undefined) throw new Error('missing projects');
+  const [p, q] = [workPackageIds.at(0), workPackageIds.at(1)];
+  if (p === undefined || q === undefined) throw new Error('missing work packages');
   return { run, p, q, holdNextRead, readSumsBeforeQueueing };
 }
 
@@ -195,7 +215,7 @@ const state = (resourceId: string, units: number | null): PlanCommand => ({
   units,
 });
 
-describe('two projects race for the last units of a resource', () => {
+describe('two work packages race for the last units of a resource', () => {
   for (const [first, second] of [
     ['dany', 'eve'],
     ['eve', 'dany'],
@@ -234,18 +254,18 @@ describe('two projects race for the last units of a resource', () => {
 
 /** One step the model runs: a single batch, or two batches racing. */
 type Act =
-  | { kind: 'state'; project: number; resource: number; units: number | null; account: number }
+  | { kind: 'state'; workPackage: number; resource: number; units: number | null; account: number }
   | {
       kind: 'race';
-      left: { project: number; resource: number; units: number | null };
-      right: { project: number; resource: number; units: number | null };
+      left: { workPackage: number; resource: number; units: number | null };
+      right: { workPackage: number; resource: number; units: number | null };
     };
 
 const CAP = 64;
 
 const pick = (max: number) => fc.integer({ min: 0, max: max - 1 });
 const statementArb = fc.record({
-  project: pick(2),
+  workPackage: pick(2),
   resource: pick(RESOURCES.length),
   units: fc.option(fc.integer({ min: 0, max: 48 }), { nil: null }),
 });
@@ -260,10 +280,10 @@ const actArb: fc.Arbitrary<Act> = fc.oneof(
 
 describe('the capacity cap as a model invariant', () => {
   /**
-   * Random statements, clears and two-batch races over two projects and two
+   * Random statements, clears and two-batch races over two work packages and two
    * resources against a cap of 64. After every step no resource is stated
-   * past the cap across the projects, and every refusal names a raise whose
-   * other projects' units plus the asked cross the cap.
+   * past the cap across the work packages, and every refusal names a raise whose
+   * other work packages' units plus the asked cross the cap.
    *
    * Proof: with `counting.source` 'stale' (the gauge answering the sums read
    * before the step's batches queued, a sum read outside the turn),
@@ -279,7 +299,7 @@ describe('the capacity cap as a model invariant', () => {
         openFresh('capacity-limit-model-');
         const counting = { source: 'turn' as CountSource };
         const world = await seeded(CAP, counting);
-        const projectOf = (n: number) => (n === 0 ? world.p : world.q);
+        const workPackageOf = (n: number) => (n === 0 ? world.p : world.q);
         const resourceOf = (n: number) => RESOURCES[n] ?? 'ram';
         const expectCapRefusalNamesACrossing = (outcome: Awaited<ReturnType<typeof world.run>>) => {
           if (outcome.ok || !('reason' in outcome) || outcome.reason !== 'capacity_limit') return;
@@ -293,17 +313,17 @@ describe('the capacity cap as a model invariant', () => {
           world.readSumsBeforeQueueing();
           if (act.kind === 'state') {
             const outcome = await world.run(
-              projectOf(act.project),
+              workPackageOf(act.workPackage),
               ACCOUNTS[act.account] ?? 'dany',
               [state(resourceOf(act.resource), act.units)],
             );
             expectCapRefusalNamesACrossing(outcome);
           } else {
             const [left, right] = await Promise.all([
-              world.run(projectOf(act.left.project), 'dany', [
+              world.run(workPackageOf(act.left.workPackage), 'dany', [
                 state(resourceOf(act.left.resource), act.left.units),
               ]),
-              world.run(projectOf(act.right.project), 'eve', [
+              world.run(workPackageOf(act.right.workPackage), 'eve', [
                 state(resourceOf(act.right.resource), act.right.units),
               ]),
             ]);

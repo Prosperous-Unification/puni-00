@@ -10,20 +10,17 @@ import type { MemoryDirectoryTables } from './directory-fixture';
 import type { MemoryWorkItemTables } from './memory-work-item-fixture';
 
 /**
- * `organization_limits` and `project_organization` as far as the limits gauge
+ * `organization_limits` and `work_package_organization` as far as the limits gauge
  * reads them: each organization's own caps, and which organization owns each
- * project. The source fixture states caps. Project ownership is the project
- * table's map, written by scoped creation or explicitly seeded by a fixture.
+ * work package. Scoped creation publishes both its package ownership and this organization mapping.
  */
 export interface MemoryOrganizationLimitTables {
   readonly caps: Map<string, OrganizationLimitValues>;
-  readonly projectOrganization: Map<string, string>;
+  readonly workPackageOrganization: Map<string, string>;
 }
 
-export function memoryOrganizationLimitTables(
-  projectOrganization: Map<string, string>,
-): MemoryOrganizationLimitTables {
-  return { caps: new Map(), projectOrganization };
+export function memoryOrganizationLimitTables(): MemoryOrganizationLimitTables {
+  return { caps: new Map(), workPackageOrganization: new Map() };
 }
 
 /** @throws when any of `limits` is outside the bounds an organization may hold. */
@@ -57,12 +54,12 @@ export interface MemoryLimitReads {
  * Proof, each watched 2026-10-22 in the memory certification
  * (source-conformance.test.ts, 74 pass, 1 fail each): counting claim rows
  * instead of triples made `organizationLimits.readConcurrentClaimCap:bound-triples`
- * read 4 for A; dropping the project's organization test made it read 3, B's
+ * read 4 for A; dropping the work package's organization test made it read 3, B's
  * claim among them; dropping the kind test made
  * `organizationLimits.readAgentPersonCap:organization-scope` read 3 agents;
- * dropping the resource's organization test, the excepted-project test or the
- * project's organization test from `readCapacityCap` each failed
- * `organizationLimits.readCapacityCap:per-resource-except-project`.
+ * dropping the resource's organization test, the excepted-work-package test or the
+ * work package's organization test from `readCapacityCap` each failed
+ * `organizationLimits.readCapacityCap:per-resource-except-work-package`.
  */
 export function inMemoryOrganizationLimitGauge(
   reads: MemoryLimitReads,
@@ -76,19 +73,19 @@ export function inMemoryOrganizationLimitGauge(
     ownsResource(organizationId, resourceId)
       ? (reads.directory.resources.directoryCapacities.get(resourceId) ?? null)
       : null;
-  const sumProjectUnits = (
+  const sumWorkPackageUnits = (
     organizationId: string,
     resourceId: string,
-    exceptProjectId?: string,
+    exceptWorkPackageId?: string,
   ) => {
     if (!ownsResource(organizationId, resourceId)) return 0;
     let units = 0;
     for (const stated of reads.directory.resources.capacities.values())
       if (
         stated.resourceId === resourceId &&
-        stated.projectId !== exceptProjectId &&
-        // Proof: removing project ownership from the raw read gave 64 instead of 48 in Memory certification.
-        reads.limits.projectOrganization.get(stated.projectId) === organizationId
+        stated.workPackageId !== exceptWorkPackageId &&
+        // Proof: removing work package ownership from the raw read gave 64 instead of 48 in Memory certification.
+        reads.limits.workPackageOrganization.get(stated.workPackageId) === organizationId
       )
         units += stated.units;
     return units;
@@ -111,7 +108,8 @@ export function inMemoryOrganizationLimitGauge(
         // A claim's work item reference cascades on delete: corrupt trusted state.
         if (workItem === undefined)
           throw new Error(`claim ${row.id} names absent work item ${row.workItemId}`);
-        if (reads.limits.projectOrganization.get(workItem.projectId) !== organizationId) continue;
+        if (reads.limits.workPackageOrganization.get(workItem.workPackageId) !== organizationId)
+          continue;
         triples.add(JSON.stringify([row.workItemId, row.personId, row.runId]));
       }
       return Promise.resolve({
@@ -119,12 +117,12 @@ export function inMemoryOrganizationLimitGauge(
         current: triples.size,
       });
     },
-    readCapacityCap(organizationId, resourceId, exceptProjectId): Promise<CapReading> {
+    readCapacityCap(organizationId, resourceId, exceptWorkPackageId): Promise<CapReading> {
       return Promise.resolve({
         cap: capsOf(organizationId).maxCapacityUnitsPerResource,
         current:
           directoryUnits(organizationId, resourceId) === null
-            ? sumProjectUnits(organizationId, resourceId, exceptProjectId)
+            ? sumWorkPackageUnits(organizationId, resourceId, exceptWorkPackageId)
             : 0,
       });
     },
@@ -132,7 +130,7 @@ export function inMemoryOrganizationLimitGauge(
       return Promise.resolve({
         cap: capsOf(organizationId).maxCapacityUnitsPerResource,
         before: directoryUnits(organizationId, resourceId),
-        projectUnits: sumProjectUnits(organizationId, resourceId),
+        workPackageUnits: sumWorkPackageUnits(organizationId, resourceId),
       });
     },
   };

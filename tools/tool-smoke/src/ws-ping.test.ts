@@ -175,9 +175,9 @@ function scriptedGateway(script: {
 }
 
 const OUT_OF_RANGE =
-  '{"type":"resume_denied","subscription":"project:00000000-0000-0000-0000-000000000000","reason":"out_of_range"}';
+  '{"type":"resume_denied","subscription":"work-package:00000000-0000-0000-0000-000000000000","reason":"out_of_range"}';
 const UNAVAILABLE =
-  '{"type":"resume_denied","subscription":"project:00000000-0000-0000-0000-000000000000","reason":"unavailable"}';
+  '{"type":"resume_denied","subscription":"work-package:00000000-0000-0000-0000-000000000000","reason":"unavailable"}';
 const ACK = '{"type":"resume_ack","replayed":{}}';
 const FORWARD_REFUSED = '{"type":"error","code":"backend_unavailable","retry_after":5}';
 
@@ -190,13 +190,20 @@ describe('runBackendHopSmoke', () => {
     // The forward envelope first, then the resume. Without the first there is
     // nothing exercising gw-01's ForwardClient at all, which is the finding this
     // check exists for.
-    expect(gw.sent[0]).toContain('"subscription"');
-    expect(gw.sent[0]).toContain('"message"');
-    expect(gw.sent[1]).toContain('"type":"resume"');
+    expect(gw.sent.map((frame): unknown => JSON.parse(frame))).toEqual([
+      {
+        subscription: 'work-package:00000000-0000-0000-0000-000000000000',
+        message: { type: 'smoke' },
+      },
+      {
+        type: 'resume',
+        resume_points: { 'work-package:00000000-0000-0000-0000-000000000000': 0 },
+      },
+    ]);
   });
 
   it('succeeds when be-01 refuses the smoke principal', async () => {
-    // gw-01 verified the smoke token at the upgrade; only be-01's project
+    // gw-01 verified the smoke token at the upgrade; only be-01's work-package
     // access check can refuse it now, so the 1008 close is be-01's answer.
     const gw = scriptedGateway({ closeOnResume: { code: 1008, reason: 'unauthenticated' } });
     const res = await runBackendHopSmoke({ connect: () => gw, timeoutMs: 3000 });
@@ -219,7 +226,7 @@ describe('runBackendHopSmoke', () => {
 
   it('fails when gw-01 closes because the access check went unanswered', async () => {
     const gw = scriptedGateway({
-      closeOnResume: { code: 1013, reason: 'project access unavailable' },
+      closeOnResume: { code: 1013, reason: 'work package access unavailable' },
     });
     const res = await runBackendHopSmoke({ connect: () => gw, timeoutMs: 3000 });
 

@@ -1,24 +1,34 @@
 import type {
   ExternalRef,
+  FirstChildWrite,
+  FirstChildWriteOutcome,
   FrozenNumber,
   LabelledWorkItem,
+  MoveWrite,
+  MoveWriteOutcome,
   Reparented,
   Repositioned,
   SubtreeCopy,
   SubtreeStore,
+  SubtreeWriteOutcome,
+  TreeWorkItem,
   WorkItem,
   WorkItemPatch,
   WorkItemPatched,
+  WorkItemStepProjection,
   WorkItemStore,
   WriteStamp,
 } from '@wbs/core';
+import { retainFirstChildWrite, retainMoveWrite, retainSubtreeWrite } from '@wbs/core';
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
-import type { Gate } from './gate';
+import { writeFirstChildIn } from './first-child';
+import { type Gate, OPEN } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { writeMoveIn } from './move';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
 import {
   actual,
@@ -41,6 +51,10 @@ import {
   workItemWorkItemType,
 } from './schema';
 import { basisColumns, factCondition, storedColumnsOf } from './step-measure';
+import { readSqliteStepOrderProjectionIn } from './step-order-projection';
+import { readSqliteStepTreeIn } from './step-tree-reads';
+import { readSqliteStepWriteIn } from './step-write';
+import { writeSubtreeIn } from './subtree-write';
 
 /**
  * The not-before pair as the row will stand: what the patch names, and what the
@@ -93,13 +107,13 @@ function joinRowsFor(
  * already keeps for a retired column (see `directory.ts`'s `listTeams`): a bare
  * select reads every column drizzle knows about, and since the audit columns are
  * **recorded, not published**, that would put `created_at`, `updated_at` and
- * `created_by` into `LabelledWorkItem` — which `listByProject` spreads straight
+ * `created_by` into `LabelledWorkItem` — which `listByWorkPackage` spreads straight
  * into its answer — and from there into the plan payload. The declared return
  * types check the list is complete.
  */
 export const WORK_ITEM_COLUMNS = {
   id: workItem.id,
-  projectId: workItem.projectId,
+  workPackageId: workItem.workPackageId,
   parentId: workItem.parentId,
   position: workItem.position,
   name: workItem.name,
@@ -177,7 +191,7 @@ export class WorkItemRepository implements WorkItemStore {
    * its `slices` argument in that order, and `deriveNumbers` sorts each sibling
    * group **stably** — so for two siblings tied on `position` the array order is
    * what breaks the tie, and the derived number is the third of `goesFirst`'s
-   * four tie-breaks. Unordered, two reads of an unchanged project hand Fast two
+   * four tie-breaks. Unordered, two reads of an unchanged work package hand Fast two
    * different argument tuples and produce two different plans.
    *
    * A tied `position` is a legal and reachable state rather than a corruption to
@@ -187,46 +201,71 @@ export class WorkItemRepository implements WorkItemStore {
    * the defect was about. Why the tie is tolerated instead of constrained
    * unique, and what the one-time date movement cost: `docs/adr/0016-a-tied-sibling-position-is-legal-and-the-row-id-resolves-it.md`.
    *
-   * Index-served rather than sorted: `work_item_project_id_id` —
-   * `(project_id, id)` — covers this `WHERE` and this `ORDER BY` as one read.
-   * `work_item_siblings` opens on `project_id` too, so the filter always
+   * Index-served rather than sorted: `work_item_work_package_id_id` —
+   * `(work_package_id, id)` — covers this `WHERE` and this `ORDER BY` as one read.
+   * `work_item_siblings` opens on `work_package_id` too, so the filter always
    * resolved; what did not was the sort, which SQLite spent a temp B-tree on.
    *
    * The optimized cache key is unaffected either way: `canonical-schedule-input`
    * groups slices by work item rather than hashing the array it was handed, so
    * the key does not read this order.
    */
-  async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
-    return this.listRows(projectId);
+  /** One synchronous transaction retains rows, direct types, bindings and values together. */
+  async listTreeByWorkPackage(workPackageId: string): Promise<TreeWorkItem[]> {
+    return this.gate.enter(() =>
+      Promise.resolve(
+        // Proof: removing this transaction mixed the old name and a concurrently committed type in
+        // current SQLite tree retains one epoch while an actual other connection changes a leaf type.
+        this.db.transaction((tx) => {
+          const rows = new WorkItemRepository(tx, OPEN).listRows(workPackageId);
+          return readSqliteStepTreeIn(tx, workPackageId, rows);
+        }),
+      ),
+    );
   }
 
-  async listUpdateInstants(projectId: string): Promise<ReadonlyMap<string, number | null>> {
+  /** Retains plain proposed facts before queueing and resolves them in one current transaction. */
+  async resolveStepOrders(workPackageId: string, projection: WorkItemStepProjection) {
+    // Proof: retaining the caller reference made the queued actual SQLite projection consume its later empty type list.
+    const retained = structuredClone(projection);
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => readSqliteStepOrderProjectionIn(tx, workPackageId, retained)),
+      ),
+    );
+  }
+
+  async listByWorkPackage(workPackageId: string): Promise<LabelledWorkItem[]> {
+    return await Promise.resolve(this.listRows(workPackageId));
+  }
+
+  async listUpdateInstants(workPackageId: string): Promise<ReadonlyMap<string, number | null>> {
     const rows = await this.db
       .select({ id: workItem.id, updatedAt: workItem.updatedAt })
       .from(workItem)
-      .where(eq(workItem.projectId, projectId));
+      .where(eq(workItem.workPackageId, workPackageId));
     return new Map(rows.map((row) => [row.id, row.updatedAt]));
   }
 
-  async listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
+  async listByIds(workPackageId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
     if (ids.length === 0) return [];
-    return this.listRows(projectId, ids);
+    return await Promise.resolve(this.listRows(workPackageId, ids));
   }
 
   /**
    * Finds each requested row's source-order predecessor with one correlated
    * descending index seek. An aggregate self-join is not equivalent here: it
-   * scans every earlier row in the project before computing the same identity.
+   * scans every earlier row in the work package before computing the same identity.
    */
   async listPlacements(
-    projectId: string,
+    workPackageId: string,
     ids: readonly string[],
   ): Promise<{ id: string; afterId: string | null }[]> {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.id
       FROM work_item AS predecessor
-      WHERE predecessor.project_id = work_item.project_id
+      WHERE predecessor.work_package_id = work_item.work_package_id
         AND predecessor.id < work_item.id
       ORDER BY predecessor.id DESC
       LIMIT 1
@@ -234,54 +273,59 @@ export class WorkItemRepository implements WorkItemStore {
     return this.db
       .select({ id: workItem.id, afterId })
       .from(workItem)
-      .where(and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids])))
+      .where(and(eq(workItem.workPackageId, workPackageId), inArray(workItem.id, [...ids])))
       .orderBy(asc(workItem.id));
   }
 
-  private async listRows(projectId: string, ids?: readonly string[]): Promise<LabelledWorkItem[]> {
-    const withinProject = () =>
+  private listRows(workPackageId: string, ids?: readonly string[]): LabelledWorkItem[] {
+    const withinWorkPackage = () =>
       ids === undefined
-        ? eq(workItem.projectId, projectId)
-        : and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids]));
-    const rows = await this.db
+        ? eq(workItem.workPackageId, workPackageId)
+        : and(eq(workItem.workPackageId, workPackageId), inArray(workItem.id, [...ids]));
+    const rows = this.db
       .select(WORK_ITEM_COLUMNS)
       .from(workItem)
-      .where(withinProject())
-      .orderBy(asc(workItem.id));
-    const joined = await this.db
+      .where(withinWorkPackage())
+      .orderBy(asc(workItem.id))
+      .all();
+    const joined = this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)
       .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
-      .where(withinProject())
-      .orderBy(asc(workItemTeam.teamId));
-    const tagged = await this.db
+      .where(withinWorkPackage())
+      .orderBy(asc(workItemTeam.teamId))
+      .all();
+    const tagged = this.db
       .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
       .from(workItemTag)
       .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
-      .where(withinProject())
-      .orderBy(asc(workItemTag.tagId));
+      .where(withinWorkPackage())
+      .orderBy(asc(workItemTag.tagId))
+      .all();
     // The third dimension's join, read exactly as the two above it. `service_id`
     // is still on the row this `select` returns and is still ignored here: the
     // column belongs to the release that is still running (design D2), and a
     // reader that took it would answer with one service on a row that delivers
     // three.
-    const serviced = await this.db
+    const serviced = this.db
       .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
       .from(workItemService)
       .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
-      .where(withinProject())
-      .orderBy(asc(workItemService.serviceId));
+      .where(withinWorkPackage())
+      .orderBy(asc(workItemService.serviceId))
+      .all();
     // The fourth dimension's join, read exactly as the three above it — and the
     // only one whose result needs no walk afterwards. A type does not inherit
     // (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so what
     // comes back here is already the answer a reader gets, where the other three
     // are the *stated* sets that `effectiveTeamsOf` and its neighbours resolve.
-    const typed = await this.db
+    const typed = this.db
       .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
       .from(workItemWorkItemType)
       .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
-      .where(withinProject())
-      .orderBy(asc(workItemWorkItemType.typeId));
+      .where(withinWorkPackage())
+      .orderBy(asc(workItemWorkItemType.typeId))
+      .all();
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
@@ -301,7 +345,7 @@ export class WorkItemRepository implements WorkItemStore {
     // The refs, in `position` order, which is the order they were added — the
     // one read here that is a list of records rather than of ids, because a ref
     // carries an address as well as a vocabulary name.
-    const referenced = await this.db
+    const referenced = this.db
       .select({
         id: workItemExternalRef.id,
         workItemId: workItemExternalRef.workItemId,
@@ -311,8 +355,9 @@ export class WorkItemRepository implements WorkItemStore {
       })
       .from(workItemExternalRef)
       .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
-      .where(withinProject())
-      .orderBy(asc(workItemExternalRef.position));
+      .where(withinWorkPackage())
+      .orderBy(asc(workItemExternalRef.position))
+      .all();
     const refsOf = new Map<string, ExternalRef[]>();
     for (const each of referenced) {
       refsOf.set(each.workItemId, [
@@ -890,7 +935,7 @@ export class WorkItemRepository implements WorkItemStore {
   /**
    * Freezes every number in one statement, not one per row.
    *
-   * A freeze names **every** work item in the project, so the loop this replaces
+   * A freeze names **every** work item in the work package, so the loop this replaces
    * issued 2,000 `UPDATE`s for a 2,000-row plan — inside the outer transaction
    * and therefore inside the process-wide write lock (ADR 0007), which is the
    * cost that ADR names as the first thing to revisit.
@@ -986,6 +1031,28 @@ export class WorkItemRepository implements WorkItemStore {
   }
 }
 
+class MoveRollback extends Error {
+  constructor(readonly outcome: Exclude<MoveWriteOutcome, { kind: 'written' }>) {
+    super('move refused');
+  }
+}
+
+class FirstChildRollback extends Error {
+  constructor(readonly outcome: Exclude<FirstChildWriteOutcome, { kind: 'written' }>) {
+    super('first child transition refused');
+  }
+}
+
+class SubtreeApplicabilityRollback extends Error {
+  constructor(readonly refusal: Exclude<SubtreeWriteOutcome, 'written'>) {
+    super(
+      refusal.kind === 'estimate_refused'
+        ? 'subtree estimate applicability refused'
+        : 'subtree point applicability refused',
+    );
+  }
+}
+
 const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
 
 /**
@@ -1009,6 +1076,96 @@ export class SubtreeRepository implements SubtreeStore {
   ) {}
 
   /**
+   * Owns synchronous move preparation and nonpoint clears in one local transaction/savepoint.
+   * Proof: bypassing this rollback owner failed the late native move fault's
+   * complete same-writer comparison after the destination statements/demand changed.
+   * Modeled markers escape only after confirmed cleanup; unknown cleanup remains fenced.
+   */
+  async writeMove(write: MoveWrite, stamp: WriteStamp): Promise<MoveWriteOutcome> {
+    const kept = retainMoveWrite(write, stamp);
+    try {
+      return await this.gate.enter(() => {
+        const written = writeSubtreeIn(this.db, () => {
+          const rows = this.db
+            .select(WORK_ITEM_COLUMNS)
+            .from(workItem)
+            .where(eq(workItem.workPackageId, kept.write.workPackageId))
+            .all();
+          const decision = writeMoveIn(this.db, kept.write, kept.stamp, rows);
+          if (decision.kind !== 'written') throw new MoveRollback(decision);
+          return decision;
+        });
+        return Promise.resolve(written);
+      });
+    } catch (cause: unknown) {
+      if (cause instanceof MoveRollback) return structuredClone(cause.outcome);
+      throw cause;
+    }
+  }
+
+  /**
+   * Same actual gate and synchronous method-local rollback owner as subtree restoration; marker values escape only after successful cleanup.
+   * Proof: bypassing writeSubtreeIn let first-child-late-native-fault leave a
+   * staged child and moved estimates/measures. The native-failure case in
+   * first-child.db.test.ts failed at its same-writer evidence comparison and
+   * passed after exact restoration.
+   */
+  async writeFirstChild(
+    write: FirstChildWrite,
+    stamp: WriteStamp,
+  ): Promise<FirstChildWriteOutcome> {
+    const kept = retainFirstChildWrite(write, stamp);
+    try {
+      return await this.gate.enter(() => {
+        const written = writeSubtreeIn(this.db, () => {
+          const child = kept.write.kind === 'fresh' ? kept.write.child : kept.write.record.child;
+          const parent =
+            this.db
+              .select(WORK_ITEM_COLUMNS)
+              .from(workItem)
+              .where(eq(workItem.id, child.parentId))
+              .get() ?? null;
+          const currentChild =
+            this.db
+              .select(WORK_ITEM_COLUMNS)
+              .from(workItem)
+              .where(eq(workItem.id, child.id))
+              .get() ?? null;
+          const decision = writeFirstChildIn(this.db, kept.write, kept.stamp, parent, currentChild);
+          if (decision.kind !== 'written') throw new FirstChildRollback(decision);
+          return decision;
+        });
+        return Promise.resolve(written);
+      });
+    } catch (cause: unknown) {
+      if (cause instanceof FirstChildRollback) return structuredClone(cause.outcome);
+      throw cause;
+    }
+  }
+
+  /** Captures the complete actual first-child decision before any prospective graph slicing or write. */
+  async inspectFirstChild(write: FirstChildWrite, stamp: WriteStamp) {
+    const kept = retainFirstChildWrite(write, stamp);
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => {
+          const child = kept.write.kind === 'fresh' ? kept.write.child : kept.write.record.child;
+          const parent =
+            tx
+              .select(WORK_ITEM_COLUMNS)
+              .from(workItem)
+              .where(eq(workItem.id, child.parentId))
+              .get() ?? null;
+          const currentChild =
+            tx.select(WORK_ITEM_COLUMNS).from(workItem).where(eq(workItem.id, child.id)).get() ??
+            null;
+          return writeFirstChildIn(tx, kept.write, kept.stamp, parent, currentChild, 'inspect');
+        }),
+      ),
+    );
+  }
+
+  /**
    * The statement order is forced by the foreign keys, not chosen: rows before
    * anything that references them, the reparenting after the rows it points
    * at exist, and the dependencies last because each references two.
@@ -1026,225 +1183,268 @@ export class SubtreeRepository implements SubtreeStore {
    * revision of. `bumpedWorkItemOnReparent` is what keeps a row that only
    * changed position out of that — the same rule as everywhere else here.
    *
-   * `async` is load-bearing, as it is in `ProjectRepository.create`:
-   * `db.transaction` is synchronous, so without it a constraint violation
-   * would throw before the promise this signature advertises exists, and a
-   * caller holding it with `.catch()` would never see the rejection.
+   * `async` is load-bearing, as it is in `WorkPackageRepository.create`:
+   * writeSubtreeIn is synchronous; the outer async preserves unknown thrown
+   * causes as rejections. The actual admitted gate supplies Source/loan lifetime,
+   * and the write segment contains no await after candidate capture or COMMIT.
    */
-  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
-    await this.gate.enter(async () => {
-      await Promise.resolve();
-      const write = (tx: SQLiteBunDatabase): void => {
-        const satelliteKeys: string[] = [];
-        for (const moved of copy.respaced) {
-          tx.update(workItem)
-            .set({ position: moved.position, ...auditOnUpdate(stamp) })
-            .where(eq(workItem.id, moved.id))
-            .run();
-        }
-        // One statement per row rather than one multi-row insert: a child
-        // referencing a parent in the same `VALUES` list depends on the order
-        // SQLite evaluates it in, which is not a contract worth resting a tree on.
-        for (const row of copy.rows) {
-          const stored = { ...row };
-          Reflect.deleteProperty(stored, 'teamIds');
-          Reflect.deleteProperty(stored, 'typeIds');
-          tx.insert(workItem)
-            .values({ ...stored, ...auditOnCreate(stamp) })
-            .run();
-        }
-        // The teams the copied rows carry, in the same transaction as the rows.
-        // A duplicated branch draws from the pools the original drew from, and a
-        // restored one comes back on the pool it left — the join rows of a
-        // deleted work item went with it through the cascade, so a restore that
-        // wrote only the column would put the rows back unpooled and move dates
-        // nobody edited.
-        //
-        // Proof: this write deleted and `carries the teams of every row a copy
-        // writes` failed on `Expected - 4 / Received + 0` — the copy landed with
-        // no team at all — 15 pass / 1 fail; watched 2026-08-14.
-        const joined = joinRowsFor(copy.rows);
-        if (joined.length > 0)
-          tx.insert(workItemTeam)
-            .values(joined.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // The types, exactly as the original carried them: a copy or a restore
-        // reproduces a type conflict rather than resolving it (WBS 010.4.10).
-        //
-        // Proof: this write deleted and `duplicates a type conflict unchanged
-        // rather than resolving it` (be-01 undo.db) received []. Watched 2026-09-27.
-        //
-        // Less any type the directory no longer holds, read in this transaction:
-        // removing a type took it off every live row through the cascade, so a
-        // row restored after that lands as it would have had it stayed.
-        //
-        // Proof: this filter removed and `restores a deleted row without a type
-        // the directory has since removed` (be-01 undo.db) threw a FOREIGN KEY
-        // constraint failure. Watched 2026-09-27.
-        const wantedTypes = [...new Set(copy.rows.flatMap((row) => row.typeIds ?? []))];
-        const heldTypes = new Set(
-          wantedTypes.length === 0
-            ? []
-            : tx
-                .select({ id: workItemType.id })
-                .from(workItemType)
-                .where(inArray(workItemType.id, wantedTypes))
-                .all()
-                .map((each) => each.id),
-        );
-        const typed = copy.rows.flatMap((row) =>
-          [...new Set(row.typeIds ?? [])]
-            .filter((typeId) => heldTypes.has(typeId))
-            .map((typeId) => ({ workItemId: row.id, typeId })),
-        );
-        if (typed.length > 0)
-          tx.insert(workItemWorkItemType)
-            .values(typed.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // After the rows, because these point at them. A restored parent's
-        // children come home here, and a row that gained a parent gained a
-        // stored field of its own — see {@link bumpedWorkItemOnReparent} for why
-        // the former siblings alongside them do not count.
-        for (const child of copy.reparented) {
-          tx.update(workItem)
-            .set({
-              parentId: child.parentId,
-              position: child.position,
-              revision: bumpedWorkItemOnReparent(child.parentId),
-              ...auditOnUpdate(stamp),
-            })
-            .where(eq(workItem.id, child.id))
-            .run();
-        }
-        if (copy.estimates.length > 0) {
-          tx.insert(estimate)
-            .values(copy.estimates.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-          satelliteKeys.push(
-            ...copy.estimates.map(({ workItemId, stepId }) => `${workItemId}:${stepId}`),
+  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<SubtreeWriteOutcome> {
+    const kept = retainSubtreeWrite(copy, stamp);
+    copy = kept.copy;
+    stamp = kept.stamp;
+    try {
+      return await this.gate.enter(() => {
+        const write = (tx: SQLiteBunDatabase): void => {
+          const satelliteKeys: string[] = [];
+          for (const moved of copy.respaced) {
+            tx.update(workItem)
+              .set({ position: moved.position, ...auditOnUpdate(stamp) })
+              .where(eq(workItem.id, moved.id))
+              .run();
+          }
+          // One statement per row rather than one multi-row insert: a child
+          // referencing a parent in the same `VALUES` list depends on the order
+          // SQLite evaluates it in, which is not a contract worth resting a tree on.
+          for (const row of copy.rows) {
+            const stored = { ...row };
+            Reflect.deleteProperty(stored, 'teamIds');
+            Reflect.deleteProperty(stored, 'typeIds');
+            tx.insert(workItem)
+              .values({ ...stored, ...auditOnCreate(stamp) })
+              .run();
+          }
+          // The teams the copied rows carry, in the same transaction as the rows.
+          // A duplicated branch draws from the pools the original drew from, and a
+          // restored one comes back on the pool it left — the join rows of a
+          // deleted work item went with it through the cascade, so a restore that
+          // wrote only the column would put the rows back unpooled and move dates
+          // nobody edited.
+          //
+          // Proof: this write deleted and `carries the teams of every row a copy
+          // writes` failed on `Expected - 4 / Received + 0` — the copy landed with
+          // no team at all — 15 pass / 1 fail; watched 2026-08-14.
+          const joined = joinRowsFor(copy.rows);
+          if (joined.length > 0)
+            tx.insert(workItemTeam)
+              .values(joined.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // The types, exactly as the original carried them: a copy or a restore
+          // reproduces a type conflict rather than resolving it (WBS 010.4.10).
+          //
+          // Proof: this write deleted and `duplicates a type conflict unchanged
+          // rather than resolving it` (be-01 undo.db) received []. Watched 2026-09-27.
+          //
+          // Less any type the directory no longer holds, read in this transaction:
+          // removing a type took it off every live row through the cascade, so a
+          // row restored after that lands as it would have had it stayed.
+          //
+          // Proof: this filter removed and `restores a deleted row without a type
+          // the directory has since removed` (be-01 undo.db) threw a FOREIGN KEY
+          // constraint failure. Watched 2026-09-27.
+          const wantedTypes = [...new Set(copy.rows.flatMap((row) => row.typeIds ?? []))];
+          const heldTypes = new Set(
+            wantedTypes.length === 0
+              ? []
+              : tx
+                  .select({ id: workItemType.id })
+                  .from(workItemType)
+                  .where(inArray(workItemType.id, wantedTypes))
+                  .all()
+                  .map((each) => each.id),
           );
-        }
-        // Beside the estimates and written the same way. Empty for a duplication
-        // — a copy is work nobody has done — and non-empty for the restore an
-        // undo of a delete runs, which has to put back the days the delete took
-        // with the rows. See {@link SubtreeCopy.actuals}.
-        if (copy.actuals.length > 0)
-          tx.insert(actual)
-            .values(copy.actuals.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // Beside the actuals and for the same two reasons: empty for a
-        // duplication, because a copy is work nobody has done *or spoken about*,
-        // and non-empty for the restore an undo of a delete runs, which has to put
-        // back the reading the delete took with the rows. See
-        // {@link SubtreeCopy.progress}.
-        if (copy.progress.length > 0)
-          tx.insert(stepProgress)
-            .values(copy.progress.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // Beside the two above, and the one write here whose emptiness is not a
-        // whole-collection decision: a duplication fills this with the original's
-        // `token_estimate` rows and none of its recorded figures, a restore fills
-        // it in every metric. The rule runs through the collection rather than
-        // around it, because the metric is in the key. See
-        // {@link SubtreeCopy.measures}.
-        // A defined measure's fact is written as its definition's id, a legacy
-        // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does,
-        // and a priced fact with its basis (`wbs-measure-budgets` design D65).
-        // Proof: with the basis columns left out, `round-trips a version-11 plan
-        // byte for byte into an organization lacking a measure` and `undo of a
-        // delete puts a priced fact back with its basis`
-        // (measure-export.controller.db.test.ts) read the cost fact unpriced;
-        // watched 2026-10-23.
-        if (copy.measures.length > 0)
-          tx.insert(stepMeasure)
-            .values(
-              copy.measures.map(({ basis, ...each }) => ({
-                ...each,
-                ...storedColumnsOf(tx, each),
-                ...basisColumns(basis),
-                ...auditOnCreate(stamp),
-              })),
-            )
-            .run();
-        if (copy.assignments.length > 0)
-          tx.insert(assignment)
-            .values(copy.assignments.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // The rows' demands, beside the assignments and for the same reason: a
-        // copied branch needs what the original needs, and a restored one comes
-        // back needing what it needed — the delete's cascade took the rows. See
-        // {@link SubtreeCopy.demands}.
-        //
-        // Proof: with this write skipped, `undo of a delete puts the demands back
-        // exactly` and `duplicate copies the demands with the subtree`
-        // (resource-occupancy.db.test.ts) failed on SQLite only; watched 2026-10-20.
-        if (copy.demands.length > 0)
-          tx.insert(workItemResourceDemand)
-            .values(copy.demands.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // Plain inserts, never `onConflictDoNothing`: every id here was generated
-        // for this copy, so a conflict is an id collision and swallowing it would
-        // hide the one thing that must never be quiet.
-        if (copy.dependencies.length > 0)
-          tx.insert(dependency)
-            .values(copy.dependencies.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
-            .run();
-        // Last, and in the same transaction as the rows that make it correct: a
-        // restored leaf and the parent still holding that leaf's figures would
-        // count the same days twice for as long as the window lasted.
-        for (const taken of copy.removedEstimates) {
-          tx.delete(estimate)
-            .where(
-              and(eq(estimate.workItemId, taken.workItemId), eq(estimate.stepId, taken.stepId)),
-            )
-            .run();
-        }
-        // The same statement for the same reason, one table over: a restored leaf
-        // and the parent still holding that leaf's recorded days would count the
-        // same week twice.
-        for (const taken of copy.removedActuals) {
-          tx.delete(actual)
-            .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.stepId, taken.stepId)))
-            .run();
-        }
-        // And the statements, for the reason above in the tense this table is
-        // about: a restored leaf and the parent still saying that leaf's work is
-        // finished would report the same branch as done twice, on two rows, one of
-        // which is now a parent whose reading is supposed to be folded.
-        for (const taken of copy.removedProgress) {
-          tx.delete(stepProgress)
-            .where(
-              and(
-                eq(stepProgress.workItemId, taken.workItemId),
-                eq(stepProgress.stepId, taken.stepId),
-              ),
-            )
-            .run();
-        }
-        // And the figures, for the reason above in every unit that is not days —
-        // with the metric in the `where`, because the key is the triple. Deleting
-        // by the pair would take a figure off the parent that this restore never
-        // handed it: an hours fact it has held since before the delete, gone
-        // because a token estimate came home.
-        for (const taken of copy.removedMeasures) {
-          const named = factCondition(tx, taken.workItemId, taken.stepId, taken.metric);
-          if (named !== undefined) tx.delete(stepMeasure).where(named).run();
-        }
-        bumpWorkItems(
-          tx,
-          [
-            ...copy.removedEstimates.map((taken) => taken.workItemId),
-            ...copy.removedActuals.map((taken) => taken.workItemId),
-            ...copy.removedProgress.map((taken) => taken.workItemId),
-            ...copy.removedMeasures.map((taken) => taken.workItemId),
-          ],
-          stamp,
-        );
-        this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
-      };
-      if (!nonAtomicSubtreeMutants.has(this)) this.db.transaction(write);
-      else write(this.db);
-    });
+          const typed = copy.rows.flatMap((row) =>
+            [...new Set(row.typeIds ?? [])]
+              .filter((typeId) => heldTypes.has(typeId))
+              .map((typeId) => ({ workItemId: row.id, typeId })),
+          );
+          if (typed.length > 0)
+            tx.insert(workItemWorkItemType)
+              .values(typed.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // After the rows, because these point at them. A restored parent's
+          // children come home here, and a row that gained a parent gained a
+          // stored field of its own — see {@link bumpedWorkItemOnReparent} for why
+          // the former siblings alongside them do not count.
+          for (const child of copy.reparented) {
+            tx.update(workItem)
+              .set({
+                parentId: child.parentId,
+                position: child.position,
+                revision: bumpedWorkItemOnReparent(child.parentId),
+                ...auditOnUpdate(stamp),
+              })
+              .where(eq(workItem.id, child.id))
+              .run();
+          }
+          // Candidate rows, direct types and reparenting are already on THIS writer.
+          // Validate all requested step values before the first satellite INSERT.
+          for (const estimate of copy.estimates) {
+            const decision = readSqliteStepWriteIn(tx, estimate.workItemId, estimate.stepId);
+            if (decision.kind !== 'resolved')
+              throw new SubtreeApplicabilityRollback({
+                kind: 'estimate_refused',
+                workItemId: estimate.workItemId,
+                stepId: estimate.stepId,
+                reason: decision.kind,
+              });
+          }
+          for (const [fact, points] of [
+            ['actual', copy.actuals],
+            ['progress', copy.progress],
+            ['measure', copy.measures],
+          ] as const) {
+            for (const point of points) {
+              const decision = readSqliteStepWriteIn(tx, point.workItemId, point.stepId);
+              // Proof: BULK_SQL_ACTUAL/PROGRESS/MEASURE each omitted only its kind.
+              // Each public restore owner returned written instead of point_refused after
+              // healthy restore/remove/unbind; each exact-restored control passed.
+              if (decision.kind !== 'resolved')
+                throw new SubtreeApplicabilityRollback({
+                  kind: 'point_refused',
+                  fact,
+                  workItemId: point.workItemId,
+                  stepId: point.stepId,
+                  reason: decision.kind,
+                });
+            }
+          }
+          if (copy.estimates.length > 0) {
+            tx.insert(estimate)
+              .values(copy.estimates.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+            satelliteKeys.push(
+              ...copy.estimates.map(({ workItemId, stepId }) => `${workItemId}:${stepId}`),
+            );
+          }
+          // Beside the estimates and written the same way. Empty for a duplication
+          // — a copy is work nobody has done — and non-empty for the restore an
+          // undo of a delete runs, which has to put back the days the delete took
+          // with the rows. See {@link SubtreeCopy.actuals}.
+          if (copy.actuals.length > 0)
+            tx.insert(actual)
+              .values(copy.actuals.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // Beside the actuals and for the same two reasons: empty for a
+          // duplication, because a copy is work nobody has done *or spoken about*,
+          // and non-empty for the restore an undo of a delete runs, which has to put
+          // back the reading the delete took with the rows. See
+          // {@link SubtreeCopy.progress}.
+          if (copy.progress.length > 0)
+            tx.insert(stepProgress)
+              .values(copy.progress.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // Beside the two above, and the one write here whose emptiness is not a
+          // whole-collection decision: a duplication fills this with the original's
+          // `token_estimate` rows and none of its recorded figures, a restore fills
+          // it in every metric. The rule runs through the collection rather than
+          // around it, because the metric is in the key. See
+          // {@link SubtreeCopy.measures}.
+          // A defined measure's fact is written as its definition's id, a legacy
+          // one under its name (`storedColumnsOf`), as `StepMeasureRepository.set` does,
+          // and a priced fact with its basis (`wbs-measure-budgets` design D65).
+          // Proof: with the basis columns left out, `round-trips a version-11 plan
+          // byte for byte into an organization lacking a measure` and `undo of a
+          // delete puts a priced fact back with its basis`
+          // (measure-export.controller.db.test.ts) read the cost fact unpriced;
+          // watched 2026-10-23.
+          if (copy.measures.length > 0)
+            tx.insert(stepMeasure)
+              .values(
+                copy.measures.map(({ basis, ...each }) => ({
+                  ...each,
+                  ...storedColumnsOf(tx, each),
+                  ...basisColumns(basis),
+                  ...auditOnCreate(stamp),
+                })),
+              )
+              .run();
+          if (copy.assignments.length > 0)
+            tx.insert(assignment)
+              .values(copy.assignments.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // The rows' demands, beside the assignments and for the same reason: a
+          // copied branch needs what the original needs, and a restored one comes
+          // back needing what it needed — the delete's cascade took the rows. See
+          // {@link SubtreeCopy.demands}.
+          //
+          // Proof: with this write skipped, `undo of a delete puts the demands back
+          // exactly` and `duplicate copies the demands with the subtree`
+          // (resource-occupancy.db.test.ts) failed on SQLite only; watched 2026-10-20.
+          if (copy.demands.length > 0)
+            tx.insert(workItemResourceDemand)
+              .values(copy.demands.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // Plain inserts, never `onConflictDoNothing`: every id here was generated
+          // for this copy, so a conflict is an id collision and swallowing it would
+          // hide the one thing that must never be quiet.
+          if (copy.dependencies.length > 0)
+            tx.insert(dependency)
+              .values(copy.dependencies.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+              .run();
+          // Last, and in the same transaction as the rows that make it correct: a
+          // restored leaf and the parent still holding that leaf's figures would
+          // count the same days twice for as long as the window lasted.
+          for (const taken of copy.removedEstimates) {
+            tx.delete(estimate)
+              .where(
+                and(eq(estimate.workItemId, taken.workItemId), eq(estimate.stepId, taken.stepId)),
+              )
+              .run();
+          }
+          // The same statement for the same reason, one table over: a restored leaf
+          // and the parent still holding that leaf's recorded days would count the
+          // same week twice.
+          for (const taken of copy.removedActuals) {
+            tx.delete(actual)
+              .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.stepId, taken.stepId)))
+              .run();
+          }
+          // And the statements, for the reason above in the tense this table is
+          // about: a restored leaf and the parent still saying that leaf's work is
+          // finished would report the same branch as done twice, on two rows, one of
+          // which is now a parent whose reading is supposed to be folded.
+          for (const taken of copy.removedProgress) {
+            tx.delete(stepProgress)
+              .where(
+                and(
+                  eq(stepProgress.workItemId, taken.workItemId),
+                  eq(stepProgress.stepId, taken.stepId),
+                ),
+              )
+              .run();
+          }
+          // And the figures, for the reason above in every unit that is not days —
+          // with the metric in the `where`, because the key is the triple. Deleting
+          // by the pair would take a figure off the parent that this restore never
+          // handed it: an hours fact it has held since before the delete, gone
+          // because a token estimate came home.
+          for (const taken of copy.removedMeasures) {
+            const named = factCondition(tx, taken.workItemId, taken.stepId, taken.metric);
+            if (named !== undefined) tx.delete(stepMeasure).where(named).run();
+          }
+          bumpWorkItems(
+            tx,
+            [
+              ...copy.removedEstimates.map((taken) => taken.workItemId),
+              ...copy.removedActuals.map((taken) => taken.workItemId),
+              ...copy.removedProgress.map((taken) => taken.workItemId),
+              ...copy.removedMeasures.map((taken) => taken.workItemId),
+            ],
+            stamp,
+          );
+          this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
+        };
+        if (!nonAtomicSubtreeMutants.has(this))
+          writeSubtreeIn(this.db, () => {
+            write(this.db);
+          });
+        else write(this.db);
+        return Promise.resolve<SubtreeWriteOutcome>('written');
+      });
+    } catch (cause: unknown) {
+      if (cause instanceof SubtreeApplicabilityRollback) return structuredClone(cause.refusal);
+      throw cause;
+    }
   }
 }
 

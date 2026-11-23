@@ -1,0 +1,844 @@
+{
+  "schema": "bun-scripts-c35-admitted-checkout-verification/v1",
+  "state": "accepted9-scoped-task1b-evidence; closing-integration-review-pending",
+  "scope": "Bounded2.2c Task1b private local admitted checkout core and preserved standalone facade only; parent2.2 and whole C35 stay open.",
+  "base": "5a52563394660c50e402fc6bdedbddb129c8fbe6",
+  "acceptance": {
+    "root": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/puni-c35-task1b-root-actual-accepted-v1.json",
+      "sha256": "9cdd3d3b414a650322e12781c3c255df08016c1f37c456d2a15df56955c987ef",
+      "bytes": 2426
+    },
+    "sameAstra": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/puni-c35-task1b-actual-astra-review.json",
+      "sha256": "0eae8f36a15161becf4d357f3bef3a24430ee6a99e8321e118399b144e6324af",
+      "bytes": 1619
+    },
+    "sameAstraReport": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/puni-c35-task1b-actual-astra-review.md",
+      "sha256": "89e0b6ff1b5273badb3063c734bf291eaf4ffa09bd4f9f04af88a0a861e7021b",
+      "bytes": 6929
+    },
+    "independentRoot": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/puni-c35-task1b-root-actual-independent-v1.json",
+      "sha256": "e34c61644977a084b82f81bec49b41fefcf46a094ebca26719a5373c1a4d287c",
+      "bytes": 5592
+    },
+    "acceptedRecipes": 8,
+    "acceptedJoins": 9,
+    "rejectedJoins": 0
+  },
+  "artifacts": {
+    "actualPacket": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/provisional-packet.json",
+      "sha256": "b812e0f4deadeab976943fbcd3274f212f361072a72ef137ae59f8bfcd5f2ffd",
+      "bytes": 5769
+    },
+    "actualJoins": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/provisional-joins.json",
+      "sha256": "9deb99902c521703e696f7b3dca0e8bee5c9fa9b3736318a4fbec4a02917f10e",
+      "bytes": 26857
+    },
+    "postFlightAudit": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/post-flight-audit.json",
+      "sha256": "6c3b1ad0f36f9e2edc3ad235e6226cd0d0fb2b5b4b58b536b23169add437d511",
+      "bytes": 606
+    },
+    "sourceManifest": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/SOURCE/manifest.json",
+      "sha256": "e1db00a4893f141b5ba223a5284f54b89de1de6cee00523e907c10e437035e1a",
+      "bytes": 395484
+    },
+    "toolingManifest": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/TOOLING/manifest.json",
+      "sha256": "e92a47e65705d043e9164184bfc305c7e4a10a2138f681ca66814fbc3eabfc71",
+      "bytes": 13898
+    },
+    "plan": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/plan.json",
+      "sha256": "56b19e2807d1fac82bede4c41441a12e0ec800f40000eeb4114000eeb9d2a283",
+      "bytes": 16084
+    },
+    "strictRunner": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/tooling/runner.ts",
+      "sha256": "fdbef66b6102026f20611dcc6942d8213ab44895fc40982045d9fcfc038fd547",
+      "bytes": 14343
+    },
+    "oracle": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/tooling/oracle.ts",
+      "sha256": "f5d02dad9ce739b696c9ab2b86dc402ea99586762629e5d74693809839033641",
+      "bytes": 4641
+    },
+    "approvedGo": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/APPROVED-GO.json",
+      "sha256": "78fd988b34fafaa126dbe2f0a8c3deab9bf7779f5495724458d4a692b5c62336",
+      "bytes": 610
+    },
+    "done": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/DONE.json",
+      "sha256": "20145235f14ce7e44ec4c05750e3efc43f353044056912d1db5b544280fcd2d1",
+      "bytes": 149
+    }
+  },
+  "proofEpochProduction": {
+    "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+    "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts": "00e3986a89b650769fe1287564811497df6176a1315bce13068ab8ad08861e9a",
+    "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts": "05ca61b3aa1922b630704c2d58177e64ad7073d49ca80c128738940eac897e92"
+  },
+  "joins": [
+    {
+      "recipe": "B01",
+      "case": "identity",
+      "acceptedScope": "Registry identity refusal at actual core entry. First OWN Error-instance refusal only; later effects/HEAD assertions are not separately qualified.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.test.ts",
+        "line": 84,
+        "column": 20,
+        "matcher": "toBeInstanceOf",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+      "sourceSha256": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+      "mutantSha256": "e3467d7c8b03a408d778bf57645b9893add05d6c43e87f4a0356b7f851d841c2",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B01/red-identity/receipt.json",
+            "sha256": "ad826300497d4ff97c8023c00ebe7fd1fb57b34fa0c7fb0e92b97d59f636e0ec",
+            "bytes": 2106
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B01/red-identity/output.log",
+            "sha256": "47a486d3accad62fa6a9cb52754ad73314f135d2eb81a984624cd6f1dcced4a5",
+            "bytes": 992
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B01/green-identity/receipt.json",
+            "sha256": "bab98747060ad8a12afb1fdfe20b5cbee1c800f75c9284d564d6b5454d100b5e",
+            "bytes": 2106
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B01/green-identity/output.log",
+            "sha256": "489abcfc2d4f6fd927b1180c1f5624282b5a51c4d3610a862567390c9d290efb",
+            "bytes": 270
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 5
+        }
+      }
+    },
+    {
+      "recipe": "B02",
+      "case": "metadata",
+      "acceptedScope": "Registry-owned metadata immutability observed through aheadAtArrival only; no separate waitedSeconds mutation credit.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.test.ts",
+        "line": 71,
+        "column": 57,
+        "matcher": "toBe",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+      "sourceSha256": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+      "mutantSha256": "93aca8fda0b01d59c9f5b75afdd335ed275865aa1f40e99633b2cb5734aa9c56",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B02/red-metadata/receipt.json",
+            "sha256": "91d223a1daa98e11bef1b2b8f15194c7367fdd792bde6a2ba904d37978fb23e1",
+            "bytes": 2027
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B02/red-metadata/output.log",
+            "sha256": "c9ca3e05a94af7a41705c144a9a96711465e2bb23526506ef9499f5784de96fd",
+            "bytes": 1749
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B02/green-metadata/receipt.json",
+            "sha256": "a52f826a25c477faf1a2b6e33b8b0e8ecf8a08f1eae0a6cfeb351144bebe65dd",
+            "bytes": 2027
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B02/green-metadata/output.log",
+            "sha256": "e5234d72b40355588bc38fe84621ceafd25de67c619b23e657f56f987a7c09dc",
+            "bytes": 232
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        }
+      }
+    },
+    {
+      "recipe": "B03",
+      "case": "stale-completion",
+      "acceptedScope": "Genuine token is stale at core entry after actual callback completion or failure. First refusal observation, not every later transaction effect.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.test.ts",
+        "line": 84,
+        "column": 20,
+        "matcher": "toBeInstanceOf",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+      "sourceSha256": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+      "mutantSha256": "f835b10a2a1374bfb1547768b6e303afd35bf07e22e60795abad15ec3af0fa4b",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/red-stale-completion/receipt.json",
+            "sha256": "e36d6f05aa53c930aeb60be6881e4becb84ffc8b825768a05c4b50fa56a054d3",
+            "bytes": 2008
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/red-stale-completion/output.log",
+            "sha256": "2e0e277ee1059c8211037071ab2a1231076515420b30c4fb975a5ef2b8928ada",
+            "bytes": 945
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/green-stale-completion/receipt.json",
+            "sha256": "113c9bde6dc8b8b3f306d6076d92c857da523b6552bea33ae4b7db8208c71d79",
+            "bytes": 2008
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/green-stale-completion/output.log",
+            "sha256": "4c5cc3d8ebaebc3c13627df9d78fa4660fe8f0d89283aeffa31f123887e09812",
+            "bytes": 223
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 3
+        }
+      }
+    },
+    {
+      "recipe": "B03",
+      "case": "stale-failure",
+      "acceptedScope": "Genuine token is stale at core entry after actual callback completion or failure. First refusal observation, not every later transaction effect.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.test.ts",
+        "line": 84,
+        "column": 20,
+        "matcher": "toBeInstanceOf",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+      "sourceSha256": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+      "mutantSha256": "f835b10a2a1374bfb1547768b6e303afd35bf07e22e60795abad15ec3af0fa4b",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/red-stale-failure/receipt.json",
+            "sha256": "42ada51b5247ede7ceeb4deaa987a05d9330cc1443e29c5d059b5729c9c3d511",
+            "bytes": 1999
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/red-stale-failure/output.log",
+            "sha256": "ed95ef6bba594f62bbf007f23982c22f9df1ac185db3848bd3cbb2d681fa8dc3",
+            "bytes": 942
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 2
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/green-stale-failure/receipt.json",
+            "sha256": "6d50da9f0f4d4b79ca22e63e74258d12cb0e0e0cdf804ef6a151bab485015d73",
+            "bytes": 1999
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B03/green-stale-failure/output.log",
+            "sha256": "be46bb3a5f61f532a49ba7295b6d507bce547ffd0869d5e6d9b27d7e3b760300",
+            "bytes": 220
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 4
+        }
+      }
+    },
+    {
+      "recipe": "B04",
+      "case": "awaited-lifetime",
+      "acceptedScope": "Awaited live-token lifetime dependency: removal of return-await retires membership before callback resumes. Outer promise adoption can still hold the native mutex; no mutex-release escape credit.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.test.ts",
+        "line": 38,
+        "column": 52,
+        "matcher": "not.toThrow",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+      "sourceSha256": "1c48878358cc28258f38a98575ab779558e6e171f03535470b6e8cf59d3cd4ff",
+      "mutantSha256": "9174b0cbcbe0907062a300b1e2bf5ec6b12a989abe3331f7836cd7d916a73924",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B04/red-awaited-lifetime/receipt.json",
+            "sha256": "3d6058072744c6d67076ea51647aa761d867bfa21b3283ef83be1ccde536696a",
+            "bytes": 2059
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B04/red-awaited-lifetime/output.log",
+            "sha256": "51a23695a40777e2ac9b1159b92994d9c090c0a90d931ec861ba65f35db6338c",
+            "bytes": 967
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 3
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B04/green-awaited-lifetime/receipt.json",
+            "sha256": "e45158cd07d278802c19dc0e75e54f32ec12321ad76614dd8e698a813cac30a9",
+            "bytes": 2059
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B04/green-awaited-lifetime/output.log",
+            "sha256": "774f7dd6c6df148dab1d37b8a14241cd686b4e6c7f1877e3d24660cfd607077b",
+            "bytes": 227
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 6
+        }
+      }
+    },
+    {
+      "recipe": "B05",
+      "case": "early-capture",
+      "acceptedScope": "Early cancellation completion must reach facade capture before umask finalizer. First parent exitCode0 assertion plus controlled child finalizer stage; no independent later status/cause-list credit.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "line": 1092,
+        "column": 55,
+        "matcher": "toBe",
+        "diagnosticKind": "finalizer-child-status"
+      },
+      "controlledChildStageAtProofEpoch": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+        "line": 633,
+        "parentExpected": 0,
+        "parentReceived": 1
+      },
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+      "sourceSha256": "00e3986a89b650769fe1287564811497df6176a1315bce13068ab8ad08861e9a",
+      "mutantSha256": "4e2d64c14693894302ce111ea8895ba3b677c51d1702d9c470782c93f2da81b6",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B05/red-early-capture/receipt.json",
+            "sha256": "975ec5a75acbb9645dcad63421382028a72e0d07544b9a85ae77faf0b7e7c72e",
+            "bytes": 2193
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B05/red-early-capture/output.log",
+            "sha256": "2a54f5be1cd7eb422e8624ba519d14a2dee82f04ef94edbaab009ab152aae8f0",
+            "bytes": 1897
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B05/green-early-capture/receipt.json",
+            "sha256": "d936626ac1863ee69c828d5ca0f6e97c8945fab952851d7c095b39aec204631b",
+            "bytes": 2193
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B05/green-early-capture/output.log",
+            "sha256": "679fb72ef6a903a7ce016026b709d773104efd564313277f722f6c1ceaa422bb",
+            "bytes": 225
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 3
+        }
+      }
+    },
+    {
+      "recipe": "B06",
+      "case": "final-capture",
+      "acceptedScope": "Final admitted completion must reach facade capture before umask finalizer. First parent exitCode0 assertion plus controlled child finalizer stage; no independent later status/cause-list credit.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "line": 1092,
+        "column": 55,
+        "matcher": "toBe",
+        "diagnosticKind": "finalizer-child-status"
+      },
+      "controlledChildStageAtProofEpoch": {
+        "file": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+        "line": 633,
+        "parentExpected": 0,
+        "parentReceived": 1
+      },
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+      "sourceSha256": "00e3986a89b650769fe1287564811497df6176a1315bce13068ab8ad08861e9a",
+      "mutantSha256": "67729227ce0a960490b72ececa1e0c5eb6a952e145316c65b75fd0142ace6634",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B06/red-final-capture/receipt.json",
+            "sha256": "4585d32c859da2e5b7ccadace39f505f5aa50ab9284177979db6dbb754745b6a",
+            "bytes": 2181
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B06/red-final-capture/output.log",
+            "sha256": "42dc33a4835c0a519be045c7a474921eb307be3c85550c352aa96651ce6209d8",
+            "bytes": 1891
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 1
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B06/green-final-capture/receipt.json",
+            "sha256": "1b09bce5d8bb4f983b91723b43ee1f93acae27f50cee090568c2aa08f7ce526d",
+            "bytes": 2181
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B06/green-final-capture/output.log",
+            "sha256": "d00f3145a99103ca37da2b8c3dfea1c5da353368c807e0173bf4139f99800528",
+            "bytes": 220
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 0,
+          "observedExpectCalls": 3
+        }
+      }
+    },
+    {
+      "recipe": "B07",
+      "case": "cleanup-work74",
+      "acceptedScope": "Numeric work74 alone cannot acquire restoration priority after actual admission close failure. First returned receipt subset/status observation only.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "line": 784,
+        "column": 23,
+        "matcher": "toMatchObject",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+      "sourceSha256": "05ca61b3aa1922b630704c2d58177e64ad7073d49ca80c128738940eac897e92",
+      "mutantSha256": "0c9c9499bbb970015c5ef970d37835d7557d5ec7bfd30303b763ee2383c27255",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B07/red-cleanup-work74/receipt.json",
+            "sha256": "af96734ccfbf4ad22cae92d88a6dc133bf869d85eee15e7e0d5e722866c0fb99",
+            "bytes": 9572
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B07/red-cleanup-work74/output.log",
+            "sha256": "5ce9c1830cbb37a626f6b149b1d3343e0fbf231b856907fc1ec48bb87081cb21",
+            "bytes": 1151
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 33,
+          "observedExpectCalls": 2
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B07/green-cleanup-work74/receipt.json",
+            "sha256": "0b666cac21b90cd1cbc2871cb24524c0986421a5abb76839b8cdb0fdd38e83ed",
+            "bytes": 9572
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B07/green-cleanup-work74/output.log",
+            "sha256": "474a5bdbd1eb901875b67dbc73bef23cf8aec68da4c39852092b7587adaf857e",
+            "bytes": 248
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 33,
+          "observedExpectCalls": 2
+        }
+      }
+    },
+    {
+      "recipe": "B08",
+      "case": "cleanup-restore",
+      "acceptedScope": "Actual restoration-origin failure retains74 across reporting and admission close failure. First returned receipt subset/status observation only.",
+      "firstOwnAtProofEpoch": {
+        "file": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "line": 784,
+        "column": 23,
+        "matcher": "toMatchObject",
+        "diagnosticKind": "ordinary matcher"
+      },
+      "controlledChildStageAtProofEpoch": null,
+      "sourcePath": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+      "sourceSha256": "05ca61b3aa1922b630704c2d58177e64ad7073d49ca80c128738940eac897e92",
+      "mutantSha256": "e87e093fc0ac6b332c0295f97832ddccdfb683a8a7e83420440be402cacfbbcf",
+      "phases": {
+        "red": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B08/red-cleanup-restore/receipt.json",
+            "sha256": "93e99f496fc073559dd1c1670a8c6105092ffdd135454b3273d65af673975d21",
+            "bytes": 9575
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B08/red-cleanup-restore/output.log",
+            "sha256": "45ab1ef84120010c3049c9be841a35161ac77182197910be3c4968fa2eef9f2f",
+            "bytes": 1559
+          },
+          "status": 1,
+          "signalCode": null,
+          "nativeInputEntries": 33,
+          "observedExpectCalls": 2
+        },
+        "green": {
+          "receipt": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B08/green-cleanup-restore/receipt.json",
+            "sha256": "9ae26a2138d0342f35fdf6923f62bcf82df461b3a3b5b363ae13fff57848e36e",
+            "bytes": 9575
+          },
+          "raw": {
+            "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/runs/formal-flight-v1/B08/green-cleanup-restore/output.log",
+            "sha256": "cc2eaeff444b363f656ad0da55b8875e25a4970d4ce9e668ac9f8a9f3f97c702",
+            "bytes": 249
+          },
+          "status": 0,
+          "signalCode": null,
+          "nativeInputEntries": 33,
+          "observedExpectCalls": 2
+        }
+      }
+    }
+  ],
+  "closureSummary": {
+    "liveAndCopiedSource": 386,
+    "liveAndCopiedTooling": 51,
+    "knownAbsences": 266,
+    "outsidePins": 3,
+    "sourceLiteralEdges": 1206,
+    "toolingLiteralEdges": 14,
+    "sourceRestoredBeforeClosure": true,
+    "rawReceiptPairs": 18,
+    "allNegativesParentStatus": 1,
+    "allRestoredPositivesParentStatus": 0,
+    "allNativeParentSignals": null,
+    "strictBudgets": {
+      "dashTestMs": 60000,
+      "ownerMs": 75000
+    },
+    "hostPidNamespace": "pid:[4026531836]",
+    "archivedNativeInputEntries": 132,
+    "archivesScope": "B07/B08 only,33 entries per RED/GREEN; other cases retain static builder/argv/native premises without per-attempt repository archive."
+  },
+  "wholeModuleCommentBridge": {
+    "artifact": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/whole-module-comment-bridge.json",
+      "sha256": "d2f59e15fe3fbfbdfa49b1ebb19c5d97d8b4ee7e5617f3cd3d51ec9357b3e7b4",
+      "bytes": 3654
+    },
+    "modules": 6,
+    "notes": 8,
+    "testsChanged": false,
+    "allEmittedBytesIdentical": true,
+    "finalSources": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+        "sha256": "d74b55c2048bc576d996b1d256e0d1290c9eaa5a17abf0ae17b161d651b3026f",
+        "mode": 436
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.test.ts",
+        "sha256": "beb9cc3e1930c2cae8f88e2b474c1f389a14ff10da3267347e3994ee2a15b1d0",
+        "mode": 436
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+        "sha256": "35d604438727104c1008d574a8fc37509ca53e7d120596d30a7273aacebde554",
+        "mode": 436
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.test.ts",
+        "sha256": "52b34247564efddabf646151f55e78331de6cea424106e8286c0e2610000b39c",
+        "mode": 436
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+        "sha256": "600d4423037d451c7378e41be7d3fd139e253dd65fd1cd98eaeee59987ed0b00",
+        "mode": 436
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts",
+        "sha256": "d2633843c9d666b00f595aa7d827acc9f071be0920c54da8424e1823cc7d1fee",
+        "mode": 436
+      }
+    ]
+  },
+  "historical": {
+    "movedBodyBridge": {
+      "path": ".superpowers/sdd/puni-c35-control-extraction-plan/task1b-finite-plan-v1/moved-body-bridge.json",
+      "sha256": "68dadedc7564512c6c33d845a2eac1458ecde1532c97153eeb794524f3a67ca5",
+      "bytes": 1683
+    },
+    "decision": "Root/same-Astra accept relocation-only correspondence over exact compared bodies and declared free bindings; no whole-program/installed equivalence.",
+    "retained48SourceCorrespondence": 48,
+    "previous48Renewed": false,
+    "historical54Renewed": false,
+    "task1aAccepted23Renewed": false,
+    "protectedUnchanged": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/ops/gate-control.ts",
+        "sha256": "db4ea3adbac789e6b81ca653966d2ca01c3b6b1f45eaa4c6171fe495d7e79846",
+        "mode": "0o664"
+      },
+      {
+        "path": "openspec/changes/bun-scripts/verification-c33-checkout.json",
+        "sha256": "217d112c053caf07d34089fe634412c43e0f7dfbfea1bc6d186dc7c5b9d113fd",
+        "mode": "0o664"
+      },
+      {
+        "path": "openspec/changes/bun-scripts/verification-c35-control.json",
+        "sha256": "53f7db13c4a2de33a65cd395cf63336e1c0899599be10421b87d4c28953984a4",
+        "mode": "0o664"
+      }
+    ]
+  },
+  "limits": [
+    "B04 token lifetime only; no native mutex escape",
+    "B05/B06 first parent0/1 plus controlled core633 only",
+    "B07/B08 first returned status classification subset; no independently qualified receipt-member guard",
+    "Per-test expectation counts observed metadata only",
+    "No old48/54/Task1a23 renewal; body relocation correspondence only",
+    "No fullprogram/installed/fullgate/default/host/C34/whole2.2 closure",
+    "B01/B03 first Error-instance refusal only, not every later effects/HEAD assertion.",
+    "B02 aheadAtArrival only, no independently reached waitedSeconds mutation.",
+    "B04 early membership retirement only; outer promise adoption can still hold the native mutex.",
+    "B05/B06 first parent expected0/received1 with controlled pre-comment core633 stage, not each later receipt member.",
+    "B07/B08 reached returned status classification subset only.",
+    "Per-test expectation counts are observed metadata, not independently qualified counters.",
+    "No absent descendant/resource, syscall or controller-death certificate.",
+    "Only executable facade disposes control; trusted callbacks must await complete core.",
+    "No stage/commit/push/default/host or Task1b final integration approval from this preparation."
+  ],
+  "retention": "Ignored local source/tooling/raw/native-input artifacts are hash-described, not embedded or published by this tracked record. No archive availability outside this workspace is asserted.",
+  "finalOwningChecks": {
+    "epoch": "Final eight-note comment-only source; all six whole-module Bun emits match accepted pre-comment source/test bytes.",
+    "checks": [
+      {
+        "id": "dash",
+        "summary": {
+          "pass": 77,
+          "fail": 0,
+          "assertions": 303,
+          "seconds": 14.13
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-dash/cli",
+        "argv": [
+          "bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "--preload",
+          "./src/runs/testing/format4-lifetime-preload.ts",
+          "--preload",
+          "./src/runs/testing/format5-lifetime-preload.ts",
+          "./src/ops/gate-control.test.ts",
+          "./src/ops/gate-checkout.test.ts",
+          "./src/ops/gate-admission.test.ts",
+          "./src/ops/gate-checkout-core.test.ts",
+          "--timeout=60000"
+        ],
+        "started": "2026-11-12T05:17:27.193Z",
+        "ended": "2026-11-12T05:17:41.353Z",
+        "status": 0,
+        "signalCode": null,
+        "receipt": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-dash.json",
+          "sha256": "be758d7d84d7391799ca57b6941c8f29841009ae33c7c60d902aee43ab2add8d",
+          "bytes": 624
+        },
+        "raw": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-dash.log",
+          "sha256": "b444999abd6dcd4c763707e2d25d6e49f5a08b478018d6b3ec16efa31f1ceaf4",
+          "bytes": 6867
+        }
+      },
+      {
+        "id": "native5",
+        "summary": {
+          "pass": 5,
+          "fail": 0,
+          "filtered": 20,
+          "outerAssertions": 5,
+          "seconds": 3.13
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "--preload",
+          "./tools/test/scratch/preload.ts",
+          "./tools/tool-devsync/src/gate-checkout.test.ts",
+          "--test-name-pattern",
+          "^owned gate checkout (queued|preflight-term|recovery-signals|pending-work|pending-cleanup) under isolated Linux supervision$",
+          "--timeout=30000"
+        ],
+        "started": "2026-11-12T05:17:24.593Z",
+        "ended": "2026-11-12T05:17:27.724Z",
+        "status": 0,
+        "signalCode": null,
+        "receipt": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-native5.json",
+          "sha256": "b6d0e474f0ba1fc3b23ca9a8be321db5c21feeacefe45f016ab76c2947c53020",
+          "bytes": 548
+        },
+        "raw": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-native5.log",
+          "sha256": "5abd255a201f5259a7010fd4fde35de9656548799b40b4380c6cb862aaab937b",
+          "bytes": 687
+        }
+      },
+      {
+        "id": "types",
+        "summary": {
+          "strictRoots": 2
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "tsc",
+          "--build",
+          "--force",
+          "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+          "tools/tool-devsync/tsconfig.json"
+        ],
+        "started": "2026-11-12T05:17:26.799Z",
+        "ended": "2026-11-12T05:17:35.559Z",
+        "status": 0,
+        "signalCode": null,
+        "receipt": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-types.json",
+          "sha256": "9aa5ec2b9ba3296f748e2b45e3ca5cb232e7cea6dcd75747ee8821f463f62959",
+          "bytes": 342
+        },
+        "raw": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-types.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      },
+      {
+        "id": "graph",
+        "summary": {
+          "fresh": true
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "nx",
+          "graph",
+          "--file=.superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/graph.json"
+        ],
+        "started": "2026-11-12T05:17:26.382Z",
+        "ended": "2026-11-12T05:17:39.348Z",
+        "status": 0,
+        "signalCode": null,
+        "receipt": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-graph.json",
+          "sha256": "33e886a0f148ff924d717cb310d50b572a6c2fdd4c76bde1c57e44897b1806b1",
+          "bytes": 314
+        },
+        "raw": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-graph.log",
+          "sha256": "72fe36c546bf9534d875596b0a8c1413fb6fe29ef7eb95590cdf4890d0bb3600",
+          "bytes": 257
+        }
+      },
+      {
+        "id": "lint",
+        "summary": {
+          "files": 6,
+          "skippedBoundary": false
+        },
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "argv": [
+          "bunx",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-admission.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout-core.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/ops/gate-checkout.test.ts"
+        ],
+        "started": "2026-11-12T05:19:26.077Z",
+        "ended": "2026-11-12T05:19:31.400Z",
+        "status": 0,
+        "signalCode": null,
+        "receipt": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-lint.json",
+          "sha256": "e293e1a6a9f317df26d4775a60404fe5418b6611977e005ea4178c591fd44ca8",
+          "bytes": 683
+        },
+        "raw": {
+          "path": ".superpowers/sdd/puni-c35-control-extraction-plan/closing-task1b-v1/receipts/c35-task1b-close-lint.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      }
+    ],
+    "graphEnvironment": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false",
+      "removed": [
+        "NX_PROJECT_GRAPH_CACHE_DIRECTORY",
+        "NX_WORKSPACE_DATA_DIRECTORY",
+        "NX_CACHE_DIRECTORY"
+      ]
+    },
+    "skipped": [
+      "No full25 native repeat or old formal-fault replay; fresh native5 plus focused77 are scoped owning checks.",
+      "Full Dash/Tools suites/build/installed/CI secrets/migrations/staged document target/raw full Nx/host gates not run."
+    ],
+    "integrationReview": "Pending root/same-Astra bounded Task1b closing review;2.2c stays unchecked and no staging/commit authority.",
+    "postSerialization": "Exact final format/OpenSpec/diff/patch receipts and record/source/doc hashes are external closing-packet descriptors to avoid self-reference."
+  }
+}

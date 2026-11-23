@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { SignJWT } from 'jose';
 
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
@@ -15,7 +15,7 @@ let stop: () => void;
 beforeAll(() => {
   const app = buildApp({
     beUrl: 'http://be.invalid',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     internalAuthSecret: INTERNAL_SECRET,
     jwtKey: JWT_KEY,
     appOrigin: APP_ORIGIN,
@@ -42,9 +42,9 @@ async function tokenFor(username: string): Promise<string> {
 }
 
 /** A connected socket, subscribed to `subscription`, collecting what it receives. */
-async function connect(username: string, subscription: string) {
+async function connect(username: string, subscription: string, socketPort = port) {
   const token = await tokenFor(username);
-  const socket = new WebSocket(`ws://localhost:${String(port)}/ws`, {
+  const socket = new WebSocket(`ws://localhost:${String(socketPort)}/ws`, {
     headers: {
       cookie: `__Host-wbs_access=${token}`,
       origin: APP_ORIGIN,
@@ -68,8 +68,8 @@ async function connect(username: string, subscription: string) {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 
-function push(subscription: string, message: unknown): Promise<Response> {
-  return fetch(`http://localhost:${String(port)}/internal/push`, {
+function push(subscription: string, message: unknown, socketPort = port): Promise<Response> {
+  return fetch(`http://localhost:${String(socketPort)}/internal/push`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-internal-auth': INTERNAL_SECRET },
     body: JSON.stringify({ subscription, seq: 1, message }),
@@ -81,16 +81,16 @@ function push(subscription: string, message: unknown): Promise<Response> {
  *
  * be-01's half of the path — recording to the event log, then `PushClient` —
  * has its own tests; what those cannot show is that a socket which asked for a
- * project actually receives what arrives on `/internal/push`, and that one which
- * asked for a different project does not.
+ * work package actually receives what arrives on `/internal/push`, and that one which
+ * asked for a different work package does not.
  */
-describe('project events reach the sockets that asked for them', () => {
-  it('delivers to every subscriber of that project and nobody else', async () => {
-    const projectId = crypto.randomUUID();
-    const subscription = `project:${projectId}`;
+describe('work package events reach the sockets that asked for them', () => {
+  it('delivers to every subscriber of that work package and nobody else', async () => {
+    const workPackageId = crypto.randomUUID();
+    const subscription = `work-package:${workPackageId}`;
     const ada = await connect('ada', subscription);
     const grace = await connect('grace', subscription);
-    const linus = await connect('linus', `project:${crypto.randomUUID()}`);
+    const linus = await connect('linus', `work-package:${crypto.randomUUID()}`);
     await settle();
 
     const res = await push(subscription, {
@@ -108,7 +108,7 @@ describe('project events reach the sockets that asked for them', () => {
       socket.received.filter((m) => (m as { subscription?: string }).subscription === subscription);
     expect(changed(ada)).toHaveLength(1);
     expect(changed(grace)).toHaveLength(1);
-    // The one watching another project must not see it — the subscription is a
+    // The one watching another work package must not see it — the subscription is a
     // filter, not a formality.
     expect(changed(linus)).toHaveLength(0);
 
@@ -118,7 +118,7 @@ describe('project events reach the sockets that asked for them', () => {
   // `wbs-claim-display` C21: be-01 pushes a transient announcement with no
   // sequence; the socket receives it without one.
   it('delivers an unsequenced push without a sequence', async () => {
-    const subscription = `project:${crypto.randomUUID()}`;
+    const subscription = `work-package:${crypto.randomUUID()}`;
     const ada = await connect('ada', subscription);
     await settle();
 
@@ -212,30 +212,30 @@ async function untilRostered(expected: Record<string, [{ received: unknown[] }, 
 /**
  * The roster, through `buildApp` and real sockets rather than `Presence` alone.
  *
- * F4, observed live 2026-08-09: a project one second old listed every account
+ * F4, observed live 2026-08-09: a work package one second old listed every account
  * with a socket open on this gateway. `presence.test.ts` proves the filter; this
  * proves the production wiring that reaches it — the `subscribe` frame arriving
- * on the ws route, `onSubscribed` resolving the project id, and the broadcast
+ * on the ws route, `onSubscribed` resolving the work package id, and the broadcast
  * that follows it.
  */
-describe('the presence roster is a project’s, not the gateway’s', () => {
-  it('shows each socket only the names in the project it subscribed to', async () => {
+describe('the presence roster is a work package’s, not the gateway’s', () => {
+  it('shows each socket only the names in the work package it subscribed to', async () => {
     // Proof, twice. `onSubscribed` struck from the `handleWsMessage` call in
-    // `app.ts`, so nothing ever entered a project: this test failed on
+    // `app.ts`, so nothing ever entered a work package: this test failed on
     // `no roster arrived for ada, grace, linus; ada has []; grace has [];
     // linus has []`, together with the other two here. Then the
-    // `projectId` filter struck from
+    // `workPackageId` filter struck from
     // `Presence.list`, which is the live bug itself: it failed on
     // `no roster arrived for ada, grace, linus; ada has
-    // [ada,grace,linus,mallory]` — every account on the gateway, in a project
+    // [ada,grace,linus,mallory]` — every account on the gateway, in a workPackage
     // two of them had never opened. Watched 2026-08-09.
-    const hull = `project:${crypto.randomUUID()}`;
-    const keel = `project:${crypto.randomUUID()}`;
+    const hull = `work-package:${crypto.randomUUID()}`;
+    const keel = `work-package:${crypto.randomUUID()}`;
     const ada = await connect('ada', hull);
     const grace = await connect('grace', hull);
     const linus = await connect('linus', keel);
-    // Named no project at all: `presence` is a known subscription and is not a
-    // project, so this socket is in nobody's roster and sees nobody.
+    // Named no work package at all: `presence` is a known subscription and is not a
+    // work package, so this socket is in nobody's roster and sees nobody.
     const lurker = await connect('mallory', 'presence');
     await untilRostered({ ada: [ada, 2], grace: [grace, 2], linus: [linus, 1] });
 
@@ -247,10 +247,10 @@ describe('the presence roster is a project’s, not the gateway’s', () => {
     for (const s of [ada, grace, linus, lurker]) s.socket.close();
   });
 
-  it('answers `who` with the asking socket’s own project', async () => {
-    const hull = `project:${crypto.randomUUID()}`;
+  it('answers `who` with the asking socket’s own work package', async () => {
+    const hull = `work-package:${crypto.randomUUID()}`;
     const ada = await connect('ada', hull);
-    const linus = await connect('linus', `project:${crypto.randomUUID()}`);
+    const linus = await connect('linus', `work-package:${crypto.randomUUID()}`);
     await untilRostered({ ada: [ada, 1], linus: [linus, 1] });
 
     ada.received.length = 0;
@@ -262,9 +262,9 @@ describe('the presence roster is a project’s, not the gateway’s', () => {
     for (const s of [ada, linus]) s.socket.close();
   });
 
-  it('moves a socket that switches project, and tells both rosters', async () => {
-    const hull = `project:${crypto.randomUUID()}`;
-    const keel = `project:${crypto.randomUUID()}`;
+  it('moves a socket that switches work package, and tells both rosters', async () => {
+    const hull = `work-package:${crypto.randomUUID()}`;
+    const keel = `work-package:${crypto.randomUUID()}`;
     const ada = await connect('ada', hull);
     const linus = await connect('linus', keel);
     await untilRostered({ ada: [ada, 1], linus: [linus, 1] });
@@ -273,7 +273,7 @@ describe('the presence roster is a project’s, not the gateway’s', () => {
     await untilRostered({ ada: [ada, 2], linus: [linus, 2] });
 
     expect(rosterSeenBy(linus)).toEqual(['ada', 'linus']);
-    // And the people already in the project were told, rather than left showing
+    // And the people already in the work package were told, rather than left showing
     // a roster that is one person short until somebody else joins.
     expect(rosterSeenBy(ada)).toEqual(['ada', 'linus']);
 
@@ -287,8 +287,8 @@ describe('a closed socket leaves the subscription it joined', () => {
     // the subscription map, and every inbound message allocated a fresh wrapper
     // so there was nothing to remove it by. Each reconnect added another dead
     // socket, and `delivered_to_sockets` counted them all.
-    const projectId = crypto.randomUUID();
-    const subscription = `project:${projectId}`;
+    const workPackageId = crypto.randomUUID();
+    const subscription = `work-package:${workPackageId}`;
 
     const first = await connect('ada', subscription);
     await settle();
@@ -321,12 +321,12 @@ async function pingBarrier(client: { socket: WebSocket; received: unknown[] }) {
 }
 
 it('targets socket presence transitions and leaves unrelated streams silent', async () => {
-  const hull = `project:${crypto.randomUUID()}`;
-  const keel = `project:${crypto.randomUUID()}`;
+  const hull = `work-package:${crypto.randomUUID()}`;
+  const keel = `work-package:${crypto.randomUUID()}`;
   const ada = await connect('ada', hull);
   const grace = await connect('grace', hull);
   const linus = await connect('linus', keel);
-  const unrelated = await connect('other', `project:${crypto.randomUUID()}`);
+  const unrelated = await connect('other', `work-package:${crypto.randomUUID()}`);
   const clients = [ada, grace, linus, unrelated];
   const presenceFrames = (client: { received: unknown[] }) =>
     client.received.filter((frame) => (frame as { type?: string }).type === 'presence');
@@ -392,3 +392,101 @@ it('targets socket presence transitions and leaves unrelated streams silent', as
     for (const client of clients) client.socket.close();
   }
 });
+
+for (const prefix of ['project', 'workPackage'] as const) {
+  it(
+    'real gateway refuses ' +
+      prefix +
+      ' subscribe and resume while current namespace remains readable',
+    async () => {
+      const lookups: string[] = [],
+        requests: Record<string, number>[] = [];
+      const app = buildApp({
+        beUrl: 'http://controlled-backend.test',
+        workPackageAccess: () => (id) => {
+          lookups.push(id);
+          return Promise.resolve('granted');
+        },
+        internalAuthSecret: INTERNAL_SECRET,
+        jwtKey: JWT_KEY,
+        appOrigin: APP_ORIGIN,
+        fetchImpl: (url, init) => {
+          if (
+            !url.endsWith('/internal/resume') ||
+            init === undefined ||
+            typeof init.body !== 'string'
+          )
+            throw new Error('unexpected controlled replay request');
+          // The production ResumeClient emits this bounded shape; tests inspect its actual request keys.
+          const body = JSON.parse(init.body) as { resume_points: Record<string, number> };
+          requests.push({ ...body.resume_points });
+          return Promise.resolve(
+            Response.json(
+              Object.fromEntries(
+                Object.keys(body.resume_points).map((subscription) => [
+                  subscription,
+                  { status: 'replaying', events: [] },
+                ]),
+              ),
+            ),
+          );
+        },
+      });
+      app.listen(0);
+      const ownPort = app.server?.port;
+      if (ownPort === undefined) throw new Error('gateway listener absent');
+      const peers: Awaited<ReturnType<typeof connect>>[] = [];
+      try {
+        const id = crypto.randomUUID(),
+          current = 'work-package:' + id,
+          forbidden = prefix + ':' + id;
+        const admitted = await connect('current-reader', current, ownPort);
+        peers.push(admitted);
+        await settle();
+        expect(lookups).toEqual([id]);
+        const refused = await connect('forbidden-reader', forbidden, ownPort);
+        peers.push(refused);
+        await settle();
+        expect(refused.received).toContainEqual({
+          type: 'error',
+          code: 'unknown_subscription',
+          subscription: forbidden,
+        });
+        expect(lookups).toEqual([id]);
+        const delivered = await push(current, { type: 'calendar_markers_changed' }, ownPort);
+        expect(await delivered.json()).toEqual({ delivered_to_sockets: 1 });
+        const oldPush = await push(forbidden, { type: 'tree_replaced', legacy: true }, ownPort);
+        expect(await oldPush.json()).toEqual({ delivered_to_sockets: 0 });
+        admitted.socket.send(
+          JSON.stringify({ type: 'resume', resume_points: { [current]: 0, [forbidden]: 0 } }),
+        );
+        await settle();
+        expect(requests).toEqual([{ [current]: 0 }]);
+        expect(lookups).toEqual([id, id, id]);
+        expect(admitted.received).toContainEqual({
+          type: 'resume_denied',
+          subscription: forbidden,
+          reason: 'forbidden',
+        });
+        expect(admitted.received).toContainEqual({
+          type: 'resume_ack',
+          replayed: { [current]: 0 },
+        });
+        expect(admitted.received).toContainEqual({
+          subscription: current,
+          seq: 1,
+          message: { type: 'calendar_markers_changed' },
+        });
+        expect(
+          refused.received.filter(
+            (frame) =>
+              typeof frame === 'object' && frame !== null && 'seq' in frame && 'message' in frame,
+          ),
+        ).toEqual([]);
+      } finally {
+        for (const peer of peers) peer.socket.close();
+        await app.stop();
+      }
+    },
+  );
+}

@@ -2,6 +2,7 @@ import type { DeliveryReader } from '@shared/delivery';
 import { createGitHubDeliveryReader } from '@shared/delivery-github';
 import type { DependencyClientRefusal } from '@wbs/contracts';
 import type { SessionFeatures } from '@wbs/contracts';
+import type { AccessDecisions } from '@wbs/core';
 import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
 import type { ResourceRuntime } from '@wbs/core';
@@ -24,13 +25,15 @@ import type {
   Onboarding,
   OrganizationAccess,
   OrganizationLimits,
-  ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
   ScimUsers,
   SessionPolicies,
   SharedPeopleRestoreApprovals,
+  SpaceRead,
+  SpaceRollUpRead,
   SpaceStore,
+  WorkPackageRankStore,
 } from '@wbs/core';
 import type {
   AgentPools,
@@ -63,8 +66,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { organizationLimitsRoutes } from '@wbs/core/http/organization-limits.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
-import { projectAddressRoutes } from '@wbs/core/http/project-address.routes';
-import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { projectRoutes } from '@wbs/core/http/project.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { resourceRuntimeRoutes } from '@wbs/core/http/resource-runtime.routes';
 import { resourceUseRoutes } from '@wbs/core/http/resource-use.routes';
@@ -73,7 +75,11 @@ import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
+import { stepCatalogueRoutes } from '@wbs/core/http/step-catalogue.routes';
 import { trustedIssuerRoutes } from '@wbs/core/http/trusted-issuer.routes';
+import { workPackageAddressRoutes } from '@wbs/core/http/work-package-address.routes';
+import { workPackageMoveRoutes } from '@wbs/core/http/work-package-move.routes';
+import { workPackageRankRoutes } from '@wbs/core/http/work-package-rank.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -83,14 +89,17 @@ import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition
 import { createRuntimeReceiver } from '@wbs/core/module/plan-commands/composition';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
-import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
+import { createWorkPackageOpening } from '@wbs/core/module/work-package/work-package-opening';
 import type {
-  BeforeProjectUpdate,
   BeforeStepRemoval,
   BeforeStepWrite,
+  BeforeWorkPackageUpdate,
 } from '@wbs/core/ports/fanout-capture-store';
+import type { PlanExportReader } from '@wbs/core/ports/plan-export-reader';
+import type { WorkPackageObservation } from '@wbs/core/ports/work-package-observation';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
@@ -100,11 +109,13 @@ import {
   type DeliveryGateLimits,
 } from '@wbs/core/service/delivery-gate';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
-import type { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
-import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import type { ProjectResource } from '@wbs/core/service/project.resource';
 import { ScimService } from '@wbs/core/service/scim.feature';
 import { ScimAdmission } from '@wbs/core/service/scim-admission';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
+import { StepCataloguePurpose } from '@wbs/core/service/step-catalogue-purpose';
+import type { WorkPackageAddressSearch } from '@wbs/core/service/work-package-address-search';
+import { WorkPackageRankResource } from '@wbs/core/service/work-package-rank.resource';
 import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { systemTimers } from '@wbs/runtime-portable';
@@ -130,13 +141,13 @@ import { machineGrantRoutes } from './controller/machine-grant.routes';
 import { mcpDelegationRoutes } from './controller/mcp-delegation.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { organizationSelectionRoutes } from './controller/organization-selection.routes';
-import { projectRoutes } from './controller/project.routes';
+import { packageStepValuesRoutes } from './controller/package-step-values.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
-import { stepRoutes } from './controller/step.routes';
 import { timezoneRoutes } from './controller/timezone.routes';
 import { workItemRoutes } from './controller/work-item.routes';
+import { workPackageRoutes } from './controller/work-package.routes';
 import { mountEndpoints } from './http/elysia/mount';
 import { scimEndpoints } from './http/elysia/scim';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
@@ -186,6 +197,8 @@ const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
 };
 
 export interface AppOptions {
+  /** Required current project admission and snapshot observations. */
+  projects: ProjectResource;
   /** Required production admission; reads current trusted dependency authority per protected request. */
   admitDependencyClient: (claim: string | null) => DependencyClientRefusal | null;
   /** Overrides the anonymous public GitHub reader for a trusted composition. */
@@ -212,11 +225,11 @@ export interface AppOptions {
   loginThrottle: LoginThrottle;
   oidc?: OidcRouteOptions;
   /**
-   * Required for the same reason as `auth`: an absent project service would
-   * answer 404 on every project route, which reads as an edge misconfiguration
+   * Required for the same reason as `auth`: an absent work package service would
+   * answer 404 on every work package route, which reads as an edge misconfiguration
    * rather than a process built without its domain.
    */
-  projects: ProjectService;
+  workPackages: WorkPackageService;
   /**
    * Resolves each protected request's organization authority. Required: a
    * default would have to be legacy access, which is exactly the answer an
@@ -322,30 +335,32 @@ export interface AppOptions {
   joinRequests: JoinRequest;
   /** Injected mail sink; production's current adapter refuses delivery visibly. */
   emailDelivery: EmailDelivery;
-  /** Required for the same reason as `projects`. */
+  /** Required for the same reason as `workPackages`. */
   workItems: WorkItemService;
-  projectAddressSearch: ProjectAddressSearch;
+  planExports: PlanExportReader;
+  workPackageObservation: WorkPackageObservation;
+  workPackageAddressSearch: WorkPackageAddressSearch;
   /** Required sparse read capability for versioned JSON export preservation. */
-  stepParallels: Pick<StepParallelStore, 'listByProject'>;
+  stepParallels: Pick<StepParallelStore, 'listByWorkPackage'>;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
   optimizer?: Pick<OptimizationCoordinator, 'retry'>;
   /**
-   * Required for the same reason as `projects`. A process built without it
+   * Required for the same reason as `workPackages`. A process built without it
    * would answer 404 on every saved-plan route, which a client reads as "this
-   * project has no saved plans" rather than as a be-01 that cannot store one.
+   * work package has no saved plans" rather than as a be-01 that cannot store one.
    * Task 6.4 is where absence acquires a *typed* answer; until then it is not
    * an absence this process is allowed to have.
    */
   savedPlans: SavedPlanService;
   /**
-   * Required for the same reason as `projects`, and for one more: a process
+   * Required for the same reason as `workPackages`, and for one more: a process
    * built without it would answer 404 on every step route, which is exactly
    * what a client asking a be-01 from before steps could be written sees.
    */
   steps: StepService;
   directory: DirectoryService;
   /**
-   * Required for the same reason as `projects`: a process built without it would
+   * Required for the same reason as `workPackages`: a process built without it would
    * answer 404 on the capacity route, and a plan whose capacity box silently did
    * nothing reads as a plan whose numbers do not matter.
    */
@@ -366,8 +381,8 @@ export interface AppOptions {
   /**
    * Required for the same reason as `history`, and for its exact failure mode: a
    * process built without it answers 404 on every marker route, which a client
-   * cannot tell from a project that has no markers — and "none" is the answer
-   * for every project the day the table ships, so the mistake would be
+   * cannot tell from a work package that has no markers — and "none" is the answer
+   * for every work package the day the table ships, so the mistake would be
    * invisible for a week.
    */
   calendarMarkers: CalendarMarkerService;
@@ -375,14 +390,17 @@ export interface AppOptions {
    * Organization spaces (`add-spaces`). Required, like `organizations`: a
    * process built without it would answer 404 on every space route.
    */
+  accessDecisions?: AccessDecisions;
   spaces: SpaceStore;
+  /** Complete current caller and grouped project/package observations on the committed read owner. */
+  spaceRead: SpaceRead & SpaceRollUpRead;
   /**
-   * The organizations' project rank and capacity mode
-   * (`share-people-across-projects`, slices 3 and 8). Required, like
+   * The organizations' work package rank and capacity mode
+   * (`share-people-across-work-packages`, slices 3 and 8). Required, like
    * `spaces`: the load reads order by it. In production both writers own a
    * complete write turn (`standaloneRankStore`, `standaloneCapacityModeSwitch`).
    */
-  projectRanks: ProjectRankStore & CapacityModeSwitch;
+  workPackageRanks: WorkPackageRankStore & CapacityModeSwitch;
   /**
    * The capacity modes the mode route may store. A test seam: production
    * boot never sets it, so the route admits exactly
@@ -467,7 +485,7 @@ export interface AppOptions {
       broadcast: Broadcaster,
       admission: EditAdmission,
       dependencies: DependencyContext,
-      beforeProjectUpdate?: BeforeProjectUpdate,
+      beforeWorkPackageUpdate?: BeforeWorkPackageUpdate,
       beforeStepRemoval?: BeforeStepRemoval,
       beforeStepWrite?: BeforeStepWrite,
     ) => WritingServices;
@@ -582,13 +600,18 @@ export function mountedEndpoints(
     },
     nodeDigest,
   );
-  // A project reach change and a step removal read the combined dependency
+  // A work package reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
   const admitted = createAdmittedWrites(opts.writes);
   // Spaces and rank moves stamp their writes; the app's clock is time alone, so ids are
   // random UUIDs as `services.ts` issues them.
   const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
+  const opening = createWorkPackageOpening({
+    uow: opts.writes.uow,
+    commandAccess: opts.writes.commandAccess,
+    clock: spaceClock,
+  });
   // One cache per app, which is one per process in production (design memo §8).
   const rollUpCache = new RollUpCache(opts.clock);
   return [
@@ -706,13 +729,10 @@ export function mountedEndpoints(
       opts.clock,
       nodeDigest,
     ),
-    ...stepRoutes(
+    ...packageStepValuesRoutes(
       {
-        addWithin: (...args) => opts.steps.addWithin(...args),
-        findWithin: (...args) => opts.steps.findWithin(...args),
-        renameWithin: (...args) => opts.steps.renameWithin(...args),
-        patchUnitWithin: (...args) => opts.steps.patchUnitWithin(...args),
-        removeWithin: (...args) => opts.steps.removeWithin(...args),
+        findPackageValuesWithin: (...args) => opts.steps.findPackageValuesWithin(...args),
+        setPackageUnitWithin: (...args) => opts.steps.setPackageUnitWithin(...args),
       },
       commands,
       opts.organizations,
@@ -725,52 +745,65 @@ export function mountedEndpoints(
     // One per mounted app, so its memo lives as long as the process serving it.
     ...personLoadRoutes(
       new PersonLoad({
-        projects: opts.projects,
+        workPackages: opts.workPackages,
         workItems: opts.workItems,
         directory: opts.directory,
-        ranks: opts.projectRanks,
+        ranks: opts.workPackageRanks,
       }),
       opts.organizations,
     ),
     ...sharedPeopleRestoreRoutes(opts.sharedPeopleRestoreApprovals, opts.organizations, spaceClock),
     ...capacityModeRoutes(
       new CapacityModeResource({
-        modes: opts.projectRanks,
+        accessDecisions: opts.accessDecisions,
+        modes: opts.workPackageRanks,
         clock: spaceClock,
         supported: opts.supportedCapacityModes ?? SUPPORTED_CAPACITY_MODES,
       }),
       opts.organizations,
     ),
-    ...projectRankRoutes(
-      new ProjectRankResource({
-        ranks: opts.projectRanks,
-        projects: opts.projects,
+    ...workPackageRankRoutes(
+      new WorkPackageRankResource({
+        accessDecisions: opts.accessDecisions,
+        ranks: opts.workPackageRanks,
+        workPackages: opts.workPackages,
         clock: spaceClock,
       }),
       opts.organizations,
     ),
-    ...historyRoutes(opts.history, opts.projects, opts.organizations),
-    ...solutionRoutes(opts.projects, opts.organizations),
+    ...historyRoutes(opts.workPackageObservation, opts.organizations),
+    ...solutionRoutes(opts.workPackageObservation, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports, opts.organizations),
-    ...projectRoutes(
+    ...workPackageRoutes(
       {
-        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
-        createWithin: (...args) => opts.projects.createWithin(...args),
-        listWithin: (...args) => opts.projects.listWithin(...args),
-        openWithin: (...args) => opts.projects.openWithin(...args),
-        readWithin: (...args) => opts.projects.readWithin(...args),
-        updateWithin: admitted.updateProjectWithin,
+        authorizeRetry: (...args) => opts.workPackages.authorizeRetry(...args),
+        createWithin: admitted.createWorkPackageWithin,
+        // Proof: OPEN B1 (2026-11-14), Delegating to the raw legacy service instead failed
+        // `records a readable viewer opening but conceals a restricted unreadable opening exactly as absent`
+        // at hidden204 versus absent404 after real positives; app forwarding only, no same-writer timing or later hidden-state claim.
+        openWithin: (...args) => opening.openWithin(...args),
+        updateWithin: admitted.updateWorkPackageWithin,
       },
       opts.organizations,
       opts.workItems,
-      opts.directory,
-      opts.calendarMarkers,
       opts.clock,
-      opts.stepParallels,
+      opts.planExports,
+      opts.workPackageObservation,
       opts.optimizer,
     ),
-    ...projectAddressRoutes(opts.projectAddressSearch),
+    ...projectRoutes(opts.projects, opts.organizations),
+    ...stepCatalogueRoutes(
+      new StepCataloguePurpose({
+        uow: opts.writes.uow,
+        commandAccess: opts.writes.commandAccess,
+        clock: spaceClock,
+        delivery: opts.writes.committedFanout,
+      }),
+      opts.organizations,
+    ),
+    ...workPackageMoveRoutes(opts.projects, opts.organizations),
+    ...workPackageAddressRoutes(opts.workPackageAddressSearch),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations, {
       reports: (opts.computeProviders ?? NO_COMPUTE_PROVIDERS).reports,
       clock: opts.clock,
@@ -793,20 +826,33 @@ export function mountedEndpoints(
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
       new SpaceResource({
+        settings: {
+          readTarget: () =>
+            Promise.reject(
+              new Error('space membership requires its borrowed settings target reader'),
+            ),
+          touchPackages: () =>
+            Promise.reject(new Error('space settings invalidation requires its borrowed writer')),
+        },
+        announcements: opts.writes.announcements,
+        accessDecisions: opts.accessDecisions,
         spaces: opts.spaces,
-        projects: opts.projects,
+        workPackages: opts.workPackages,
         clock: spaceClock,
         trees: opts.workItems,
         sequences: opts.writes.announcements,
         rollUpCache,
       }),
       opts.organizations,
+      opts.writes,
+      opts.spaceRead,
     ),
     ...savedPlanRoutes(
       opts.savedPlans,
-      opts.projects,
+      opts.workPackages,
       opts.writes.announcements,
       opts.organizations,
+      opts.workPackageObservation,
     ),
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a
@@ -814,10 +860,10 @@ export function mountedEndpoints(
       // Proof: granting a unit-of-work turn here failed forged setter/import/activation frames on nonempty write calls.
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
-      projects: opts.projects,
+      observation: opts.workPackageObservation,
       organizations: opts.organizations,
     }),
-    ...gatewayAccessRoutes(opts.projects, opts.organizations),
+    ...gatewayAccessRoutes(opts.workPackageObservation, opts.organizations),
     ...gatewayDependencyRoutes(),
     ...mcpDelegationRoutes(opts.mcpDelegation ?? REFUSE_MCP_DELEGATION),
     ...machineGrantRoutes(opts.machineGrants ?? NO_MACHINE_GRANTS),
@@ -888,7 +934,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
-          // Proof: replacing this binding with null admission returned200 instead of409 on the real /api/projects route in dependency-client.db.test.ts.
+          // Proof: replacing this binding with null admission returned200 instead of409 on the real /api/work-packages route in dependency-client.db.test.ts.
           admitDependencyClient: opts.admitDependencyClient,
           resolveIdentity: identityResolver(
             opts.auth,

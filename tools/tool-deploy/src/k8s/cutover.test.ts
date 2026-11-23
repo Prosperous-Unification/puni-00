@@ -17,7 +17,6 @@ import {
 } from './cutover';
 import { cutoverEnvironment } from './cutover-replay';
 import { fixtureCutoverIdentity } from './cutover-replay.fixture';
-import { BACKEND_TASK_SCRIPT } from './execute';
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
 const roots: string[] = [];
@@ -56,10 +55,28 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     const root = scratchSync('wbs-cutover-');
     roots.push(root);
     const db = join(root, 'wbs.db');
-    bunScript("new (require('bun:sqlite').Database)(process.env.DB_PATH).close()", { DB_PATH: db });
-    bunScript(BACKEND_TASK_SCRIPT, { DB_PATH: db, PUNI_TASK: 'migrate' });
     bunScript(
-      "const d = new (require('bun:sqlite').Database)(process.env.DB_PATH); d.run(\"INSERT INTO users (id, username, created_at) VALUES ('u1', 'f11', 0)\"); d.run(\"INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'f11-known', 'u1', 0)\"); d.close()",
+      `
+        import { dirname } from 'node:path';
+        import { runMigrations } from '@wbs/store-sqlite/migrate';
+        import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
+        const path = process.env.DB_PATH;
+        runMigrations(path, copyRecoveryPrefix(dirname(path), '20261110100000_rename_project_to_work_package'));
+      `,
+      { DB_PATH: db },
+    );
+    bunScript(
+      String.raw`
+const { Database } = require('bun:sqlite');
+const store = new Database(process.env.DB_PATH);
+try {
+  store.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'f11', 'x', 0)");
+  store.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-f11', 'F11', 1, 0)");
+  store.run("INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'f11-known', 'u1', 0)");
+  store.run("CREATE TABLE report_history (label TEXT NOT NULL)");
+  store.run("INSERT INTO report_history VALUES ('first'), ('second')");
+} finally { store.close(); }
+`,
       { DB_PATH: db },
     );
     const exported = parseSqliteReport(
@@ -73,7 +90,10 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     expect(exported.path).toBe(join(root, 'export.sqlite'));
     expect(exported.integrity).toEqual(['ok']);
     expect(exported.migrations.length).toBeGreaterThan(0);
-    expect(exported.counts['project']).toBe(1);
+    expect(exported.counts['work_package']).toBe(1);
+    expect(exported.counts['work_package_organization']).toBe(1);
+    expect(exported.counts['organization']).toBe(1);
+    expect(exported.counts['report_history']).toBe(2);
     expect(exported.known).toEqual({ 'f11-known': true, 'f11-absent': false });
     expect(() => {
       assertExportSound(exported);

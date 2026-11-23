@@ -73,7 +73,7 @@ describe('spawnSolverLauncher', () => {
     };
     // setuptools reads this exact module attribute through
     // `[tool.setuptools.dynamic]`; pyproject.toml deliberately contains no
-    // static project version. The source-run backend must consult the same
+    // static work package version. The source-run backend must consult the same
     // authority or the browser gate cannot boot its development stack.
     expect(readRuntimeSolverVersion('development', '__version__ = "0.1.0"\n', probe)).toBe('0.1.0');
     expect(() => readRuntimeSolverVersion('development', '__all__ = []\n', probe)).toThrow(

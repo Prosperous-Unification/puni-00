@@ -3,13 +3,14 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -36,7 +37,7 @@ async function seeded() {
   const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -49,19 +50,41 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Levelling', F));
-  const projectId = created.project.id;
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  for (const [index, name] of ['Dev', 'QA'].entries()) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'fixture-legacy-org',
+      {
+        id: 'resource-step-' + String(index),
+        code: name.toLowerCase(),
+        name,
+        position: (index + 1) * 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'resource-binding-' + String(index),
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: (index + 1) * 10,
+      },
       { at: 1, by: F },
     );
+    if (!defined.ok) throw new Error('resource fixture step refused: ' + defined.reason);
   }
-  const steps = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  const created = expectCreated(await graph.workPackages.create('Levelling', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  expect(created.steps.map((step) => step.id)).toEqual(['resource-step-0', 'resource-step-1']);
+  const steps = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   for (const row of [
-    workItemRow({ id: '080', projectId, parentId: null, position: 1 }),
-    workItemRow({ id: '080.25', projectId, parentId: '080', position: 1 }),
-    workItemRow({ id: '090', projectId, parentId: null, position: 2 }),
+    workItemRow({ id: '080', workPackageId, parentId: null, position: 1 }),
+    workItemRow({ id: '080.25', workPackageId, parentId: '080', position: 1 }),
+    workItemRow({ id: '090', workPackageId, parentId: null, position: 2 }),
   ])
     await source.stores.workItems.insert(row, [], { at: 1, by: F });
   await source.stores.directory.addPerson(
@@ -95,7 +118,7 @@ async function seeded() {
   if (staging === undefined) throw new Error('staging minted no id');
   // Both leaves carry two days on both steps, so each runs four days alone.
   const estimated = await runner.run(
-    projectId,
+    workPackageId,
     F,
     ['080.25', '090'].flatMap((workItemId) =>
       steps.map((stepId) => ({ kind: 'setEstimate' as const, workItemId, stepId, days: TWO_DAYS })),
@@ -103,21 +126,21 @@ async function seeded() {
   );
   if (!estimated.ok) throw new Error(`estimates were refused: ${JSON.stringify(estimated)}`);
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };
   const input = async () => {
-    const read = await graph.workItems.scheduleInput(projectId);
+    const read = await graph.workItems.scheduleInput(workPackageId);
     if (read === null) throw new Error('the schedule input was unavailable');
     return read;
   };
-  return { source, fixture, runner, graph, projectId, steps, staging, tree, input, options };
+  return { source, fixture, runner, graph, workPackageId, steps, staging, tree, input, options };
 }
 
 describe('the live plan read levels resource demands', () => {
   it('batches stated pools and actual leaf demands without consulting occupancy', async () => {
-    const { source, fixture, projectId, options } = await seeded();
+    const { source, fixture, workPackageId, options } = await seeded();
     const { directory, claims } = source.stores;
     const query = mock((ids: readonly string[]) => directory.directoryCapacitiesOf(ids));
     const rejectOccupancy = mock(() =>
@@ -127,19 +150,19 @@ describe('the live plan read levels resource demands', () => {
     const stores = {
       ...source.stores,
       directory: { ...directory, directoryCapacitiesOf: query },
-      claims: { ...claims, organizationUnitsOf: rejectOccupancy, listByProject: rejectClaims },
+      claims: { ...claims, organizationUnitsOf: rejectOccupancy, listByWorkPackage: rejectClaims },
     };
     const graph = servicesOver(stores, {
       ...options,
       dependencyContext: createLocalDependencyContext(stores),
     });
     const input = async () => {
-      const prepared = await graph.workItems.scheduleInput(projectId);
+      const prepared = await graph.workItems.scheduleInput(workPackageId);
       if (prepared === null) throw new Error('Schedule preparation is absent');
       return prepared;
     };
     const tree = async () => {
-      const read = await graph.workItems.tree(projectId);
+      const read = await graph.workItems.tree(workPackageId);
       if (read === null || 'kind' in read) throw new Error('The plan is unavailable');
       return read;
     };
@@ -148,7 +171,6 @@ describe('the live plan read levels resource demands', () => {
       await tree();
       expect(query).not.toHaveBeenCalled();
       const stamp = { at: 1, by: F };
-      fixture.addOrganization('org-test', { legacy: false });
       for (const resourceId of ['leaf-only', 'parent-only', 'stated', 'unused']) {
         expect(
           await source.stores.directory.addResource(
@@ -156,7 +178,7 @@ describe('the live plan read levels resource demands', () => {
             stamp,
           ),
         ).toHaveProperty('ok', true);
-        fixture.ownResourceInOrganization(resourceId, 'org-test');
+        fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
         expect(
           await source.stores.directory.setDirectoryCapacity(resourceId, 16, {
             stamp,
@@ -166,7 +188,7 @@ describe('the live plan read levels resource demands', () => {
         ).toHaveProperty('ok', true);
       }
       expect(
-        await source.stores.resourceCapacity.set(projectId, 'stated', 32, stamp),
+        await source.stores.resourceCapacity.set(workPackageId, 'stated', 32, stamp),
       ).toHaveProperty('ok', true);
       expect(await source.stores.demands.set('080', 'parent-only', 16, stamp)).toBe('written');
       expect(await source.stores.demands.set('080.25', 'leaf-only', 16, stamp)).toBe('written');
@@ -201,24 +223,22 @@ describe('the live plan read levels resource demands', () => {
   });
 
   it('schedules a staged directory write inside its own turn and rolls it back', async () => {
-    const { source, fixture, projectId, input, options } = await seeded();
+    const { source, fixture, workPackageId, input, options } = await seeded();
     const resourceId = 'staged-ram';
     const stamp = { at: 1, by: F };
     try {
-      fixture.addOrganization('org-test', { legacy: false });
-      fixture.ownProjectInOrganization(projectId, 'org-test');
       expect(
         await source.stores.directory.addResource(
           { id: resourceId, name: 'RAM', kind: 'divisible', unitLabel: 'GB' },
           stamp,
         ),
       ).toHaveProperty('ok', true);
-      fixture.ownResourceInOrganization(resourceId, 'org-test');
+      fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
       expect(
-        await source.stores.resourceCapacity.set(projectId, resourceId, 32, stamp),
+        await source.stores.resourceCapacity.set(workPackageId, resourceId, 32, stamp),
       ).toHaveProperty('ok', true);
       const initial = canonicalScheduleInput(await input());
-      const frozen = await source.history.savedPlanCapture.readPlanInput(projectId);
+      const frozen = await source.history.savedPlanCapture.readPlanInput(workPackageId);
       if (frozen === null) throw new Error('Missing initial capture');
       expect(
         await source.uow.run(async ({ stores }) => {
@@ -226,18 +246,14 @@ describe('the live plan read levels resource demands', () => {
             ...options,
             dependencyContext: createLocalDependencyContext(stores),
           });
-          const written = await scoped.directory.setDirectoryCapacityWithin(
-            resourceId,
-            F,
-            16,
-            false,
-            {
-              kind: 'scoped',
-              scope: { organizationId: 'org-test', userId: F, role: 'admin' },
-            },
-          );
+
+          const written = await stores.directory.setDirectoryCapacity(resourceId, 16, {
+            stamp,
+            actor: F,
+            auditId: 'staged-ram-directory',
+          });
           expect(written).toMatchObject({ ok: true });
-          const staged = await scoped.workItems.scheduleInput(projectId);
+          const staged = await scoped.workItems.scheduleInput(workPackageId);
           expect(staged?.resourceCapacities).toEqual(new Map([[resourceId, 16]]));
           return { commit: false, value: 'rolled back' };
         }),
@@ -245,7 +261,7 @@ describe('the live plan read levels resource demands', () => {
       expect(canonicalScheduleInput(await input())).toBe(initial);
       expect(frozen.directoryCapacities).toEqual([]);
       expect(
-        (await source.history.savedPlanCapture.readPlanInput(projectId))?.directoryCapacities,
+        (await source.history.savedPlanCapture.readPlanInput(workPackageId))?.directoryCapacities,
       ).toEqual([]);
     } finally {
       await source.close();
@@ -253,7 +269,7 @@ describe('the live plan read levels resource demands', () => {
   });
 
   it('levels two independent 16-unit leaves only when directory capacity clamps 32 to 16', async () => {
-    const { source, fixture, graph, projectId, tree, input } = await seeded();
+    const { source, fixture, graph, workPackageId, tree, input } = await seeded();
     try {
       const resourceId = 'host-ram';
       const stamp = { at: 1, by: F };
@@ -263,10 +279,9 @@ describe('the live plan read levels resource demands', () => {
           stamp,
         ),
       ).toHaveProperty('ok', true);
-      fixture.ownResourceInOrganization(resourceId, 'org-test');
-      fixture.ownProjectInOrganization(projectId, 'org-test');
+      fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
       expect(
-        await source.stores.resourceCapacity.set(projectId, resourceId, 32, stamp),
+        await source.stores.resourceCapacity.set(workPackageId, resourceId, 32, stamp),
       ).toHaveProperty('ok', true);
       for (const leaf of ['080.25', '090'])
         expect(await source.stores.demands.set(leaf, resourceId, 16, stamp)).toBe('written');
@@ -302,7 +317,9 @@ describe('the live plan read levels resource demands', () => {
       expect(overlap(await tree())).toBe(false);
       const read = spyOn(fastScheduler, 'read');
       try {
-        expect(await graph.workItems.arrangeBySchedule(projectId, F)).toMatchObject({ ok: true });
+        expect(await graph.workItems.arrangeBySchedule(workPackageId, F)).toMatchObject({
+          ok: true,
+        });
         expect(read.mock.calls.at(-1)?.[0].input.resourceCapacities).toEqual(
           new Map([[resourceId, 16]]),
         );
@@ -326,11 +343,11 @@ describe('the live plan read levels resource demands', () => {
   });
 
   it('serialises two leaves on the one staging environment and names it', async () => {
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, staging, tree, input } = await seeded();
     try {
       const alone = await tree();
       expect(alone.slices.every(({ boundBy }) => boundBy !== 'capacity')).toBe(true);
-      const applied = await runner.run(projectId, F, [
+      const applied = await runner.run(workPackageId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
@@ -376,11 +393,11 @@ describe('the live plan read levels resource demands', () => {
   });
 
   it('constrains nothing while the capacity is unstated', async () => {
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, staging, tree, input } = await seeded();
     try {
       const before = await tree();
       const key = canonicalScheduleInput(await input());
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
       ]);
@@ -395,18 +412,18 @@ describe('the live plan read levels resource demands', () => {
     // Design R5's falsifier: a schedule reads plan data only, never a claim or
     // an occupancy, so claiming a demanding leaf leaves the cache key and every
     // date where they were.
-    const { source, runner, projectId, steps, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, steps, staging, tree, input } = await seeded();
     try {
       const firstStep = steps.at(0);
-      if (firstStep === undefined) throw new Error('seeded project has no first step');
-      await runner.run(projectId, F, [
+      if (firstStep === undefined) throw new Error('seeded work package has no first step');
+      await runner.run(workPackageId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
       ]);
       const before = await tree();
       const key = canonicalScheduleInput(await input());
-      const claimed = await runner.run(projectId, F, [
+      const claimed = await runner.run(workPackageId, F, [
         {
           kind: 'claimWorkItem',
           workItemId: '090',
@@ -416,18 +433,18 @@ describe('the live plan read levels resource demands', () => {
         },
       ]);
       expect(claimed).toMatchObject({ ok: true, results: [{ index: 0, alreadyHeld: false }] });
-      expect(await source.stores.claims.listByProject(projectId)).not.toEqual([]);
+      expect(await source.stores.claims.listByWorkPackage(workPackageId)).not.toEqual([]);
       expect(canonicalScheduleInput(await input())).toBe(key);
       const after = await tree();
       expect(after.slices).toEqual(before.slices);
       const datesOf = (read: PlanTree) => read.workItems.map(({ id, dates }) => ({ id, dates }));
       expect(datesOf(after)).toEqual(datesOf(before));
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire-worker' },
         ]),
       ).toMatchObject({ ok: true });
-      expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
+      expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual([]);
       expect(canonicalScheduleInput(await input())).toBe(key);
       expect(datesOf(await tree())).toEqual(datesOf(before));
     } finally {

@@ -1,0 +1,1412 @@
+{
+  "schema": "puni-genuine-legacy-admission-evidence-v1",
+  "recordedAt": "2026-11-19T23:04:37.917Z",
+  "task": "1.6.2a-c: actual old producer and precise catalogue admission; original guarantees remain open",
+  "producer": {
+    "tree": "/tmp/puni-legacy-producer-v1/tree",
+    "commit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+    "sourceCodeUnchanged": true,
+    "lock": {
+      "path": "/tmp/puni-legacy-producer-v1/tree/bun.lock",
+      "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "bytes": 543082,
+      "mode": 436
+    },
+    "installedLock": {
+      "path": "/home/df/.codex/worktrees/6ce4/puni-00/bun.lock",
+      "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "bytes": 543082,
+      "mode": 436
+    },
+    "runtime": {
+      "version": "1.4.4",
+      "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+    },
+    "qualification": "Native worktree API cannot target private candidate repository/ref. Authorized detached native git worktree created in /tmp from private repo. Old WBS sources unchanged; no installation through shared read-only node_modules symlink. Actual old SQLite/Memory Source writers and command runners, explicit isolated legacy policy, no fabricated Source/host/scoped authorization.",
+    "sourcePins": [
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "sha256": "26d4c2a8da58e75f02b45af8beba914f47dbd43bd018870e553b3bdf313c49c7",
+        "bytes": 13958,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts",
+        "sha256": "0a41fa4993e99914c1c5f5407cc629f7b7843a3997ccc1416ae5c5788ebd5dd5",
+        "bytes": 9686,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-sqlite/src/work-item.ts",
+        "sha256": "49ba4aa7f6cbe5ad8f6233be682ebd6e44c127d9460968b9f69437d3acc19176",
+        "bytes": 60625,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "sha256": "1520bf490afbc0aa7f4cbced73d0582072b7b3ad0dc4a40a7164db4627f0b50a",
+        "bytes": 34993,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+        "sha256": "23a56612ae94d8119b054b558fd43a5439624ea77df0b4acaccd52f8956660c0",
+        "bytes": 563187,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-legacy-producer-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+        "sha256": "1d64aa964341e4ed60805632a1645f303e4d16077069cabace175029feb54e9b",
+        "bytes": 100201,
+        "mode": 436
+      }
+    ],
+    "baseline": {
+      "receipt": {
+        "path": "/tmp/puni-legacy-producer-v1/baseline-v1.receipt.json",
+        "sha256": "e5b3c73b5060be3c7fae80fb895167bc5cdbd100d26139cdfd2be824c042b942",
+        "bytes": 1539,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-legacy-producer-v1/baseline-v1.log",
+        "sha256": "5b7d9cca4f34cc018863445654a1c15dde1814488cf999156a13333e7b51d6af",
+        "bytes": 2908,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "o [5.20ms]\n(pass) transactional memory move blockage closure > refuses memory parent missing changes before deletion undo [5.21ms]\n(pass) transactional memory move blockage closure > refuses memory parent blockage changes before deletion undo [5.38ms]\n(pass) transactional memory move blockage closure > rolls back memory restore rows and earlier blockage writes after an injected insertion failure [5.70ms]\n\n 20 pass\n 161 filtered out\n 0 fail\n 77 expect() calls\nRan 20 tests across 2 files. [2.35s]\n"
+    },
+    "sqliteProducer": {
+      "receipt": {
+        "path": "/tmp/puni-legacy-producer-v1/history-native-v2.receipt.json",
+        "sha256": "addb733c6ecb4e47b9a0be7fab1ab4280b65c38ac1e954877aa7ef9e2d4a6ed5",
+        "bytes": 1374,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-legacy-producer-v1/history-native-v2.log",
+        "sha256": "c078bd8b24b4e9b94fa74f041348e05c7c2696fef03a945b2dfcb04b095643f4",
+        "bytes": 3836,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "429fc10b78af528f9ca30e8eb7057764a68ee7b9eb0\"}\n{\"scenario\":\"restore-progress\",\"replay\":\"undo\",\"expected\":true,\"path\":\"/tmp/puni-legacy-producer-v1/history-v2/restore-progress/producer.db\",\"sha256\":\"38e8c7eb1b57febb58538107697e0fbd0fd503b0a1a224f603e0be618b3917fd\"}\n{\"scenario\":\"restore-progress-blockage\",\"replay\":\"undo\",\"expected\":true,\"path\":\"/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/producer.db\",\"sha256\":\"ab68bdc372b7dea0fa257b831c9a18a6a921a112dfc73801d0757a26ff0452f5\"}\n"
+    },
+    "preFixAdmission": {
+      "receipt": {
+        "path": "/tmp/puni-legacy-producer-v1/admit-history-native-v1.receipt.json",
+        "sha256": "78fcec77de53f24d6018b6799ea50545ff0e7983659d119c5265f7a6782335b9",
+        "bytes": 1388,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-legacy-producer-v1/admit-history-native-v1.log",
+        "sha256": "0a42a75259e177ed11fbfd91dcb7c843e2f86fbf4f58de3379e149eeb5fe1df6",
+        "bytes": 8204,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "eport\":[],\"applied\":true,\"progress\":{\"ok\":true,\"value\":[{\"workItemId\":\"moving\",\"stepId\":\"legacy-dev\",\"state\":\"in_progress\",\"statedAt\":11}]},\"replay\":{\"ok\":true,\"value\":{\"ok\":true,\"value\":{\"done\":\"move “moving”\",\"detail\":null}}}}\n{\"scenario\":\"restore-progress-blockage\",\"report\":[],\"applied\":true,\"progress\":{\"ok\":true,\"value\":[{\"workItemId\":\"moving\",\"stepId\":\"legacy-dev\",\"state\":\"in_progress\",\"statedAt\":11}]},\"replay\":{\"ok\":true,\"value\":{\"ok\":true,\"value\":{\"done\":\"move “moving”\",\"detail\":null}}}}\n"
+    },
+    "memoryProducer": {
+      "receipt": {
+        "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v3.receipt.json",
+        "sha256": "6d1586fb983c2116984bd015869ca24c7af56a925d78a7a3f8aed84d00ac3871",
+        "bytes": 1393,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v3.log",
+        "sha256": "7d55fcd140724e65770b6257c224635dc265eb0880378d49127a6277c9fdf882",
+        "bytes": 390,
+        "mode": 384
+      },
+      "exit": 0,
+      "summary": "{\"kind\":\"rename\",\"outcome\":{\"ok\":false,\"reason\":\"stale_undo\",\"detail\":\"progress on a guarded work item changed since this command.\",\"entryId\":\"05eb716e-14c3-4ee1-a6b6-47420e1827aa\"},\"stages\":3}\n{\"kind\":\"progress\",\"outcome\":{\"ok\":false,\"reason\":\"stale_undo\",\"detail\":\"progress on a guarded work item changed since this command.\",\"entryId\":\"7be86619-7154-4b37-b845-8592e1e7fcdc\"},\"stages\":3}\n"
+    },
+    "retainedRejectedEpochs": [
+      {
+        "receipt": {
+          "path": "/tmp/puni-legacy-producer-v1/produce-native-v1.receipt.json",
+          "sha256": "1bca5c9e065083e664d34a9209b0b9446befc986c9d55daae2d669f5f6682b26",
+          "bytes": 1366,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-legacy-producer-v1/produce-native-v1.log",
+          "sha256": "6cceb11ba716366e28a4c762f076cebccc3b46e98b1e68b2f737023845df3f5e",
+          "bytes": 1528,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "\n byteOffset: 34,\n       code: \"SQLITE_ERROR\"\n\n      at [prepareOwned] (bun:sqlite:369:37)\n      at query (bun:sqlite:386:31)\n      at prepareQuery (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:24:23)\n      at all (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/sqlite-core/async/db.js:330:33)\n      at read (/tmp/puni-legacy-producer-v1/produce-v1.ts:33:337)\n      at /tmp/puni-legacy-producer-v1/produce-v1.ts:34:16\n\nBun v1.4.4 (Linux x64)\n"
+      },
+      {
+        "receipt": {
+          "path": "/tmp/puni-legacy-producer-v1/history-native-v1.receipt.json",
+          "sha256": "eeeadf4077bc8aa4057a39e41ae43dbe1ae323e2606d494f76ee28c3ffec53d7",
+          "bytes": 1374,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-legacy-producer-v1/history-native-v1.log",
+          "sha256": "37c271af48c82abc793dee05ed2c205eeb170968c6b0d5f61d7b1cc5c2133b49",
+          "bytes": 4665,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "boolean},context:string){if(!value.ok)throw Error(context+': '+JSON.stringify(value));}\n                                                                                  ^\nerror: old previous undo: {\"ok\":false,\"reason\":\"stale_undo\",\"detail\":\"“Renamed” has changed since then.\",\"entryId\":\"0d79d37d-46d8-49eb-8da9-6e86f4e165a4\"}\n      at requireSuccess (/tmp/puni-legacy-producer-v1/produce-history-v1.ts:8:79)\n      at /tmp/puni-legacy-producer-v1/produce-history-v1.ts:38:238\n\nBun v1.4.4 (Linux x64)\n"
+      },
+      {
+        "receipt": {
+          "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v1.receipt.json",
+          "sha256": "fe65ba5f7452c2aa700c39aa3db0c047af50a15588eee1d14bb49e061aa139d4",
+          "bytes": 1394,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v1.log",
+          "sha256": "40639a4ec7489f2f8e17198daf3945fb06047887f67dd0d51719d6e5009f6412",
+          "bytes": 2455,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": " project refused');const projectId=created.value.project.id,step=created.value.steps[0];if(step===undefined)throw Error('Old memory step absent');\n                                                                                                                                                                                                                            ^\nerror: Old memory project refused\n      at /tmp/puni-legacy-producer-v1/produce-memory-history-v1.ts:5:217\n\nBun v1.4.4 (Linux x64)\n"
+      },
+      {
+        "receipt": {
+          "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v2.receipt.json",
+          "sha256": "a3eb766fd55908cfba787a35480d560e632ba4e5b2512f49ea838fdc26c79b89",
+          "bytes": 1393,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-legacy-producer-v1/memory-history-native-v2.log",
+          "sha256": "53fb124da56b7a2a57f5169aa644c4e5efa764bce437fa970464eeb7c8d771ea",
+          "bytes": 774,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "ow new Error(`${family} ${row.workItemId}/${row.stepId} has an invalid step reference`);\n                       ^\nerror: progress destination/770e53c2-ff0b-4f11-a51d-4e4d36ad5ec5 has an invalid step reference\n      at readTargetedSatelliteRows (/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-memory/src/targeted-satellite-rows.ts:51:19)\n      at async listByWorkItems (/tmp/puni-legacy-producer-v1/tree/libs/wbs/adapters/store-memory/src/progress-fixture.ts:27:30)\n\nBun v1.4.4 (Linux x64)\n"
+      }
+    ],
+    "rejectedQualification": "Initial three-case observer ordered plan_event by absent seq; fixed to rowid in accepted v2. Initial15-case SQLite process stopped at genuine old prior-command undo refusal; accepted v2 retains both precise setup refusals instead of forcing progress. Initial memory driver assumed an ok/value creation shape; corrected to actual object/string API. Next memory observer exposed absent QA StepStore metadata; accepted v3 authors every observed default step through the actual old StepStore, preserving this setup distinction."
+  },
+  "cases": [
+    {
+      "name": "parent-delete-restore",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-delete-restore/evidence.json",
+        "sha256": "c4f75782f959cee8db75fa9d148e0f8e7c99ac94f57b1efbcca0faea9c436e0e",
+        "bytes": 99350,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-delete-restore/producer.json",
+        "sha256": "090e5963b2c5bc676079cb045e51d5f48ecefb6cfcafe775c38bb78a15e6dad6",
+        "bytes": 48109,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-delete-restore/producer.db",
+        "sha256": "45292e5963bbd210fc11576ccb2a5b0da643773b1898712c82f24a2925928518",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-delete-restore/old-replay-control.json",
+        "sha256": "e872573f7c48c918c998eb2a6715451b499bf3deb4c30d152d28c1cb7149a192",
+        "bytes": 4413,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "3c13992913e92653690d8405bbc7ed02cc839e1c6c21dd836e05de5eacde4063",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": true,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 20
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": false,
+        "error": "Error: step write requires a leaf work item",
+        "stack": "Error: step write requires a leaf work item\n    at readSqliteStepWriteIn (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-write.ts:30:40)\n    at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts:78:24)\n    at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)\n    at transaction (bun:sqlite:447:27)\n    at transaction (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)\n    at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts:77:15)\n    at set (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts:76:28)\n    at applyRestore (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:10847:50)"
+      }
+    },
+    {
+      "name": "parent-last-child",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-last-child/evidence.json",
+        "sha256": "586d2c0428094a881b9387405bae65628f5e2b85b3e3c0ff5914fb0e5b2cb625",
+        "bytes": 92013,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-last-child/producer.json",
+        "sha256": "b47dad24739e18a18ea0d0dac568e7f396e29aa8cbf68af99c957c1cb258d555",
+        "bytes": 45729,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-last-child/producer.db",
+        "sha256": "d39671dfe4dea534820afa0592fe5a5fffdfc8a0a4aac398f1c13c40eb6272e6",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-last-child/old-replay-control.json",
+        "sha256": "e77ade3ecc312284408c7c4eedf4ae873d7ccd30de09e3b245c1db7155e71d75",
+        "bytes": 4744,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "35024e100bbecbeb38e4574e7b14a506217181a90bcd8a4b38d2eee7a2ee108c",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 123
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "step_nodes_in_use",
+          "detail": null,
+          "count": 1,
+          "pairs": [
+            {
+              "id": "parent",
+              "name": "parent",
+              "stepId": "legacy-dev",
+              "workPackageId": "legacy-package",
+              "facts": ["progress"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "parent-existing",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-existing/evidence.json",
+        "sha256": "c501b97b43503c8a312e9273fd7571f1dccc305baccdcd27b8839d7109c14df1",
+        "bytes": 99094,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-existing/producer.json",
+        "sha256": "b768b69000a94bd14f2c73218c9194776f16e442eed57e673848b0f51562f88d",
+        "bytes": 48595,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-existing/producer.db",
+        "sha256": "c2c778cec62b2fda27eab4e43707b7e59f412cbc76eb7e74093de4321500d600",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-existing/old-replay-control.json",
+        "sha256": "144b1147829b7f59b25b1fffb6367df751dcf36d4cd3b507c4b006945cf73e3a",
+        "bytes": 6080,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "3f7cb628b2b3657b5a62d554b77961448b4aeb4e1e154a57c1ed97159a36bf5a",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": false,
+        "error": "Error: stored progress names a parent work item",
+        "stack": "Error: stored progress names a parent work item\n    at projectStoredStepFacts (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-fact-reads.ts:97:38)\n    at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)\n    at transaction (bun:sqlite:447:27)\n    at transaction (/home/df/.codex/worktrees/6ce4/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)\n    at listByWorkPackage (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-progress.ts:34:20)\n    at observeCommitted (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts:474:30)\n    at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/public-store-owner.ts:27:26)\n    at observeAsync (/tmp/puni-legacy-producer-v1/admit-history-v1.ts:19:97)\n    at /tmp/puni-legacy-producer-v1/admit-history-v1.ts:36:26"
+      },
+      "currentReplay": {
+        "ok": false,
+        "error": "Error: step usage node names a parent",
+        "stack": "Error: step usage node names a parent\n    at projectProtectedStepUsage (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-usage.ts:259:58)\n    at decideMoveWrite (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/move.ts:88:17)\n    at writeMoveIn (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/move.ts:42:20)\n    at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-item.ts:1062:28)\n    at writeSubtreeIn (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/subtree-write.ts:17:21)\n    at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-item.ts:1056:25)\n    at writeMove (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-item.ts:1055:30)\n    at writeMove (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/subtree-write.ts:17:35)\n    at applyMove (/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:10208:46)"
+      }
+    },
+    {
+      "name": "parent-drift-state",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-drift-state/evidence.json",
+        "sha256": "7332fa44f1a27cf38c817205cfa963d9a728d72d3eb57f250431b94a5f400fbf",
+        "bytes": 122729,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-state/producer.json",
+        "sha256": "62bd0322492efb97d5260f15bd494af8cd433711ab2ba77d70cb405e2ba8b5cd",
+        "bytes": 74274,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-state/producer.db",
+        "sha256": "b42b37422f8cfae6a5838b0bdd950179bc0cbea79edeb8f801fdfdc6c5de816c",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-state/old-replay-control.json",
+        "sha256": "c0313f42ff040c5d6a0644e994d700ef7518ae8fd7bdf0895f7a0909ef1c8fd2",
+        "bytes": 5710,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "52dce6cb5a0c1a656ebb1aa9e83737fb57a19aac0c65f0ce608aba7004cae950",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 123
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“parent” has changed since then.",
+          "entryId": "9cfcb437-f7c0-41ea-a2c9-a5d796e7331c"
+        }
+      }
+    },
+    {
+      "name": "parent-drift-time",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-drift-time/evidence.json",
+        "sha256": "e5a590bc783590eac503f21f0e2940165bee3543716973708eda1662eb180d7f",
+        "bytes": 122690,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-time/producer.json",
+        "sha256": "8b7d3016b561f2d50bd86929d40242a6938f8a6c8ce7be3fab39c30ca3747508",
+        "bytes": 74266,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-time/producer.db",
+        "sha256": "387e173efb7e63384f94ce4dbfcb4d459d7749eb4857d3e7a0e90f4623bebd19",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-time/old-replay-control.json",
+        "sha256": "f592f2c43e3af8d535f879ba23bb923074aadafb14a65aeb73d3d5d79fe547de",
+        "bytes": 5695,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "c6f133c5f6d786070e23cca16e9bc1331fe496a81741916a8a8015ce511a8ea3",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 456
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“parent” has changed since then.",
+          "entryId": "d263e1e8-0b2d-4c54-bc0f-d1dcfaf34a55"
+        }
+      }
+    },
+    {
+      "name": "parent-drift-extra",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-drift-extra/evidence.json",
+        "sha256": "5b10a6563be661f87fd6c7f55dff19dcde12400d16836e907dc68ea30ad6e9ae",
+        "bytes": 123580,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-extra/producer.json",
+        "sha256": "c89bd04c8689141df4386970b45ff19eafd67e024da029602cd674f0c21e71bf",
+        "bytes": 74525,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-extra/producer.db",
+        "sha256": "87735d3f734b7e0a5ddbe3bf95c41c75edfc978ae307d423c5010583a92d8ecd",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-extra/old-replay-control.json",
+        "sha256": "6e9b8910ff071b5de5279686e087264bdc94e12b7b17eea9407613f318dd43d4",
+        "bytes": 6140,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "6a1f1f2328a22573b277226d7208659558c2f148625071c747b40f0a462dec9b",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 123
+          },
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-qa",
+            "state": "done",
+            "statedAt": 456
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“parent” has changed since then.",
+          "entryId": "bd201d13-8e4e-4aa5-ad40-ea10fec717f5"
+        }
+      }
+    },
+    {
+      "name": "parent-drift-missing",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/parent-drift-missing/evidence.json",
+        "sha256": "ac3ec3a641b4c5bbd68242841df0675ef9e2ee4648feeb03d4356d4afed14f51",
+        "bytes": 121814,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-missing/producer.json",
+        "sha256": "8eef4220ad0cdc54123d071f0457267f3a919410416f7d663d33d35e41a3b937",
+        "bytes": 74002,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-missing/producer.db",
+        "sha256": "92dd0211fda36b1f5329ee59841dd0d654c1522aa47fa2e7d3e6b8cc0ce3829f",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/parent-drift-missing/old-replay-control.json",
+        "sha256": "c01d41dfbfb1cbda352771858d0843db1eea425d077987ced87a342e529d489a",
+        "bytes": 5244,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "ee746235533745dfbe943c50ceea91d2ca0b8754d25a2562795597c44d0ef6c4",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": []
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“parent” has changed since then.",
+          "entryId": "699ae3d7-bab8-442f-9b16-c3c2acbe4111"
+        }
+      }
+    },
+    {
+      "name": "handup-new-progress",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/handup-new-progress/evidence.json",
+        "sha256": "8f60c25bc342e41d0292954488f75f18b42cbfac271711162bd5510bdcf4b09b",
+        "bytes": 121614,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/handup-new-progress/producer.json",
+        "sha256": "ed15c381fbd3eeaf37906dd635e09487aefb2e4599b54bdb1d27f1a2cb639122",
+        "bytes": 73386,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/handup-new-progress/producer.db",
+        "sha256": "107cbe72e3e62aabb35d20dae712d7e0ecfeb3a88a25ba5b0358a03a41da5970",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/handup-new-progress/old-replay-control.json",
+        "sha256": "5be7eca7c44abf66e4354d1291c7919475873d4a8b4498688d739c1765a17f05",
+        "bytes": 5697,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "84fad3989f4587a7932117c167e425cf8945f26afa892e65f47686c54552eb2f",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "parent",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 456
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“parent” has changed since then.",
+          "entryId": "2949ce1b-7ad0-4f4b-99cf-695ce03cb804"
+        }
+      }
+    },
+    {
+      "name": "destination-redo-state",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/destination-redo-state/evidence.json",
+        "sha256": "02f07fd1d78837ceb15cea059d6f994d67f7113ee7ebcb52c0299756cb4e0b9c",
+        "bytes": 148925,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-state/producer.json",
+        "sha256": "ba8820191443f600a48f2046c5f0fedb5550a0f29000c4ea80787b469e1f1439",
+        "bytes": 99204,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-state/producer.db",
+        "sha256": "4794559d367f5903959bdcdb8450bd1b22bb007e32ee42ac52a613d626a6b2ae",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-state/old-replay-control.json",
+        "sha256": "fa53d98aea0cc33e35ca0d2c15c22ac6cef87ccea3c04961c3013ed05d05d3c5",
+        "bytes": 5773,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "e2cf88c2882eed53f305ea7120259d29bace9d077cec71e8cf445579f4edd01e",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 1795128653676
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“destination” has changed since then.",
+          "entryId": "0a8c4b37-48ad-4019-85c3-0433e2860dc4"
+        }
+      }
+    },
+    {
+      "name": "destination-redo-time",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/destination-redo-time/evidence.json",
+        "sha256": "0509c4523eac3c560101a181ee18b81c32014ca190d5f3d678b5a7e6649e3709",
+        "bytes": 148846,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-time/producer.json",
+        "sha256": "3f45e1b91cbbae7097137ffd77d8c480ea528e0bcc9a11fada4daedbb12de0c4",
+        "bytes": 99186,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-time/producer.db",
+        "sha256": "251f1615e196913de3edbd78b839dae119baadb6a334af45a33ae2c2fa1de16c",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-time/old-replay-control.json",
+        "sha256": "d464dbad4a6ba5e32c0e304a68988e1178214528153e102652ae6d6083728297",
+        "bytes": 5738,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "143e3a1cf701aa2d454b74fcfed67b7c7eb3da8d1744b5d0f9cb15b7211d676f",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-dev",
+            "state": "done",
+            "statedAt": 456
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“destination” has changed since then.",
+          "entryId": "3c68c85e-e719-48ca-8f0c-9022456ce5c6"
+        }
+      }
+    },
+    {
+      "name": "destination-redo-missing",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/destination-redo-missing/evidence.json",
+        "sha256": "33e64c67e99554d3f34c0d624407d1e343197c3b8752113ab0c1a6f04f020c7f",
+        "bytes": 147914,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-missing/producer.json",
+        "sha256": "6021fb0abb6ac2982eb135591ea394a159b14d9084d2e730b60be6dea93d2db4",
+        "bytes": 98905,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-missing/producer.db",
+        "sha256": "527c047b5bc0d4696269e8845620a95f1446a6b52917e01edfdaf4beefcdb240",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/destination-redo-missing/old-replay-control.json",
+        "sha256": "2c27578506043f5155bb8eeea5cfc29289422825c4d1f6efdd8dcada2e922b4b",
+        "bytes": 5253,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "4cee5b0fa4e9ab652540473b58769d237dc48a2ce5263eb51e701d9723239c0c",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": []
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“destination” has changed since then.",
+          "entryId": "df3fb09d-cd5b-41ba-b0c4-5de0bf48e20e"
+        }
+      }
+    },
+    {
+      "name": "laundering-rename",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/laundering-rename/evidence.json",
+        "sha256": "4cf3af4d5d7fe0560f0d66b27bfa03fbfc32fbbb68aa7edf2c8b6d0a40ba4f8f",
+        "bytes": 130933,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/laundering-rename/producer.json",
+        "sha256": "b3436c141911ee778acdeb3728b5b200cf4dfd4b1fbf719bdc11f4d8dfc212b1",
+        "bytes": 78646,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/laundering-rename/producer.db",
+        "sha256": "d071e6477b1fb2dad67747089f6acb1fbd0e35209310234a21c6cba08a5ea270",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": false,
+      "oldSetupRefusal": {
+        "phase": "old previous undo",
+        "outcome": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“Renamed” has changed since then.",
+          "entryId": "5c0fa54e-0c86-466f-b967-5cb2ffc84915"
+        }
+      },
+      "oldReplayControl": null,
+      "report": {
+        "fingerprint": "45405c92952c0c4fc35a6b1e010b4818eed3f94c39d6015d6d1b34b360fab597",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 456
+          },
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-qa",
+            "state": "done",
+            "statedAt": 1795128654181
+          }
+        ]
+      },
+      "currentReplay": {
+        "kind": "not_attempted",
+        "reason": "actual old SQLite producer refused before required checkpoint",
+        "setupRefusal": {
+          "phase": "old previous undo",
+          "outcome": {
+            "ok": false,
+            "reason": "stale_undo",
+            "detail": "“Renamed” has changed since then.",
+            "entryId": "5c0fa54e-0c86-466f-b967-5cb2ffc84915"
+          }
+        }
+      }
+    },
+    {
+      "name": "laundering-progress",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/laundering-progress/evidence.json",
+        "sha256": "b7b45dab6b1eb862d465c9356cb0dc2281a1527a5542e1c875fba7336b491e9f",
+        "bytes": 131410,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/laundering-progress/producer.json",
+        "sha256": "dc7e9887a12a9801971a5e8e40a0c99526e81609b94ad5e81d075e3804d495e7",
+        "bytes": 79036,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/laundering-progress/producer.db",
+        "sha256": "a5ad5fadfe18db5c18cd0429fc10b78af528f9ca30e8eb7057764a68ee7b9eb0",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": false,
+      "oldSetupRefusal": {
+        "phase": "old previous undo",
+        "outcome": {
+          "ok": false,
+          "reason": "stale_undo",
+          "detail": "“destination” has changed since then.",
+          "entryId": "2db043b3-b8fc-49d2-9ac2-78a04bd9cf27"
+        }
+      },
+      "oldReplayControl": null,
+      "report": {
+        "fingerprint": "8f6cf94ba56c8d3da2a2375f910551ab1bbde78e563513645ea0cca029e8f475",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 1795128654339
+          },
+          {
+            "workItemId": "destination",
+            "stepId": "legacy-qa",
+            "state": "in_progress",
+            "statedAt": 456
+          }
+        ]
+      },
+      "currentReplay": {
+        "kind": "not_attempted",
+        "reason": "actual old SQLite producer refused before required checkpoint",
+        "setupRefusal": {
+          "phase": "old previous undo",
+          "outcome": {
+            "ok": false,
+            "reason": "stale_undo",
+            "detail": "“destination” has changed since then.",
+            "entryId": "2db043b3-b8fc-49d2-9ac2-78a04bd9cf27"
+          }
+        }
+      }
+    },
+    {
+      "name": "restore-progress",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/restore-progress/evidence.json",
+        "sha256": "c40779a70ab37438276b17b2f13e1890b3e5f2aae4954c65acfbd776a75e62f4",
+        "bytes": 93092,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/producer.json",
+        "sha256": "374d9422193f43a344d6423479851fa5c579901bd2c0a894a6d9de949ebc8d06",
+        "bytes": 46249,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/producer.db",
+        "sha256": "38e8c7eb1b57febb58538107697e0fbd0fd503b0a1a224f603e0be618b3917fd",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/old-replay-control.json",
+        "sha256": "e1c94d3498edbd9009dcb58368936089e4c1f9cd48809f5ca02e5d7a8987f849",
+        "bytes": 5046,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "b6f8a422cbcdaf2bcb4540c7a6700ed8a824ba10fb7e0f7370e8989c8dc99648",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "moving",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 11
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": true,
+          "value": {
+            "done": "move “moving”",
+            "detail": null
+          }
+        }
+      }
+    },
+    {
+      "name": "restore-progress-blockage",
+      "evidence": {
+        "path": "/tmp/puni-legacy-producer-v1/history-admitted-v1/restore-progress-blockage/evidence.json",
+        "sha256": "a96b6f930c5c1e3af52cb46bc7dce8cb3c7fdbcac9eecde54125d8f1cde479f2",
+        "bytes": 95852,
+        "mode": 384
+      },
+      "producer": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/producer.json",
+        "sha256": "ffdf5b3d1996ad3bfd2d1a6989a0d1be16bd1a0052f41c843d661bf0cb84a825",
+        "bytes": 47544,
+        "mode": 384
+      },
+      "database": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/producer.db",
+        "sha256": "ab68bdc372b7dea0fa257b831c9a18a6a921a112dfc73801d0757a26ff0452f5",
+        "bytes": 1789952,
+        "mode": 420
+      },
+      "completedOldSqliteCheckpoint": true,
+      "oldSetupRefusal": null,
+      "oldReplayControl": {
+        "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/old-replay-control.json",
+        "sha256": "1be374e2deb8cd608244abfe1e1635d4f95177ba0ead57a5d98d261b65ac659e",
+        "bytes": 5689,
+        "mode": 384
+      },
+      "report": {
+        "fingerprint": "b1922989f34b454bf1573e417b093211d6881899a850904f3c8687a4673cb429",
+        "rows": []
+      },
+      "ledgerLength": 117,
+      "frozenCatalogueJournalJson": true,
+      "entity111RekeysStructuralHistory": false,
+      "currentRead": {
+        "ok": true,
+        "value": [
+          {
+            "workItemId": "moving",
+            "stepId": "legacy-dev",
+            "state": "in_progress",
+            "statedAt": 11
+          }
+        ]
+      },
+      "currentReplay": {
+        "ok": true,
+        "value": {
+          "ok": true,
+          "value": {
+            "done": "move “moving”",
+            "detail": null
+          }
+        }
+      }
+    }
+  ],
+  "counts": {
+    "sqliteArrangements": 15,
+    "completedOldSqliteCheckpoints": 13,
+    "preciseOldSqliteSetupRefusals": 2,
+    "separateCompletedOldMemoryLaunderingCheckpoints": 2,
+    "preFixCurrentReplay": {
+      "revisionStale": 8,
+      "success": 2,
+      "protectedPointRefusal": 1,
+      "throw": 2,
+      "notAttempted": 2
+    }
+  },
+  "timestampLimit": "The genuine old inverse set_progress records state without original statedAt; actual current successful standalone restores stamp the replay instant. Original timestamp10 is absent from those journal/event recipes. Preserve frozen recipes; no exact original timestamp recovery is claimed. Historical equality, timestamp semantics and explicit history owner remain unresolved.",
+  "repair": {
+    "behavior": "After validating complete tree ownership, reject concrete parent point facts before report refresh, rules acceptance or guarded apply. Diagnostic names table/work item/step. Retained parent issued counters and null whole/subtree claim reservations retain their scope; history/facts are not rewritten and no eighth report kind or migration120 is introduced.",
+    "production": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts",
+        "sha256": "7b6b2e3bd9bf83374679ee8b12da8863c117a37a629651dfcfe68e3e6720c98d",
+        "bytes": 12256,
+        "mode": 436
+      }
+    ],
+    "tests": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts",
+        "sha256": "6d7981b36a55ffc29b2d941a0ccd52d74d4d97dd674a1599625e4a552c323f86",
+        "bytes": 5734,
+        "mode": 436
+      }
+    ],
+    "fixtures": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.sqlite.gz",
+        "sha256": "420dd69b1ce2b46f166bb27bb3c5bd2c5a9577bab53bdc2cc8ba9cfa2874bacf",
+        "bytes": 60957,
+        "mode": 420
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.json",
+        "sha256": "dd9d68984125f14d133046b2393721c9f95b1fb1190f3e1ba98873c05dc982f1",
+        "bytes": 2681,
+        "mode": 420
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-history-producer.ts.txt",
+        "sha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+        "bytes": 11568,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-memory-producer.ts.txt",
+        "sha256": "a4706db9dc5a56614bf17ca426e39e919341c11e2aba1f2d95420e77cd3627a4",
+        "bytes": 5373,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-memory-laundering-rename.capture.txt",
+        "sha256": "aa8438299a09ab5da8da22aa0fcfb0d70a48c4f2c5dce755e5282f2c2d3086e3",
+        "bytes": 23399,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-memory-laundering-progress.capture.txt",
+        "sha256": "70c009b235669c83b971ec8f377eb87e775a79652142fee0f1ee839ec5a2fa6a",
+        "bytes": 23602,
+        "mode": 384
+      }
+    ],
+    "before": "Actual116 legacy parent progress report/rules/apply all accepted; resulting current reader throws on parent progress.",
+    "after": "Three genuine frozen-database boundary tests refuse with complete raw schema/table/ledger/report equality. Independent retained-parent counter positive; existing null-subtree claim and foreign-parent precedence controls pass."
+  },
+  "verification": {
+    "commands": [
+      {
+        "name": "legacy-parent-admission-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-red-v1.receipt.json",
+          "sha256": "6f000a4b7f4a4ed05922dada994ca23b8226c860a255a04bf0db64fa813bc10f",
+          "bytes": 1348,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-red-v1.log",
+          "sha256": "66c729e16ff0c2ba3bf4e8a93dd8a4abcc18544161ff7a1f66121cd1d210069c",
+          "bytes": 16838,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "_runtime\",\n    hash: \"f873f5b5e0dd8fd38d69873c9bbdcd9d885f5c4bd3d898eee35d8bd5c788e90b\",\n  },\n  ... 17 more items\n]\n\n      at <anonymous> (/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts:81:20)\n(fail) refuses genuine legacy parent progress at apply without changing persistence [95.90ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [19.41ms]\n\n 1 pass\n 3 fail\n 25 expect() calls\nRan 4 tests across 1 file. [2.72s]\n"
+      },
+      {
+        "name": "legacy-parent-admission-green-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-green-v1.receipt.json",
+          "sha256": "081f52d250ac9b3faa0695240a8595d2ac686e78a6aa9af87633343bb43be754",
+          "bytes": 1350,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-green-v1.log",
+          "sha256": "f83c0ff0defb11ceffc3e8adf2cd3c6f9e92f01127419defd41b8e08dbfabd42",
+          "bytes": 537,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts:\n(pass) refuses genuine legacy parent progress at report without changing persistence [53.71ms]\n(pass) refuses genuine legacy parent progress at rules without changing persistence [26.48ms]\n(pass) refuses genuine legacy parent progress at apply without changing persistence [80.08ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [20.93ms]\n\n 4 pass\n 0 fail\n 28 expect() calls\nRan 4 tests across 1 file. [2.63s]\n"
+      },
+      {
+        "name": "legacy-parent-report-regressions-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-report-regressions-v1.receipt.json",
+          "sha256": "2c7ec9d2f516197c8c00b7aae25948bd865bfb22a76e53364ac4d344942abc5f",
+          "bytes": 1437,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-report-regressions-v1.log",
+          "sha256": "dfdf775239e59ed04ea8f13d1df88f0091668cbdec23763f4fc312a0a1395db8",
+          "bytes": 15118,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "s]\n(pass) refuses genuine legacy parent progress at rules without changing persistence [25.39ms]\n(pass) refuses genuine legacy parent progress at apply without changing persistence [73.00ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [20.38ms]\n\n1 tests failed:\n(fail) refuses valid foreign work-item parent with constraints restored and leaves the complete previous report atomic [472.71ms]\n\n 122 pass\n 1 fail\n 4126 expect() calls\nRan 123 tests across 2 files. [77.46s]\n"
+      },
+      {
+        "name": "legacy-parent-admission-precedence-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-precedence-v2.receipt.json",
+          "sha256": "7a32f85f09d1f771b57a4b5347480d3492144baaff07f5856c3b7c68ad7886f4",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-admission-precedence-v2.log",
+          "sha256": "be56ab342cb048cdd81656bed18d22e004dca938ae57998adeb8ea12469e96c1",
+          "bytes": 848,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "out changing persistence [73.86ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [19.45ms]\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) protects only actual descendant leaves for subtree claim with a null step [480.20ms]\n(pass) refuses valid foreign work-item parent with constraints restored and leaves the complete previous report atomic [545.48ms]\n\n 6 pass\n 117 filtered out\n 0 fail\n 85 expect() calls\nRan 6 tests across 2 files. [3.66s]\n"
+      },
+      {
+        "name": "legacy-parent-format-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-format-v1.receipt.json",
+          "sha256": "88d3d0cb037c471bd09253ec7db5a5c45c0a7218fa1052e9fbf519253d1012a3",
+          "bytes": 1525,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-format-v1.log",
+          "sha256": "8a4b45530858d3f40ea1d549b945f4068ad1f927f3362b09af6697e9f6aa3bfe",
+          "bytes": 258,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts 116ms (unchanged)\nlibs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts 15ms\nlibs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.json 3ms (unchanged)\n"
+      },
+      {
+        "name": "legacy-parent-report-regressions-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-report-regressions-v2.receipt.json",
+          "sha256": "d905c4aa24890ed6068d52cc187a2568c56fcfe009dc79a98c4a6897b32800f7",
+          "bytes": 1437,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-report-regressions-v2.log",
+          "sha256": "de6d36f74ee22c9289e022e99954aa2d55607fd5f354846ce28e7b9084af083a",
+          "bytes": 14078,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "s/store-sqlite/src/legacy-parent-migration.db.test.ts:\n(pass) refuses genuine legacy parent progress at report without changing persistence [24.89ms]\n(pass) refuses genuine legacy parent progress at rules without changing persistence [24.09ms]\n(pass) refuses genuine legacy parent progress at apply without changing persistence [78.05ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [21.44ms]\n\n 123 pass\n 0 fail\n 4127 expect() calls\nRan 123 tests across 2 files. [78.18s]\n"
+      },
+      {
+        "name": "legacy-parent-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-types-v1.receipt.json",
+          "sha256": "5667d05c37dd8ee0e491a9691752087f955ae44058d640fb9928b413742e09f6",
+          "bytes": 1393,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": ""
+      },
+      {
+        "name": "legacy-parent-lint-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-v1.receipt.json",
+          "sha256": "c969738e96c19952ca1f2f9cd90403baa24ddaf75c4e2b961d18686beb4fbbcd",
+          "bytes": 1436,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-v1.log",
+          "sha256": "0730274e931b756adee8d96e671256a20b655944ddf3ae6ec34a79d5f6e72d9d",
+          "bytes": 292,
+          "mode": 384
+        },
+        "exit": 1,
+        "summary": "\n/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts\n  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports\n\n✖ 1 problem (1 error, 0 warnings)\n  1 error and 0 warnings potentially fixable with the `--fix` option.\n\n"
+      },
+      {
+        "name": "legacy-parent-lint-fix-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-fix-v2.receipt.json",
+          "sha256": "5568099ca91c04a414123a27876ed35e0c1809ac74665e16fcfd10c55e110ec6",
+          "bytes": 1457,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-fix-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": ""
+      },
+      {
+        "name": "legacy-parent-static-final-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-static-final-v1.receipt.json",
+          "sha256": "430101a11afe1d5969eea9cc0bcf91596b03f3ce140fc1281f7095daff96a1c1",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-static-final-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "Checking formatting...\nAll matched files use Prettier code style!\n"
+      },
+      {
+        "name": "legacy-parent-final-controls-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-final-controls-v1.receipt.json",
+          "sha256": "542d7da0f1a475b1ab326608769477e2971186de8dedb191bbac76c142fdaebc",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-final-controls-v1.log",
+          "sha256": "caef4756e99b4a70dda3291e890aeaef658397da44347324ed24328ed88229f8",
+          "bytes": 848,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "out changing persistence [85.69ms]\n(pass) keeps the allocator exception for genuine legacy parent numbering [21.20ms]\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) protects only actual descendant leaves for subtree claim with a null step [516.58ms]\n(pass) refuses valid foreign work-item parent with constraints restored and leaves the complete previous report atomic [539.65ms]\n\n 6 pass\n 117 filtered out\n 0 fail\n 85 expect() calls\nRan 6 tests across 2 files. [4.06s]\n"
+      },
+      {
+        "name": "legacy-parent-lint-final-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-final-v1.receipt.json",
+          "sha256": "832c33cac589136489b0968cc93b5523a7083e3b9968b56b1523f8de5bfd4b7c",
+          "bytes": 1446,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-lint-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": ""
+      },
+      {
+        "name": "legacy-parent-doc-format-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-doc-format-v1.receipt.json",
+          "sha256": "a7f3f8cc028d81ffb3857fff62517a28fc7595a18188cc85f6d535ee4a505004",
+          "bytes": 1559,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/legacy-parent-doc-format-v1.log",
+          "sha256": "3682d46812709d0407baab2fa09d484b56a5955f2aa1e645d5a573813a4a6b62",
+          "bytes": 305,
+          "mode": 384
+        },
+        "exit": 0,
+        "summary": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.json 15ms (unchanged)\nopenspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md 118ms (unchanged)\nopenspec/changes/wbs-step-catalogue/design.md 77ms (unchanged)\nopenspec/changes/wbs-step-catalogue/tasks.md 38ms (unchanged)\n"
+      }
+    ],
+    "full": {
+      "passed": 123,
+      "failed": 0,
+      "assertions": 4127,
+      "files": 2
+    },
+    "finalSelected": {
+      "passed": 6,
+      "failed": 0,
+      "assertions": 85,
+      "qualification": "Subset of123; not additional unique tests."
+    },
+    "finiteEffects": {
+      "canonicalSha256": "bb896d74afdf751c69e132a74e00df6521f92f65635e1b0321766c381223cb97",
+      "relative": "libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts",
+      "observations": [
+        {
+          "name": "missing-parent-guard",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-missing-parent-guard-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-missing-parent-guard-v1.log",
+          "failed": [
+            "(fail) refuses genuine legacy parent progress at report without changing persistence [61.56ms]",
+            "(fail) refuses genuine legacy parent progress at rules without changing persistence [23.90ms]",
+            "(fail) refuses genuine legacy parent progress at apply without changing persistence [96.15ms]"
+          ],
+          "summary": "\n\n 0 pass\n 1 filtered out\n 3 fail\n 18 expect() calls\nRan 3 tests across 1 file. [2.64s]\n"
+        },
+        {
+          "name": "lost-allocator-exception",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-lost-allocator-exception-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-lost-allocator-exception-v1.log",
+          "failed": [
+            "(fail) keeps the allocator exception for genuine legacy parent numbering [50.13ms]"
+          ],
+          "summary": "\n\n 0 pass\n 3 filtered out\n 1 fail\n 5 expect() calls\nRan 1 test across 1 file. [2.55s]\n"
+        },
+        {
+          "name": "lost-null-claim-exception",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-lost-null-claim-exception-v1.receipt.json",
+          "log": "/tmp/puni-combined-proposal-v1/control/legacy-parent-effect-lost-null-claim-exception-v1.log",
+          "failed": [
+            "(fail) protects only actual descendant leaves for subtree claim with a null step [598.22ms]"
+          ],
+          "summary": "\n\n 0 pass\n 118 filtered out\n 1 fail\n 28 expect() calls\nRan 1 test across 1 file. [3.04s]\n"
+        }
+      ],
+      "restoredExactly": true
+    },
+    "rejectedRegression": "First full cohort122pass1fail4126: new early capture guard masked missing/foreign tree diagnostic. Moved refusal into existing domain classifier after actual readChildren ownership validation; no test relaxed. Final123pass0fail4127.",
+    "types": "Domain plus SQLite project references, forced build, exit0.",
+    "static": "Strict two-file ESLint exit0 after import ordering; Prettier checks pass. Post-artifact documentation/OpenSpec/staged-state checks are owned by final state/checkpoint."
+  },
+  "pending": [
+    "All original15 historical read/restore guarantees remain open: actual producers/admission now evidenced, not repaired by allowing current parent points.",
+    "Eight current revision-stale observations do not independently prove all historical progress comparator guards; no bypass claimed.",
+    "Memory laundering values have genuine old ownership but no current migration/history-import owner yet.",
+    "Current admitted delete undo throws through ordinary parent progress restoration; last-child undo refuses SC17; existing-parent catalogue state now refuses new admission.",
+    "All13 migration parent-point family negatives beyond actual progress, scalar validation and raw standalone catalogue SQL are not certified by the selected guard proof.",
+    "Remaining31core failures, full Source/client/API/MCP/UI/CLI/Bun inventory checks, raw Source move retirement, exact committed host gates, public integration/release remain as prior checkpoint.",
+    "Requested Astra review remains unavailable until recorded Nov22 2026 10:09AM, timezone unspecified; no retry/bypass."
+  ],
+  "publicActions": "No public commit/push/PR update/merge/deploy."
+}

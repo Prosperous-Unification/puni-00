@@ -3,7 +3,7 @@ export const PAIRS = 200;
 export type Arm = 'D' | 'U';
 
 export interface ClaimTarget {
-  projectId: string;
+  workPackageId: string;
   workItemId: string;
   personId: string;
   steps: [string, string];
@@ -100,7 +100,7 @@ export function readMeasurement(
       throw new Error(`Unexpected pair/order at measured row ${String(index + 1)}`);
     const target = targets.at(pair - 1);
     if (
-      row.target.projectId !== target?.projectId ||
+      row.target.workPackageId !== target?.workPackageId ||
       row.target.workItemId !== target.workItemId ||
       row.target.personId !== target.personId ||
       row.target.steps.join() !== target.steps.join()

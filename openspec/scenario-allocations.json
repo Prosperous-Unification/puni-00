@@ -1334,6 +1334,27 @@
       "title": "Shared test evidence refuses collection drift and stale evidence"
     },
     {
+      "kind": "rename",
+      "id": "PROJECT-ASSIGNMENT-READS-001",
+      "priorTitle": "Tiny project among unrelated projects",
+      "title": "Tiny work package among unrelated work packages",
+      "priorRevision": "1816f5848e11c40786f7919388f98abeb330ebeb"
+    },
+    {
+      "kind": "rename",
+      "id": "PROJECT-ASSIGNMENT-READS-002",
+      "priorTitle": "Assignment write among unrelated projects",
+      "title": "Assignment write among unrelated work packages",
+      "priorRevision": "1816f5848e11c40786f7919388f98abeb330ebeb"
+    },
+    {
+      "kind": "rename",
+      "id": "PROJECT-ASSIGNMENT-READS-003",
+      "priorTitle": "Different projects in the memory fixture",
+      "title": "Different work packages in the memory fixture",
+      "priorRevision": "1816f5848e11c40786f7919388f98abeb330ebeb"
+    },
+    {
       "kind": "allocate",
       "id": "TEST-AXES-197",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",

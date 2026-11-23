@@ -79,7 +79,7 @@ import type { SolverOffsetMap } from './wire-types';
  * ## What the caller gets
  *
  * One offset per slice, keyed by `sliceKey`, with the same key set
- * `buildSolverSlices` projects — both walk the same `groupSlicesByLeaf`
+ * `buildSolverSlices` work packages — both walk the same `groupSlicesByLeaf`
  * grouping, which refuses a slice that is not a leaf's, and `schedule()` refuses
  * a leaf with no slice. Every value is a non-negative safe integer, checked
  * below rather than promised.
@@ -98,7 +98,7 @@ export function quantisedFastBaseline(
   /** The typed dependencies; required, so the baseline cannot drop one the request carries. */
   typed: readonly TypedDependency[],
   elsewhere: Elsewhere = new Map(),
-  /** The project's stated resource capacities; the baseline levels demands as Fast does. */
+  /** The work package's stated resource capacities; the baseline levels demands as Fast does. */
   resourceCapacities: PoolSizes = new Map(),
 ): SolverOffsetMap {
   const bookings = quantiseElsewhere(elsewhere);

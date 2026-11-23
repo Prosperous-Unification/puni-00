@@ -1,0 +1,1552 @@
+{
+  "recordedAt": "2026-11-19T15:46:13.342Z",
+  "goalStatus": "active",
+  "scope": "Current SQLite fact fault prerequisites, exact DTO diagnostics and retained namespace cleanup; broader Source controls and a bounded restored aggregate measurement.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "85e387098f1789909dc1adeb571b0589fbf583952661c9cd33f55bb07dabc7e0",
+      "bytes": 352346,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-sqlite-followups-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-first-red-v1.receipt.json",
+        "sha256": "f019573daa195443021c8421899627e32a0e0d8090e8142b05a62344e45588d9",
+        "bytes": 1961,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "independent history, broad redo|TEMP CREATE and cleanup|complete-copy dependency and metric-key|terminal subtree failure|failed SQLite setup preserves|capture enrichment failures|reinjects estimate and actual ownership|reinjects measure identity|reinjects progress replacement|reinjects dependency identity|retained-maximum event|snapshot read fails|rejects canonical SQLite split reach|rejects missing real SQLite input|rejects Task 6.2 SQLite|snapshots SQLite quota|rejects an in-place late target|settles and reports both SQLite quota|rejects a zero-row",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:24:38.578Z",
+        "endedAt": "2026-11-19T15:25:17.095Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-first-red-v1.log",
+          "sha256": "2ded3915c0709545170530f4079da6c5d6f9dc26c3144f97382f4e9ec8b402e2",
+          "bytes": 25071
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-first-red-v1.log",
+        "sha256": "2ded3915c0709545170530f4079da6c5d6f9dc26c3144f97382f4e9ec8b402e2",
+        "bytes": 25071,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-after-v1.receipt.json",
+        "sha256": "2580855b1ec55bbd6a3806a2405599c5f0460e312245eab9278803f0f2d60c59",
+        "bytes": 1961,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "independent history, broad redo|TEMP CREATE and cleanup|complete-copy dependency and metric-key|terminal subtree failure|failed SQLite setup preserves|capture enrichment failures|reinjects estimate and actual ownership|reinjects measure identity|reinjects progress replacement|reinjects dependency identity|retained-maximum event|snapshot failure and retains|rejects canonical SQLite split reach|rejects missing real SQLite input|rejects Task 6.2 SQLite|snapshots SQLite quota|rejects an in-place late target|settles and reports both SQLite quota|rejects a zero-row",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:30:24.638Z",
+        "endedAt": "2026-11-19T15:31:16.244Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-after-v1.log",
+          "sha256": "9ce372e3db0d18fb06df467d3c34a9da3e1c64259c2f8aef9d65b6ad96dc7c57",
+          "bytes": 2854
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-after-v1.log",
+        "sha256": "9ce372e3db0d18fb06df467d3c34a9da3e1c64259c2f8aef9d65b6ad96dc7c57",
+        "bytes": 2854,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-lint-fix-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-lint-fix-v1.receipt.json",
+        "sha256": "0a0e5808274d2b4cfd9692cf233de7ee689020f8e0066c153503614dfb3e63bd",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-lint-fix-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "--fix"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:36:33.861Z",
+        "endedAt": "2026-11-19T15:36:38.703Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-lint-fix-v1.log",
+          "sha256": "bb851e82479864d092341c72efc73347c58f163e658d5a53889abcf9c3ef99d0",
+          "bytes": 830
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-lint-fix-v1.log",
+        "sha256": "bb851e82479864d092341c72efc73347c58f163e658d5a53889abcf9c3ef99d0",
+        "bytes": 830,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-format-write-v1.receipt.json",
+        "sha256": "633520a169b06f1536eaf3ab1778f67223a0a05ff6b9f9dce4257b27f2833d13",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-format-write-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:38:07.154Z",
+        "endedAt": "2026-11-19T15:38:07.910Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-format-write-v1.log",
+          "sha256": "bcd29450a04dd2458b3e9361d7b644768108adb9510c9ed4eeb25b23cde54de0",
+          "bytes": 79
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-format-write-v1.log",
+        "sha256": "bcd29450a04dd2458b3e9361d7b644768108adb9510c9ed4eeb25b23cde54de0",
+        "bytes": 79,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-final-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-types-v1.receipt.json",
+        "sha256": "d99fa5fb650018e298a325c8fea875eb08da5cdd63a6e5b2226055e266ee8363",
+        "bytes": 1381,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:38:17.150Z",
+        "endedAt": "2026-11-19T15:38:27.047Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-lint-v1.receipt.json",
+        "sha256": "76656b58ead093b09b5c4f9401f66b31fa5c839aa5a7366368a508296296a0be",
+        "bytes": 1367,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:38:17.150Z",
+        "endedAt": "2026-11-19T15:38:25.526Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-final-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-format-v1.receipt.json",
+        "sha256": "c4d06e265801d9fcd71eb30ae81777113b446ab4a77422401b87e6804de5f925",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:40:56.499Z",
+        "endedAt": "2026-11-19T15:40:57.350Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followups-broad-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-broad-v1.receipt.json",
+        "sha256": "f66899a6f4847147b34730afd5e4d6b8be3a21cfd9c6ef536010d92e86a1f4a2",
+        "bytes": 1411,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-broad-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "^(?!.*terminal certification).*$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:38:17.152Z",
+        "endedAt": "2026-11-19T15:41:41.437Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-broad-v1.log",
+          "sha256": "bc2ff5013ab35b8a64a81e5285c0815337ecf26e9c70858be195a3eb709571ea",
+          "bytes": 14155
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followups-broad-v1.log",
+        "sha256": "bc2ff5013ab35b8a64a81e5285c0815337ecf26e9c70858be195a3eb709571ea",
+        "bytes": 14155,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-certificate-measure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-v1.receipt.json",
+        "sha256": "4b72a8d2a08170e23539eb1be6cd07747aa7b9fd0ca9171c338e02f77dbb4fc5",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "SQLite terminal certification runs every exact offered case without gaps",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 600000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:41:54.556Z",
+        "endedAt": "2026-11-19T15:44:29.823Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-v1.log",
+          "sha256": "950a2b098ee388684df6850bafd5d32243dbe7b705c27c5b041b7b6c90ae6dcb",
+          "bytes": 3793
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-v1.log",
+        "sha256": "950a2b098ee388684df6850bafd5d32243dbe7b705c27c5b041b7b6c90ae6dcb",
+        "bytes": 3793,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-certificate-measure-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-root-v1.receipt.json",
+        "sha256": "273ce93650ebacfd2f9067f8a5311cb54e6c331f36cc48c06e9e59dfe6f1ccb3",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-sqlite-certificate-measure-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:41:54.526Z",
+        "endedAt": "2026-11-19T15:44:29.830Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-root-v1.log",
+          "sha256": "161609579cae92aed11155ce71f138edd60ce20dd585092c13cf67cacf15e70c",
+          "bytes": 1702
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-root-v1.log",
+        "sha256": "161609579cae92aed11155ce71f138edd60ce20dd585092c13cf67cacf15e70c",
+        "bytes": 1702,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-actual-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2.receipt.json",
+        "sha256": "e948958a440df93350e0917e0c50eed57fc3862681d84ea6627d0ebc9aba3494",
+        "bytes": 1486,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects estimate and actual ownership",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:06.198Z",
+        "endedAt": "2026-11-19T15:37:13.173Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2.log",
+          "sha256": "1166ba2daecf959b48547eb52cb6fdfdc5b56d7b27380506076cc3f9da3c2740",
+          "bytes": 992
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2.log",
+        "sha256": "1166ba2daecf959b48547eb52cb6fdfdc5b56d7b27380506076cc3f9da3c2740",
+        "bytes": 992,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-actual-restoration-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2.receipt.json",
+        "sha256": "abfa104d026f704f8678dee01219070ed39e966cb168911d69940bccdeb85e26",
+        "bytes": 1490,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects estimate and actual ownership",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:13.175Z",
+        "endedAt": "2026-11-19T15:37:20.193Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2.log",
+          "sha256": "29e51695aa2ca61d3fa78871b3c9a7add0d115a94dbecdb3a67a7c2e9e6fd07e",
+          "bytes": 992
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2.log",
+        "sha256": "29e51695aa2ca61d3fa78871b3c9a7add0d115a94dbecdb3a67a7c2e9e6fd07e",
+        "bytes": 992,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-measure-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2.receipt.json",
+        "sha256": "a046f17052811513ffd2edf690e385d16f0b2b391cd8abc222f93d596a6aabda",
+        "bytes": 1475,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects measure identity",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:20.195Z",
+        "endedAt": "2026-11-19T15:37:27.841Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2.log",
+          "sha256": "2105a946db788486d74f2d040d683ab55eba8725579505b5941cd48a4653ef38",
+          "bytes": 987
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2.log",
+        "sha256": "2105a946db788486d74f2d040d683ab55eba8725579505b5941cd48a4653ef38",
+        "bytes": 987,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-measure-restoration-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2.receipt.json",
+        "sha256": "16275f0123f2317264cd4ce11f42e99706a48f1d3c5221a343178dd1645771cb",
+        "bytes": 1479,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects measure identity",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:27.843Z",
+        "endedAt": "2026-11-19T15:37:34.776Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2.log",
+          "sha256": "b609424f31e4fdd8b03fd611356a9ff7bdc69c5eb88d9eee60f8092b81ea2276",
+          "bytes": 987
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2.log",
+        "sha256": "b609424f31e4fdd8b03fd611356a9ff7bdc69c5eb88d9eee60f8092b81ea2276",
+        "bytes": 987,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-progress-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2.receipt.json",
+        "sha256": "15fe8ba44f6e5a8e13635cba674dcff84f11c331311a6fcab9e5d548cb79470b",
+        "bytes": 1481,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects progress replacement",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:34.777Z",
+        "endedAt": "2026-11-19T15:37:40.518Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2.log",
+          "sha256": "cb5ff172609ae5eb1d81bbe0f4ad0111c1c85050fc38ef357c9fcc004cf1cd10",
+          "bytes": 958
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2.log",
+        "sha256": "cb5ff172609ae5eb1d81bbe0f4ad0111c1c85050fc38ef357c9fcc004cf1cd10",
+        "bytes": 958,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-progress-restoration-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2.receipt.json",
+        "sha256": "cd13e22b6fa512d05a9c2de0c6c336c8c479dcc4192f443a1d5fea62cfa2d14c",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects progress replacement",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:40.520Z",
+        "endedAt": "2026-11-19T15:37:46.105Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2.log",
+          "sha256": "e2da13bb4b9d90b4bf4f751fd3333f7dac3ed3a10e4d5f852b1b4b3818049c38",
+          "bytes": 958
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2.log",
+        "sha256": "e2da13bb4b9d90b4bf4f751fd3333f7dac3ed3a10e4d5f852b1b4b3818049c38",
+        "bytes": 958,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-surrogate-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2.receipt.json",
+        "sha256": "41449750df35cc7765a481f4cb2b644ef4a0b91482a0c4bfeb31d015ef6eade1",
+        "bytes": 1483,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects progress replacement",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:46.107Z",
+        "endedAt": "2026-11-19T15:37:51.757Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2.log",
+          "sha256": "969f1dac9b864cedd3ae07b3a5051733bb4e88bf468d74a64b4cdead8157c99f",
+          "bytes": 958
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2.log",
+        "sha256": "969f1dac9b864cedd3ae07b3a5051733bb4e88bf468d74a64b4cdead8157c99f",
+        "bytes": 958,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-surrogate-restoration-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2.receipt.json",
+        "sha256": "fd9a940833999037c70b86d8f5949e9d6a4d8dd5003acb145c17d17a71aac910",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects progress replacement",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:51.759Z",
+        "endedAt": "2026-11-19T15:37:57.445Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2.log",
+          "sha256": "8401df5ff22a6e5bbfcf553cd4f146335839fd66ab7cb63dca484c1e37e80d41",
+          "bytes": 958
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2.log",
+        "sha256": "8401df5ff22a6e5bbfcf553cd4f146335839fd66ab7cb63dca484c1e37e80d41",
+        "bytes": 958,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-followup-effect-unlink-after-refusal-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2.receipt.json",
+        "sha256": "b50cc92e682d5cc6b34d647ebfa086c0b973b15339188cdd30dc278860aa8394",
+        "bytes": 1602,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "preserves first independent-history TEMP CREATE and cleanup|failed SQLite setup preserves|capture enrichment failures|snapshot failure and retains",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:37:57.447Z",
+        "endedAt": "2026-11-19T15:38:03.072Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2.log",
+          "sha256": "03a12bfda1305790cf617dcf70e6be8b574703b097604d4613c439a1dbdaece7",
+          "bytes": 3585
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2.log",
+        "sha256": "03a12bfda1305790cf617dcf70e6be8b574703b097604d4613c439a1dbdaece7",
+        "bytes": 3585,
+        "mode": 384
+      }
+    }
+  ],
+  "final": {
+    "testsPassed": 113,
+    "testsFailed": 0,
+    "filtered": 1,
+    "assertions": 10262,
+    "fileCount": 1,
+    "compiler": "SQLite root --build --force passes",
+    "lint": "Changed Source test passes",
+    "format": "Changed Source test passes",
+    "qualification": "Full file except the aggregate test. No complete Source/adapter/product/gate/release claim."
+  },
+  "firstRed": {
+    "passed": 9,
+    "failed": 12,
+    "assertions": 1715,
+    "tests": 21
+  },
+  "firstAfter": {
+    "passed": 21,
+    "failed": 0,
+    "assertions": 2347,
+    "qualification": "Pre-lint/format epoch; final113 control supersedes it."
+  },
+  "finiteEffects": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effects-v2.json",
+      "sha256": "2587cb173cf66bd80e658ec28d28aeb111ce549cb9bf8279e0bbe63f02f6b6e0",
+      "bytes": 10547,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "name": "actual-injection",
+        "matcher": "reinjects estimate and actual ownership",
+        "candidateSha256": "66f7c99b20bf88f7e457b7e2a7a8c66cf22b1586c6800280987ec65083abfbd3",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2.receipt.json",
+          "sha256": "e948958a440df93350e0917e0c50eed57fc3862681d84ea6627d0ebc9aba3494",
+          "bytes": 1486,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-injection-v2.log",
+          "sha256": "1166ba2daecf959b48547eb52cb6fdfdc5b56d7b27380506076cc3f9da3c2740",
+          "bytes": 992,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "actual-restoration",
+        "matcher": "reinjects estimate and actual ownership",
+        "candidateSha256": "b8b51e5256f672005fbeb0d79e59f51ec6702faa278ed5de49f55aa9f1a5ec32",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2.receipt.json",
+          "sha256": "abfa104d026f704f8678dee01219070ed39e966cb168911d69940bccdeb85e26",
+          "bytes": 1490,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-actual-restoration-v2.log",
+          "sha256": "29e51695aa2ca61d3fa78871b3c9a7add0d115a94dbecdb3a67a7c2e9e6fd07e",
+          "bytes": 992,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "measure-injection",
+        "matcher": "reinjects measure identity",
+        "candidateSha256": "cff446eb532066edeb9b8af208e349de9d3bdfbfa41d0a51af5b3d949bde1b42",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2.receipt.json",
+          "sha256": "a046f17052811513ffd2edf690e385d16f0b2b391cd8abc222f93d596a6aabda",
+          "bytes": 1475,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-injection-v2.log",
+          "sha256": "2105a946db788486d74f2d040d683ab55eba8725579505b5941cd48a4653ef38",
+          "bytes": 987,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "measure-restoration",
+        "matcher": "reinjects measure identity",
+        "candidateSha256": "10196398864d35a3cbbe12d229c433590c4cd73f5f1f4400097337f5c28667ed",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2.receipt.json",
+          "sha256": "16275f0123f2317264cd4ce11f42e99706a48f1d3c5221a343178dd1645771cb",
+          "bytes": 1479,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-measure-restoration-v2.log",
+          "sha256": "b609424f31e4fdd8b03fd611356a9ff7bdc69c5eb88d9eee60f8092b81ea2276",
+          "bytes": 987,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "progress-injection",
+        "matcher": "reinjects progress replacement",
+        "candidateSha256": "ca803ec572949c0c58bb6bae02e16e5be23c39d32948b60d182e1661c59c4f42",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2.receipt.json",
+          "sha256": "15fe8ba44f6e5a8e13635cba674dcff84f11c331311a6fcab9e5d548cb79470b",
+          "bytes": 1481,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-injection-v2.log",
+          "sha256": "cb5ff172609ae5eb1d81bbe0f4ad0111c1c85050fc38ef357c9fcc004cf1cd10",
+          "bytes": 958,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "progress-restoration",
+        "matcher": "reinjects progress replacement",
+        "candidateSha256": "1f35c5ec20ad45b02fa466e8b3f4e3ae741a6aff884ad472a8be2f1167bbae7e",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2.receipt.json",
+          "sha256": "cd13e22b6fa512d05a9c2de0c6c336c8c479dcc4192f443a1d5fea62cfa2d14c",
+          "bytes": 1485,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-progress-restoration-v2.log",
+          "sha256": "e2da13bb4b9d90b4bf4f751fd3333f7dac3ed3a10e4d5f852b1b4b3818049c38",
+          "bytes": 958,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "surrogate-injection",
+        "matcher": "reinjects progress replacement",
+        "candidateSha256": "8dd4103fd2f6ba5b1f058ba0086d5b116531945403212377a951b57345378707",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2.receipt.json",
+          "sha256": "41449750df35cc7765a481f4cb2b644ef4a0b91482a0c4bfeb31d015ef6eade1",
+          "bytes": 1483,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-injection-v2.log",
+          "sha256": "969f1dac9b864cedd3ae07b3a5051733bb4e88bf468d74a64b4cdead8157c99f",
+          "bytes": 958,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "surrogate-restoration",
+        "matcher": "reinjects progress replacement",
+        "candidateSha256": "5c9b929557cd4a674543e52c3d51bda76a9c88ed08dbb0ca8f7c18e157afbc3b",
+        "expectedFailures": 1,
+        "marker": "phase-failed",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2.receipt.json",
+          "sha256": "fd9a940833999037c70b86d8f5949e9d6a4d8dd5003acb145c17d17a71aac910",
+          "bytes": 1487,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-surrogate-restoration-v2.log",
+          "sha256": "8401df5ff22a6e5bbfcf553cd4f146335839fd66ab7cb63dca484c1e37e80d41",
+          "bytes": 958,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      },
+      {
+        "name": "unlink-after-refusal",
+        "matcher": "preserves first independent-history TEMP CREATE and cleanup|failed SQLite setup preserves|capture enrichment failures|snapshot failure and retains",
+        "candidateSha256": "4961491493d0fe19e23cc0d52e2d353c423707cd8985230c987aca05ecddbd6e",
+        "expectedFailures": 4,
+        "marker": "directoryExists",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2.receipt.json",
+          "sha256": "b50cc92e682d5cc6b34d647ebfa086c0b973b15339188cdd30dc278860aa8394",
+          "bytes": 1602,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-followup-effect-unlink-after-refusal-v2.log",
+          "sha256": "03a12bfda1305790cf617dcf70e6be8b574703b097604d4613c439a1dbdaece7",
+          "bytes": 3585,
+          "mode": 384
+        },
+        "restoredSource": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "a850d130a9d19eee3cbf0dbae8b12cf3f36489265934b359592bdbd35342709d",
+          "bytes": 351217,
+          "mode": 436
+        }
+      }
+    ],
+    "qualification": "Each of four raw injections and four constraint restorations is omitted independently. Its actual Source proof becomes phase-failed before reach. Unsafe unlink fails four retention owners; the snapshot negative reaches only the first close variant, while healthy controls run both. These prove prerequisite/cleanup necessity, not independent production write-refusal necessity. Earlier get-query v1 effects are superseded by typed all-query v2 effects; formatting afterward changes no behavior."
+  },
+  "aggregate": {
+    "measurement": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-certificate-measure-v1.evidence.json",
+      "sha256": "be89f7f70393ce997ad1d77c91a61ad43d5ca857c00216762310882eded858db",
+      "bytes": 2089,
+      "mode": 384
+    },
+    "allowance": "Temporary420000 measurement only; explicit120000 source restored exactly.",
+    "testMilliseconds": 152396.48,
+    "offeredCases": 221,
+    "failedCaseDiagnostics": [
+      "workPackageRanks.orderIn:scoped-move",
+      "accessDecisions.effectiveRoleAt:grant-reaches-package",
+      "organizationLimits.readAgentPersonCap:organization-scope",
+      "organizationLimits.readConcurrentClaimCap:bound-triples",
+      "organizationLimits.readCapacityCap:per-resource-except-work-package",
+      "claims.observeWorkPackage:legacy-observation",
+      "claims.occupancy:organization-scope",
+      "typedDependencies.write:identity-and-bulk",
+      "directory.patchPerson:account-binding",
+      "directory.patchPerson:owned-binding",
+      "directory.removePerson:claims-in-use",
+      "directory.removePerson:delegated-claims",
+      "directory.setDirectoryCapacity:state-clear-remove",
+      "directory.removeResource:in-use-cascade"
+    ],
+    "qualification": "Actual aggregate reaches certifyExecution and fails these14 diagnostics after runCases settles. Captured error is not a complete individual execution report or a full passing certificate. No pass count is inferred by subtraction."
+  },
+  "resolved": [
+    "DTO diagnostic field order and retained-maximum work-package event subscription match actual current replies.",
+    "Rejected decorated closes retain the database directory; each test explicitly completes through its acquired raw Source.",
+    "Actual invalid stored facts are verified before fault reach; current readers refuse malformed state or unresolved identity."
+  ],
+  "initialQualityFailure": "First lint reports four confusing-void expressions from untyped Drizzle get; actual PRAGMA all rows replace them. Final compiler/lint/format pass.",
+  "pending": [
+    "Resolve14 aggregate case failures: ownership/parent-aware fixture seeds, directory/account binding setup, retired step queries in actual claim observation and directory mutation paths.",
+    "Measure the healthy aggregate before setting a permanent allowance under docs/test-budgets.md. No test budget changed by this slice.",
+    "Complete corrupt current ownership/parent regressions and remaining full SC13/SC17/SC22/SC25/entity/API/UI/scheduler work.",
+    "Complete PUNI/client script inventory, Bun conversion and actual installed client checks.",
+    "Astra review remains unavailable at recorded account limit until Nov22; no retry or bypass. Exact committed host gates and authorized release remain pending."
+  ]
+}

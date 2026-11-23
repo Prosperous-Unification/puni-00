@@ -1,23 +1,123 @@
-import { projectRow } from '@wbs/store-memory/project-fixture';
-import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
+import type { Permission } from '@wbs/domain';
+import { inMemorySpaces, memorySpaceTables } from '@wbs/store-memory/space-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import type { AccessDecisions } from '../ports/access-decisions';
 import { clockOf } from '../ports/clock';
 import { LEGACY_ACCESS, type ResourceAccess } from '../ports/organization-access';
-import type { ProjectWithAccess } from '../ports/project-store';
+import type { WorkPackageWithAccess } from '../ports/work-package-store';
+import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import {
-  ALL_PROJECTS,
+  ALL_WORK_PACKAGES,
   RollUpCache,
   SpaceResource,
   type SpaceResourceOptions,
 } from './space.resource';
 
-const scoped = (role: 'member' | 'viewer', organizationId = 'org-a'): ResourceAccess => ({
+const scoped = (
+  userId: string,
+  role: 'member' | 'viewer',
+  organizationId = 'org-a',
+): ResourceAccess => ({
+  principal: { id: userId },
   kind: 'scoped',
-  scope: { organizationId, userId: 'ada', role },
+  scope: { cap: null, organizationId, userId },
 });
-const MEMBER = scoped('member');
+const MEMBER = scoped('ada', 'member');
+
+/** Explicit grants of this fixture's two subjects in its two organizations; roles confer no authority. */
+const spacePermissions = new Map<string, ReadonlySet<Permission>>([
+  ['org-a:ada', new Set<Permission>(['organization.manage_spaces'])],
+  ['org-b:ada', new Set<Permission>(['organization.manage_spaces'])],
+  ['org-a:vic', new Set<Permission>()],
+  ['org-b:vic', new Set<Permission>()],
+]);
+const spaceAccessDecisions: AccessDecisions = {
+  packageTargetOf: () =>
+    Promise.reject(new Error('space fixture addresses projects rather than packages')),
+  effectiveRoleAt: (principal, target) => {
+    if (target.kind !== 'organization')
+      throw new Error('space fixture expects an organization target');
+    const permissions = spacePermissions.get(target.organizationId + ':' + principal.id);
+    if (permissions === undefined)
+      throw new Error('space fixture has no explicit subject/scope grant set');
+    return Promise.resolve({ permissions, via: [] });
+  },
+  readablePackageIds: () =>
+    Promise.reject(new Error('space writes do not list readable package ids')),
+};
+
+const projectTablesOf = (owners: ReadonlyMap<string, string>, legacy: string | null = null) => ({
+  ...memorySpaceTables(
+    new Map(
+      [...owners].map(([id, organizationId]) => [
+        id,
+        {
+          organizationId,
+          spaceId: null as string | null,
+          spacePosition: null as number | null,
+          revision: 0,
+        },
+      ]),
+    ),
+    new Map([
+      ['org-a', { legacy: legacy === 'org-a' }],
+      ['org-b', { legacy: legacy === 'org-b' }],
+    ]),
+  ),
+  packages: new Map(
+    [...owners.keys()].map((id) => [id, workPackageRow({ id, name: id, projectId: id })]),
+  ),
+});
+const projectTargetsOf = (
+  tables: ReturnType<typeof projectTablesOf>,
+): SpaceResourceOptions['settings'] => ({
+  touchPackages: (target) => {
+    if (target.kind !== 'project')
+      throw new Error('space fixture invalidates only its actual projects');
+    const row = tables.packages.get(target.chain.projectId);
+    if (row === undefined) throw new Error('space fixture project has no declared package');
+    tables.packages.set(row.id, { ...row, revision: row.revision + 1 });
+    return Promise.resolve([
+      {
+        workPackageId: row.id,
+        event: {
+          type: 'work_package_settings_changed',
+          optimizationEnabled: row.optimizationEnabled,
+          scheduleEngine: row.scheduleEngine,
+          scheduleObjective: row.scheduleObjective,
+        },
+      },
+    ]);
+  },
+  readTarget: (scope, organizationId) => {
+    const row = tables.projects.get(scope.id);
+    if (row === undefined || (organizationId !== null && row.organizationId !== organizationId))
+      return Promise.resolve(null);
+    return Promise.resolve({
+      kind: 'project',
+      chain: {
+        level: 'project',
+        projectId: scope.id,
+        spaceId: row.spaceId,
+        organizationId: row.organizationId,
+      },
+    });
+  },
+});
+const spaceDecisions = (visible: readonly string[]): AccessDecisions => ({
+  ...spaceAccessDecisions,
+  effectiveRoleAt: (principal, target) =>
+    target.kind === 'project'
+      ? Promise.resolve(
+          visible.includes(target.chain.projectId)
+            ? { permissions: new Set<Permission>(['project.read']), via: [] }
+            : null,
+        )
+      : spaceAccessDecisions.effectiveRoleAt(principal, target),
+});
 
 /** Roll-up collaborators for tests that read no roll-up: any tree read is a fault. */
 const noTrees = () => ({
@@ -28,18 +128,18 @@ const noTrees = () => ({
   sequences: { latestSeq: () => Promise.resolve(0) },
   rollUpCache: new RollUpCache(testClock),
 });
-const VIEWER = scoped('viewer');
+const VIEWER = scoped('vic', 'viewer');
 
-const readable = (id: string): ProjectWithAccess & { timezone: string } => ({
-  ...projectRow({ id, name: id, ownerId: 'ada' }),
-  ownerName: 'ada',
+const readable = (id: string): WorkPackageWithAccess & { timezone: string } => ({
+  ...workPackageRow({ id, name: id, projectId: id }),
+  createdByName: 'ada',
   lastOpenedAt: null,
   updatedAt: null,
   timezone: 'UTC',
 });
 
 /**
- * A service over the memory store, whose project predicate answers only
+ * A service over the memory store, whose work package predicate answers only
  * `visible`: the stand-in for a future read restriction the space must obey.
  */
 function open(visible: readonly string[], legacy: string | null = null) {
@@ -50,59 +150,67 @@ function open(visible: readonly string[], legacy: string | null = null) {
     ['a4', 'org-a'],
     ['b1', 'org-b'],
   ]);
-  const spaces = inMemorySpaces(owners, legacy);
+  const tables = projectTablesOf(owners, legacy);
+  const targets = projectTargetsOf(tables);
+  const spaces = inMemorySpaces(tables);
   const service = new SpaceResource({
+    accessDecisions: spaceDecisions(visible),
+    settings: targets,
+    announcements: recordingBroadcaster(),
     spaces,
     clock: testClock,
     ...noTrees(),
-    projects: {
+    workPackages: {
       listWithin: () => Promise.resolve(visible.map(readable)),
       readWithin: (id) =>
-        Promise.resolve(visible.includes(id) ? { project: readable(id), steps: [] } : null),
+        Promise.resolve(visible.includes(id) ? { workPackage: readable(id), steps: [] } : null),
     },
   });
-  return { service, spaces };
+  return { service, spaces, targets };
 }
 
 async function spaceWith(
   service: SpaceResource,
   access: ResourceAccess,
-  projectIds: readonly string[],
+  workPackageIds: readonly string[],
 ): Promise<string> {
   const created = await service.create('ada', access, 'Q3');
   if ('kind' in created) throw new Error('unexpected access refusal');
   if (!created.ok) throw new Error(`create refused: ${created.refusal}`);
   let after: string | null = null;
-  for (const projectId of projectIds) {
-    const added = await service.addProject('ada', access, created.value.id, projectId, after);
+  for (const workPackageId of workPackageIds) {
+    const added = await service.addProject('ada', access, created.value.id, workPackageId, after);
     if (!added.ok) throw new Error(`add refused: ${added.refusal}`);
-    after = projectId;
+    after = workPackageId;
   }
   return created.value.id;
 }
 
 describe('SpaceResource', () => {
-  it('omits a project the caller cannot open from the rows and the count', async () => {
+  it('omits a work package the caller cannot open from the rows and the count', async () => {
     const everyone = open(['a1', 'a2', 'a3']);
     const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
     const hiding = new SpaceResource({
+      accessDecisions: spaceAccessDecisions,
+      settings: everyone.targets,
+      announcements: recordingBroadcaster(),
       spaces: everyone.spaces,
       clock: testClock,
       ...noTrees(),
-      projects: {
+      workPackages: {
         listWithin: () => Promise.resolve(['a1', 'a3'].map(readable)),
         readWithin: () => Promise.resolve(null),
       },
     });
     const read = await hiding.read('ada', MEMBER, id);
     if (!read.ok) throw new Error(read.refusal);
-    expect(read.value.rows.map(({ project }) => project.id)).toEqual(['a1', 'a3']);
-    expect(read.value.space.projectCount).toBe(2);
+    expect(read.value.rows.map(({ workPackage }) => workPackage.id)).toEqual(['a1', 'a3']);
+    expect(read.value.space.workPackageCount).toBe(2);
     const listed = await hiding.list('ada', MEMBER);
-    expect(listed).toMatchObject({ ok: true, value: [{ id, projectCount: 2 }] });
+    expect(listed).toMatchObject({ ok: true, value: [{ id, workPackageCount: 2 }] });
   });
 
-  it('answers a project the caller cannot open as not_found, adding nothing', async () => {
+  it('answers a work package the caller cannot open as not_found, adding nothing', async () => {
     const { service } = open(['a1']);
     const id = await spaceWith(service, MEMBER, []);
     expect(await service.addProject('ada', MEMBER, id, 'a2', null)).toEqual({
@@ -119,14 +227,19 @@ describe('SpaceResource', () => {
       const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
       const visible = ['a1', 'a3', 'a4'];
       const hiding = new SpaceResource({
+        accessDecisions: spaceDecisions(visible),
+        settings: everyone.targets,
+        announcements: recordingBroadcaster(),
         spaces: everyone.spaces,
         clock: testClock,
         ...noTrees(),
-        projects: {
+        workPackages: {
           listWithin: () => Promise.resolve(visible.map(readable)),
-          readWithin: (projectId) =>
+          readWithin: (workPackageId) =>
             Promise.resolve(
-              visible.includes(projectId) ? { project: readable(projectId), steps: [] } : null,
+              visible.includes(workPackageId)
+                ? { workPackage: readable(workPackageId), steps: [] }
+                : null,
             ),
         },
       });
@@ -139,10 +252,10 @@ describe('SpaceResource', () => {
     }
     const notFound = { ok: false, refusal: 'not_found' } as const;
 
-    it('refuses to place a project after it, as if it were not a member', async () => {
+    it('refuses to place a work package after it, as if it were not a member', async () => {
       const { hiding, id, unchanged, before } = await hidingA2();
       // Proof, observed 2026-09-29: with the anchor gate removed from
-      // `addProject`, this add answered `{ ok: true, value: 25 }`.
+      // `addWorkPackage`, this add answered `{ ok: true, value: 25 }`.
       expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a2')).toEqual(notFound);
       expect(await unchanged()).toEqual(before);
     });
@@ -150,7 +263,7 @@ describe('SpaceResource', () => {
     it('refuses to move it, or to move another after it', async () => {
       const { hiding, id, unchanged, before } = await hidingA2();
       // Proof, observed 2026-09-29: with the member gate removed from
-      // `moveProject`, the first move answered `{ ok: true, value: 5 }`;
+      // `moveWorkPackage`, the first move answered `{ ok: true, value: 5 }`;
       // with the anchor gate removed, the second answered `{ ok: true, value: 30 }`.
       expect(await hiding.moveProject('ada', MEMBER, id, 'a2', null)).toEqual(notFound);
       expect(await hiding.moveProject('ada', MEMBER, id, 'a3', 'a2')).toEqual(notFound);
@@ -160,15 +273,19 @@ describe('SpaceResource', () => {
     it('refuses to remove it', async () => {
       const { hiding, id, unchanged, before } = await hidingA2();
       // Proof, observed 2026-09-29: with the member gate removed from
-      // `removeProject`, this remove answered `{ ok: true, value: null }`.
+      // `removeWorkPackage`, this remove answered `{ ok: true, value: null }`.
       expect(await hiding.removeProject('ada', MEMBER, id, 'a2')).toEqual(notFound);
       expect(await unchanged()).toEqual(before);
     });
 
     it('still places, moves and removes around it by visible members', async () => {
       const { hiding, id } = await hidingA2();
-      expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a1')).toMatchObject({ ok: true });
-      expect(await hiding.moveProject('ada', MEMBER, id, 'a3', null)).toMatchObject({ ok: true });
+      expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a1')).toMatchObject({
+        ok: true,
+      });
+      expect(await hiding.moveProject('ada', MEMBER, id, 'a3', null)).toMatchObject({
+        ok: true,
+      });
       expect(await hiding.removeProject('ada', MEMBER, id, 'a4')).toEqual({
         ok: true,
         value: null,
@@ -179,47 +296,53 @@ describe('SpaceResource', () => {
   it("answers another organization's space as not_found to its members", async () => {
     const { service } = open(['a1', 'b1']);
     const id = await spaceWith(service, MEMBER, ['a1']);
-    const foreign = scoped('member', 'org-b');
+    const foreign = scoped('ada', 'member', 'org-b');
     expect(await service.read('ada', foreign, id)).toEqual({ ok: false, refusal: 'not_found' });
     expect(await service.rename('ada', foreign, id, 'Mine')).toEqual({
       ok: false,
       refusal: 'not_found',
     });
-    expect(await service.remove(foreign, id)).toEqual({ ok: false, refusal: 'not_found' });
+    expect(await service.remove('ada', foreign, id)).toEqual({ ok: false, refusal: 'not_found' });
     expect(await service.list('ada', foreign)).toEqual({ ok: true, value: [] });
   });
 
   it('refuses a viewer every write and lets the viewer read', async () => {
     const { service } = open(['a1', 'a2']);
     const id = await spaceWith(service, MEMBER, ['a1']);
-    const forbidden = { ok: false, refusal: 'forbidden' } as const;
+    const forbidden = {
+      ok: false,
+      refusal: 'forbidden',
+      permission: 'organization.manage_spaces',
+    } as const;
     expect(await service.create('vic', VIEWER, 'Mine')).toEqual(forbidden);
     expect(await service.rename('vic', VIEWER, id, 'Mine')).toEqual(forbidden);
     expect(await service.addProject('vic', VIEWER, id, 'a2', null)).toEqual(forbidden);
     expect(await service.moveProject('vic', VIEWER, id, 'a1', null)).toEqual(forbidden);
     expect(await service.removeProject('vic', VIEWER, id, 'a1')).toEqual(forbidden);
-    expect(await service.remove(VIEWER, id)).toEqual(forbidden);
+    expect(await service.remove('vic', VIEWER, id)).toEqual(forbidden);
     expect(await service.read('vic', VIEWER, id)).toMatchObject({
       ok: true,
-      value: { rows: [{ project: { id: 'a1' } }] },
+      value: { rows: [{ workPackage: { id: 'a1' } }] },
     });
   });
 
-  it('answers every write to all as virtual_space and reads all as the project list', async () => {
+  it('answers every write to all as virtual_space and reads all as the work package list', async () => {
     const { service } = open(['a2', 'a1']);
     const virtual = { ok: false, refusal: 'virtual_space' } as const;
-    expect(await service.rename('ada', MEMBER, ALL_PROJECTS, 'Mine')).toEqual(virtual);
-    expect(await service.remove(MEMBER, ALL_PROJECTS)).toEqual(virtual);
-    expect(await service.addProject('ada', MEMBER, ALL_PROJECTS, 'a1', null)).toEqual(virtual);
-    expect(await service.moveProject('ada', MEMBER, ALL_PROJECTS, 'a1', null)).toEqual(virtual);
-    expect(await service.removeProject('ada', MEMBER, ALL_PROJECTS, 'a1')).toEqual(virtual);
-    expect(await service.read('ada', MEMBER, ALL_PROJECTS)).toMatchObject({
+    expect(await service.rename('ada', MEMBER, ALL_WORK_PACKAGES, 'Mine')).toEqual(virtual);
+    expect(await service.remove('ada', MEMBER, ALL_WORK_PACKAGES)).toEqual(virtual);
+    expect(await service.addProject('ada', MEMBER, ALL_WORK_PACKAGES, 'a1', null)).toEqual(virtual);
+    expect(await service.moveProject('ada', MEMBER, ALL_WORK_PACKAGES, 'a1', null)).toEqual(
+      virtual,
+    );
+    expect(await service.removeProject('ada', MEMBER, ALL_WORK_PACKAGES, 'a1')).toEqual(virtual);
+    expect(await service.read('ada', MEMBER, ALL_WORK_PACKAGES)).toMatchObject({
       ok: true,
       value: {
-        space: { id: ALL_PROJECTS, virtual: true, projectCount: 2, createdById: null },
+        space: { id: ALL_WORK_PACKAGES, virtual: true, workPackageCount: 2, createdById: null },
         rows: [
-          { project: { id: 'a2' }, position: 10 },
-          { project: { id: 'a1' }, position: 20 },
+          { workPackage: { id: 'a2' }, position: 10 },
+          { workPackage: { id: 'a1' }, position: 20 },
         ],
       },
     });
@@ -230,7 +353,7 @@ describe('SpaceResource', () => {
     const id = await spaceWith(withLegacy.service, LEGACY_ACCESS, ['a1']);
     expect(await withLegacy.service.list('ada', LEGACY_ACCESS)).toMatchObject({
       ok: true,
-      value: [{ id, projectCount: 1 }],
+      value: [{ id, workPackageCount: 1 }],
     });
 
     const without = open(['a1']);
@@ -238,7 +361,7 @@ describe('SpaceResource', () => {
     expect(await without.service.list('ada', LEGACY_ACCESS)).toEqual(required);
     expect(await without.service.create('ada', LEGACY_ACCESS, 'Q3')).toEqual(required);
     expect(await without.service.read('ada', LEGACY_ACCESS, 'any')).toEqual(required);
-    expect(await without.service.read('ada', LEGACY_ACCESS, ALL_PROJECTS)).toMatchObject({
+    expect(await without.service.read('ada', LEGACY_ACCESS, ALL_WORK_PACKAGES)).toMatchObject({
       ok: true,
     });
   });
@@ -275,16 +398,16 @@ describe('SpaceResource', () => {
     const read = await service.read('ada', MEMBER, id);
     expect(read).toMatchObject({
       ok: true,
-      value: { space: { name: 'Q4', revision: 4 }, rows: [{ project: { id: 'a2' } }, {}] },
+      value: { space: { name: 'Q4', revision: 4 }, rows: [{ workPackage: { id: 'a2' } }, {}] },
     });
   });
 });
 
 describe('SpaceResource roll-ups', () => {
   /**
-   * A space {a1, a2} over controllable trees: `totals` is each project's one
-   * root's final total, `seqs` its event sequence, `unavailable` the projects
-   * whose engine is down, and `visible` the projects the caller can open.
+   * A space {a1, a2} over controllable trees: `totals` is each work package's one
+   * root's final total, `seqs` its event sequence, `unavailable` the work packages
+   * whose engine is down, and `visible` the work packages the caller can open.
    */
   async function rolling(visible: readonly string[] = ['a1', 'a2']) {
     let now = 1_000;
@@ -298,20 +421,22 @@ describe('SpaceResource roll-ups', () => {
       ['a2', 1],
     ]);
     const unavailable = new Set<string>();
-    /** Extra in-progress leaves per project, each `[number, endsOn]`. */
+    /** Extra in-progress leaves per work package, each `[number, endsOn]`. */
     const leaves = new Map<string, [string, string | null][]>();
     let treeReads = 0;
-    const spaces = inMemorySpaces(
+    const tables = projectTablesOf(
       new Map([
         ['a1', 'org-a'],
         ['a2', 'org-a'],
       ]),
     );
+    const spaces = inMemorySpaces(tables);
+    const targets = projectTargetsOf(tables);
     const trees = {
       sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
-      treeWithin: (projectId: string, access: ResourceAccess) => {
+      treeWithin: (workPackageId: string, access: ResourceAccess) => {
         treeReads += 1;
-        if (unavailable.has(projectId)) {
+        if (unavailable.has(workPackageId)) {
           return Promise.resolve({
             kind: 'engine_unavailable',
             error: 'engine_unavailable',
@@ -321,10 +446,10 @@ describe('SpaceResource roll-ups', () => {
         return Promise.resolve({
           workItems: [
             {
-              id: `${projectId}-root`,
+              id: `${workPackageId}-root`,
               parentId: null,
               status: 'on_hold',
-              finalTotal: totals.get(projectId) ?? 0,
+              finalTotal: totals.get(workPackageId) ?? 0,
               dates: { startsOn: '2026-10-01', endsOn: '2026-10-09' },
               estimates: { s1: 1 },
               number: '1',
@@ -332,8 +457,8 @@ describe('SpaceResource roll-ups', () => {
               assignees: {},
               progress: {},
             },
-            ...(leaves.get(projectId) ?? []).map(([number, endsOn]) => ({
-              id: `${projectId}-${number}`,
+            ...(leaves.get(workPackageId) ?? []).map(([number, endsOn]) => ({
+              id: `${workPackageId}-${number}`,
               parentId: null,
               status: 'in_progress',
               finalTotal: 1,
@@ -354,31 +479,38 @@ describe('SpaceResource roll-ups', () => {
           waitingForPerson: 0,
           waitingForCapacity: 0,
           // The revision `listWithin` answers for it, as the real tree agrees.
-          projectRevision: 0,
-          seq: seqs.get(projectId) ?? 0,
+          workPackageRevision: 0,
+          seq: seqs.get(workPackageId) ?? 0,
         });
       },
     } as unknown as SpaceResourceOptions['trees'];
     const service = new SpaceResource({
+      accessDecisions: spaceDecisions(visible),
+      settings: targets,
+      announcements: recordingBroadcaster(),
       spaces,
       clock,
       trees,
-      sequences: { latestSeq: (projectId) => Promise.resolve(seqs.get(projectId) ?? 0) },
+      sequences: { latestSeq: (workPackageId) => Promise.resolve(seqs.get(workPackageId) ?? 0) },
       rollUpCache: new RollUpCache(clock),
-      projects: {
+      workPackages: {
         listWithin: () => Promise.resolve(visible.map(readable)),
         readWithin: (id) =>
-          Promise.resolve(visible.includes(id) ? { project: readable(id), steps: [] } : null),
+          Promise.resolve(visible.includes(id) ? { workPackage: readable(id), steps: [] } : null),
       },
     });
     const id = await spaceWith(
       new SpaceResource({
+        accessDecisions: spaceDecisions(['a1', 'a2']),
+        settings: targets,
+        announcements: recordingBroadcaster(),
         spaces,
         clock,
         ...noTrees(),
-        projects: {
+        workPackages: {
           listWithin: () => Promise.resolve(['a1', 'a2'].map(readable)),
-          readWithin: (projectId) => Promise.resolve({ project: readable(projectId), steps: [] }),
+          readWithin: (workPackageId) =>
+            Promise.resolve({ workPackage: readable(workPackageId), steps: [] }),
         },
       }),
       MEMBER,
@@ -397,11 +529,14 @@ describe('SpaceResource roll-ups', () => {
       },
     };
   }
-  const totalOf = (answer: Awaited<ReturnType<SpaceResource['rollUps']>>, projectId: string) => {
+  const totalOf = (
+    answer: Awaited<ReturnType<SpaceResource['rollUps']>>,
+    workPackageId: string,
+  ) => {
     if ('kind' in answer) throw new Error('unexpected access refusal');
     if (!answer.ok) throw new Error(answer.refusal);
-    const rolled = answer.value[projectId];
-    if (rolled.kind !== 'rolled_up') throw new Error(`${projectId} did not roll up`);
+    const rolled = answer.value[workPackageId];
+    if (rolled.kind !== 'rolled_up') throw new Error(`${workPackageId} did not roll up`);
     return rolled.finalTotal;
   };
 
@@ -438,7 +573,7 @@ describe('SpaceResource roll-ups', () => {
     expect(totalOf(await service.rollUps('ada', MEMBER, id, ['a1']), 'a1')).toBe(5);
   });
 
-  it('answers no roll-up for a project the caller cannot open', async () => {
+  it('answers no roll-up for a work package the caller cannot open', async () => {
     const { service, id } = await rolling(['a1']);
     expect(await service.rollUps('ada', MEMBER, id, ['a2'])).toEqual({
       ok: false,
@@ -453,11 +588,11 @@ describe('SpaceResource roll-ups', () => {
       ok: false,
       refusal: 'not_found',
     });
-    expect(await service.rollUps('ada', scoped('member', 'org-b'), id, ['a1'])).toEqual({
+    expect(await service.rollUps('ada', scoped('ada', 'member', 'org-b'), id, ['a1'])).toEqual({
       ok: false,
       refusal: 'not_found',
     });
-    expect(await service.rollUps('ada', MEMBER, ALL_PROJECTS, ['a3'])).toMatchObject({
+    expect(await service.rollUps('ada', MEMBER, ALL_WORK_PACKAGES, ['a3'])).toMatchObject({
       ok: true,
     });
   });
@@ -485,13 +620,11 @@ describe('SpaceResource roll-ups', () => {
     if ('kind' in answer) throw new Error('unexpected access refusal');
     if (!answer.ok) throw new Error(answer.refusal);
     expect(answer.value.truncated).toBe(false);
-    expect(answer.value.items.map(({ projectId, number }) => `${projectId}/${number}`)).toEqual([
-      'a2/1',
-      'a1/2',
-      'a1/1',
-    ]);
+    expect(
+      answer.value.items.map(({ workPackageId, number }) => `${workPackageId}/${number}`),
+    ).toEqual(['a2/1', 'a1/2', 'a1/1']);
     expect(answer.value.items[0]).toMatchObject({
-      projectName: 'a2',
+      workPackageName: 'a2',
       name: 'Leaf 1',
       step: { id: 's1', name: 'Dev' },
       assignees: [{ id: 'kat', name: 'Kat' }],
@@ -519,7 +652,7 @@ describe('SpaceResource roll-ups', () => {
     leaves.set('a1', [['1', '2026-10-06']]);
     expect(await service.inProgress('ada', MEMBER, id, 200)).toMatchObject({
       ok: true,
-      value: { items: [{ projectId: 'a1' }], unavailable: [] },
+      value: { items: [{ workPackageId: 'a1' }], unavailable: [] },
     });
     const fresh = await rolling(['a1']);
     fresh.unavailable.add('a1');
@@ -533,7 +666,7 @@ describe('SpaceResource roll-ups', () => {
     const { service, leaves } = await rolling();
     leaves.set('a1', [['1', '2026-10-05']]);
     const namesOf = async (access: ResourceAccess) => {
-      const answer = await service.inProgress('ada', access, ALL_PROJECTS, 200);
+      const answer = await service.inProgress('ada', access, ALL_WORK_PACKAGES, 200);
       if ('kind' in answer) throw new Error('unexpected access refusal');
       if (!answer.ok) throw new Error(answer.refusal);
       return answer.value.items.flatMap(({ assignees }) => assignees.map(({ name }) => name));

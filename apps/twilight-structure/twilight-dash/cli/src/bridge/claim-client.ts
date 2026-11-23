@@ -4,13 +4,13 @@ import {
   type ClientInput,
   type ClientReply,
   type ClientTransport,
-  readProjectClaims,
+  readWorkPackageClaims,
 } from '@wbs/contracts';
-/** Validated live project observations. Injected implementations must preserve the shared response contract; this reader grants no execution permission by itself. */
+/** Validated live work package observations. Injected implementations must preserve the shared response contract; this reader grants no execution permission by itself. */
 export interface ClaimClient {
   readClaims(
-    input: ClientInput<typeof readProjectClaims>,
-  ): Promise<ClientReply<typeof readProjectClaims>>;
+    input: ClientInput<typeof readWorkPackageClaims>,
+  ): Promise<ClientReply<typeof readWorkPackageClaims>>;
 }
 /** Composes the shared boundary using exactly one public read shape. */
 export function createClaimClient(transport: ClientTransport): ClaimClient {
@@ -18,6 +18,9 @@ export function createClaimClient(transport: ClientTransport): ClaimClient {
   if (typeof transport !== 'function')
     throw new ClientConfigurationError('Claim client requires a callable transport');
   // Proof: C02 removed the sole read shape; 'narrow claim reader forwards' failed.
-  const client = clientFromShapes([readProjectClaims] as const, transport);
-  return { readClaims: (input) => client.getApiProjectsByIdClaims(input) };
+  const client = clientFromShapes([readWorkPackageClaims] as const, transport);
+  // Proof: current-claim-sdk-operation retained the removed method after current export binding;
+  // 'narrow claim reader forwards only validated work package claims with original signal' reached
+  // TypeError before transport. This proves required SDK binding, not permission admission.
+  return { readClaims: (input) => client.getApiWorkPackagesByIdClaims(input) };
 }

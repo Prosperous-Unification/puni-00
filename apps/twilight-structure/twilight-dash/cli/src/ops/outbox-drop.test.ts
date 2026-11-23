@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, test } from 'bun:test';
@@ -143,6 +144,10 @@ if (insideOpsNamespace(import.meta.path))
         telemetry: linuxScopeTelemetry(),
         host: ampleHost,
         user: 'puni1',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('../entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => privateLegacyLock('/nonexistent'),
         connect: () => tools,
       };

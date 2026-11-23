@@ -25,7 +25,7 @@ import { type LeadTone, withLeadWord } from './lead-word';
  * they wait {@link TOOL_HINT_WAIT_MS} before they are drawn. Dany, 2026-09-01:
  * _"this must avoid unnecessary interruptions while moving the cursor over UI
  * elements, rn this is more annoying than useful when you already know what
- * buttons or UI elements do"_. Words about the reader's own project go in
+ * buttons or UI elements do"_. Words about the reader's own work package go in
  * {@link FACT_ATTRIBUTE} instead and still open at once.
  *
  * **The words stay in the DOM** rather than living in a closure, for the reason
@@ -35,7 +35,7 @@ import { type LeadTone, withLeadWord } from './lead-word';
 export const HINT_ATTRIBUTE = 'data-hint';
 
 /**
- * The attribute a mark carries its **project fact** in.
+ * The attribute a mark carries its **work package fact** in.
  *
  * The same card as {@link HINT_ATTRIBUTE}'s and the same layer draws it; the
  * one difference is that this one opens the moment the pointer arrives. The
@@ -77,7 +77,7 @@ const isFactTone = (value: string | null): value is FactTone => value === 'done'
  *
  * Two seconds, which is Dany's own number and is long on purpose: the reader
  * this change is for already knows what the button does and is trying to get
- * past it. A project fact waits none of it.
+ * past it. A work package fact waits none of it.
  *
  * It was three. Dany, 2026-09-01, having watched the shipped ring: _"change
  * 3000 to 2000, leave 400ms quiet"_. {@link RING_QUIET_MS} is deliberately not
@@ -102,7 +102,7 @@ export interface Hintable {
 }
 
 /**
- * What a component adds to its own props to let a caller give it a project fact.
+ * What a component adds to its own props to let a caller give it a work package fact.
  *
  * Separate from {@link Hintable} rather than a `kind` beside one string, so the
  * attribute a call site writes is the whole of what says which it is — there is
@@ -157,7 +157,7 @@ interface OpenHint {
   placement: HintPlacement;
   /** The mark the words belong to, held so `aria-describedby` can be taken off it again. */
   node: HTMLElement;
-  /** Whether these words wait — true for a tool hint, false for a project fact. */
+  /** Whether these words wait — true for a tool hint, false for a work package fact. */
   waits: boolean;
   /** The lead word drawn bold, or null for plain words. */
   lead: string | null;

@@ -1,0 +1,4146 @@
+{
+  "recordedAt": "2026-11-19T17:22:09.551Z",
+  "goalStatus": "active",
+  "scope": "Current actual Memory/SQLite claim observation, required per-leaf SC18 ordering and Source/ordinary/repair lifetimes; task1.6.1 remains open for full product verification and Astra review.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/claim-fixture.ts",
+      "sha256": "aa90b6ccffaa0237efe963cfb666b17f5308cb50adb087ff2eb7fa3e66be11cc",
+      "bytes": 22763,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/claim-observation.ts",
+      "sha256": "7ebb48c9c4946e352cac7cf998c40a16e7eaa0435a133f48dc8eb46e6abf333f",
+      "bytes": 1193,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "sha256": "f635a3372c6c66bce7bdd1db445fa2fe6aa293cb42c12dd06a515f71a5caa3f3",
+      "bytes": 58130,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "b4aa655ea8da4c9f2469be0a286597d2c65f1aadb3fbc92cc2f200b3a8836e58",
+      "bytes": 64008,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "c73176bbfd714554d856feda6f463e409cc995da6bcd625c1b260dad8cdc3dc0",
+      "bytes": 84136,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+      "sha256": "d52e6612b7f18c3240d6e043dc288330a1fe64043f6eab11833f17ae60fa0504",
+      "bytes": 5340,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+      "sha256": "e174176bda75f685f757b1902fe0870a1d976d5c1352912ef1813aacf2cae80b",
+      "bytes": 15952,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/claim-observation.ts",
+      "sha256": "654cfc3ecbe34ebec4873024d7d1533d3fdbe431063223be073d12678efd1c97",
+      "bytes": 768,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts",
+      "sha256": "a6168a1cd5a4bff93a604d9433342cffb7773ef971703e660b981dd99df05ca5",
+      "bytes": 31666,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+      "sha256": "1e0cbd66450187e50082408b846efc864f205dad67978fe43063db76b32de348",
+      "bytes": 31254,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+      "sha256": "81d48d4b2a7ec3a269095d9eb202cff3d5fd651d71d9cc6ee99adef366b5573a",
+      "bytes": 8148,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/scoped-service-fixture.ts",
+      "sha256": "35ccf1ab79abe074054d2ec97ceb65c2992705f4caa6881ef3c07cb2cc7c7862",
+      "bytes": 8702,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "89d837b53c2e069e8c0415dc3ebd838317d715906ff7dab8dc97643caa8425f9",
+      "bytes": 356288,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/source-conformance.ts",
+      "sha256": "0cd5dce41789ecf4f3c23a4eb780bf7955f26f7039692eedbab303d5bd2a6cee",
+      "bytes": 42611,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/index.ts",
+      "sha256": "158f5ef4d5c081cf7792b8f63bcff44a1ad1d906d38d98e9d3e820363ce79886",
+      "bytes": 11935,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+      "sha256": "c17a22056a45b596678e265d19208dd572cfd57fd8f97d664496bb48012329ea",
+      "bytes": 3327,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+      "sha256": "5065a426880c68e487e11105215be479a50e4e6107eb419ee03bd34f0ac8246c",
+      "bytes": 10056,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+      "sha256": "e3f37a27bf19505d1b2227612e71d8ca7b739c753000e99267f0d38b1276697f",
+      "bytes": 5379,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/claim-store.ts",
+      "sha256": "f36ca44a6125ef1b10e6772dccdf797dee709c9b3fe532b0c4a61d4b07561c47",
+      "bytes": 13374,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/current-claim-observation.ts",
+      "sha256": "02991f2edf2d410cd6e89b43ec748abe87194c0f02bffce29cc2b70249e4551f",
+      "bytes": 8229,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/docs/test-budgets.md",
+      "sha256": "eeab757fd51ebec50f350aeb6174036070e7ac59169e0ed2bf9dfee839b2981c",
+      "bytes": 16314,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "0c96fd7e4ddcea1c711ca178d07985a6b4f862c8900d5e939991758be169fac9",
+      "bytes": 13768,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-claims-backend-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-backend-types-v1.receipt.json",
+        "sha256": "c38771f16af8918eb23ba3f01f96fa5bad140f3a481129ee555ffd285467182c",
+        "bytes": 1349,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-backend-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:57.560Z",
+        "endedAt": "2026-11-19T17:11:10.901Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-backend-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-backend-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-bound-lifetime-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-bound-lifetime-v1.receipt.json",
+        "sha256": "5329f3670693730130005fad8423f622e2aa61024166ef5a3cc5fb0ae39e5eb0",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-bound-lifetime-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:02:23.739Z",
+        "endedAt": "2026-11-19T17:02:36.746Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-bound-lifetime-v1.log",
+          "sha256": "99f1d2fcea6b46cc78d32d87f9681d6be3d1d89ea3fa6685ad13f8d45a718817",
+          "bytes": 2494
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-bound-lifetime-v1.log",
+        "sha256": "99f1d2fcea6b46cc78d32d87f9681d6be3d1d89ea3fa6685ad13f8d45a718817",
+        "bytes": 2494,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-broad-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1.receipt.json",
+        "sha256": "1c68dc6b4cb6c5235b340ed263f8c329ef06d927bb88251b5b8af3459d77fb8b",
+        "bytes": 1836,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "-t",
+            "^(?!.*SQLite terminal certification runs every exact offered case without gaps)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:00.613Z",
+        "endedAt": "2026-11-19T17:14:11.963Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1.log",
+          "sha256": "8876242be3bd6c59b1a22c1dd0a8e9ab674e5ab8c81b1653c063bbdcd222d432",
+          "bytes": 23581
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1.log",
+        "sha256": "8876242be3bd6c59b1a22c1dd0a8e9ab674e5ab8c81b1653c063bbdcd222d432",
+        "bytes": 23581,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-canonical-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v1.receipt.json",
+        "sha256": "9aae1681747673bcff7ed7fa7a30a1f7ab85fece606317b46f337f2c48adaadc",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current claim observation"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:05:13.441Z",
+        "endedAt": "2026-11-19T17:05:17.118Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v1.log",
+          "sha256": "0e6cfe84eadec69e073453c9a22b142b421500056dfa9fa4ecd3f480188eeaf7",
+          "bytes": 1547
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v1.log",
+        "sha256": "0e6cfe84eadec69e073453c9a22b142b421500056dfa9fa4ecd3f480188eeaf7",
+        "bytes": 1547,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-canonical-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v2.receipt.json",
+        "sha256": "68b492dbb985f43dd1f45845ed5b0e3f922b67697674d7ccee81a29112c1bc7d",
+        "bytes": 1375,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current claim observation"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:05:52.486Z",
+        "endedAt": "2026-11-19T17:05:56.052Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v2.log",
+          "sha256": "869226d33bf1f059975d87ac283a5acf9cb0140e3e0f2293114081a546458fac",
+          "bytes": 282
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-canonical-v2.log",
+        "sha256": "869226d33bf1f059975d87ac283a5acf9cb0140e3e0f2293114081a546458fac",
+        "bytes": 282,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-certificate-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1.receipt.json",
+        "sha256": "ce2fd460b5d97a5c6b68ad7184598e00505932c418371443612097c59cccfc38",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "SQLite terminal certification runs every exact offered case without gaps",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:18:34.389Z",
+        "endedAt": "2026-11-19T17:21:26.455Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1.log",
+          "sha256": "dc2634d77d71b90bb4115884d86e2fce2f124c49c6a802741d03f2645e1254f2",
+          "bytes": 9639
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1.log",
+        "sha256": "dc2634d77d71b90bb4115884d86e2fce2f124c49c6a802741d03f2645e1254f2",
+        "bytes": 9639,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-certificate-measure-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-root-v1.receipt.json",
+        "sha256": "214090e2898dea31dcce59b3688a7ab0642a2760ba44f68d5b53cf9a7e19be70",
+        "bytes": 1313,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-claims-certificate-measure-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:14:37.744Z",
+        "endedAt": "2026-11-19T17:17:12.258Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-root-v1.log",
+          "sha256": "9b5c5313ecaa25cf110d57f65f135f055c37632fb2199f8ac2f364935c2c4332",
+          "bytes": 1706
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-root-v1.log",
+        "sha256": "9b5c5313ecaa25cf110d57f65f135f055c37632fb2199f8ac2f364935c2c4332",
+        "bytes": 1706,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-certificate-measure-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1.receipt.json",
+        "sha256": "e789997f9f7f253a23ae0378a8a3a45bb6b75a289004521e73ad8d22abc28ccc",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "SQLite terminal certification runs every exact offered case without gaps",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 600000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:14:37.776Z",
+        "endedAt": "2026-11-19T17:17:12.252Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1.log",
+          "sha256": "27fbbfb6a88c47ccdcc07f9d1b78ba35cbf509238ad1f3c3e80b7ac706b30ad4",
+          "bytes": 9639
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1.log",
+        "sha256": "27fbbfb6a88c47ccdcc07f9d1b78ba35cbf509238ad1f3c3e80b7ac706b30ad4",
+        "bytes": 9639,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-display-snapshot-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v1.receipt.json",
+        "sha256": "4c7826eb68eb5f15081948081629d00dc387a8f1909876276fa345eae9b4b380",
+        "bytes": 1584,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:56:21.349Z",
+        "endedAt": "2026-11-19T16:56:34.087Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v1.log",
+          "sha256": "6c611c76d75d0a9849fac6d8b3359f7ea7f62e9c39b3445eefb7aa7bcda5b29e",
+          "bytes": 25276
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v1.log",
+        "sha256": "6c611c76d75d0a9849fac6d8b3359f7ea7f62e9c39b3445eefb7aa7bcda5b29e",
+        "bytes": 25276,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-display-snapshot-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v2.receipt.json",
+        "sha256": "ab181940283eecc595c33fdbe924d3d70e3ca97be0b5b96f69987096ccdc016c",
+        "bytes": 1583,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:57:19.633Z",
+        "endedAt": "2026-11-19T16:57:31.833Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v2.log",
+          "sha256": "ab43903011b624d6c127b56e475020f6e1dd889daf09179e390308916ca8d187",
+          "bytes": 2591
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-display-snapshot-v2.log",
+        "sha256": "ab43903011b624d6c127b56e475020f6e1dd889daf09179e390308916ca8d187",
+        "bytes": 2591,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-entry-lifetime-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1.receipt.json",
+        "sha256": "e5150c0549d48673920a9fb98973ed52ee9657ce7aa68853a85d5dba23892cc0",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*after Source close",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:38.767Z",
+        "endedAt": "2026-11-19T17:07:41.578Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1.log",
+          "sha256": "9c8cb7ea6d9706c58c82a4646dd55ecd566cf8da6bdad65bc4983d0bc5492ed2",
+          "bytes": 1592
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1.log",
+        "sha256": "9c8cb7ea6d9706c58c82a4646dd55ecd566cf8da6bdad65bc4983d0bc5492ed2",
+        "bytes": 1592,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-leaf-order-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1.receipt.json",
+        "sha256": "d3474fd9d03ee59fcedca6a298bc0772f26798af6473ab35e33b54577f90a767",
+        "bytes": 1492,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "preserves opposing",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:17.618Z",
+        "endedAt": "2026-11-19T17:07:21.204Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1.log",
+          "sha256": "8f66f40e8a191cd3e6fdda1779e8085d99ee6fe3a7c3b58743ec225c0a129c11",
+          "bytes": 3417
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1.log",
+        "sha256": "8f66f40e8a191cd3e6fdda1779e8085d99ee6fe3a7c3b58743ec225c0a129c11",
+        "bytes": 3417,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-memory-ordinary-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1.receipt.json",
+        "sha256": "6ed428c3917ac3e82da233d162650b8720faa724f7f8bbce5c3db655ba1300ad",
+        "bytes": 1534,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*expires its (commit|rollback) loan",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:45.801Z",
+        "endedAt": "2026-11-19T17:07:48.574Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1.log",
+          "sha256": "3ac4317f0aeb50d31038b71091e91c72a212318a298ef7e8e5d8a4defebae61b",
+          "bytes": 1671
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1.log",
+        "sha256": "3ac4317f0aeb50d31038b71091e91c72a212318a298ef7e8e5d8a4defebae61b",
+        "bytes": 1671,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-memory-package-values-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1.receipt.json",
+        "sha256": "eb14391c90256ba3555581f955cb2c2d8838d072a6ba6be1440877c50857c267",
+        "bytes": 1556,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*missing explicit values without point claims",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:32.433Z",
+        "endedAt": "2026-11-19T17:07:35.226Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1.log",
+          "sha256": "bc401f2cbf50823fc766577454352dc6b690a24b7ee0cf70b8c8ccc6e8f092e6",
+          "bytes": 1592
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1.log",
+        "sha256": "bc401f2cbf50823fc766577454352dc6b690a24b7ee0cf70b8c8ccc6e8f092e6",
+        "bytes": 1592,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-memory-public-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1.receipt.json",
+        "sha256": "41403b940545e99ed4a42548514b67f3da4fbd78928f610fbe94b71f568e8c46",
+        "bytes": 1514,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*after Source close",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:51.323Z",
+        "endedAt": "2026-11-19T17:07:54.111Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1.log",
+          "sha256": "cdca1150060e52f6fcaf916d7a10159b46dee0bd67e244b83592e2c6f2da92c7",
+          "bytes": 1592
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1.log",
+        "sha256": "cdca1150060e52f6fcaf916d7a10159b46dee0bd67e244b83592e2c6f2da92c7",
+        "bytes": 1592,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-memory-repair-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1.receipt.json",
+        "sha256": "f78ab3e8a74cb92b57b093d0b6e0896a1831021a7b47032f1903fb2a0bb2c869",
+        "bytes": 1518,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*expires its repair loan",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:48.575Z",
+        "endedAt": "2026-11-19T17:07:51.322Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1.log",
+          "sha256": "31a3ef47d08f61e18428cd296af1d6c35b29f3c76ccee67a7b6f7932ec0bbd7c",
+          "bytes": 973
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1.log",
+        "sha256": "31a3ef47d08f61e18428cd296af1d6c35b29f3c76ccee67a7b6f7932ec0bbd7c",
+        "bytes": 973,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-memory-values-injection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1.receipt.json",
+        "sha256": "50d1fd3d2ad0d7ff370c029407e59f7c93bb6303be873ba96007964007b2eb77",
+        "bytes": 1560,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current memory.*missing explicit values without point claims",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:13.105Z",
+        "endedAt": "2026-11-19T17:08:15.886Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1.log",
+          "sha256": "d8f167ed534d6647e617c1c38e1478a3f7f7d8d97ed2d477caca0cf4dcaa1f37",
+          "bytes": 1811
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1.log",
+        "sha256": "d8f167ed534d6647e617c1c38e1478a3f7f7d8d97ed2d477caca0cf4dcaa1f37",
+        "bytes": 1811,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-owned-snapshot-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1.receipt.json",
+        "sha256": "860a826ce82923d513544d6dda3d47be4856a1a9ddca2b7b336bcfe5171dda37",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "-t",
+            "holds one snapshot while another connection commits",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:09.644Z",
+        "endedAt": "2026-11-19T17:08:13.103Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1.log",
+          "sha256": "ac60cd43597d836f338bd19c8b2b6c8138df6e67385f219db331907c8744c7fc",
+          "bytes": 1281
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1.log",
+        "sha256": "ac60cd43597d836f338bd19c8b2b6c8138df6e67385f219db331907c8744c7fc",
+        "bytes": 1281,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-point-validation-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1.receipt.json",
+        "sha256": "1873b80cde53c63330ad3787c38d426aa42d3c7ed92beee228a5990622eea45d",
+        "bytes": 1507,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "refuses a point claim",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:28.267Z",
+        "endedAt": "2026-11-19T17:07:32.432Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1.log",
+          "sha256": "cb2087dfe392dcde31300f493b472853ab5c8f008e70f76ca1786372d10e75e2",
+          "bytes": 5506
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1.log",
+        "sha256": "cb2087dfe392dcde31300f493b472853ab5c8f008e70f76ca1786372d10e75e2",
+        "bytes": 5506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-required-leaf-order-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1.receipt.json",
+        "sha256": "fbb978703cb942267167b5199aeae2382308dae6246b07878b8853b9482bc973",
+        "bytes": 1510,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "preserves opposing",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:21.205Z",
+        "endedAt": "2026-11-19T17:07:24.742Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1.log",
+          "sha256": "bf2477e7932ee8a8e64f72143ac550cfd06cb20360258bc03bb600a97c842f9b",
+          "bytes": 7831
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1.log",
+        "sha256": "bf2477e7932ee8a8e64f72143ac550cfd06cb20360258bc03bb600a97c842f9b",
+        "bytes": 7831,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-return-lifetime-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1.receipt.json",
+        "sha256": "819927b51bc4577054d97490127460ea18674cd77f6ada42ed3faa2cce2f4d24",
+        "bytes": 1531,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "borrowed read returning after its owner settles",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:41.579Z",
+        "endedAt": "2026-11-19T17:07:45.800Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1.log",
+          "sha256": "c2d02ce231f1631d42dc37e187669a983c4a76630f0263db54097adda3fb66f8",
+          "bytes": 2744
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1.log",
+        "sha256": "c2d02ce231f1631d42dc37e187669a983c4a76630f0263db54097adda3fb66f8",
+        "bytes": 2744,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-bound-ordinary-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1.receipt.json",
+        "sha256": "f61f431244d5fdc84d317e27a1afec68b251fcd4182884d9ae36d314ff415cec",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*expires its (commit|rollback) loan \\(bound\\)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:01.985Z",
+        "endedAt": "2026-11-19T17:08:06.164Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1.log",
+          "sha256": "7637217b5cef67e11b61ea780baa238defd94f46660292ac53994eb0c38159ea",
+          "bytes": 3192
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1.log",
+        "sha256": "7637217b5cef67e11b61ea780baa238defd94f46660292ac53994eb0c38159ea",
+        "bytes": 3192,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-bound-repair-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1.receipt.json",
+        "sha256": "a4eddf6f2da9511fb431e43d0f2db6f71327080380ad67c8e2d9267a0856d3c2",
+        "bytes": 1543,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*expires its repair loan \\(bound\\)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:06.165Z",
+        "endedAt": "2026-11-19T17:08:09.643Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1.log",
+          "sha256": "86a4c8130a1836d05f6251fb31dd13caa3916f9419bb56cc86caf28980507ef3",
+          "bytes": 1733
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1.log",
+        "sha256": "86a4c8130a1836d05f6251fb31dd13caa3916f9419bb56cc86caf28980507ef3",
+        "bytes": 1733,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-package-values-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1.receipt.json",
+        "sha256": "8af9b46606d2723ebd7dc5878cd382b842346a316d598e0f1d005b0954e0864f",
+        "bytes": 1556,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*missing explicit values without point claims",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:35.227Z",
+        "endedAt": "2026-11-19T17:07:38.765Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1.log",
+          "sha256": "7681f2b706aafa654d92aae9198f89b13008c33b5fe89f1347a34d51e2db28ac",
+          "bytes": 1606
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1.log",
+        "sha256": "7681f2b706aafa654d92aae9198f89b13008c33b5fe89f1347a34d51e2db28ac",
+        "bytes": 1606,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-parent-constraints-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1.receipt.json",
+        "sha256": "056475b20df1c1e2815c1f8c8da79a6369ff12bb1fb5f0e14637a707d3efd6e8",
+        "bytes": 1541,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*missing actual parent",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:22.857Z",
+        "endedAt": "2026-11-19T17:08:26.459Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1.log",
+          "sha256": "cef33ed61034cc9b94ba41c023a0d291e9d2162c4ea5dccfefd8793769377426",
+          "bytes": 1548
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1.log",
+        "sha256": "cef33ed61034cc9b94ba41c023a0d291e9d2162c4ea5dccfefd8793769377426",
+        "bytes": 1548,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-plain-ordinary-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1.receipt.json",
+        "sha256": "3b4f932a2cd5cecb7887805e04ef416bc18be356273978e5ae98c1779fd6ed5f",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*expires its (commit|rollback) loan \\(plain\\)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:54.112Z",
+        "endedAt": "2026-11-19T17:07:58.524Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1.log",
+          "sha256": "a1ba3c6d15715fe874475d066d5494708a0461b2b6fe1d1688c0a5942cbc8151",
+          "bytes": 3192
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1.log",
+        "sha256": "a1ba3c6d15715fe874475d066d5494708a0461b2b6fe1d1688c0a5942cbc8151",
+        "bytes": 3192,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-plain-repair-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1.receipt.json",
+        "sha256": "063952c30bf44ae61205213fca1dbfe9eeeb9d5c415f9d5f6791a1a0a708651a",
+        "bytes": 1543,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*expires its repair loan \\(plain\\)",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:58.525Z",
+        "endedAt": "2026-11-19T17:08:01.983Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1.log",
+          "sha256": "8c3e88045a2f54b0876474c263407d05461c32a068278f7297d926cc1effcae5",
+          "bytes": 1733
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1.log",
+        "sha256": "8c3e88045a2f54b0876474c263407d05461c32a068278f7297d926cc1effcae5",
+        "bytes": 1733,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-values-constraints-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1.receipt.json",
+        "sha256": "dc33c42b7095073d7f5da6b50621fd537a637d985eab35c66690cc149427661e",
+        "bytes": 1564,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*missing explicit values without point claims",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:19.343Z",
+        "endedAt": "2026-11-19T17:08:22.856Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1.log",
+          "sha256": "38234e25d8276a12be5d4a8c80064281f0697a664915fead0b69827040d9d12a",
+          "bytes": 1596
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1.log",
+        "sha256": "38234e25d8276a12be5d4a8c80064281f0697a664915fead0b69827040d9d12a",
+        "bytes": 1596,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-sqlite-values-injection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1.receipt.json",
+        "sha256": "6642e46a74a3bfb8619ca2a7a9cae1d06ecc2592b3f9d533e78658fa32969bd9",
+        "bytes": 1560,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "current SQLite.*missing explicit values without point claims",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:08:15.887Z",
+        "endedAt": "2026-11-19T17:08:19.342Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1.log",
+          "sha256": "424123d7a77a70f12fd7f6298d1678f393c66ae16989d75d16e4bbfc1f654aa8",
+          "bytes": 1600
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1.log",
+        "sha256": "424123d7a77a70f12fd7f6298d1678f393c66ae16989d75d16e4bbfc1f654aa8",
+        "bytes": 1600,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effect-zero-step-inventory-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1.receipt.json",
+        "sha256": "73b1bfdea9f5a26fcd2d369229029cf6c2ab76258c2acad710245d46592ddba5",
+        "bytes": 1510,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "-t",
+            "preserves opposing",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:24.743Z",
+        "endedAt": "2026-11-19T17:07:28.266Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1.log",
+          "sha256": "6f1945ded94a426efcca9d7da668248b5109ce8209385e60721032df43fab304",
+          "bytes": 3569
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1.log",
+        "sha256": "6f1945ded94a426efcca9d7da668248b5109ce8209385e60721032df43fab304",
+        "bytes": 3569,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effects-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v1.receipt.json",
+        "sha256": "2f16157d0e73ebab733f181a47b60bdb46c77bcd68e4f55945780ab92846c812",
+        "bytes": 1276,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-claims-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:06:57.194Z",
+        "endedAt": "2026-11-19T17:06:57.225Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v1.log",
+          "sha256": "c16f41d36be6cbdba6e45c8a5ae02b3535e8ae66b065ed237ccac165ef9ddae6",
+          "bytes": 744
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v1.log",
+        "sha256": "c16f41d36be6cbdba6e45c8a5ae02b3535e8ae66b065ed237ccac165ef9ddae6",
+        "bytes": 744,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-effects-root-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v2.receipt.json",
+        "sha256": "75ad5411b225e8782471f52c032c72e09f87f06be9c0b54056560c8f295128b7",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v2",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-claims-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:07:17.585Z",
+        "endedAt": "2026-11-19T17:08:26.464Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v2.log",
+          "sha256": "2db5118a92c44b6b7968979567e52a64af39764e2629945b22872137aa648160",
+          "bytes": 1146
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-effects-root-v2.log",
+        "sha256": "2db5118a92c44b6b7968979567e52a64af39764e2629945b22872137aa648160",
+        "bytes": 1146,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-format-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-format-final-v1.receipt.json",
+        "sha256": "4fc942b554db7e7717a0a5d20ca0f2269bc5af6a93fb91b2e9f8277d2bd8c837",
+        "bytes": 2676,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-format-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-memory/src/claim-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/claim-observation.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim.ts",
+            "libs/wbs/adapters/store-sqlite/src/source.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/scoped-service-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/source-conformance.ts",
+            "libs/wbs/application/core/src/index.ts",
+            "libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+            "libs/wbs/application/core/src/ports/claim-store.ts",
+            "libs/wbs/application/core/src/testing/current-claim-observation.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:21.297Z",
+        "endedAt": "2026-11-19T17:10:22.812Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-format-final-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-format-final-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-formatted-baseline-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-formatted-baseline-v1.receipt.json",
+        "sha256": "bb40d6165b2f312c2c1cb13becc1a4f9d1f0618ee86c497610abad08a5920dba",
+        "bytes": 1587,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-formatted-baseline-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:03:33.375Z",
+        "endedAt": "2026-11-19T17:03:55.395Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-formatted-baseline-v1.log",
+          "sha256": "aa0c7fc7fb9af3e0cc0c410eb32591c577a28c639d1158cd078cdd425be4b768",
+          "bytes": 4599
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-formatted-baseline-v1.log",
+        "sha256": "aa0c7fc7fb9af3e0cc0c410eb32591c577a28c639d1158cd078cdd425be4b768",
+        "bytes": 4599,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-lifetime-green-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-green-v1.receipt.json",
+        "sha256": "7a42d3ca6dee3a11c2252d3813800bdecfac4cfbcda4849b3ae3bf6625318062",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-green-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:59:51.184Z",
+        "endedAt": "2026-11-19T17:00:00.339Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-green-v1.log",
+          "sha256": "ee53aa042d9758030097dbf025a50ce65c5a585d5a95b1f28e7d351770330e75",
+          "bytes": 1863
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-green-v1.log",
+        "sha256": "ee53aa042d9758030097dbf025a50ce65c5a585d5a95b1f28e7d351770330e75",
+        "bytes": 1863,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-lifetime-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v1.receipt.json",
+        "sha256": "35d29af775f780837c641896fd8d5cc5bd8633a0e966d3ca7f37f2a7a1c56d12",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:58:43.701Z",
+        "endedAt": "2026-11-19T16:58:53.570Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v1.log",
+          "sha256": "f5c3ae311ecbf7be7abe804b991dd7cdd514ff7e55c9f95b36ad29413a44700a",
+          "bytes": 10513
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v1.log",
+        "sha256": "f5c3ae311ecbf7be7abe804b991dd7cdd514ff7e55c9f95b36ad29413a44700a",
+        "bytes": 10513,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-lifetime-red-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v2.receipt.json",
+        "sha256": "d60ec95457670d2a44da44e110906c45e8e73568be0322cdf9ed34a284d1d592",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:59:12.586Z",
+        "endedAt": "2026-11-19T16:59:21.313Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v2.log",
+          "sha256": "047050b723624a166b58c33547082dde292e6a55ddd8f2d77e3ba7fba629f7ba",
+          "bytes": 7631
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lifetime-red-v2.log",
+        "sha256": "047050b723624a166b58c33547082dde292e6a55ddd8f2d77e3ba7fba629f7ba",
+        "bytes": 7631,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-lint-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v1.receipt.json",
+        "sha256": "704857c7ae4fc38634708c819067b59955f861a1893d74977f3f527e6e33f2b6",
+        "bytes": 2649,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-memory/src/claim-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/claim-observation.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim.ts",
+            "libs/wbs/adapters/store-sqlite/src/source.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/scoped-service-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/source-conformance.ts",
+            "libs/wbs/application/core/src/index.ts",
+            "libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+            "libs/wbs/application/core/src/ports/claim-store.ts",
+            "libs/wbs/application/core/src/testing/current-claim-observation.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:00.659Z",
+        "endedAt": "2026-11-19T17:10:18.654Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-lint-final-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v2.receipt.json",
+        "sha256": "51b63cf853d3b5f94a692454ced76e8a810ac426a890722224466890caac6a7d",
+        "bytes": 2649,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-memory/src/claim-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/claim-observation.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim-observation.ts",
+            "libs/wbs/adapters/store-sqlite/src/claim.ts",
+            "libs/wbs/adapters/store-sqlite/src/source.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/scoped-service-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/application/conformance/src/source-conformance.ts",
+            "libs/wbs/application/core/src/index.ts",
+            "libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+            "libs/wbs/application/core/src/ports/claim-store.ts",
+            "libs/wbs/application/core/src/testing/current-claim-observation.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:20:21.759Z",
+        "endedAt": "2026-11-19T17:20:30.743Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-lint-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-memory-conformance-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1.receipt.json",
+        "sha256": "8f3d7fc39c58db57caaf078f0ef1de48b9e2ba4a01e30afe16bd62ce87d05eec",
+        "bytes": 1360,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:14:01.792Z",
+        "endedAt": "2026-11-19T17:14:06.964Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1.log",
+          "sha256": "e0451c65d70619eb373105a6e1eeceb2f2af506d64b8e81b9f1f1efa0aa29f68",
+          "bytes": 24006
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1.log",
+        "sha256": "e0451c65d70619eb373105a6e1eeceb2f2af506d64b8e81b9f1f1efa0aa29f68",
+        "bytes": 24006,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-openspec-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-openspec-v1.receipt.json",
+        "sha256": "5bfde40fb0defef388966d033fc46cf70b17376b84aea8157c5938ce77511df9",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-openspec-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:00.613Z",
+        "endedAt": "2026-11-19T17:10:02.786Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-openspec-v1.log",
+          "sha256": "bbb291957026e560f5f2f74961db8a7d95ef262e4a974bc30c0d6266848e4643",
+          "bytes": 345730
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-openspec-v1.log",
+        "sha256": "bbb291957026e560f5f2f74961db8a7d95ef262e4a974bc30c0d6266848e4643",
+        "bytes": 345730,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-opposing-green-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v1.receipt.json",
+        "sha256": "02ed001da19aa704c53b012ad0ff5f3174ad310ac8e1baeb089499656b36342d",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:54:31.457Z",
+        "endedAt": "2026-11-19T16:54:34.938Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v1.log",
+          "sha256": "de3ab221ce98f99f59565b5bdaa0851588220f0a9614132ea8c410da9c94c548",
+          "bytes": 3789
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v1.log",
+        "sha256": "de3ab221ce98f99f59565b5bdaa0851588220f0a9614132ea8c410da9c94c548",
+        "bytes": 3789,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-opposing-green-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v2.receipt.json",
+        "sha256": "0322f05c6f42469f2e79a929c0eb33e0d7aaaf9366ef5bf7caf4151b35d4313b",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:54:58.855Z",
+        "endedAt": "2026-11-19T16:55:02.430Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v2.log",
+          "sha256": "684732250f3d41c296e377262c764515919ca1736049cbe8e4404866de11e57a",
+          "bytes": 2517
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v2.log",
+        "sha256": "684732250f3d41c296e377262c764515919ca1736049cbe8e4404866de11e57a",
+        "bytes": 2517,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-opposing-green-v3",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v3.receipt.json",
+        "sha256": "d54c3c65a0f5023f3984bb446625f1e4f2d925468430226f70dbf0e43aa77350",
+        "bytes": 1506,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v3",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+            "libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:55:42.119Z",
+        "endedAt": "2026-11-19T16:55:45.669Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v3.log",
+          "sha256": "591d038ac08c80ff8a5b1cdf4ca6415eae2cc3624e17e8ae13cfba86963c6dc5",
+          "bytes": 6198
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-green-v3.log",
+        "sha256": "591d038ac08c80ff8a5b1cdf4ca6415eae2cc3624e17e8ae13cfba86963c6dc5",
+        "bytes": 6198,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-opposing-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-red-v1.receipt.json",
+        "sha256": "75ec778078a2a22ce06f4dec0f58daf4bbb1536a0af34a5e509e8b2397f34227",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:53:29.465Z",
+        "endedAt": "2026-11-19T16:53:32.977Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-red-v1.log",
+          "sha256": "f6e39157f5f522b7d18a6327266a7ec5accddbb7217715b80693bd986cb1b0c3",
+          "bytes": 4433
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-opposing-red-v1.log",
+        "sha256": "f6e39157f5f522b7d18a6327266a7ec5accddbb7217715b80693bd986cb1b0c3",
+        "bytes": 4433,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-types-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v1.receipt.json",
+        "sha256": "f63722c2eb8a13b401608f09ab2789bf7caed796df4bf3b17ddd7de77c477365",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:10:00.644Z",
+        "endedAt": "2026-11-19T17:10:25.809Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-types-final-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v2.receipt.json",
+        "sha256": "78a8788ea79429938639d6fe70ae750b8ace8cd6b67c71653c74807322b03071",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:19:41.613Z",
+        "endedAt": "2026-11-19T17:20:13.781Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v1.receipt.json",
+        "sha256": "f8230072709adeee86b51cd0d9e009324cdf8016f70ebfcebb1316ff450c6808",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:00:31.375Z",
+        "endedAt": "2026-11-19T17:00:48.185Z",
+        "exitCode": 2,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v1.log",
+          "sha256": "f35fec29bb7caf9e982c623c1f67dc9f14c8734a0333bb62afd5209da0ac91a7",
+          "bytes": 207
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v1.log",
+        "sha256": "f35fec29bb7caf9e982c623c1f67dc9f14c8734a0333bb62afd5209da0ac91a7",
+        "bytes": 207,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-claims-types-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v2.receipt.json",
+        "sha256": "20e18d967e416293cdff2819c7a429eed54b6eccc5f05d0ae16d5e2856c52592",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T17:01:21.933Z",
+        "endedAt": "2026-11-19T17:01:38.806Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    }
+  ],
+  "firstRed": {
+    "phase": "current-claims-opposing-red-v1",
+    "passed": 0,
+    "failed": 2,
+    "observations": [
+      "Actual SQLite observation queries retired step storage.",
+      "Actual Memory observation has no required leaf inventory."
+    ]
+  },
+  "lifetimeRed": {
+    "phase": "current-claims-lifetime-red-v2",
+    "passed": 11,
+    "failed": 7,
+    "observations": [
+      "Both actual Sources retain ordinary commit/rollback and repair observation capabilities after expiry.",
+      "Actual public Memory observation answers after Source close."
+    ]
+  },
+  "final": {
+    "broad": {
+      "name": "current-claims-broad-v1",
+      "passed": 200,
+      "failed": 0,
+      "assertions": 12291,
+      "files": 6,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1.receipt.json",
+        "sha256": "1c68dc6b4cb6c5235b340ed263f8c329ef06d927bb88251b5b8af3459d77fb8b",
+        "bytes": 1836,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-broad-v1.log",
+        "sha256": "8876242be3bd6c59b1a22c1dd0a8e9ab674e5ab8c81b1653c063bbdcd222d432",
+        "bytes": 23581,
+        "mode": 384
+      }
+    },
+    "memory": {
+      "name": "current-claims-memory-conformance-v1",
+      "passed": 113,
+      "failed": 0,
+      "assertions": 12063,
+      "files": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1.receipt.json",
+        "sha256": "8f3d7fc39c58db57caaf078f0ef1de48b9e2ba4a01e30afe16bd62ce87d05eec",
+        "bytes": 1360,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-memory-conformance-v1.log",
+        "sha256": "e0451c65d70619eb373105a6e1eeceb2f2af506d64b8e81b9f1f1efa0aa29f68",
+        "bytes": 24006,
+        "mode": 384
+      }
+    },
+    "certificate": {
+      "name": "current-claims-certificate-final-v1",
+      "passed": 1,
+      "failed": 0,
+      "assertions": 8151,
+      "files": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1.receipt.json",
+        "sha256": "ce2fd460b5d97a5c6b68ad7184598e00505932c418371443612097c59cccfc38",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-final-v1.log",
+        "sha256": "dc2634d77d71b90bb4115884d86e2fce2f124c49c6a802741d03f2645e1254f2",
+        "bytes": 9639,
+        "mode": 384
+      }
+    },
+    "certification": {
+      "source": "sqlite",
+      "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+      "certifiedCases": [
+        "accessDecisions.effectiveRoleAt:grant-reaches-package",
+        "actuals.listByWorkItems:scope-order",
+        "actuals.listPlacements:source-order",
+        "actuals.moveAll:ownership",
+        "actuals.remove:pair",
+        "actuals.set:replace",
+        "actuals.set:unknown_step",
+        "attempts.moveAll:issued",
+        "attempts.moveAll:ownership",
+        "attempts.start:never-reuses",
+        "attempts.start:number-and-running",
+        "blockages.set:read-remove",
+        "budgets.set:defined-key",
+        "budgets.set:replace-remove",
+        "calendarMarkers.listFor:total-order",
+        "calendarMarkers.write:work-package-scope",
+        "capacity.set:clear",
+        "capacity.set:missing-reference",
+        "capacity.set:work-package-team-key",
+        "claims.add:taken-stated-remove",
+        "claims.lease:revoked-instant-read",
+        "claims.lease:run-scoped",
+        "claims.lease:write-renew-expire",
+        "claims.listStampedByWorkPackage:write-instant",
+        "claims.moveAll:in-place",
+        "claims.observeWorkPackage:legacy-observation",
+        "claims.occupancy:hold-read-cascade",
+        "claims.occupancy:organization-scope",
+        "claims.remove:delegated-cascade",
+        "demands.set:missing-reference",
+        "demands.set:replace-clear-scope",
+        "dependencies.add:idempotent-pair",
+        "dependencies.listByWorkItems:incident-scope",
+        "dependencies.remove:pair",
+        "dependencies.removeAllFor:touching-set",
+        "directory.addMeasure:index-backstop",
+        "directory.addResource:taken",
+        "directory.addTag",
+        "directory.assign:scope-replace-clear",
+        "directory.assign:unknown_person",
+        "directory.listMeasures:seeded-per-organization",
+        "directory.patchMeasure:scoped-key-frozen",
+        "directory.patchMeasure:shape-frozen",
+        "directory.patchPerson:account-binding",
+        "directory.patchPerson:owned-binding",
+        "directory.patchTeam:atomic-refusal",
+        "directory.removeMeasure:scoped",
+        "directory.removePerson:claims-in-use",
+        "directory.removePerson:delegated-claims",
+        "directory.removeResource:in-use-cascade",
+        "directory.setDirectoryCapacity:state-clear-remove",
+        "directory.setResourceProvider:unknown-and-clear",
+        "directory.usageOfMeasure:budgets",
+        "directory.usageOfMeasure:estimates",
+        "directory.usageOfMeasure:facts",
+        "estimates.listByWorkItems:scope-order",
+        "estimates.listPlacements:source-order",
+        "estimates.moveAll:ownership",
+        "estimates.remove",
+        "estimates.set",
+        "estimates.set:replace",
+        "estimates.set:unknown_step",
+        "eventLog.pruneBeyond",
+        "eventLog.pruneBeyond:empty-sequence",
+        "eventLog.rangeSince",
+        "eventLog.recordEvent",
+        "history.batch:busy-does-not-wait",
+        "history.batch:independent-commit",
+        "history.batch:independent-rollback",
+        "journal.append:account-redo-depth",
+        "journal.append:acting-person-stacks",
+        "journal.append:history-atomic",
+        "journal.appendEvent:history-only",
+        "journal.flip:preconditions",
+        "livePlans.read:legacy-and-absence",
+        "measureEstimates.moveAll:every-key",
+        "measureEstimates.set:basis",
+        "measureEstimates.set:defined-key",
+        "measureEstimates.set:three-point-clears-flag",
+        "measures.listByWorkItems:scope-order",
+        "measures.listPlacements:source-order",
+        "measures.moveAll:all-metrics",
+        "measures.remove:metric-key",
+        "measures.set:alias-one-row",
+        "measures.set:basis",
+        "measures.set:defined-key",
+        "measures.set:legacy-estimate-replaces-trio",
+        "measures.set:metric-key",
+        "measures.set:unknown_step",
+        "organizationLimits.readAgentPersonCap:organization-scope",
+        "organizationLimits.readCapacityCap:per-resource-except-work-package",
+        "organizationLimits.readConcurrentClaimCap:bound-triples",
+        "planEvents.listFor:batches-limit",
+        "planEvents.listFor:filters-order",
+        "planEvents.pruneOlderThan:strict-cutoff",
+        "priorityBands.listFor:defaults",
+        "priorityBands.replace:missing-work-package",
+        "priorityBands.replace:whole-work-package",
+        "progress.listByWorkItems:scope-order",
+        "progress.listPlacements:source-order",
+        "progress.moveAll:ownership",
+        "progress.remove:absence",
+        "progress.set:replace",
+        "progress.set:unknown_step",
+        "resourceCapacity.set:missing-reference",
+        "resourceCapacity.set:stated-zero-cleared",
+        "runtimeCommands.write:permanent-history",
+        "savedPlanCapture.readPlanInput:coherent-interleave",
+        "savedPlanCapture.readPlanInput:complete",
+        "savedPlanCapture.readPlanInput:detached",
+        "savedPlanCapture.readPlanInput:missing-work-package",
+        "savedPlans.touch:principals-scope",
+        "savedPlans.write:bytes-and-bodies",
+        "savedPlans.write:late-body-failure",
+        "savedPlans.write:quota-refusal",
+        "savedPlans.write:quota-window",
+        "settings.capture:inherited-and-detached",
+        "settings.packageIds:descendants-and-touch",
+        "settings.readTarget:actual-chain-and-scope",
+        "settings.write:refusal-and-clear",
+        "spaces.create:scoped-round-trip",
+        "stepCatalogue.bindStep:scope-union-and-type-key",
+        "stepCatalogue.defineAndBindStep:modeled-refusals-atomic",
+        "stepCatalogue.defineAndBindStep:nan-default-atomic",
+        "stepCatalogue.defineAndBindStep:precision-default-atomic",
+        "stepCatalogue.defineAndBindStep:project-empty-materialization",
+        "stepCatalogue.defineAndBindStep:range-default-atomic",
+        "stepCatalogue.factRead:actual-borrowed-expiry",
+        "stepCatalogue.factRead:actual-current-order",
+        "stepCatalogue.factRead:actual-malformed-value",
+        "stepCatalogue.factRead:actual-public-source-close",
+        "stepCatalogue.factRead:actual-targeted-order",
+        "stepCatalogue.factRead:actual-unresolved-type",
+        "stepCatalogue.factRead:attempts-current-tuples",
+        "stepCatalogue.factRead:attempts-targeted-tuples",
+        "stepCatalogue.factRead:estimate-borrowed-expiry",
+        "stepCatalogue.factRead:estimate-catalogue-order",
+        "stepCatalogue.factRead:estimate-public-source-close",
+        "stepCatalogue.factRead:issued-counter-selection",
+        "stepCatalogue.factRead:issued-parent-allocator-retention",
+        "stepCatalogue.factRead:measure-estimates-current-tuples",
+        "stepCatalogue.factRead:measures-current-tuples",
+        "stepCatalogue.factRead:measures-targeted-tuples",
+        "stepCatalogue.factRead:progress-borrowed-expiry",
+        "stepCatalogue.factRead:progress-current-order",
+        "stepCatalogue.factRead:progress-malformed-time",
+        "stepCatalogue.factRead:progress-public-source-close",
+        "stepCatalogue.factRead:progress-targeted-order",
+        "stepCatalogue.factRead:progress-unresolved-type",
+        "stepCatalogue.factRead:targeted-estimate-catalogue-order",
+        "stepCatalogue.factRead:work-package-catalogue-values",
+        "stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit",
+        "stepCatalogue.factWrite:borrowed-subtree-actual-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-measure-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-progress-refusal",
+        "stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit",
+        "stepCatalogue.factWrite:borrowed-target-types-keep-commit",
+        "stepCatalogue.factWrite:estimate-after-unbind",
+        "stepCatalogue.factWrite:estimate-target-types",
+        "stepCatalogue.factWrite:queued-estimate-input-retention",
+        "stepCatalogue.factWrite:subtree-actual-refusal",
+        "stepCatalogue.factWrite:subtree-borrowed-expiry",
+        "stepCatalogue.factWrite:subtree-estimate-after-unbind",
+        "stepCatalogue.factWrite:subtree-measure-refusal",
+        "stepCatalogue.factWrite:subtree-progress-refusal",
+        "stepCatalogue.factWrite:subtree-public-source-close",
+        "stepCatalogue.factWrite:subtree-queued-payload-retention",
+        "stepCatalogue.factWrite:target-borrowed-after-commit",
+        "stepCatalogue.factWrite:target-plain-repair-expiry",
+        "stepCatalogue.factWrite:target-public-source-close",
+        "stepCatalogue.lifetime:borrowed-settlement",
+        "stepCatalogue.lifetime:source-close",
+        "stepCatalogue.pointWrite:actual-conflict",
+        "stepCatalogue.pointWrite:actual-parent",
+        "stepCatalogue.pointWrite:actual-unknown",
+        "stepCatalogue.pointWrite:actual-untyped",
+        "stepCatalogue.pointWrite:measure-conflict",
+        "stepCatalogue.pointWrite:measure-parent",
+        "stepCatalogue.pointWrite:measure-unknown",
+        "stepCatalogue.pointWrite:measure-untyped",
+        "stepCatalogue.pointWrite:progress-conflict",
+        "stepCatalogue.pointWrite:progress-parent",
+        "stepCatalogue.pointWrite:progress-unknown",
+        "stepCatalogue.pointWrite:progress-untyped",
+        "stepCatalogue.read:detached-nested-values",
+        "stepCatalogue.unbindStep:201-pairs-cap-and-order",
+        "stepCatalogue.unbindStep:borrowed-expiry",
+        "stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit",
+        "stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit",
+        "stepCatalogue.unbindStep:detached-refusal",
+        "stepCatalogue.unbindStep:estimate-refusal-and-preview",
+        "stepCatalogue.unbindStep:foreign-parent-allocator-not-global-veto",
+        "stepCatalogue.unbindStep:parent-allocator-delete-unbind-revival",
+        "stepCatalogue.unbindStep:queued-mode-retention",
+        "stepCatalogue.unbindStep:redundant-binding-keeps-protected-node",
+        "stepCatalogue.unbindStep:safe-preview-apply-retains-values",
+        "stepCatalogue.unbindStep:sibling-parent-allocator-not-global-veto",
+        "stepCatalogue.unbindStep:source-close",
+        "stepCatalogue.write:queued-input-retention",
+        "stepParallels.set:sparse-replace-remove",
+        "steps.listByWorkPackage:detached",
+        "steps.listByWorkPackage:resolved-scope",
+        "steps.listByWorkPackage:unknown",
+        "subtrees.insertSubtree:complete-copy",
+        "subtrees.insertSubtree:late-failure",
+        "typedDependencies.write:identity-and-bulk",
+        "users.create:unique-name",
+        "users.find:identity",
+        "users.resolveOidcIdentity:issuer-subject",
+        "users.resolveOidcIdentity:verified-conflict",
+        "workItems.insert:respace",
+        "workItems.listByIds:labels-scope",
+        "workItems.listPlacements:source-order",
+        "workItems.move:parent-position",
+        "workItems.patch:refusal-atomic",
+        "workItems.remove:promotion",
+        "workItems.setFrozenNumbers:clear",
+        "workPackageRanks.orderIn:scoped-move",
+        "workPackages.create:steps",
+        "workPackages.recordOpen:reader-order",
+        "workPackages.update:scope"
+      ],
+      "exclusions": [],
+      "absentFamilies": []
+    },
+    "combinedPassed": 314,
+    "combinedAssertions": 32505,
+    "libraryRoots": ["core", "conformance", "store-memory", "store-sqlite"],
+    "backendTypecheck": "passed",
+    "lintFiles": 20,
+    "formatFiles": 20,
+    "openspec": "all passed",
+    "qualification": "Bun Source selections on a private dirty integrated tree. Broad run excludes only the SQLite terminal certificate, which passes separately at its final normal600000 allowance. The complete Memory Source file also passes. No whole product/adapter/API/UI or host gate claim."
+  },
+  "measurement": {
+    "evidence": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1.evidence.json",
+      "sha256": "019f28b2151c2b67be8e915c82cbfcf7f348415576e3233b270efd0c69b417ff",
+      "bytes": 2093,
+      "mode": 384
+    },
+    "recordedAt": "2026-11-19T17:17:12.253Z",
+    "canonicalSha256": "cc6005ce02a550c07d3155a652318395485c856b9702e8dcfcceb51c1c2798f2",
+    "candidateSha256": "d2bd757467fdfbfefaf5b10e484b3aa7b299558676decda499dabb620c147bd4",
+    "onlyChange": "Aggregate test allowance 120000 to 420000 for bounded measurement; exact original restored afterward.",
+    "receipt": {
+      "schema": "activation-protected-native-v1",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "-t",
+          "SQLite terminal certification runs every exact offered case without gaps",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 600000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "startedAt": "2026-11-19T17:14:37.776Z",
+      "endedAt": "2026-11-19T17:17:12.252Z",
+      "exitCode": 0,
+      "signal": null,
+      "originalObserved": true,
+      "launched": true,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "output": {
+        "state": "acquired",
+        "stdoutFd": 5,
+        "stderrFd": 5,
+        "sameNumericFd": true
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/current-claims-certificate-measure-v1.log",
+        "sha256": "27fbbfb6a88c47ccdcc07f9d1b78ba35cbf509238ad1f3c3e80b7ac706b30ad4",
+        "bytes": 9639
+      },
+      "settled": true
+    },
+    "testMilliseconds": 151557.22,
+    "passed": true,
+    "restoredSha256": "cc6005ce02a550c07d3155a652318395485c856b9702e8dcfcceb51c1c2798f2",
+    "qualification": "The actual full221-case SQLite certificate passes with only its allowance temporarily120000→420000. Exact original120000 restored, then intentionally changed to normal600000 from the healthy151557.22ms measurement and documented policy; final ordinary certificate passes separately."
+  },
+  "budget": {
+    "previousMs": 120000,
+    "temporaryMeasurementMs": 420000,
+    "currentMs": 600000,
+    "healthyMeasuredMs": 151557.22,
+    "finalMeasuredMs": 169107.34,
+    "maximumMeasuredMs": 169107.34,
+    "threeTimesMaximumMeasuredMs": 507322.02,
+    "twiceOverrunMs": 240000,
+    "reason": "Three times151557.22ms is454671.66ms, above the former420s policy ceiling. The600s step also meets three times the slower final run. Hosted load and whole gate duration remain unmeasured."
+  },
+  "finiteEffects": {
+    "observations": [
+      {
+        "name": "leaf-order",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+        "before": "  const stepPlaces = new Map(\n    [...reads.leafSteps].map(([id, steps]) => [\n      id,\n      new Map(steps.map((stepId, index) => [stepId, index])),\n    ]),\n  );\n",
+        "after": "  const first=[...reads.leafSteps.values()].find(steps=>steps.length>0);\n  const stepPlaces=new Map([...reads.leafSteps.keys()].map(id=>[id,new Map((first??[]).map((stepId,index)=>[stepId,index]))]));\n",
+        "matcher": "preserves opposing",
+        "count": 2,
+        "scope": "Using one actual leaf order globally reverses the second typed leaf in both public projections.",
+        "canonicalSha256": "45e29e309c39dca2bde8c0e4d37ef274873182295e47dacba4cd31836a054202",
+        "candidateSha256": "9e7524998f1409d12db93dc7022f7cd768a4dc912f1cb37bf8b46c37a41ba828",
+        "restoredSha256": "45e29e309c39dca2bde8c0e4d37ef274873182295e47dacba4cd31836a054202",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-leaf-order-v1.log"
+      },
+      {
+        "name": "required-leaf-order",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-package-claims.ts",
+        "before": "    if (each.stepId !== null && stepPlace === undefined)\n      throw new Error(`claim ${each.id} has no resolved step order for ${each.workItemId}`);\n    const step = each.stepId === null ? -1 : stepPlace?.get(each.stepId);\n    if (step === undefined)\n      throw new Error(\n        `claim ${each.id} names step ${String(each.stepId)}, not resolved for ${each.workItemId}`,\n      );\n",
+        "after": "    const step = each.stepId === null ? -1 : stepPlace?.get(each.stepId);\n",
+        "matcher": "preserves opposing",
+        "count": 2,
+        "scope": "Omitting the combined missing/unresolved-order boundary answers the first deliberately missing actual leaf inventory. No independent credit for the later empty-inventory assertion.",
+        "canonicalSha256": "45e29e309c39dca2bde8c0e4d37ef274873182295e47dacba4cd31836a054202",
+        "candidateSha256": "1f2cfba73844e82e60f1ccde324eb065c001a9aa53ca4c3eb7e4b08c7cb5a265",
+        "restoredSha256": "45e29e309c39dca2bde8c0e4d37ef274873182295e47dacba4cd31836a054202",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-required-leaf-order-v1.log"
+      },
+      {
+        "name": "zero-step-inventory",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+        "before": "parents.has(row.id)",
+        "after": "parents.has(row.id) || resolveSteps(captured.chain,row.typeState,bindings).length===0",
+        "matcher": "preserves opposing",
+        "count": 2,
+        "scope": "Dropping actual zero-step leaves fails both required inventories.",
+        "canonicalSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "candidateSha256": "0b5e3eb86bce5c38a2e41a96301ac94130388b8c50611919683d18c4dd373ba3",
+        "restoredSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-zero-step-inventory-v1.log"
+      },
+      {
+        "name": "point-validation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+        "before": "  projectStoredStepFacts(captured, bindings, identities, values, points, 'claim');",
+        "after": "  void points;",
+        "matcher": "refuses a point claim",
+        "count": 4,
+        "marker": "Received: \"answered\"",
+        "scope": "Removing the common point validation lets both actual Sources answer unresolved leaf and parent point claims; compound projection proof, not each internal metadata predicate.",
+        "canonicalSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "candidateSha256": "93cb923c93eaafc61b2df799661a67ee9bdb3133c310cb0007c52d5c074ffd54",
+        "restoredSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-point-validation-v1.log"
+      },
+      {
+        "name": "memory-package-values",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/claim-observation.ts",
+        "before": "  const stepIds = readMemoryPackageStepsIn(context.catalogue, context.scope, workPackageId).map(\n    ({ id }) => id,\n  );\n",
+        "after": "  const stepIds:string[]=[];\n",
+        "matcher": "current memory.*missing explicit values without point claims",
+        "count": 1,
+        "scope": "Bypassing current package validation hides missing explicit values on a real package with no claims.",
+        "canonicalSha256": "1b8a139205d6565c15f3972d303966590ff18097057f7e24c85ade340eb87fc9",
+        "candidateSha256": "de6dff6df294ca399ef286dd1ed8231e511cd0c3a516f387798c7c4b9db3ffaf",
+        "restoredSha256": "1b8a139205d6565c15f3972d303966590ff18097057f7e24c85ade340eb87fc9",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-package-values-v1.log"
+      },
+      {
+        "name": "sqlite-package-values",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts",
+        "before": "  const stepIds = readCatalogueStepsIn(db, workPackageId).map(({ id }) => id);",
+        "after": "  const stepIds:string[]=[];",
+        "matcher": "current SQLite.*missing explicit values without point claims",
+        "count": 1,
+        "scope": "Bypassing current union validation hides missing explicit values even when claim-point capture is empty.",
+        "canonicalSha256": "6f9fe1bf2e619bd3bc246edc6f569cf8e051075478b5980930c697f8c7ac6449",
+        "candidateSha256": "3bfec00781d2a7586e72e570789ba69e70248acab2bf149a1bd871f9da618b20",
+        "restoredSha256": "6f9fe1bf2e619bd3bc246edc6f569cf8e051075478b5980930c697f8c7ac6449",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-package-values-v1.log"
+      },
+      {
+        "name": "entry-lifetime",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+        "before": "          lifetime.assertOpen();",
+        "after": "          void 0;",
+        "matcher": "current memory.*after Source close",
+        "count": 1,
+        "scope": "Removing invocation admission lets the retained actual public Memory observer answer after Source close.",
+        "canonicalSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "candidateSha256": "2d5f2be7098722ee0973f9d489d53561cd69d06d29f0e59047714fa6b761bdda",
+        "restoredSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-entry-lifetime-v1.log"
+      },
+      {
+        "name": "return-lifetime",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/claim-observation.ts",
+        "before": "          if (lifetime.kind === 'borrowed') lifetime.assertOpen();",
+        "after": "          void 0;",
+        "matcher": "borrowed read returning after its owner settles",
+        "count": 2,
+        "scope": "Removing post-suspension admission lets actual plain and bound SQLite borrowed observations escape after settlement.",
+        "canonicalSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "candidateSha256": "c5ec8f87913b76a6ed4624f60dbfc6e701df8bea49200fd0db66ef592e56b946",
+        "restoredSha256": "32607555877b58bc9b9687b1dd30098beb3360f68c4d2c37185325f4281259c8",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-return-lifetime-v1.log"
+      },
+      {
+        "name": "memory-ordinary",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "before": "claims: guardClaimObservation(borrowed.claims, {\n                  kind: 'borrowed',\n                  assertOpen: assertLoanOpen,\n                }),",
+        "after": "claims: borrowed.claims,",
+        "matcher": "current memory.*expires its (commit|rollback) loan",
+        "count": 2,
+        "scope": "Bypassing this actual Source binding answers the first retained known-package read after its named owner expires; later missing/no-revival assertions are not independently credited.",
+        "canonicalSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "candidateSha256": "7d19d862e4c7fcd6b6664b1267337c6ec9da810b6d8ab971bdf0df358527c50b",
+        "restoredSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-ordinary-v1.log"
+      },
+      {
+        "name": "memory-repair",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "before": "claims: guardClaimObservation(repair.claims, {\n                  kind: 'borrowed',\n                  assertOpen: assertRepairOpen,\n                }),",
+        "after": "claims: repair.claims,",
+        "matcher": "current memory.*expires its repair loan",
+        "count": 1,
+        "scope": "Bypassing this actual Source binding answers the first retained known-package read after its named owner expires; later missing/no-revival assertions are not independently credited.",
+        "canonicalSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "candidateSha256": "d31b202eb3ab64720026f59d7ccbeebdeee3b7150a2e553cc4d2028cc7f58d67",
+        "restoredSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-repair-v1.log"
+      },
+      {
+        "name": "memory-public",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "before": "claims: guardClaimObservation(coordinated.claims, {\n      kind: 'public',\n      assertOpen: assertSourceOpen,\n    }),",
+        "after": "claims: coordinated.claims,",
+        "matcher": "current memory.*after Source close",
+        "count": 1,
+        "scope": "Bypassing this actual Source binding answers the first retained known-package read after its named owner expires; later missing/no-revival assertions are not independently credited.",
+        "canonicalSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "candidateSha256": "718b62ca028175f52233545742f3a4e0ffac619b8ae65685a86c3b6b912e757b",
+        "restoredSha256": "8846af0396975164cfcb4c1a8c3510931ddcc422af6ecf3e83102eccadf1efb6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-public-v1.log"
+      },
+      {
+        "name": "sqlite-plain-ordinary",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "before": "claims: guardClaimObservation(admitted.claims, bindTupleReadLifetime(lifetime)),",
+        "after": "claims: admitted.claims,",
+        "occurrence": 0,
+        "matcher": "current SQLite.*expires its (commit|rollback) loan \\(plain\\)",
+        "count": 2,
+        "scope": "Bypassing only this actual plain/bound Source binding answers the first retained known-package read after the selected ordinary/repair owner expires.",
+        "canonicalSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "candidateSha256": "b38c43a75bd3a37c6e18023447eb2f97065b8e5c7b95d50170fdf1b6a51b7681",
+        "restoredSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-ordinary-v1.log"
+      },
+      {
+        "name": "sqlite-plain-repair",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "before": "claims: guardClaimObservation(admitted.claims, bindTupleReadLifetime(lifetime)),",
+        "after": "claims: admitted.claims,",
+        "occurrence": 1,
+        "matcher": "current SQLite.*expires its repair loan \\(plain\\)",
+        "count": 1,
+        "scope": "Bypassing only this actual plain/bound Source binding answers the first retained known-package read after the selected ordinary/repair owner expires.",
+        "canonicalSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "candidateSha256": "30d1c636d2d45fedaa447585d925ba2b1c64321ad782ecf8bb21c41ca1509d3a",
+        "restoredSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-plain-repair-v1.log"
+      },
+      {
+        "name": "sqlite-bound-ordinary",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "before": "claims: guardClaimObservation(admitted.claims, bindTupleReadLifetime(lifetime)),",
+        "after": "claims: admitted.claims,",
+        "occurrence": 2,
+        "matcher": "current SQLite.*expires its (commit|rollback) loan \\(bound\\)",
+        "count": 2,
+        "scope": "Bypassing only this actual plain/bound Source binding answers the first retained known-package read after the selected ordinary/repair owner expires.",
+        "canonicalSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "candidateSha256": "1344fab54c7e0db89f180a312943378bd61204112cf37869ba24056b9b83d3a3",
+        "restoredSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-ordinary-v1.log"
+      },
+      {
+        "name": "sqlite-bound-repair",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "before": "claims: guardClaimObservation(admitted.claims, bindTupleReadLifetime(lifetime)),",
+        "after": "claims: admitted.claims,",
+        "occurrence": 3,
+        "matcher": "current SQLite.*expires its repair loan \\(bound\\)",
+        "count": 1,
+        "scope": "Bypassing only this actual plain/bound Source binding answers the first retained known-package read after the selected ordinary/repair owner expires.",
+        "canonicalSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "candidateSha256": "269fb1e46bdf4b802bde96d74a85450214ec2e58f747b55b2111397fd35ee748",
+        "restoredSha256": "e5ace867ac7fdecc02258f757a3458a73a33a6634eb85cdb8ca04fb182d57cf6",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-bound-repair-v1.log"
+      },
+      {
+        "name": "owned-snapshot",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/claim.ts",
+        "before": "      return observeCommitted(observation.openConnection, (db) =>\n        observeIn(db, workPackageId, access),\n      );",
+        "after": "      return (()=>{const reader=observation.openConnection();try{return Promise.resolve(observeIn(reader.db,workPackageId,access));}finally{reader.close();}})();",
+        "matcher": "holds one snapshot while another connection commits",
+        "count": 1,
+        "files": ["libs/wbs/adapters/store-sqlite/src/claim-observation.db.test.ts"],
+        "marker": "on no row of this read",
+        "scope": "The actual owned reader without a transaction sees a committed claim after its initial tree read, and public projection refuses it.",
+        "canonicalSha256": "6f9fe1bf2e619bd3bc246edc6f569cf8e051075478b5980930c697f8c7ac6449",
+        "candidateSha256": "70267a2d288b0d9ae9fae8b3b23ac982a269740b51792de51282fe8f973bb4bf",
+        "restoredSha256": "6f9fe1bf2e619bd3bc246edc6f569cf8e051075478b5980930c697f8c7ac6449",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-owned-snapshot-v1.log"
+      },
+      {
+        "name": "memory-values-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+        "before": "fixture.removePackageStepValues(seed.workPackageId)",
+        "after": "2",
+        "matcher": "current memory.*missing explicit values without point claims",
+        "count": 1,
+        "scope": "Prerequisite only: omitted physical value removal fails the actual table absence oracle before production observation.",
+        "canonicalSha256": "a560acf827aa6ed809f93d96f8d920e635bfb2d575f87ee351ae78b37b722eec",
+        "candidateSha256": "ba9df67cc7f36ca368c13343cc1ddfb9ee7769f7e278cf6eacc2436d1e2c8393",
+        "restoredSha256": "a560acf827aa6ed809f93d96f8d920e635bfb2d575f87ee351ae78b37b722eec",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-memory-values-injection-v1.log"
+      },
+      {
+        "name": "sqlite-values-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+        "before": "      source.db.run(sql`DELETE FROM work_package_step WHERE work_package_id=${seed.workPackageId}`);",
+        "after": "      void 0;",
+        "matcher": "current SQLite.*missing explicit values without point claims",
+        "count": 1,
+        "scope": "Prerequisite only: omitted physical value deletion fails the actual absence oracle before production observation.",
+        "canonicalSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "candidateSha256": "131461165c78fc73cae60b55c5f1b008ff3c74f504b64ad0b70fd2e420cf56ad",
+        "restoredSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-injection-v1.log"
+      },
+      {
+        "name": "sqlite-values-constraints",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+        "before": "      source.db.run(sql`PRAGMA foreign_keys=ON`);",
+        "after": "      void 0;",
+        "occurrence": 0,
+        "matcher": "current SQLite.*missing explicit values without point claims",
+        "count": 1,
+        "scope": "Prerequisite only: omitted restoration leaves actual foreign_keys=0 and fails the physical constraint oracle before production observation.",
+        "canonicalSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "candidateSha256": "e7f64addbc6444bf3d2300c06a3fc68a064cb1634115d684075f3aa98a6874ec",
+        "restoredSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-values-constraints-v1.log"
+      },
+      {
+        "name": "sqlite-parent-constraints",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/current-claim-observation.db.test.ts",
+        "before": "      source.db.run(sql`PRAGMA foreign_keys=ON`);",
+        "after": "      void 0;",
+        "occurrence": 1,
+        "matcher": "current SQLite.*missing actual parent",
+        "count": 1,
+        "scope": "Prerequisite only: omitted restoration leaves actual foreign_keys=0 and fails the physical constraint oracle before production observation.",
+        "canonicalSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "candidateSha256": "92c669b8041c018ba1bb48530b31b5cd6ea8e2e365a3d5a3fb16965352b6e537",
+        "restoredSha256": "9f1fa1be17a512011787b5adef885fb67d94b1dac6a7f9c7f493f698c537e02f",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-claims-effect-sqlite-parent-constraints-v1.log"
+      }
+    ],
+    "qualification": "Sixteen production dependency/boundary/ordering effects plus four physical prerequisite controls. Every child settles and reaps before exact restoration. Compound boundaries and first failing loop owners receive only the explicitly named credit; no full catalogue, permission or host proof."
+  },
+  "rejectedRuns": [
+    {
+      "phase": "current-claims-opposing-green-v1",
+      "reason": "Fixture incorrectly passed typeIds to insert instead of writing actual memberships through patch; no order proof reached."
+    },
+    {
+      "phase": "current-claims-opposing-green-v2",
+      "reason": "Literal public key list was not lexically sorted; corrected without changing production."
+    },
+    {
+      "phase": "current-claims-opposing-green-v3",
+      "reason": "Existing creation service returns generated legacy step IDs despite current stored catalogue values. This is a real remaining service bug; claim fixtures now author and create through the actual current Source, without crediting the service as fixed."
+    },
+    {
+      "phase": "current-claims-display-snapshot-v1",
+      "reason": "Older scope fixture stopped at117 and lacks current retirement profile. It now applies real additive118/119 and compares complete ledgers; no profile-check bypass."
+    },
+    {
+      "phase": "current-claims-lifetime-red-v1",
+      "reason": "Seven real lifetime failures plus two test defects: wrong remove signature and parent/project wording. Corrected fixture-only defects; isolated red-v2 still fails the seven lifetime owners."
+    },
+    {
+      "phase": "current-claims-types-v1",
+      "reason": "Compiler exit2 on an obsolete role field in OrganizationScope; removed it and forced all four library roots and backend again."
+    },
+    {
+      "phase": "current-claims-canonical-v1",
+      "reason": "Shared literal expected one leaf although the actual common fixture has two siblings; corrected to both actual leaves. Canonical-v2 passes40assertions."
+    },
+    {
+      "phase": "current-claims-effects-root-v1",
+      "reason": "Effect-runner regex quoting parse error before any production mutation or child fault execution. Rejected source is retained in /tmp/puni-current-claims-effects-v1.rejected.ts; corrected root-v2 qualifies all20 effects."
+    }
+  ],
+  "decisions": [
+    "Required leafSteps map has every actual leaf, including explicit[] zero-step leaves; package union IDs are compatibility metadata only.",
+    "Actual existing package readers validate complete reached current values before point-specific synchronous metadata capture. No legacy Step DTO, inferred binding or async catalogue-port reentry supplies observation metadata.",
+    "Shared point projection validates current leaf applicability and duplicate pairs; nullable claims acquire no point semantics. Existing core row/name checks and SQL admission/snapshot owners are preserved.",
+    "Public claim payload fields, stamps and stored claim rows are preserved. Public snapshots acquired before close may finish; new public acquisition and expired ordinary/repair loans refuse."
+  ],
+  "pending": [
+    "Astra review remains unavailable at the recorded account usage limit; no retry/spawn bypass. Full relevant product/API suites and exact committed host gates are not complete.",
+    "Hosted load and complete CI/host gate duration for the600000 certificate allowance remain unmeasured; the actual private-tree normal-budget certificate passes locally.",
+    "Creation service prepareWorkPackageBirth/createWorkPackage still generates and returns legacy Dev/QA DTOs instead of actual inherited catalogue steps. Repair actual response/creator behavior with tests; current claim fixture port cutover does not fix it.",
+    "HTTP organization claim fixtures still insert legacy step storage and need current Source/catalogue migration; backend compilation passes but does not certify these requests.",
+    "Full SC13/SC17/SC22/SC25, known-package corrupt ancestry/definition/budget boundaries, all entity/settings/API/UI/history/scheduler work, complete client-surface classification/Bun/PUNI installed cutover, Astra and full host/release obligations remain active."
+  ]
+}

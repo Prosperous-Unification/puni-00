@@ -6,8 +6,8 @@ import { rowsChanged } from './changes';
 import type { Gate } from './gate';
 
 /**
- * Drizzle's transaction handle, in a port's signature — which is the one thing
- * left in this file that is not source-agnostic.
+ * The queries needed on an existing caller-owned SQLite transaction. Native
+ * transaction handles and an exclusively owned async outer connection both satisfy it.
  *
  * It survives {@link EventLogStore.recordEventIn} because the optimizer's
  * `storeOptimizedOutcomeAndRecord` writes a solver result and its durable
@@ -17,7 +17,7 @@ import type { Gate } from './gate';
  * {@link EventLogStore.recordEvent}, which takes its own turn; a batch records
  * through the copy on its scope, which is admitted.
  */
-export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+export type EventLogTransaction = Pick<SQLiteBunDatabase, 'run' | 'all' | 'get'>;
 
 /** Adapter-owned event writes on an existing optimizer or offline recovery transaction. */
 export interface EventLogTransactionalWrite {

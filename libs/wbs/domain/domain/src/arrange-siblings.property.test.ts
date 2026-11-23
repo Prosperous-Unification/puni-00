@@ -70,6 +70,7 @@ describe('arranging a plan is a fixed point', () => {
           each.poolSizes ?? new Map(),
           each.reach ?? 'whole-item',
           new Map(),
+          each.typed ?? [],
         );
 
       const typed = reversedWithinGroups(each.rows);
@@ -109,6 +110,7 @@ describe('arranging a plan is a fixed point', () => {
         each.poolSizes ?? new Map(),
         each.reach ?? 'whole-item',
         new Map(),
+        each.typed ?? [],
       );
       return arrangeBySchedule(typed, found.workItems).placements.length > 0;
     });

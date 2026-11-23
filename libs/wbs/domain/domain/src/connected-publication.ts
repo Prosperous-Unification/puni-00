@@ -26,7 +26,7 @@ export class ConnectedStageEvidenceError extends Error {
 
 /** Scoped real scores and the complete component schedule chosen for publication. */
 export interface ConnectedPublicationDecision {
-  readonly scope: { readonly kind: 'connected-stage'; readonly projectId: string };
+  readonly scope: { readonly kind: 'connected-stage'; readonly workPackageId: string };
   readonly chosen: PublicationChoice;
   readonly schedule: Schedule;
   readonly baseline: Schedule;
@@ -41,7 +41,7 @@ function localKeysOf(stage: ConnectedOptimizationStage): Set<string> {
   }
   const keys = new Set<string>();
   for (const slice of stage.input.slices) {
-    if (stage.input.order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId) {
+    if (stage.input.order.workPackageIdByWorkItem.get(slice.workItemId) === stage.workPackageId) {
       keys.add(sliceKey(slice.workItemId, slice.stepId));
     }
   }
@@ -125,7 +125,7 @@ function checkLocalDeadlines(
   const ownRows = stage.input.rows.filter(
     (row) =>
       stage.input.order.kind === 'connected' &&
-      stage.input.order.projectIdByWorkItem.get(row.id) === stage.projectId,
+      stage.input.order.workPackageIdByWorkItem.get(row.id) === stage.workPackageId,
   );
   const deadlines = leafDeadlinesOf(stage.input.deadlines, indexTree(ownRows));
   const positive = workItemIdsWithPositiveDuration(localSlices, localSlices.map(durationOf));
@@ -172,7 +172,7 @@ function scoreLocal(
   const ownRows = stage.input.rows.filter(
     (row) =>
       stage.input.order.kind === 'connected' &&
-      stage.input.order.projectIdByWorkItem.get(row.id) === stage.projectId,
+      stage.input.order.workPackageIdByWorkItem.get(row.id) === stage.workPackageId,
   );
   // Proof: deriving ranks from all component rows made the local PRI fixture
   // score 2.4 instead of 1.2 when a foreign lower-priority leaf was present.
@@ -273,7 +273,7 @@ export function guardConnectedPublication(
   // it chose baseline where the optimized replay must win the tie.
   const worse = optimizedValues[primary] > baselineValues[primary];
   return {
-    scope: { kind: 'connected-stage', projectId: stage.projectId },
+    scope: { kind: 'connected-stage', workPackageId: stage.workPackageId },
     chosen: worse ? 'baseline' : 'optimized',
     schedule: worse ? baseline : optimized,
     baseline,

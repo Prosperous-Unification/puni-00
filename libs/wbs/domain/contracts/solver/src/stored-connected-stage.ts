@@ -4,12 +4,12 @@ import { type } from 'arktype';
 const endpoint = type({
   '+': 'reject',
   scope: "'whole'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
 }).or({
   '+': 'reject',
   scope: "'node' | 'descendant-step'",
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
   stepId: 'string',
 });
@@ -39,19 +39,20 @@ const booking = type({
   '+': 'reject',
   start: 'number',
   end: 'number',
-  projectId: 'string',
+  workPackageId: 'string',
   workItemId: 'string',
 });
 const stageShape = type({
   '+': 'reject',
-  dtoVersion: '1',
+  // Proof: outgoing1 failed 'refuses outgoing stored stage DTO1'.
+  dtoVersion: '2',
   kind: "'connected-stage'",
-  projectId: 'string',
+  workPackageId: 'string',
   mode: "'isolated' | 'shared'",
   originOrdinal: 'number',
-  projects: type({
+  workPackages: type({
     '+': 'reject',
-    projectId: 'string',
+    workPackageId: 'string',
     rank: 'number',
     anchorOrdinal: 'number | null',
   }).array(),
@@ -93,8 +94,8 @@ const stageShape = type({
     order: {
       '+': 'reject',
       kind: "'connected'",
-      projectIdByWorkItem: type(['string', 'string']).array(),
-      rankByProject: pair.array(),
+      workPackageIdByWorkItem: type(['string', 'string']).array(),
+      rankByWorkPackage: pair.array(),
     },
   },
 });
@@ -117,10 +118,10 @@ export function decodeConnectedStage(raw: unknown): ConnectedOptimizationStage {
   const { input } = stored;
   const captured: ConnectedOptimizationStage = {
     kind: stored.kind,
-    projectId: stored.projectId,
+    workPackageId: stored.workPackageId,
     mode: stored.mode,
     originOrdinal: stored.originOrdinal,
-    projects: stored.projects,
+    workPackages: stored.workPackages,
     relationships: stored.relationships,
     starts: restoreMap(stored.starts),
     finishes: restoreMap(stored.finishes),
@@ -133,8 +134,8 @@ export function decodeConnectedStage(raw: unknown): ConnectedOptimizationStage {
       elsewhere: restoreMap(input.elsewhere),
       order: {
         kind: 'connected',
-        projectIdByWorkItem: restoreMap(input.order.projectIdByWorkItem),
-        rankByProject: restoreMap(input.order.rankByProject),
+        workPackageIdByWorkItem: restoreMap(input.order.workPackageIdByWorkItem),
+        rankByWorkPackage: restoreMap(input.order.rankByWorkPackage),
       },
     },
   };
@@ -151,8 +152,9 @@ export function encodeConnectedStage(stage: ConnectedOptimizationStage): StoredC
   const stored = stageShape.assert(
     structuredClone({
       ...stage,
-      dtoVersion: 1,
-      // Proof: restoring relationship spreads rejected real scoped SQLite cache packets in `saved-plan-connected.test.ts` (unknown projectId).
+      // Proof: outgoing1 failed 'writes renamed stored stage DTO2'.
+      dtoVersion: 2,
+      // Proof: restoring relationship spreads rejected real scoped SQLite cache packets in `saved-plan-connected.test.ts` (unknown workPackageId).
       relationships: stage.relationships.map(({ id, type, predecessor, successor }) => ({
         id,
         type,
@@ -178,8 +180,8 @@ export function encodeConnectedStage(stage: ConnectedOptimizationStage): StoredC
         elsewhere: [...input.elsewhere],
         order: {
           kind: 'connected',
-          projectIdByWorkItem: [...stage.input.order.projectIdByWorkItem],
-          rankByProject: [...stage.input.order.rankByProject],
+          workPackageIdByWorkItem: [...stage.input.order.workPackageIdByWorkItem],
+          rankByWorkPackage: [...stage.input.order.rankByWorkPackage],
         },
       },
     }),

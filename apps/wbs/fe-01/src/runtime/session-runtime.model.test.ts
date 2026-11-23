@@ -4,24 +4,24 @@ import { describe, expect, it } from 'vitest';
 import type { DirectoryApi, PersonView } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import type { DirectorySnapshot } from '@/modules/directory-management/contract';
-import type { ProjectRuntime } from '@/modules/project/contract';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import type { WorkPackageRuntime } from '@/modules/work-package/contract';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
-import { installProjectRuntime } from './project-runtime';
 import {
   createSessionOwner,
   installSessionRuntime,
   type SessionOwner,
   type SessionRuntime,
 } from './session-runtime';
+import { installWorkPackageRuntime } from './work-package-runtime';
 
-/** One project runtime a session built, and how often it was given back. */
-interface BuiltProject {
+/** One work package runtime a session built, and how often it was given back. */
+interface BuiltWorkPackage {
   readonly name: string;
-  readonly runtime: ProjectRuntime;
+  readonly runtime: WorkPackageRuntime;
   closes: number;
 }
 
@@ -47,7 +47,7 @@ interface Built {
   initial: DirectorySnapshot | null;
   /** What it held at the instant it was withdrawn, or `null` while it has not been. */
   frozen: DirectorySnapshot | null;
-  readonly projects: BuiltProject[];
+  readonly workPackages: BuiltWorkPackage[];
   /** Whether its installation acquires everything and then fails as a partial acquisition. */
   readonly broken: boolean;
   /** How often it was installed, and how often a failed installation was released. */
@@ -66,8 +66,8 @@ const COMMAND_KINDS: readonly string[] = [
   'drain',
   'read',
   'gesture',
-  'openProject',
-  'leaveProject',
+  'openWorkPackage',
+  'leaveWorkPackage',
   'signInBroken',
   'reenter',
 ];
@@ -75,8 +75,8 @@ const reached = {
   answerLandedAfterWithdrawal: 0,
   readByWithdrawn: 0,
   gestureByWithdrawn: 0,
-  projectOpenedUnderWithdrawn: 0,
-  projectCurrentAtWithdrawal: 0,
+  workPackageOpenedUnderWithdrawn: 0,
+  workPackageCurrentAtWithdrawal: 0,
   sameUserAgain: 0,
   switchedWhileLive: 0,
   leftWhileNothingCurrent: 0,
@@ -103,7 +103,7 @@ interface SessionWorld {
   readonly byClient: Map<DirectoryApi, Built>;
   readonly inflight: Promise<unknown>[];
   next: number;
-  projectsBuilt: number;
+  workPackagesBuilt: number;
 }
 
 /** The credential the model hands a sign-in whose installation it makes fail. */
@@ -123,7 +123,7 @@ function clientFor(world: SessionWorld, credential: string): DirectoryApi {
     closed: false,
     initial: null,
     frozen: null,
-    projects: [],
+    workPackages: [],
     broken: credential === BROKEN,
     installs: 0,
     releases: 0,
@@ -163,8 +163,8 @@ function freezeTheCurrent(world: SessionWorld): void {
     const runtime = record.runtime;
     if (runtime?.isCurrent() !== true) continue;
     record.frozen = runtime.directory.snapshot();
-    if (record.projects.some((project) => project.runtime.isCurrent())) {
-      reached.projectCurrentAtWithdrawal += 1;
+    if (record.workPackages.some((workPackage) => workPackage.runtime.isCurrent())) {
+      reached.workPackageCurrentAtWithdrawal += 1;
     }
   }
 }
@@ -197,11 +197,11 @@ function assertOwnership(world: SessionWorld, model: SessionModel, what: string)
   for (const record of world.built) {
     const runtime = record.runtime;
     if (runtime === null) continue;
-    for (const project of record.projects) {
-      if (!project.runtime.isCurrent()) continue;
+    for (const workPackage of record.workPackages) {
+      if (!workPackage.runtime.isCurrent()) continue;
       expect(
         runtime.isCurrent(),
-        `${what}: ${project.name} is current while its session ${record.name} is not`,
+        `${what}: ${workPackage.name} is current while its session ${record.name} is not`,
       ).toBe(true);
     }
     if (runtime.isCurrent()) continue;
@@ -213,18 +213,18 @@ function assertOwnership(world: SessionWorld, model: SessionModel, what: string)
   }
 }
 
-/** After a withdrawal: nothing of any session, or of any of its projects, is current. */
+/** After a withdrawal: nothing of any session, or of any of its work packages, is current. */
 function assertWithdrawn(world: SessionWorld, what: string): void {
   expect(
     currentOf(world).map((record) => record.name),
     `${what}: a session is still current after withdrawal`,
   ).toEqual([]);
-  const projects = world.built.flatMap((record) =>
-    record.projects.filter((project) => project.runtime.isCurrent()),
+  const workPackages = world.built.flatMap((record) =>
+    record.workPackages.filter((workPackage) => workPackage.runtime.isCurrent()),
   );
   expect(
-    projects.map((project) => project.name),
-    `${what}: a project is still current after its session was withdrawn`,
+    workPackages.map((workPackage) => workPackage.name),
+    `${what}: a work package is still current after its session was withdrawn`,
   ).toEqual([]);
 }
 
@@ -461,47 +461,47 @@ class Gesture implements SessionCommand {
   }
 }
 
-/** A project page that kept a session's project owner, and opens a project through it now. */
-class OpenProject implements SessionCommand {
+/** A work package page that kept a session's work package owner, and opens a work package through it now. */
+class OpenWorkPackage implements SessionCommand {
   constructor(
     readonly index: number,
-    readonly projectId: string,
+    readonly workPackageId: string,
   ) {}
   check(): boolean {
     return true;
   }
   async run(model: SessionModel, world: SessionWorld): Promise<void> {
-    note('openProject');
+    note('openWorkPackage');
     const record = pick(world, this.index);
     const runtime = record?.runtime ?? null;
     if (record === null || runtime === null) return;
-    if (!runtime.isCurrent()) reached.projectOpenedUnderWithdrawn += 1;
-    world.inflight.push(runtime.projects.open(this.projectId));
+    if (!runtime.isCurrent()) reached.workPackageOpenedUnderWithdrawn += 1;
+    world.inflight.push(runtime.workPackages.open(this.workPackageId));
     await Promise.resolve();
-    assertOwnership(world, model, `openProject(${record.name}, ${this.projectId})`);
+    assertOwnership(world, model, `openWorkPackage(${record.name}, ${this.workPackageId})`);
   }
   toString(): string {
-    return `openProject(${String(this.index)}, ${this.projectId})`;
+    return `openWorkPackage(${String(this.index)}, ${this.workPackageId})`;
   }
 }
 
-/** A project page that goes: its effect leaves the session's project. */
-class LeaveProject implements SessionCommand {
+/** A work package page that goes: its effect leaves the session's work package. */
+class LeaveWorkPackage implements SessionCommand {
   constructor(readonly index: number) {}
   check(): boolean {
     return true;
   }
   async run(model: SessionModel, world: SessionWorld): Promise<void> {
-    note('leaveProject');
+    note('leaveWorkPackage');
     const record = pick(world, this.index);
     const runtime = record?.runtime ?? null;
     if (record === null || runtime === null) return;
-    world.inflight.push(runtime.projects.leave());
+    world.inflight.push(runtime.workPackages.leave());
     await Promise.resolve();
-    assertOwnership(world, model, `leaveProject(${record.name})`);
+    assertOwnership(world, model, `leaveWorkPackage(${record.name})`);
   }
   toString(): string {
-    return `leaveProject(${String(this.index)})`;
+    return `leaveWorkPackage(${String(this.index)})`;
   }
 }
 
@@ -518,8 +518,8 @@ const commandsArb = fc.commands<SessionModel, SessionWorld, false>(
     fc.nat(6).map((index) => new Gesture(index)),
     fc
       .tuple(fc.nat(6), fc.constantFrom('p1', 'p2'))
-      .map(([index, projectId]) => new OpenProject(index, projectId)),
-    fc.nat(6).map((index) => new LeaveProject(index)),
+      .map(([index, workPackageId]) => new OpenWorkPackage(index, workPackageId)),
+    fc.nat(6).map((index) => new LeaveWorkPackage(index)),
     fc.constantFrom('u1', 'u2').map((userId) => new SignInBroken(userId)),
     fc.constantFrom('u1', 'u2').map((userId) => new ReenterFromListener(userId)),
   ],
@@ -533,7 +533,7 @@ const commandsArb = fc.commands<SessionModel, SessionWorld, false>(
  * `docs/superpowers/plans/2026-09-21-batch-6/050-7-i-session-runtime.md`.
  */
 describe('the session owner, against a reference model', () => {
-  it('keys one runtime by user, and nothing of a withdrawn one — nor its project — reaches anybody', async () => {
+  it('keys one runtime by user, and nothing of a withdrawn one — nor its work package — reaches anybody', async () => {
     expect(fc.__version, 'the pinned counterexamples were recorded under 4.9.0').toBe('4.9.0');
 
     await fc.assert(
@@ -547,8 +547,8 @@ describe('the session owner, against a reference model', () => {
         const world: SessionWorld = {
           owner: createSessionOwner({
             clientFor: (credential) => clientFor(world, credential),
-            // Project reads answer at once, as the fresh client of every project source did.
-            projectClientFor: () => fakeProjectApi(),
+            // Work package reads answer at once, as the fresh client of every work package source did.
+            workPackageClientFor: () => fakeWorkPackageApi(),
             // Proof: without this line (2026-09-27) `nx run wbs-fe-01:test:unit` exited 1
             // with 29 unhandled `ReferenceError`s for the page's address from this file.
             streamDeps: SILENT_STREAM,
@@ -559,22 +559,22 @@ describe('the session owner, against a reference model', () => {
               record.installs += 1;
               const installed = installSessionRuntime({
                 ...dependencies,
-                // The session's own wiring wraps this, so the project runtimes it
+                // The session's own wiring wraps this, so the work package runtimes it
                 // builds are the real ones, attributed to the session that built them.
-                installProject: (projectDependencies) => {
-                  world.projectsBuilt += 1;
-                  const project = installProjectRuntime(projectDependencies);
-                  const built: BuiltProject = {
-                    name: `${record.name}.p${String(world.projectsBuilt)}`,
-                    runtime: project.services,
+                installWorkPackage: (workPackageDependencies) => {
+                  world.workPackagesBuilt += 1;
+                  const workPackage = installWorkPackageRuntime(workPackageDependencies);
+                  const built: BuiltWorkPackage = {
+                    name: `${record.name}.p${String(world.workPackagesBuilt)}`,
+                    runtime: workPackage.services,
                     closes: 0,
                   };
-                  record.projects.push(built);
+                  record.workPackages.push(built);
                   return {
-                    services: project.services,
+                    services: workPackage.services,
                     close: async (options) => {
                       built.closes += 1;
-                      await project.close(options);
+                      await workPackage.close(options);
                     },
                   };
                 },
@@ -596,7 +596,7 @@ describe('the session owner, against a reference model', () => {
               // The real close, reached when the scheduler says: a retirement that
               // takes time is what opens the interval between withdrawal and
               // disposal, in which a late answer, a captured read or a gesture, or a
-              // page's late project, can still arrive.
+              // page's late work package, can still arrive.
               return {
                 services: installed.services,
                 close: async (options) => {
@@ -613,7 +613,7 @@ describe('the session owner, against a reference model', () => {
           byClient: new Map(),
           inflight: [],
           next: 0,
-          projectsBuilt: 0,
+          workPackagesBuilt: 0,
         };
         let failure: Error | null = null;
         try {
@@ -678,13 +678,13 @@ describe('the session owner, against a reference model', () => {
             ).toBe(isLive ? 0 : 1);
             if (isLive) continue;
             expect(
-              record.runtime.projects.snapshot().status,
-              `teardown: ${record.name} was retired while its project owner still held one`,
+              record.runtime.workPackages.snapshot().status,
+              `teardown: ${record.name} was retired while its work package owner still held one`,
             ).not.toBe('live');
-            for (const project of record.projects) {
+            for (const workPackage of record.workPackages) {
               expect(
-                project.closes,
-                `teardown: ${project.name} of retired ${record.name} was given back ${String(project.closes)} times`,
+                workPackage.closes,
+                `teardown: ${workPackage.name} of retired ${record.name} was given back ${String(workPackage.closes)} times`,
               ).toBe(1);
             }
           }

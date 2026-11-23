@@ -1,0 +1,744 @@
+{
+  "schema": "puni-current-organization-space-verification-v1",
+  "recordedAt": "2026-11-21T04:05:11.292Z",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v98.json",
+    "sha256": "438a32a2213fd4ad8ba466377aa21d26140f2348f0a4da211ed7ef7aa784268a",
+    "bytes": 10045,
+    "mode": 384
+  },
+  "before": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-before-v1.json",
+      "sha256": "f2bf30d82ef2a97d49b033806ab3684b5e1f1b87e20f5ad6fd49d8a2f6528e65",
+      "bytes": 30749,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/entity-space-before-v1.json",
+      "sha256": "15bf5c8e390cad7b6b0e6ebcfc6f1f87f600c69ba8b21f94cccfae125cda4ebc",
+      "bytes": 32710,
+      "mode": 384
+    }
+  ],
+  "changes": [
+    {
+      "relative": "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+      "previous": {
+        "sha256": "8b3cb6eb0ff1be007ec3cf71339a5405c15e26b60e634a3d7199c0165b2ff271",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+        "sha256": "8a540adb32dcd7b1bc1715d75136d83336f6035fe31cd3e5ab2cd6dc2e02f486",
+        "bytes": 22591,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+      "previous": {
+        "sha256": "03ed45fffdb7dc693a150c906cd4fb4530247cea6a476a3c87624842ba2f9e28",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+        "sha256": "e337433e3eca4c4dd2baa2add3189915dad252d038afe364169b6f8bcecd1486",
+        "bytes": 23903,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+      "previous": {
+        "sha256": "d9b2321502e9336fa7be23c8f33a64f1fa0539f2aa0ab2a85060a44e7e303ac4",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/space-shapes.ts",
+        "sha256": "339bc07e3e2a0b8fc921fa2be6387c00cee089c9941e9a231691115ab353443f",
+        "bytes": 11365,
+        "mode": 436
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "entity-organization-baseline-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:41:19.276Z",
+      "endedAt": "2026-11-21T03:41:37.262Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-baseline-v1.receipt.json",
+        "sha256": "c8076a8962fe7d55404a0a8b32ed48b9e802c1367bf78952ee4ae1b5b054920d",
+        "bytes": 1398,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-baseline-v1.log",
+        "sha256": "62a3da58f8df514d155aa0e0ea24cb460cb143b1ffd1262befc60363236815b6",
+        "bytes": 19440,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-organization-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:44:00.036Z",
+      "endedAt": "2026-11-21T03:44:00.287Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-format-v1.receipt.json",
+        "sha256": "8982d6a7da7dd7a408fab66cd7247367a55e55f9126d4399ee19da6c1806230c",
+        "bytes": 1377,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-format-v1.log",
+        "sha256": "077a5842942b23879de46e535567b5ece2f9c8f4002c9d8ecdca991529ee7cb8",
+        "bytes": 84,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-organization-current-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:44:14.946Z",
+      "endedAt": "2026-11-21T03:44:42.271Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-current-v1.receipt.json",
+        "sha256": "2ac80d174c4889deb46564f6a2e9b64c0f6d56be84a87e5f6fd82f74bb4523ae",
+        "bytes": 1396,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-organization-current-v1.log",
+        "sha256": "201382d7edd0b38b1a63cebb4fe2cafe38fcc6b43cf236bcecb5d50bae8c8fd3",
+        "bytes": 13864,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-space-baseline-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:46:19.002Z",
+      "endedAt": "2026-11-21T03:46:33.373Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-baseline-v1.receipt.json",
+        "sha256": "cd2fed958b84e0a30cf632601dd19d01dfb6fce800108e3477e539e80fdc178a",
+        "bytes": 1377,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-baseline-v1.log",
+        "sha256": "c816d6aecf0592fb2b4d0fe910d14a7ccf8886b1249c32859c20c73dec7ede5c",
+        "bytes": 10789,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-space-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:49:30.838Z",
+      "endedAt": "2026-11-21T03:49:31.122Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-format-v1.receipt.json",
+        "sha256": "9cc9053ffe8faf3b0c235f8201e9b727ba8496005d5a8c07ffd5e1d98257c1d5",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-format-v1.log",
+        "sha256": "13cdcc7ee46d82e964f829af6363e54b434a427040167341b50401c6d0c57bb0",
+        "bytes": 145,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-space-current-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:49:44.960Z",
+      "endedAt": "2026-11-21T03:50:00.783Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-current-v1.receipt.json",
+        "sha256": "4433faac7bb8ffdf9349ae93041c6201eefc3fe40abf59a1c6210f24eab069f6",
+        "bytes": 1374,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-space-current-v1.log",
+        "sha256": "db790878360c8c2862793a3633bb1bf31da3e23bce3f6675c2a0e4e071a9034e",
+        "bytes": 1613,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-destructive-delete-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "--test-name-pattern",
+          "removes only space membership",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:58:06.569Z",
+      "endedAt": "2026-11-21T03:58:11.193Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-destructive-delete-v1.receipt.json",
+        "sha256": "fbf153ae61b7b22f25d27543028a048f6afe3774b6f944da14afe8608c29de90",
+        "bytes": 1484,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-destructive-delete-v1.log",
+        "sha256": "0094f9a2c0594dc04e49b787869f6ae9f6e1dc57e9591d171e171995f53fb450",
+        "bytes": 4377,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-membership-fault-missing-refresh-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "--test-name-pattern",
+          "removes only space membership",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:58:12.899Z",
+      "endedAt": "2026-11-21T03:58:17.491Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-missing-refresh-v1.receipt.json",
+        "sha256": "7081a486bce63aaf16d73231c9847962db98f229fc1eb0f76bfe4ed2a8e987c0",
+        "bytes": 1477,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-membership-fault-missing-refresh-v1.log",
+        "sha256": "8921d084334dbd68cfef79ae84813e0f4ae62ec7265bcebb1625411be0cc2ff8",
+        "bytes": 865,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-format-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:59:09.539Z",
+      "endedAt": "2026-11-21T03:59:09.909Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-format-v2.receipt.json",
+        "sha256": "cdfd390dd4698c75ede85d4fc69cea532a9d1a2425ff750c08ae8fb765178a42",
+        "bytes": 1512,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-format-v2.log",
+        "sha256": "a6b56ac769cea240f49f99ef385872a6837f46e7a60128fc91a43424e8576183",
+        "bytes": 252,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-mcp-generate-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+          "apps/wbs/mcp-01/src/openapi.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:59:21.933Z",
+      "endedAt": "2026-11-21T03:59:25.158Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-mcp-generate-v1.receipt.json",
+        "sha256": "1942644f8aac29baa4e663ac29bfb930359086dd965321d0de738cb93b10c14f",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-mcp-generate-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-types-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-entity-ownership-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:59:23.196Z",
+      "endedAt": "2026-11-21T03:59:30.480Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-types-v1.receipt.json",
+        "sha256": "377b5d24df3dc1120ffad5b37ef107404da3b96c0dc039749f406d33612ed69d",
+        "bytes": 1336,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-types-v1.log",
+        "sha256": "fa6238232086be0d0d52a7496c3cf5f1cf280a3f7155f4510d73aa4e320cf45f",
+        "bytes": 340,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-lint-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:59:23.194Z",
+      "endedAt": "2026-11-21T03:59:29.616Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-lint-v1.receipt.json",
+        "sha256": "6270dd7b94d470bc0f6b21a36337e3142ec346674178d6cfd8ca30198a0e72e5",
+        "bytes": 1484,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-full-api-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-move.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-global-step-catalogue.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-package-step-values.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:59:43.372Z",
+      "endedAt": "2026-11-21T04:02:07.747Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-full-api-v1.receipt.json",
+        "sha256": "c69b2bec7e6ab1dc4457255f48dba5f9d9d671a2136a6f579fb464ebe179de24",
+        "bytes": 2120,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-full-api-v1.log",
+        "sha256": "648d7f360345cff8d6be6cd7d6bdb8220d3185e4711226246d83d29955569537",
+        "bytes": 52638,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-contracts-mcp-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts",
+          "./apps/wbs/be-01/src/openapi/openapi-document.test.ts",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:59:44.509Z",
+      "endedAt": "2026-11-21T03:59:51.311Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-contracts-mcp-v1.receipt.json",
+        "sha256": "b5c9c9a8aed8fa31611e7f418d68a43c136831e9c3f8afcbde2672c5037624f3",
+        "bytes": 1475,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-contracts-mcp-v1.log",
+        "sha256": "8e6497ee8c32e0e64c834474f78a95a9d1246fd2bd2a1b44150ea6764e23b344",
+        "bytes": 6183,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-source-audit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v38.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T04:00:10.791Z",
+      "endedAt": "2026-11-21T04:00:16.014Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-source-audit-v1.receipt.json",
+        "sha256": "c5bfb577017eef72fc8e17c22e988de979ece1832eb5aff50a5dea149758d1e7",
+        "bytes": 1287,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-source-audit-v1.log",
+        "sha256": "c43282c958581bf85851fa857d82de7596f413b0108b51ade186968cfd8c76c7",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T04:02:38.173Z",
+      "endedAt": "2026-11-21T04:03:20.643Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-final-v2.receipt.json",
+        "sha256": "e301d0a46cd692c2ce53d54e35d72cf7bed0e0adc589fe64cd00512d1f27fa4d",
+        "bytes": 1468,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-final-v2.log",
+        "sha256": "2c35302a810169f6a082e62b68b3b81272f1e63e8836705eea307b71e19069ed",
+        "bytes": 15373,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-types-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-entity-ownership-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T04:02:39.436Z",
+      "endedAt": "2026-11-21T04:02:47.175Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-types-final-v2.receipt.json",
+        "sha256": "547e0786bb2b1fb71260c27e593a254edc9216cf52cdf95b531c3a0d0efd6921",
+        "bytes": 1346,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-types-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-lint-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T04:02:39.432Z",
+      "endedAt": "2026-11-21T04:02:45.530Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-lint-final-v2.receipt.json",
+        "sha256": "07e39651762660f28705f4ffe0ae86af095f7cfb401608c41d94a9970c0c2288",
+        "bytes": 1496,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-lint-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-ownership-source-audit-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v39.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T04:02:39.397Z",
+      "endedAt": "2026-11-21T04:02:46.643Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-source-audit-final-v2.receipt.json",
+        "sha256": "a6f580232e4ebabe7fbdea59572b4c2ca3ec103512aa4f2cf5b0a3801766c0a7",
+        "bytes": 1299,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-ownership-source-audit-final-v2.log",
+        "sha256": "c3ab3beef543dd4e185016cd9ea60f563603a3b5c253386141937e7c2a04df3f",
+        "bytes": 275,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "organizationBaseline": {
+      "pass": 3,
+      "fail": 16,
+      "assertions": 7,
+      "tests": 19,
+      "files": 1,
+      "assertionReporting": "printed"
+    },
+    "spaceBaseline": {
+      "pass": 0,
+      "fail": 13,
+      "assertions": null,
+      "tests": 13,
+      "files": 1,
+      "assertionReporting": "Bun omitted the count; all13baseline cases failed in setup before their assertions"
+    },
+    "selected": {
+      "pass": 32,
+      "fail": 0,
+      "assertions": 264,
+      "tests": 32,
+      "files": 2,
+      "assertionReporting": "printed"
+    },
+    "broad": {
+      "pass": 176,
+      "fail": 5,
+      "assertions": 2898,
+      "tests": 181,
+      "files": 10,
+      "assertionReporting": "printed"
+    },
+    "contracts": {
+      "pass": 48,
+      "fail": 0,
+      "assertions": 470,
+      "tests": 48,
+      "files": 3,
+      "assertionReporting": "printed"
+    },
+    "compilerEntries": 308,
+    "lintFiles": 3,
+    "sourceAuditFiles": 6088,
+    "contractsShapeLoadMb": 376,
+    "contractsShapeLoadLimitMb": 500
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v39.json",
+    "sha256": "28f5c6c65a58bb4e0e3fdc307c988c87fef6c773563c4e2cf2c9a94c74a0ade6",
+    "bytes": 1874254,
+    "mode": 384
+  },
+  "proof": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-membership-faults-v1.state.json",
+    "sha256": "060694e188ac5410d7de09e6a2d076136e2995ca7f961ff3d8c2f913d96091b8",
+    "bytes": 1774,
+    "mode": 384
+  },
+  "behavior": [
+    "All19 organization cases retain actual Source-owned creation, missing/foreign concealment, role/cap membership checks, recovery, native retry rollback and malformed grant refusal. Current parents are born through real project routes; preactivation cases use an explicit coherent legacy organization/project arrangement.",
+    "The retry fixture explicitly defines/binds its current catalogue step, then authors its leaf and estimate through the mounted command batch. Original failed optimization-cache arrangement remains an admission fixture, not a new solver execution certificate.",
+    "Actual project/package/grant creation audits are retained and snapshotted. Refusals and native retry failure add none; the legitimate foreign birth gets its own baseline. Restricted recovery preserves creator audit metadata and every grant, appending exactly its recovery audit.",
+    "All13 space cases use real project membership. Each configured package is born under an actual project and owns explicit organization catalogue values. Original order, viewer/foreign/virtual refusals, totals, date invalidation, WIP and query limits remain.",
+    "Detaching a project preserves package values, work items and estimates; advances the child context revision and publishes exactly one current settings refresh. Real persisted event history and sequencer prefixes remain unchanged before that appended refresh.",
+    "Without a legacy organization, preactivation all is lawfully empty and named spaces refuse organization_required. A separate coherent legacy organization/project case retains positive nonempty all and named-space membership coverage.",
+    "Space descriptors now describe project membership and the actual workPackageIds roll-up query. The existing emitter regenerated the ignored same-checkout MCP document; no endpoint identity or count changed."
+  ],
+  "negatives": [
+    {
+      "fault": "destructive-delete",
+      "observation": "Replacing the actual project detach UPDATE with DELETE reaches the real FK refusal. The mounted operation becomes500 instead of204. This first failing status does not separately certify later graph assertions."
+    },
+    {
+      "fault": "missing-refresh",
+      "observation": "Omitting changedProject publication keeps the lawful revision and facts, then fails the expected appended event count. Both runtime source files and modes are restored exactly before final positive controls."
+    }
+  ],
+  "intermediateFailure": "The first compiler run exposed a typed matcher comparing unknown[] before-events with typed after-events. The before query now carries the same message contract; this annotation is erased at runtime. Final308-entry compiler, three-file lint, full audit and32-case after-control pass.",
+  "generatedMcpDocument": {
+    "previous": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "2905c4d2d5ad1e5ab9cf07d63bdbaf799ef1f0b53c01d8f717a5faa75c16f95f",
+      "bytes": 4590275,
+      "mode": 436
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "527e97a57e87a7e8ec93ebe394d6f6b59526296a398ddf6b23dfdc832617a2ee",
+      "bytes": 4590260,
+      "mode": 436
+    },
+    "emitter": "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+    "qualification": "Ignored generated artifact; runtime still reads it without importing validators or generating missing artifacts."
+  },
+  "remainingMemoryHttpCases": {
+    "path": "apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+    "cases": [
+      "(fail) work_packages > refuses a JSON export while a step is uncoded, naming it and the backfill",
+      "(fail) work_packages > exports the referenced directory closure and authored calendar markers",
+      "(fail) work_packages > creates a work package under the explicit parent, holding Dev and QA",
+      "(fail) work_packages > answers a read with what it carried before, and no owner name",
+      "(fail) exports captured deadline fields without undo flags or a late mutable tree"
+    ],
+    "qualification": "All five remain present and failed in the actual ten-file run. The uncoded-history expectation remains a required safety investigation, not accepted as an obsolete guarantee. Other cases need explicit current catalogue setup/empty defaults and deliberate export projection."
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "limits": [
+    "Full catalogue/entity goal remains active. No parent task closes from this fixture migration. Broad ten-file API cohort is176/5; final two-file cohort32/0 and contracts48/0 do not prove a full product gate.",
+    "Existing15 historical guarantees, SC1-25 and13-family Source/writer/lifetime coverage remain open as aggregates. Existing core2124/0 and Memory793/0 evidence is unchanged and not a fresh rerun.",
+    "Actual people/service-team space add/remove/list routes and project-folded UI/roll-ups remain required by work-packages task4.6; these13 cases certify project membership and flattened package reads, not that full surface.",
+    "Full PUNI aliases, installed/toolchain checks and complete Bun client-script inventory, browser/build/secrets/migration gates and exact-SHA host gate remain required.",
+    "Astra remains unavailable until recorded2026-11-22 10:09AM, timezone unspecified; no retry/substitute/new agent. Earlier empty SQLite certificate receipt custody remains unresolved and no actor was restarted.",
+    "No public commit/push/PR/merge/deploy/install/activation. Original worktrees/dependencies/protected archive remain unchanged. Only the two named controlled runtime faults ran, both restored."
+  ],
+  "goalStatus": "active"
+}

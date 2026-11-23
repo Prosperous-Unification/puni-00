@@ -4,9 +4,10 @@ export type {
   CapturedDependency,
   CapturedNamedValue,
   CapturedPerson,
-  CapturedProject,
   CapturedStep,
   CapturedTeam,
   CapturedWorkItem,
+  CapturedWorkPackage,
   PlanInputReads,
+  ResolvedPlanInputReads,
 } from '@wbs/domain';

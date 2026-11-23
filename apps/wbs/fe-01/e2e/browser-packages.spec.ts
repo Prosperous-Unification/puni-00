@@ -1,7 +1,6 @@
-import { expect, test } from '@playwright/test';
-
 import type { BrowserPackagesProof } from './browser-packages-probe';
 import { buildBrowserProbeBundle } from './browser-probe-bundle';
+import { expect, test } from './ordinary-test';
 
 /**
  * An origin nothing serves, fulfilled by the route below.

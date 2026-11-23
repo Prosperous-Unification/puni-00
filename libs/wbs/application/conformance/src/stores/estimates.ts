@@ -38,17 +38,19 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
             seed.stamps[0],
           );
         }
-        const complete = await port.listByProject(seed.projectIds[0]);
+        const complete = await port.listByWorkPackage(seed.workPackageIds[0]);
         expect(
-          (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+          (await port.listByWorkItems(seed.workPackageIds[0], [targetId])).map(
+            ({ stepId }) => stepId,
+          ),
         ).toEqual([firstStep, secondStep]);
-        const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
-        // Proof: validating ownership before project filtering made the memory
-        // adapter throw for this valid project-B estimate instead of returning [].
+        const foreign = await port.listByWorkItems(seed.workPackageIds[0], [foreignId]);
+        // Proof: validating ownership before work package filtering made the memory
+        // adapter throw for this valid work-package-B estimate instead of returning [].
         expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
         expect(foreign).toEqual([]);
         const mixedCase = await port.listByWorkItems(
-          seed.projectIds[0],
+          seed.workPackageIds[0],
           TARGETED_ORDER_WORK_ITEM_IDS,
         );
         // Proof: SQLite's old localeCompare post-sort returned work-a before
@@ -58,7 +60,7 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
             TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
           ),
         );
-        expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+        expect(await port.listByWorkItems(seed.workPackageIds[0], [])).toEqual([]);
       },
     ),
     storeCase(
@@ -76,23 +78,27 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
         );
         const groups = [
           ...new Set(
-            (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+            (await port.listByWorkPackage(seed.workPackageIds[0])).map(
+              ({ workItemId }) => workItemId,
+            ),
           ),
         ];
         expect(
-          await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId]),
+          await port.listPlacements(seed.workPackageIds[0], [secondId, 'missing', firstId]),
         ).toEqual(
           groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
         );
-        expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
-        expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+        expect(await port.listPlacements(seed.workPackageIds[0], [seed.workItemIds[1][0]])).toEqual(
+          [],
+        );
+        expect(await port.listPlacements(seed.workPackageIds[0], [])).toEqual([]);
       },
     ),
     storeCase('estimates', 'estimates.set', open, async ({ port, seed }) => {
       const workItemId = seed.workItemIds[0][0];
       const stepId = seed.stepIds[0][0];
       expect(await port.set({ workItemId, stepId, ...DAYS }, seed.stamps[0])).toBe('written');
-      const held = await port.listByProject(seed.projectIds[0]);
+      const held = await port.listByWorkPackage(seed.workPackageIds[0]);
       expect(held.map((estimate) => estimate.workItemId)).toEqual([workItemId]);
       // Proof: `reinjects the existing add, rename, estimate, remove, range, and prune faults`
       // ran `break:estimates.set`; this failed on `Expected: 2 · Received: 3`.
@@ -106,7 +112,7 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
         { workItemId, stepId, optimistic: 5, realistic: 6, pessimistic: 7 },
         seed.stamps[1],
       );
-      const held = await port.listByProject(seed.projectIds[0]);
+      const held = await port.listByWorkPackage(seed.workPackageIds[0]);
       expect(held).toHaveLength(1);
       expect(held.at(0)?.realistic).toBe(6);
     }),
@@ -125,7 +131,7 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
       await port.set({ workItemId: kept, stepId, ...DAYS }, seed.stamps[0]);
       await port.set({ workItemId: removed, stepId, ...DAYS }, seed.stamps[0]);
       await port.remove(removed, stepId, seed.stamps[1]);
-      const held = await port.listByProject(seed.projectIds[0]);
+      const held = await port.listByWorkPackage(seed.workPackageIds[0]);
       // Proof: `reinjects the existing add, rename, estimate, remove, range, and prune faults`
       // ran `break:estimates.remove`; this failed with the received IDs containing
       // the extra `work-a-two`.
@@ -153,11 +159,11 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
         seed.stamps[1],
       );
 
-      expect(await readers.estimates.listByProject(seed.projectIds[0])).toEqual([
+      expect(await readers.estimates.listByWorkPackage(seed.workPackageIds[0])).toEqual([
         { workItemId: sourceId, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 4 },
         { workItemId: sourceId, stepId: qaId, optimistic: 3, realistic: 5, pessimistic: 8 },
       ]);
-      expect(await readers.estimates.listByProject(seed.projectIds[1])).toEqual([
+      expect(await readers.estimates.listByWorkPackage(seed.workPackageIds[1])).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -169,11 +175,11 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
 
       await port.moveAll(sourceId, targetId, seed.stamps[1]);
 
-      expect(await readers.estimates.listByProject(seed.projectIds[0])).toEqual([
+      expect(await readers.estimates.listByWorkPackage(seed.workPackageIds[0])).toEqual([
         { workItemId: targetId, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 4 },
         { workItemId: targetId, stepId: qaId, optimistic: 3, realistic: 5, pessimistic: 8 },
       ]);
-      expect(await readers.estimates.listByProject(seed.projectIds[1])).toEqual([
+      expect(await readers.estimates.listByWorkPackage(seed.workPackageIds[1])).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],

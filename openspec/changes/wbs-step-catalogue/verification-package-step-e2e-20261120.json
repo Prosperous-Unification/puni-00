@@ -1,0 +1,598 @@
+{
+  "schema": "puni-package-step-e2e-retirement-verification-v1",
+  "recordedAt": "2026-11-20T03:59:06.568Z",
+  "scope": "Nine existing E2E consumers plus a new catalogue fixture, global setup and the standalone ordinary database bootstrap. No production step/history/schema or CLI implementation changed.",
+  "assumptions": [
+    "Dev/QA are explicit fixture definitions with real project bindings, not production defaults.",
+    "Custom recipes and rendering fixtures create actual projects and bind the chosen steps before package birth. Rendering creates through validated public API shapes, selects the returned package ID in the real picker and unmounts the observer before batched writes. Existing UI create/rename-arm coverage remains in create-work-package callers.",
+    "Package responses keep compatible optional code/unit/allowancePercent fields. Only the current values request uses integer allowanceBps.",
+    "Picker selection uses a CSS-escaped observed package ID within the actual listbox; matching display names confer no authority.",
+    "The desktop boundary test now measures the existing h-9 allowance input36px, replacing the removed32px add-step button.",
+    "Private empty-fixture migration/report/backup/application is not operator session or barrier admission. The ordinary public migrator still refuses pending117. Node assertion functions run under Bun; no Node or shell script was added."
+  ],
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/catalogue-fixture.ts",
+      "sha256": "eaa63050b7698868b1852fcd328e303fb98817907b83122023274ff767e274df",
+      "bytes": 2480,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/plan-fixture.ts",
+      "sha256": "895eea7f0fe75dcb1f952fd0e2efb5a234e7168fd8888f8a80b5343736663499",
+      "bytes": 23323,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/gantt-minute-estimate.spec.ts",
+      "sha256": "a0a654eb698a6da5d435d6905638b4efc4d1c77a5ab0afc4f5076e1b75cee57b",
+      "bytes": 10463,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/layout.spec.ts",
+      "sha256": "02b5f2015adec084dea14e0e3d7573af9e65170523030467e96be0ce00ef60dc",
+      "bytes": 202513,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/mobile.spec.ts",
+      "sha256": "9f29705376108f584d5d425483f4bcd0d4c541dddcb44605690e72fa707551e2",
+      "bytes": 97886,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/settings-layout.spec.ts",
+      "sha256": "c261de366853f43005dc1f8e47c1e290893734217631ecd026248bfa40a39506",
+      "bytes": 23158,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/settings-vocabulary.spec.ts",
+      "sha256": "a3eadd3586edaacdee8e4cb26efb677876ab7b06d0b1c64b6902d56726461f00",
+      "bytes": 18719,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/steps.spec.ts",
+      "sha256": "41f0ad6bf7d0386a4e37735b4b728785ac10fe77b423a987d7b5ba49011e1908",
+      "bytes": 6996,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/rendering-fixture.ts",
+      "sha256": "f8fd865125a856b0e1746a10e4e06a3f15a481ff6b52eea23a280a5eaa9b0006",
+      "bytes": 8104,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/step-board.spec.ts",
+      "sha256": "b78d94fae52e0d24deb1eb719e46a87dc9b5eaa6d29fa31b03278bca4b81d73e",
+      "bytes": 25587,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/ordinary-global-setup.ts",
+      "sha256": "1bb503b038cc7772237a5cd29921ad45e123cd8c146071c22f7f5f58695ea40d",
+      "bytes": 4913,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/ordinary-browser-server.ts",
+      "sha256": "95ef4f977cb88ce6088ecc3f0ed42f450d4c597bcc8406d5805d510f50c55a48",
+      "bytes": 17991,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-database.ts",
+      "sha256": "44cdda46ca337c9dfa51a815be0c9cf36950fb20a3ef099fec4c8c84c113ca32",
+      "bytes": 5405,
+      "mode": 436
+    }
+  ],
+  "verification": {
+    "browsers": [
+      {
+        "phase": "package-step-e2e-steps-gantt-final-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-steps-gantt-final-v3.receipt.json",
+          "sha256": "66f29f3d65f880d60019f3f457e35830a2ff62839b490830ff4ed18b756d6478",
+          "bytes": 1500,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-steps-gantt-final-v3.log",
+          "sha256": "68f25d26f32e635f9001db27ad74936dd2dd7da0fc5211d9cb8909eba4853586",
+          "bytes": 4266,
+          "mode": 384
+        },
+        "selected": 11
+      },
+      {
+        "phase": "package-step-e2e-settings-layout-final-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-settings-layout-final-v2.receipt.json",
+          "sha256": "a5a4238f51040ef36fb631d54e6f06bb97b8cd9f2aa8225fffc083c75e95448d",
+          "bytes": 1475,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-settings-layout-final-v2.log",
+          "sha256": "147165adb9cb0b368cda5d1761a1bc9cce2c4106ab4dad16e1908fe52873f86f",
+          "bytes": 4985,
+          "mode": 384
+        },
+        "selected": 15
+      },
+      {
+        "phase": "package-step-e2e-vocabulary-final-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-vocabulary-final-v2.receipt.json",
+          "sha256": "71262f342080c1511ec23fd0b86a8ddf27a2cfe2ac277de0d064f6689011ae24",
+          "bytes": 1469,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-vocabulary-final-v2.log",
+          "sha256": "ab460fcae08d2e0caaadae8ceb307514c42344913e3b2bf66055fa8572fb548f",
+          "bytes": 4666,
+          "mode": 384
+        },
+        "selected": 13
+      },
+      {
+        "phase": "package-step-e2e-sdk-cases-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-sdk-cases-v1.receipt.json",
+          "sha256": "a4f6c549c6469e2f49f4294cc0ff211ab3d7f9d28c207c3e4f27de00bf282e2f",
+          "bytes": 1639,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-sdk-cases-v1.log",
+          "sha256": "37b2d42c98e1f578db8a5bfc2539ed6f999c32a8185cb4643c98c0fb29f1ea6c",
+          "bytes": 3550,
+          "mode": 384
+        },
+        "selected": 8
+      },
+      {
+        "phase": "package-step-e2e-mobile-final-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-mobile-final-v3.receipt.json",
+          "sha256": "989ac58efe4823a0bb89f4d04e13d9b14fbc3db9d4e181b7c5beeeeb10738be0",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-mobile-final-v3.log",
+          "sha256": "5e694e712772309ab129f93da6813517d26f0ddf570514392b15a687b5af9e36",
+          "bytes": 2681,
+          "mode": 384
+        },
+        "selected": 1
+      },
+      {
+        "phase": "package-step-e2e-plan-fixture-final-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-plan-fixture-final-v1.receipt.json",
+          "sha256": "80d09e60cdfe3ad0d77e0b04a6399b48486ec52248c3324ac058251f081c715f",
+          "bytes": 1466,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-plan-fixture-final-v1.log",
+          "sha256": "ae8c84a21b7be6dd0006ae48894ae5c56aa53d005e4d70a4d2aa61e25edd957e",
+          "bytes": 6450,
+          "mode": 384
+        },
+        "selected": 31
+      },
+      {
+        "phase": "package-step-e2e-layout-phone-final-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-layout-phone-final-v3.receipt.json",
+          "sha256": "23987482e2e367a3d4a6fc98c999e7d92710902b9e111c09ded0b01e4783e8a9",
+          "bytes": 1588,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-layout-phone-final-v3.log",
+          "sha256": "f337ef4871ee08ff89fdde1d4c916f4711c4b982f1e9faf3df3116244d6f5d80",
+          "bytes": 2753,
+          "mode": 384
+        },
+        "selected": 2
+      }
+    ],
+    "nativeHttp": {
+      "phase": "package-step-ordinary-server-final-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-final-v2.receipt.json",
+        "sha256": "f886c26ea21a035de0218d111813939b18997efd91ccd1d1b6f135f3502da487",
+        "bytes": 1540,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-final-v2.log",
+        "sha256": "816970b99d4364d78ea64d91b19c45c5a00d7488762573489a994c25456b189e",
+        "bytes": 10365,
+        "mode": 384
+      }
+    },
+    "checks": [
+      {
+        "phase": "package-step-e2e-types-all-final-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-types-all-final-v3.receipt.json",
+          "sha256": "1595d3fbb7f5d94bb80af2cc0649653264e3e364df4ec30e2ba83c3d138cb284",
+          "bytes": 1345,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-types-all-final-v3.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-e2e-backend-types-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-backend-types-v2.receipt.json",
+          "sha256": "f0628185aa1fdc328c69c3a7955a0382ab9834b56e3e7fa130032129eb4858f5",
+          "bytes": 1345,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-backend-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-e2e-lint-final-v5",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-final-v5.receipt.json",
+          "sha256": "130bde5f58bd2f9c8297ba5d723b1d569eb02228c04456ae46b76df35c41d063",
+          "bytes": 1964,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-final-v5.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-e2e-custody-proof-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-custody-proof-v1.receipt.json",
+          "sha256": "99746320914bcd8c59d66d579193a7718a1f6e1009fc369515035fbc424386a8",
+          "bytes": 1276,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-custody-proof-v1.log",
+          "sha256": "539d6fefc04e2d218276e7f610649f7732ebc2b0e299db6a803673f7e11e715c",
+          "bytes": 69,
+          "mode": 384
+        }
+      }
+    ],
+    "browserCaseExecutions": 81,
+    "distinctSelectedBrowserCases": 80,
+    "qualification": "81 executions include one repeated375px settings case;80 distinct selected cases across10files. Cohorts ran during the described fixture migration, not one immutable whole-product gate. After final picker-ID selection change, all31plan fixtures,8rendering/board cases and final layout/phone controls passed; earlier settings/gantt cohorts retain their own receipts. No skip or retry was used. Targeted backend typecheck covers the changed two entry modules transitively; all93E2E files and global setup typecheck pass. Full frontend app/spec and prior1481UI cohort were not rerun because production frontend source did not change."
+  },
+  "proofs": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/ordinary-custody-effects-v1.json",
+      "sha256": "46e25efac0d838183b2e50964d177b13b1943fc465f7bf78cad7639ba21c0bba",
+      "bytes": 1086,
+      "mode": 384
+    },
+    "normalGuard": {
+      "path": "/tmp/puni-combined-proposal-v1/control/ordinary-custody-guarded-v1.receipt.json",
+      "sha256": "2a50230b7fd38ba9d6bdafcf039d0c27b6c23b363b10ee62d5677de9891f074f",
+      "bytes": 1379,
+      "mode": 384
+    },
+    "omittedGuard": {
+      "path": "/tmp/puni-combined-proposal-v1/control/ordinary-custody-omitted-v1.receipt.json",
+      "sha256": "5b043fbe63bd338259b5bbb19c413e045ab41d93e2f5d847b77674885eb47940",
+      "bytes": 1380,
+      "mode": 384
+    },
+    "independentOmittedGuards": 1,
+    "selectedFailures": 1,
+    "actualBoundary": "The same real lower close refusal exits the actual ordinary server. With the guard DB/state/migration files remain; with only its new custody guard omitted they are deleted and the retention assertion fails. Both sources restored after native children reaped and descriptors closed.",
+    "emissions": [
+      {
+        "name": "helper",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-database.ts",
+          "sha256": "44cdda46ca337c9dfa51a815be0c9cf36950fb20a3ef099fec4c8c84c113ca32",
+          "bytes": 5405,
+          "mode": 436
+        },
+        "sha256": "6df649b6fac093f5bb7fb7fcc1ba19105ec838006ea685172c05d55f4bf393ff",
+        "canonicalMatched": true
+      },
+      {
+        "name": "server",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/ordinary-browser-server.ts",
+          "sha256": "95ef4f977cb88ce6088ecc3f0ed42f450d4c597bcc8406d5805d510f50c55a48",
+          "bytes": 17991,
+          "mode": 436
+        },
+        "sha256": "7150c16150dc60a298aba8e8222487bd6969941181565dce60d11390d9a06345",
+        "canonicalMatched": true
+      }
+    ]
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-source-audit-v3.json",
+    "sha256": "9332dc39b8214f7c352a78da274e70166cf816657050db6d7e92c2d408d29a2e",
+    "bytes": 148357,
+    "mode": 384
+  },
+  "caseInventory": {
+    "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-case-inventory-v1.json",
+    "sha256": "e96f5aec4ef1ec5de63b04350b00f886a3a3cb88860975b09f932f600b5fe831",
+    "bytes": 41525,
+    "mode": 384
+  },
+  "priorAttempts": {
+    "attempts": [
+      {
+        "phase": "package-step-e2e-baseline-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-baseline-v1.receipt.json",
+          "sha256": "27f821d2a41aa2837d2f9894dad7c8a125b4100410d4e85a2ca3f89a69bb5e4c",
+          "bytes": 1506,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-baseline-v1.log",
+          "sha256": "57013fc792dcf59ba92f3fd6d29c72249d9989102b45b75e69087096b6f4657b",
+          "bytes": 1128,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-ordinary-server-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-red-v1.receipt.json",
+          "sha256": "40e78c538a81da80146e2bca9f711e3f00897f1a479ef927375fe85f8aa2a784",
+          "bytes": 1354,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-red-v1.log",
+          "sha256": "4ef4f54ebb972fea26273759127d4fe1ec3491cf191e0e1b371033800581580d",
+          "bytes": 874,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-ordinary-server-green-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-green-v1.receipt.json",
+          "sha256": "565adbdd418d3b6c7238f564e751405acfb68655c46a50428a8ba1973c013c25",
+          "bytes": 1358,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-green-v1.log",
+          "sha256": "cd435947086ebdd16d84a7dcb14c1e65c80df2fe70e8b73569e648283163e76d",
+          "bytes": 874,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-ordinary-server-network-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-network-v1.receipt.json",
+          "sha256": "1b0c9fd535203632538731e130a9986f1cfbc06517a0edbd22a2b5d9e5ae1850",
+          "bytes": 1362,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-ordinary-server-network-v1.log",
+          "sha256": "c573037e32e60af8ac4481cc4321831a4c3190442eb022aa823d7d3dd2df6def",
+          "bytes": 282,
+          "mode": 384
+        },
+        "exitCode": 0,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-catalogue-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-catalogue-red-v1.receipt.json",
+          "sha256": "29a77ec5c05f10ed1a5304682fa203bb382e8ef1e6930e3386ad86e76f73dafd",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-catalogue-red-v1.log",
+          "sha256": "77808d5951f12d1d30cfa32ba0560fea91036a76e6505cef34e398474aa28f2d",
+          "bytes": 4989,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-catalogue-control-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-catalogue-control-v1.receipt.json",
+          "sha256": "2d404e3588ce8ae0b6a498c5025b02899114ba801ca3681d5b64fe1739ffc3c5",
+          "bytes": 1597,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-catalogue-control-v1.log",
+          "sha256": "3400a52f20f8fe67d8f97d581ce6cf4c2b5dfa9369a8b74a90c104c904ad4da8",
+          "bytes": 2752,
+          "mode": 384
+        },
+        "exitCode": 0,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-values-settings-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-values-settings-v1.receipt.json",
+          "sha256": "5148cfd5e2e8d8c71dd163ed1a7b769efe9442b3210c645aa9f4725643630af1",
+          "bytes": 1583,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-values-settings-v1.log",
+          "sha256": "f95f1e7a1ed51787b95499e712b347c67af76fc8eb3fceb6c90f45c89ed2b262",
+          "bytes": 41449,
+          "mode": 384
+        },
+        "exitCode": 143,
+        "primary": "Error: Native phase outer deadline exceeded"
+      },
+      {
+        "phase": "package-step-e2e-lint-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-v1.receipt.json",
+          "sha256": "9ac1cd4e361b40ffb6dd7cb94c786e6d88574108cbdd45084331582e969a2e54",
+          "bytes": 1859,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-v1.log",
+          "sha256": "4f07f7aae8f328bae7d1b2554e7ab355c17aa106ae729c6d926bbf83d168bb18",
+          "bytes": 1809,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-lint-fix-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-fix-v2.receipt.json",
+          "sha256": "906f731791aca8210e03845bfe532eb1d9d7731eb6108575bfd2657133e0ed3e",
+          "bytes": 1881,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-lint-fix-v2.log",
+          "sha256": "7b987d100bf3787b90afb1049dd90bcc3a3626135ec4a449c57f27da8757a684",
+          "bytes": 466,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-types-v1.receipt.json",
+          "sha256": "603c562c1100cfdedf0a9e52269525267a262f2c9c8cf722e32bbba95e912a35",
+          "bytes": 1323,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-types-v1.log",
+          "sha256": "1d40872c89c6302276ea7b97d41badc42a4a141193ac5e2004b66371c86b4168",
+          "bytes": 171,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-backend-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-backend-types-v1.receipt.json",
+          "sha256": "df3e4443cd8a6bbdbb5f558c9755d2ec6bc16f5357547f19f62289196fe15035",
+          "bytes": 1347,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-backend-types-v1.log",
+          "sha256": "d5f6c9f4f7321147be2d3269ef47bf1842920afd26f67bd65760724488176735",
+          "bytes": 163,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-steps-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-steps-v2.receipt.json",
+          "sha256": "ad626858671db14e09dd7048bdf32d2a4fd05d6415f4564c8cc4c445b775caa4",
+          "bytes": 1433,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-steps-v2.log",
+          "sha256": "678fb6ad7a8c5c48b6e5b56e30221f92527d89ac5b9403bdbc29dbd69c8feabc",
+          "bytes": 6104,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-geometry-final-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-geometry-final-v2.receipt.json",
+          "sha256": "ebfd0ad60904f40efed04775d45cac31d05f25b4bc9f2e04505f11bc9d6854e2",
+          "bytes": 1566,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-geometry-final-v2.log",
+          "sha256": "759332a7b7ee83b5385b398c93172c57e9eb8a6bb4b9c46c11d13eb09d9e7126",
+          "bytes": 5443,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      },
+      {
+        "phase": "package-step-e2e-all-types-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-all-types-red-v1.receipt.json",
+          "sha256": "73a028b792421835c493312cc72f5b03eb2c02cc6afea07bd9d4dff8cae7764a",
+          "bytes": 1343,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-e2e-all-types-red-v1.log",
+          "sha256": "90ea91aa8957a807c1e0dcce05c251f7382af1f3a67aa700dcb55707a84c8f92",
+          "bytes": 969,
+          "mode": 384
+        },
+        "exitCode": 1,
+        "primary": null
+      }
+    ],
+    "qualification": "Initial browser bootstrap exposed public-migrator refusal, then missingDev. Sandboxed server probes failed on EPERM before behavior. Initial26-case diagnostic timed out180s, with owner reaped/descriptors closed, and was edited during investigation; no complete result is inferred. Other failures exposed obsolete boundary text, ambiguous same-name options, hidden phone account control, valid blur auto-commit,36px Input versus32px old button and two generated SDK names missed by the first named-helper audit. All retained honestly; successful overlapping early controls are not added to final counts."
+  },
+  "pending": [
+    "Seven shared/unmounted paths remain. Preserve response Step DTO compatibility and migrate mixed current unit/allowance/journal/undo/redo tests before retiring obsolete definitions/CRUD/cascade cases. The old controller file is not disposable wholesale.",
+    "Previous full core run remains2062pass29fail; not rerun. All original fifteen historical guarantees, frozen producer bytes and all13 Source fact families remain required.",
+    "Broader per-leaf applicability, type conflicts/preflight, settings inheritance, full frontend/all93 browser-file gate and visual comparison remain unverified. Boot-time cancellation and cleanup-failure injection were not separately replayed; the actual close-custody negative was verified.",
+    "Astra review remains unavailable until recorded November22,2026 10:09AM timezone unspecified; no retry or substitute review.",
+    "All original PUNI/Optique/Bun/client-script inventory/packaging/installed/toolchain/full exact-SHA host/integration/release requirements remain open."
+  ]
+}

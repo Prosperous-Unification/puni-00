@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import type { WriteStamp } from '@wbs/core/ports/write-stamp';
@@ -9,6 +9,7 @@ import {
   beginOptimizationDrain,
   finishOptimizationDrain,
   type OptimizationDrainFinish,
+  readOptimizationClosedState,
   releaseSolverSlot,
   type SolverSlotRelease,
   type SolverSlotReleaseOutcome,
@@ -17,8 +18,8 @@ import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 /** Installed source-bound direct drain owner; raw borrowed drain operations remain synchronous. */
 export interface OptimizationLifecycle {
-  beginDrain(projectId: string, stamp: WriteStamp, contractVersion?: string): Promise<number>;
-  finishDrain(projectId: string, contractVersion?: string): Promise<OptimizationDrainFinish>;
+  beginDrain(workPackageId: string, stamp: WriteStamp, contractVersion?: string): Promise<number>;
+  finishDrain(workPackageId: string, contractVersion?: string): Promise<OptimizationDrainFinish>;
   releaseSlot(slot: SolverSlotRelease): Promise<SolverSlotReleaseOutcome>;
 }
 
@@ -28,20 +29,30 @@ export function createOptimizationLifecycle(
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
 ): OptimizationLifecycle {
-  async function own<T>(projectId: string, write: () => T): Promise<T> {
+  async function own<T>(
+    workPackageId: string,
+    write: () => T,
+    releasingContract?: string,
+  ): Promise<T> {
     const settled = await uow.run<{
       value: T;
-      events: readonly CommittedProjectEvent[];
+      events: readonly CommittedWorkPackageEvent[];
     }>(async (scope) => {
       const capture = scope.fanoutCapture;
       // Proof: omitting this installed-capability check replaced the mounted
       // missing-capture refusal with an incidental property error.
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('optimization lifecycle lacks borrowed ownership and capture');
-      const owner = await capture.resolveLifecycleOwner(projectId);
+      const owner = await capture.resolveLifecycleOwner(workPackageId);
       // Proof: omitting this branch let an absent target reach capture with an
       // undefined organization and throw instead of returning its no-op result.
-      if (owner.kind !== 'scoped')
+      // An open release changes slot liveness only. Published placements come from cached outcomes.
+      // Proof: capturing malformed estimate days on an open release stranded the dequeued starting slot.
+      if (
+        owner.kind !== 'scoped' ||
+        (releasingContract !== undefined &&
+          readOptimizationClosedState(db, workPackageId, releasingContract) === null)
+      )
         return { commit: true as const, value: { value: write(), events: [] } };
       // Proof: moving this old capture after the raw retirement lost B's
       // selected-ready displacement event at unchanged input hash.
@@ -58,7 +69,7 @@ export function createOptimizationLifecycle(
         () => delivery.now(),
         // Proof: omitting this addressed cause lost B's event when selected A
         // retired at the same input hash and unchanged local scheduling facts.
-        [projectId],
+        [workPackageId],
       );
       return { commit: true as const, value: { value, events } };
     });
@@ -71,12 +82,13 @@ export function createOptimizationLifecycle(
   }
 
   return {
-    beginDrain: (projectId, stamp, contractVersion) =>
-      own(projectId, () => beginOptimizationDrain(db, projectId, stamp, contractVersion)),
-    finishDrain: (projectId, contractVersion) =>
-      own(projectId, () => finishOptimizationDrain(db, projectId, contractVersion)),
+    beginDrain: (workPackageId, stamp, contractVersion) =>
+      own(workPackageId, () => beginOptimizationDrain(db, workPackageId, stamp, contractVersion)),
+    finishDrain: (workPackageId, contractVersion) =>
+      own(workPackageId, () => finishOptimizationDrain(db, workPackageId, contractVersion)),
     // Proof: omitting the composed release owner left a populated last-slot
     // deletion with no old-cause event in the installed lifecycle test.
-    releaseSlot: (slot) => own(slot.projectId, () => releaseSolverSlot(db, slot)),
+    releaseSlot: (slot) =>
+      own(slot.workPackageId, () => releaseSolverSlot(db, slot), slot.contractVersion),
   };
 }

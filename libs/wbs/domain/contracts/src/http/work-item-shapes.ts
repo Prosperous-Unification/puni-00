@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type Type, type } from 'arktype';
 
 import type { PlanCommandKind } from '../commands/definitions';
@@ -13,6 +14,7 @@ import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
+import { stepInUsePairSchema } from './step-usage-shapes';
 import { treeResponseSchema } from './tree-response-schema';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
 import { mixedBases, numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
@@ -54,7 +56,7 @@ const effect = type({ kind: "'assignment_dropped'", step: named })
     assumedAfter: 'string | null',
   });
 const usage = type({
-  projects: type({
+  workPackages: type({
     id: 'string',
     name: 'string',
     workItems: type({
@@ -135,8 +137,8 @@ export const occupancyHolder = type({
   name: 'string',
   runId: 'string | null',
   workItemId: 'string',
-  // `wbs-shared-occupancy` S5: a holder in another project of the organization.
-  'projectId?': 'string',
+  // `wbs-shared-occupancy` S5: a holder in another work package of the organization.
+  'workPackageId?': 'string',
 });
 /** One short resource of `resources_exhausted`: asked, free and its holders. */
 const resourceShortage = {
@@ -146,7 +148,7 @@ const resourceShortage = {
   holders: occupancyHolder.array(),
   'hiddenHolders?': hiddenHolderUnits,
   // `wbs-shared-occupancy` S3: only where the resource states a directory capacity.
-  'scope?': "'project' | 'organization'",
+  'scope?': "'work_package' | 'organization'",
 } as const;
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -174,13 +176,21 @@ const writeRefusals = [
 ] as const;
 /**
  * A batch refused whole, before any command: the caller's organization does
- * not own the project (the same 404 as an absent one) or its role may not
+ * not own the work package (the same 404 as an absent one) or its role may not
  * write there. Answered only after organization activation.
  */
 const scopedBatchRefusals = [
   organizationRefusal,
   organizationContextRefusal,
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
 const batchRefusals = [
@@ -193,7 +203,7 @@ const batchRefusals = [
       type.or(
         plainRefusals(
           'too_many_commands',
-          'project_required',
+          'work_package_required',
           'unknown_ref',
           'missing_id',
           'person_required',
@@ -213,8 +223,12 @@ const batchRefusals = [
     status: 403,
     schema: responseSchema(
       type.or(
+        type({
+          ...context,
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
         plainRefusals(
-          'forbidden',
           // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
           'person_not_bound',
           'credential_not_for_person',
@@ -259,7 +273,9 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         plainRefusals(
+          'type_conflict',
           'cycle',
+          'last_super_admin',
           // `patchResource.providerId` naming another organization's instance.
           'provider_not_in_organization',
           // Retired at ADR 0023 and deliberately kept: no release since refuses a
@@ -267,12 +283,12 @@ const batchRefusals = [
           // holding the incoming fe-01 for the length of a swap, and an arm this
           // union lacks is a 409 the client cannot parse at all.
           'frozen',
-          // `arrangeBySchedule` while the project's selected optimized variant is
+          // `arrangeBySchedule` while the work package's selected optimized variant is
           // still solving, and on a deployment with no optimizer installed.
           'arrangement_positions_unavailable',
           'dependency_calendar_missing',
           'external_dependencies_inactive',
-          'project_deleting',
+          'work_package_deleting',
           'schedule_not_ready',
           'engine_unavailable',
           'rolled_up',
@@ -460,6 +476,12 @@ const batchRefusals = [
           error: "'referenced_by_step_parallel'",
           nodes: type({ workItemId: 'string', stepId: 'string' }).array(),
         }),
+        type({
+          ...context,
+          error: "'step_nodes_in_use'",
+          count: 'number.integer >= 1',
+          pairs: stepInUsePairSchema.array(),
+        }),
         type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
         type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
         type({
@@ -475,6 +497,7 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         plainRefusals(
+          'step_not_resolved',
           'minutes_not_integer',
           'minutes_above_max',
           'invalid_estimate',
@@ -486,9 +509,9 @@ const batchRefusals = [
         ),
         type({
           ...context,
-          error: "'deadline_before_project_start'",
+          error: "'deadline_before_work_package_start'",
           workItemId: 'string',
-          projectDayZero: 'string',
+          workPackageDayZero: 'string',
         }),
       ),
     ),
@@ -512,8 +535,8 @@ const batchRefusals = [
  */
 export const getWorkItems = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/work-items',
-  operationId: 'getApiProjectsByIdWork-items',
+  path: '/api/work-packages/:id/work-items',
+  operationId: 'getApiWorkPackagesByIdWork-items',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   // `full=true` names today's whole dump explicitly and answers it byte for
@@ -552,9 +575,9 @@ export const getWorkItems = defineEndpointShape({
     engineUnavailableRefusal,
   ],
   document: {
-    summary: 'Read the whole project work-item tree, every field included.',
+    summary: 'Read the whole work package work-item tree, every field included.',
     description:
-      'Answers every work item with notes, schedule and slices, plus the project’s steps and settings: hundreds of KB on a large project. full=true answers the same dump. Use list work-item rows (getApiProjectsByIdWork-item-rows) for paged reads; this tool is for export only. For a page of work items use getApiProjectsByIdWork-item-rows; for one work item in full use getApiProjectsByIdWork-itemsByWorkItemId.',
+      'Answers every work item with notes, schedule and slices, plus the work package’s steps and settings: hundreds of KB on a large work package. full=true answers the same dump. Use list work-item rows (getApiWorkPackagesByIdWork-item-rows) for paged reads; this tool is for export only. For a page of work items use getApiWorkPackagesByIdWork-item-rows; for one work item in full use getApiWorkPackagesByIdWork-itemsByWorkItemId.',
   },
 });
 
@@ -568,16 +591,16 @@ export const workItemRow = numberedWorkItem
   .and(numberedWorkItem.omit(...WORK_ITEM_OUTLINE).partial());
 
 /**
- * One page of a project's work items in tree order (spec `list-reads`). Tree
- * order and every derived field are computed over the whole project before any
+ * One page of a work package's work items in tree order (spec `list-reads`). Tree
+ * order and every derived field are computed over the whole work package before any
  * filter; the cursor names the last row answered. A cursor whose work item has
- * left the project answers 409 `stale_cursor`; a `parentId` naming no work item
- * of the project answers 404 `unknown_parent`.
+ * left the work package answers 409 `stale_cursor`; a `parentId` naming no work item
+ * of the work package answers 404 `unknown_parent`.
  */
 export const getWorkItemRows = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/work-item-rows',
-  operationId: 'getApiProjectsByIdWork-item-rows',
+  path: '/api/work-packages/:id/work-item-rows',
+  operationId: 'getApiWorkPackagesByIdWork-item-rows',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(
@@ -597,7 +620,11 @@ export const getWorkItemRows = defineEndpointShape({
       kind: 'json',
       status: 200,
       schema: responseSchema(
-        type({ rows: workItemRow.array(), nextCursor: 'string | null', projectRevision: 'number' }),
+        type({
+          rows: workItemRow.array(),
+          nextCursor: 'string | null',
+          workPackageRevision: 'number',
+        }),
       ),
     },
   ],
@@ -611,17 +638,17 @@ export const getWorkItemRows = defineEndpointShape({
     { status: 409, schema: responseSchema(type({ error: "'stale_cursor'" })) },
   ],
   document: {
-    summary: 'Read a page of a project’s work items in tree order, outline fields by default.',
+    summary: 'Read a page of a work package’s work items in tree order, outline fields by default.',
     description:
-      'Each row has id, projectId, parentId, number, name, status, dates, revision and updatedAt. fields adds comma-separated groups: notes, schedule, slices, estimates, constraints, labels. Filters: q (name contains, case-insensitive), status (comma-separated statuses), parentId (rows below that work item) with depth (levels below it, or below the top), updatedSince (epoch ms, inclusive; filters the row’s own last write (its stamp also moves when siblings are respaced), not re-derived number, status or dates). limit is 1-200, default 25; pass nextCursor back as cursor until it is null.',
+      'Each row has id, workPackageId, parentId, number, name, status, dates, revision and updatedAt. fields adds comma-separated groups: notes, schedule, slices, estimates, constraints, labels. Filters: q (name contains, case-insensitive), status (comma-separated statuses), parentId (rows below that work item) with depth (levels below it, or below the top), updatedSince (epoch ms, inclusive; filters the row’s own last write (its stamp also moves when siblings are respaced), not re-derived number, status or dates). limit is 1-200, default 25; pass nextCursor back as cursor until it is null.',
   },
 });
 
 /** One work item with every whole-tree field, its own slices and its update instant. */
 export const getWorkItem = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/work-items/:workItemId',
-  operationId: 'getApiProjectsByIdWork-itemsByWorkItemId',
+  path: '/api/work-packages/:id/work-items/:workItemId',
+  operationId: 'getApiWorkPackagesByIdWork-itemsByWorkItemId',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: requestSchema(type({ id: 'string', workItemId: 'string' })),
   responses: [
@@ -634,7 +661,7 @@ export const getWorkItem = defineEndpointShape({
             updatedAt: 'number | null',
             slices: workItemSlice.array(),
           }),
-          projectRevision: 'number',
+          workPackageRevision: 'number',
         }),
       ),
     },
@@ -652,8 +679,8 @@ export const getWorkItem = defineEndpointShape({
 /** Resolves a readable step address against the revision returned by the work-item read. */
 export const getStepReference = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/step-references',
-  operationId: 'getApiProjectsByIdStep-references',
+  path: '/api/work-packages/:id/step-references',
+  operationId: 'getApiWorkPackagesByIdStep-references',
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(type({ reference: 'string', revision: 'string' })),
@@ -690,15 +717,15 @@ export const getStepReference = defineEndpointShape({
   ],
   document: {
     summary:
-      'Resolve a step reference such as 010.s1-dev to its step node ID. Pass the addressRevision the work-item read returned (not projectRevision). A 409 means addresses changed since that read: read the work items again and re-check which step you mean before resolving.',
+      'Resolve a step reference such as 010.s1-dev to its step node ID. Pass the addressRevision the work-item read returned (not workPackageRevision). A 409 means addresses changed since that read: read the work items again and re-check which step you mean before resolving.',
   },
 });
 
 /** Applies every command kind atomically; semantic parsing precedes the 200-command cap. */
-export const applyProjectCommands = defineEndpointShape({
+export const applyWorkPackageCommands = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/commands',
-  operationId: 'postApiProjectsByIdCommands',
+  path: '/api/work-packages/:id/commands',
+  operationId: 'postApiWorkPackagesByIdCommands',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   body: planCommandsBody,
@@ -710,10 +737,10 @@ export const applyProjectCommands = defineEndpointShape({
     },
   ],
   refusals: [...batchRefusals, stepBlockageInactiveRefusal],
-  document: { summary: 'Apply a batch of commands to a project, all or none.' },
+  document: { summary: 'Apply a batch of commands to a work package, all or none.' },
 });
 
-/** Directory requests retain plan kinds so project_required keeps its command index. */
+/** Directory requests retain plan kinds so work_package_required keeps its command index. */
 export const applyDirectoryCommands = defineEndpointShape({
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   method: 'POST',
@@ -733,43 +760,66 @@ const undoResponses = [
 ] as const;
 const undoRefusals = [
   stepBlockageInactiveRefusal,
+  // Proof (schema validators): omitting this arm failed both undo/redo positive conflict payloads. Accepting count0 or dropping integer validation failed their independent malformed-count negatives.
+  {
+    status: 409,
+    schema: responseSchema(
+      type({
+        error: "'step_nodes_in_use'",
+        count: 'number.integer >= 1',
+        pairs: stepInUsePairSchema.array(),
+      }),
+    ),
+  },
   ...writeRefusals,
   organizationRefusal,
   organizationContextRefusal,
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   {
     status: 409,
     schema: responseSchema(
       type({
-        error: "'nothing_to_undo' | 'stale_undo' | 'external_dependencies_inactive'",
+        error:
+          "'nothing_to_undo' | 'replay_provenance_unavailable' | 'stale_undo' | 'external_dependencies_inactive'",
         detail: 'string | null',
       }),
     ),
   },
 ] as const;
 /**
- * Reverses the caller's own last unchanged project batch: its account's, or the agent person's
+ * Reverses the caller's own last unchanged work package batch: its account's, or the agent person's
  * when a machine or consent credential acts (`actingPersonOf`), never another actor's.
+ * A live protected-node conflict returns its count/pairs while retaining the entry.
  */
-export const undoProject = defineEndpointShape({
+export const undoWorkPackage = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/undo',
-  operationId: 'postApiProjectsByIdUndo',
+  path: '/api/work-packages/:id/undo',
+  operationId: 'postApiWorkPackagesByIdUndo',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Undo your own last project batch; an agent key has its own stack.' },
+  document: { summary: 'Undo your own last work package batch; an agent key has its own stack.' },
 });
-/** Reapplies the caller's own last reversed project batch; see {@link undoProject}. */
-export const redoProject = defineEndpointShape({
+/** Reapplies the caller's own last reversed work package batch; see {@link undoWorkPackage}. */
+export const redoWorkPackage = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/redo',
-  operationId: 'postApiProjectsByIdRedo',
+  path: '/api/work-packages/:id/redo',
+  operationId: 'postApiWorkPackagesByIdRedo',
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Redo your own last undone project batch; an agent key has its own stack.' },
+  document: {
+    summary: 'Redo your own last undone work package batch; an agent key has its own stack.',
+  },
 });

@@ -17,7 +17,10 @@ export function installStep(requirements: StepRequirements): StepExports {
   const bag = DiBag.createBuilder()
     .withInstalledModules([stepModule])
     .withServices({
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       stepStore: DiBag.createProvider(() => requirements.steps, {
@@ -27,9 +30,6 @@ export function installStep(requirements: StepRequirements): StepExports {
         factoryReturnKind: 'sync-value',
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
-      recoveryAdmission: DiBag.createProvider(() => requirements.recoveryAdmission, {
-        factoryReturnKind: 'sync-value',
-      }),
       dependencyContext: DiBag.createProvider(() => requirements.dependencyContext, {
         factoryReturnKind: 'sync-value',
       }),

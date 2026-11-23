@@ -91,7 +91,7 @@ async function refuses(invocation: Promise<unknown>, message?: string) {
 function rows() {
   const sqlite = openDatabase(database);
   try {
-    return sqlite.query('SELECT project_id FROM project_rank').all();
+    return sqlite.query('SELECT work_package_id FROM work_package_rank').all();
   } finally {
     sqlite.close();
   }
@@ -117,7 +117,7 @@ afterEach(() => {
 
 it('restores an isolated backup in the host owner after fencing all writers', async () => {
   expect(await invoke()).toEqual({ organizations: 1, ranks: 1 });
-  expect(rows()).toEqual([{ project_id: 'a1' }]);
+  expect(rows()).toEqual([{ work_package_id: 'a1' }]);
 });
 it('refuses either running colour and any other running writable container before writing', async () => {
   for (const name of ['be-01-blue', 'be-01-green', 'manual-writer']) {
@@ -162,7 +162,7 @@ it('retains exactly one backup read even when Docker replaces its pathname', asy
   );
   expect(await invoke()).toEqual({ organizations: 1, ranks: 1 });
   expect(readFileSync(backup, 'utf8')).toBe('{');
-  expect(rows()).toEqual([{ project_id: 'a1' }]);
+  expect(rows()).toEqual([{ work_package_id: 'a1' }]);
 });
 it('refuses shared backups with absent, foreign or valid diagnostic consent without writing', async () => {
   const shared = { ...saved, organizations: [{ organizationId: 'org-a', mode: 'shared' }] };
@@ -446,7 +446,7 @@ dockerProof(
       expectUnopenedRestore();
       await command(['stop', '--time', '0', writer]);
       expect(await invoke()).toEqual({ organizations: 1, ranks: 1 });
-      expect(rows()).toEqual([{ project_id: 'a1' }]);
+      expect(rows()).toEqual([{ work_package_id: 'a1' }]);
     } finally {
       for (const id of created.reverse()) await command(['rm', '--force', id]);
     }
@@ -476,16 +476,19 @@ it('refuses incomplete, duplicated and invalid inspected inventory with named di
   }
 });
 
-it('rejects invalid host CLI arguments before attempting the canonical lock', async () => {
-  const cli = new URL('./shared-people-host-restore-cli.ts', import.meta.url).pathname;
-  for (const args of [
-    [],
-    [''],
-    [backup, '--actor=ada'],
-    [backup, '--operation='],
-    [backup, '--operation=a', '--operation=b'],
-  ]) {
-    const child = Bun.spawn([process.execPath, cli, ...args], { stdout: 'pipe', stderr: 'pipe' });
+for (const [label, argumentsOf] of [
+  ['missing backup', (_backup: string) => []],
+  ['empty backup', (_backup: string) => ['']],
+  ['actor assertion', (backup: string) => [backup, '--actor=ada']],
+  ['empty operation', (backup: string) => [backup, '--operation=']],
+  ['duplicate operation', (backup: string) => [backup, '--operation=a', '--operation=b']],
+] as const)
+  it('rejects invalid host CLI ' + label + ' before attempting the canonical lock', async () => {
+    const cli = new URL('./shared-people-host-restore-cli.ts', import.meta.url).pathname;
+    const child = Bun.spawn([process.execPath, cli, ...argumentsOf(backup)], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
     const [exit, stdout, stderr] = await Promise.all([
       child.exited,
       new Response(child.stdout).text(),
@@ -494,8 +497,7 @@ it('rejects invalid host CLI arguments before attempting the canonical lock', as
     expect(exit).not.toBe(0);
     expect(stdout).toBe('');
     expect(stderr).toContain('usage: shared-people-host-restore-cli.ts');
-  }
-});
+  });
 
 it('reports malformed inspection boundaries and a missing required colour explicitly', async () => {
   for (const candidate of [{ Name: '/be-01-blue' }, null, { ...container('be-01-blue'), Id: 1 }]) {
@@ -541,7 +543,7 @@ function expectUnopenedRestore() {
   const sqlite = openReadOnlyDatabase(database);
   try {
     expect(sqlite.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' });
-    expect(sqlite.query('SELECT project_id FROM project_rank').all()).toEqual([]);
+    expect(sqlite.query('SELECT work_package_id FROM work_package_rank').all()).toEqual([]);
   } finally {
     sqlite.close();
   }
@@ -605,8 +607,13 @@ function approveHost(savedBackup: unknown) {
   const sqlite = openDatabase(database);
   try {
     sqlite.run("UPDATE organization_activation SET state='activated', activated_at=1");
+    expect(
+      sqlite.run(
+        "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a' AND user_id='ada' AND role='member'",
+      ).changes,
+    ).toBe(1);
     sqlite.run(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('host-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
     );
     sqlite.run('INSERT INTO shared_people_restore_operation VALUES (?, ?, 1)', [
       'restore-1',
@@ -632,14 +639,16 @@ it('dispatches approved isolated rank recovery to the installed receipt owner an
   });
   const sqlite = openDatabase(database);
   try {
-    sqlite.run('UPDATE project_rank SET position=999');
+    sqlite.run('UPDATE work_package_rank SET position=999');
   } finally {
     sqlite.close();
   }
   expect(await invoke('restore-1', ['approval-a'])).toEqual(receipt);
   const reread = openReadOnlyDatabase(database);
   try {
-    expect(reread.query('SELECT position FROM project_rank').all()).toEqual([{ position: 999 }]);
+    expect(reread.query('SELECT position FROM work_package_rank').all()).toEqual([
+      { position: 999 },
+    ]);
   } finally {
     reread.close();
   }
@@ -699,3 +708,29 @@ it('retains one backup read while dispatching to the installed audited owner', a
   });
   expect(readFileSync(backup, 'utf8')).toBe('{');
 });
+
+for (const replacePath of [false, true])
+  it(
+    'retains current2 host backup identity through fencing path replacement=' + String(replacePath),
+    async () => {
+      const current = {
+        format: 'shared-people-save',
+        version: 2,
+        organizations: saved.organizations,
+        ranks: saved.ranks.map(({ projectId, ...facts }) => ({
+          workPackageId: projectId,
+          ...facts,
+        })),
+      };
+      writeFileSync(backup, JSON.stringify(current));
+      if (replacePath)
+        writeFileSync(
+          docker,
+          `#!/bin/sh\ncase "$1" in\nps) cat '${inventoryIds}';;\ninspect) printf '{' > '${backup}'; cat '${inventory}';;esac\n`,
+        );
+      expect(await invoke()).toEqual({ organizations: 1, ranks: 1 });
+      expect(rows()).toEqual([{ work_package_id: 'a1' }]);
+      if (replacePath) expect(readFileSync(backup, 'utf8')).toBe('{');
+      else expect(JSON.parse(readFileSync(backup, 'utf8')) as unknown).toEqual(current);
+    },
+  );

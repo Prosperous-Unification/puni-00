@@ -1,16 +1,18 @@
 import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { planDocumentFixture } from '../../testing/plan-document-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -35,7 +37,7 @@ const requirements = () => {
     batchServices: (scope: Scope, broadcast: Broadcaster) =>
       servicesOver(scope.stores, {
         dependencyContext: createLocalDependencyContext(scope.stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -73,7 +75,7 @@ const completeHost = () =>
         () => (scope: Scope, broadcast: Broadcaster) =>
           servicesOver(scope.stores, {
             dependencyContext: createLocalDependencyContext(scope.stores),
-            admission: CREATOR_ADMISSION,
+            admission: LEGACY_EDIT_ADMISSION,
             clock: clockOf({ now: () => STAMP_AT, newId: () => 'id' }),
             broadcast,
             scheduler: fastScheduler,
@@ -85,6 +87,24 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Plan import module', () => {
+  for (const defineMissing of [undefined, 'true', 1, null]) {
+    it('rejects a nonboolean programmatic definition mode ' + String(defineMissing), async () => {
+      const { imports } = installPlanImport(requirements());
+      const attempted = imports.import(
+        planDocumentFixture(),
+        { kind: 'legacy', actorId: 'importer' },
+        'fixture-project',
+        // Deliberately cross the programmatic type boundary with an invalid runtime flag.
+        { defineMissing: defineMissing as unknown as boolean },
+      );
+      const failure: unknown = await attempted.then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(TypeError);
+      expect(failure).toHaveProperty('message', 'import defineMissing must be boolean');
+    });
+  }
   it('refuses current authority before opening the import graph', async () => {
     const source = openMemorySource();
     const { imports } = installPlanImport({
@@ -98,9 +118,13 @@ describe('the Plan import module', () => {
       },
     });
     expect(
-      await imports.import(planDocumentFixture(), { kind: 'legacy', actorId: 'importer' }),
+      await imports.import(
+        planDocumentFixture(),
+        { kind: 'legacy', actorId: 'importer' },
+        'fixture-project',
+      ),
     ).toEqual({ ok: false, refusal: 'not_a_member' });
-    expect(await source.stores.projects.list()).toEqual([]);
+    expect(await source.stores.workPackages.list()).toEqual([]);
   });
 
   it('refuses a direct reader before admitting the writer', async () => {
@@ -113,16 +137,31 @@ describe('the Plan import module', () => {
       },
     });
     expect(
-      await imports.import(planDocumentFixture(), {
-        kind: 'human',
-        principal: { id: 'reader', username: 'reader', scopes: ['read'] },
-        expectedAccess: LEGACY_ACCESS,
-      }),
+      await imports.import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal: { id: 'reader', username: 'reader', scopes: ['read'] },
+          expectedAccess: LEGACY_ACCESS,
+        },
+        'fixture-project',
+      ),
     ).toEqual({ ok: false, error: 'insufficient_scope' });
   });
 
-  it('keeps an external v11 import dormant before directory or project writes', async () => {
-    const source = openMemorySource();
+  it('keeps an external v12 import dormant before directory or work package writes', async () => {
+    const fixture = openMemorySourceFixture();
+    const source = fixture.source;
+    await source.stores.users.create(
+      { id: 'importer', username: 'importer', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'importer' },
+    );
+    seedLegacyPackageParent(fixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: 'importer',
+    });
+    const before = fixture.stepCatalogueEvidence();
     const held = requirements();
     const { imports } = installPlanImport({ ...held, uow: source.uow });
     const document = planDocumentFixture();
@@ -134,10 +173,10 @@ describe('the Plan import module', () => {
         predecessor: {
           kind: 'external',
           scope: 'whole',
-          projectId: 'other-project',
+          workPackageId: 'other-work-package',
           workItemId: 'stable-row',
           display: {
-            projectName: 'Other',
+            workPackageName: 'Other',
             abbreviation: 'OTHER',
             workItemName: 'Prerequisite',
             address: 'OTHER.1',
@@ -146,12 +185,15 @@ describe('the Plan import module', () => {
         successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
       },
     ];
-    expect(await imports.import(document, { kind: 'legacy', actorId: 'importer' })).toMatchObject({
+    expect(
+      await imports.import(document, { kind: 'legacy', actorId: 'importer' }, 'fixture-project'),
+    ).toMatchObject({
       ok: false,
       code: 'external_dependencies_inactive',
       path: 'typedDependencies[0]',
     });
-    expect(await source.stores.projects.list()).toEqual([]);
+    expect(await source.stores.workPackages.list()).toEqual([]);
+    expect(fixture.stepCatalogueEvidence()).toEqual(before);
   });
 
   it('refuses duplicate stable external declarations before dormancy', async () => {
@@ -164,10 +206,10 @@ describe('the Plan import module', () => {
       predecessor: {
         kind: 'external' as const,
         scope: 'whole' as const,
-        projectId: 'other-project',
+        workPackageId: 'other-work-package',
         workItemId: 'stable-row',
         display: {
-          projectName: 'Other',
+          workPackageName: 'Other',
           abbreviation: 'OTHER',
           workItemName: 'Prerequisite',
           address: 'OTHER.1',
@@ -176,23 +218,27 @@ describe('the Plan import module', () => {
       successor: { kind: 'internal' as const, scope: 'whole' as const, workItem: 'row-1' },
     };
     document.typedDependencies = [relationship, { ...relationship, id: 'cross-again' }];
-    expect(await imports.import(document, { kind: 'legacy', actorId: 'importer' })).toMatchObject({
+    expect(
+      await imports.import(document, { kind: 'legacy', actorId: 'importer' }, 'fixture-project'),
+    ).toMatchObject({
       ok: false,
       code: 'invalid_typed_dependency',
       path: 'typedDependencies[1]',
       detail: 'duplicate',
     });
   });
-  it('refuses a document whose deadline sits before the project start, without an admitted batch', async () => {
+  it('refuses a document whose deadline sits before the work package start, without an admitted batch', async () => {
     const { imports } = installPlanImport(requirements());
     const document = planDocumentFixture();
     const row = document.workItems.at(0);
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.deadline = '2026-09-13';
 
-    expect(await imports.import(document, { kind: 'legacy', actorId: 'importer' })).toMatchObject({
+    expect(
+      await imports.import(document, { kind: 'legacy', actorId: 'importer' }, 'fixture-project'),
+    ).toMatchObject({
       ok: false,
-      code: 'deadline_before_project_start',
+      code: 'deadline_before_work_package_start',
       path: 'workItems[0].deadline',
     });
   });
@@ -206,7 +252,9 @@ describe('the Plan import module', () => {
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.typeIds = ['type-1', 'type-2'];
 
-    expect(await imports.import(document, { kind: 'legacy', actorId: 'importer' })).toEqual({
+    expect(
+      await imports.import(document, { kind: 'legacy', actorId: 'importer' }, 'fixture-project'),
+    ).toEqual({
       ok: false,
       code: 'work_item_takes_one_type',
       path: 'workItems[0].typeIds',
@@ -216,17 +264,33 @@ describe('the Plan import module', () => {
   });
 
   it('admits a small document over the graph installPlanImport wires', async () => {
-    const announcements = recordingBroadcaster();
-    const { imports } = installPlanImport({ ...requirements(), announcements });
-
-    const outcome = await imports.import(planDocumentFixture(), {
-      kind: 'legacy',
-      actorId: 'importer',
+    const parentFixture = openMemorySourceFixture();
+    const source = parentFixture.source;
+    await source.stores.users.create(
+      { id: 'importer', username: 'importer', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'importer' },
+    );
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: 'importer',
     });
+    const announcements = recordingBroadcaster();
+    const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
+
+    const outcome = await imports.import(
+      planDocumentFixture(),
+      {
+        kind: 'legacy',
+        actorId: 'importer',
+      },
+      'fixture-project',
+      { defineMissing: true },
+    );
 
     expect(outcome).toMatchObject({ ok: true, rows: 1 });
     expect(
-      announcements.published.some((entry) => entry.event.type === 'project_settings_changed'),
+      announcements.published.some((entry) => entry.event.type === 'work_package_settings_changed'),
     ).toBe(true);
   });
 
@@ -235,21 +299,26 @@ describe('the Plan import module', () => {
     const announcements = recordingBroadcaster();
     const { imports } = installPlanImport({ ...requirements(), uow: source.uow, announcements });
     const access: ResourceAccess = {
+      principal: { id: 'importer' },
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: 'importer', role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'importer' },
     };
 
     const refused: unknown = await imports
-      .import(planDocumentFixture(), {
-        kind: 'human',
-        principal: { id: 'importer', username: 'importer', scopes: ['write'] },
-        expectedAccess: access,
-      })
+      .import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal: { id: 'importer', username: 'importer', scopes: ['write'] },
+          expectedAccess: access,
+        },
+        'fixture-project',
+      )
       .catch((failure: unknown) => failure);
     expect(refused).toBeInstanceOf(Error);
     if (!(refused instanceof Error)) throw new Error('missing scoped authority did not throw');
     expect(refused.message).toBe('scoped import lacks borrowed authority or fan-out delivery');
-    expect(await source.stores.projects.list()).toEqual([]);
+    expect(await source.stores.workPackages.list()).toEqual([]);
     expect(announcements.published).toEqual([]);
   });
 
@@ -331,6 +400,15 @@ describe('ImportedPlanResource', () => {
     const scope = { stores: {} } as Scope;
     const writes = new ImportedPlanResource(scope, {
       actorId: 'importer',
+      project: {
+        kind: 'project',
+        chain: {
+          level: 'project',
+          organizationId: 'reflection-org',
+          projectId: 'reflection-project',
+          spaceId: null,
+        },
+      },
       access: LEGACY_ACCESS,
       externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
       assertActive: () => undefined,

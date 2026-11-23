@@ -7,8 +7,9 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const PERSON_KIND = '20260821150000_add_person_kind';
 const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
@@ -39,25 +40,25 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
  * The newest, and the optimizer's own: four tables plus one nullable column on
- * `project`. Additive forward and dropped whole by its own `down.sql`, so it
+ * `workPackage`. Additive forward and dropped whole by its own `down.sql`, so it
  * appears in the order and in nothing else this file checks — except that it
  * now **heads** every descending reversal list below, because the newest
  * migration is the first thing any rollback reverses.
  */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 /**
- * The newest: the three project settings the optimizer is steered by, on
- * `project`. Additive forward and dropped column by named column on the way
+ * The newest: the three work package settings the optimizer is steered by, on
+ * `workPackage`. Additive forward and dropped column by named column on the way
  * back, so it now **heads** every descending reversal list below and tails
  * every ascending one — the newest migration is the first thing any rollback
  * reverses.
  */
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
- * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * The newest: the `(work_package_id, id)` index that serves
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -104,7 +105,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -119,19 +120,22 @@ const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb(): { path: string; migrations: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-identity-migrate-'));
   return {
     path: join(dir, 'test.db'),
+    migrations: copyRecoveryPrefix(dir, PREFIX),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },
   };
 }
 
-function beforeIdentity(dbPath: string): void {
-  runMigrations(dbPath, FOLDER);
-  expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+function beforeIdentity(dbPath: string, migrations: string): void {
+  runMigrations(dbPath, migrations);
+  expect(rollbackTo(dbPath, migrations, PERSON_KIND)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -201,7 +205,7 @@ function beforeIdentity(dbPath: string): void {
     WORK_ITEM_DEADLINE,
     READ_ORDER_INDEX,
     CALENDAR_MARKER,
-    PROJECT_SETTINGS,
+    WORK_PACKAGE_SETTINGS,
     OPTIMIZER_TABLES,
     CREATED_BY_ID,
     SAVED_PLAN,
@@ -236,8 +240,8 @@ describe('the OIDC identity migration', () => {
     // columns' presence.
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -265,8 +269,8 @@ describe('the OIDC identity migration', () => {
   it('rejects normalized-email and issuer-bound-subject collisions independently', () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -294,9 +298,11 @@ describe('the OIDC identity migration', () => {
   it('rolls legacy accounts back without deleting dependent plans', () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
+      expect(rollbackTo(db.path, db.migrations, PERSON_KIND)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -366,7 +372,7 @@ describe('the OIDC identity migration', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -409,8 +415,8 @@ describe('the OIDC identity migration', () => {
   it('locks OIDC-only accounts during downgrade and restores every identity on re-apply', async () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -426,7 +432,9 @@ describe('the OIDC identity migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, PERSON_KIND)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -496,7 +504,7 @@ describe('the OIDC identity migration', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -519,20 +527,23 @@ describe('the OIDC identity migration', () => {
         expect(await Bun.password.verify('not-the-locked-value', locked ?? '')).toBe(false);
         expect(
           downgraded
-            .query<{ users: number; projects: number; identities: number; migrations: number }, []>(
+            .query<
+              { users: number; workPackages: number; identities: number; migrations: number },
+              []
+            >(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM project) AS projects,
+              (SELECT COUNT(*) FROM project) AS workPackages,
               (SELECT COUNT(*) FROM oidc_identity_downgrade) AS identities,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
-        ).toEqual({ users: 2, projects: 2, identities: 2, migrations: 26 });
+        ).toEqual({ users: 2, workPackages: 2, identities: 2, migrations: 26 });
       } finally {
         downgraded.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const restored = openDatabase(db.path);
       try {
         expect(
@@ -566,10 +577,10 @@ describe('the OIDC identity migration', () => {
         ]);
         expect(
           restored
-            .query<{ users: number; projects: number; migrations: number }, []>(
+            .query<{ users: number; workPackages: number; migrations: number }, []>(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM project) AS projects,
+              (SELECT COUNT(*) FROM project) AS workPackages,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
@@ -580,7 +591,11 @@ describe('the OIDC identity migration', () => {
           // 20260901120000_add_audit_columns, 34 until
           // 20260902120000_add_lookup_indexes, and every one of those changes
           // broke this line in a way that said nothing about identity.
-        ).toEqual({ users: 2, projects: 2, migrations: readMigrationFolders(FOLDER).length });
+        ).toEqual({
+          users: 2,
+          workPackages: 2,
+          migrations: readMigrationFolders(db.migrations).length,
+        });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

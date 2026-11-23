@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { servicesOver } from '@wbs/core/compose';
-import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -36,11 +36,13 @@ import { createOptimizationOutcomeOwner } from '../service/optimization-outcome'
 import { createRetryReservationOwner } from '../service/optimization-retry-reservation';
 import { testApp } from '../testing/app-fixture';
 import { testLocalAuthService } from '../testing/auth-fixture';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -60,30 +62,43 @@ async function fixture(failedPri = false, installedReader = true) {
   seedDependencyAuthority(path);
   const sqlite = openDatabase(path);
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
-  sqlite.run(
-    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
-  );
-  sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
-  sqlite.run("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
-  for (const id of ['a1', 'a2']) {
-    sqlite.run('INSERT INTO work_item(id,project_id,position,name) VALUES(?,?,10,?)', [id, id, id]);
-    sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,10)', [
-      id + '-s',
-      id,
-      'Build',
-    ]);
+  expect(
     sqlite.run(
-      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,1,1,1)',
-      [id, id + '-s'],
-    );
-  }
+      "DELETE FROM access_grant WHERE scope_kind='work_package' AND scope_id='a1' AND organization_id='org-a' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('retry-manager','org-a','organization','org-a','user','ada','org-admin','route',1)",
+  );
+  sqlite.run("UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-05'");
+  sqlite.run(
+    "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
   );
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
   });
+  const stepId = 'retry-build';
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [[stepId, 'Build']],
+    { at: 2, by: 'ada' },
+  );
+  for (const id of ['a1', 'a2']) {
+    sqlite.run('INSERT INTO work_item(id,work_package_id,position,name) VALUES(?,?,10,?)', [
+      id,
+      id,
+      id,
+    ]);
+    sqlite.run(
+      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,1,1,1)',
+      [id, stepId],
+    );
+  }
+  sqlite.run(
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
+  );
   let openReads = 0;
   let readCount = 0;
   let afterRead: (() => void) | undefined;
@@ -108,7 +123,7 @@ async function fixture(failedPri = false, installedReader = true) {
   const graph = servicesOver(
     { ...source.stores, livePlans: plans },
     {
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       dependencyContext: createLocalDependencyContext(source.stores),
       clock: testClock,
       broadcast: recordingBroadcaster(),
@@ -174,6 +189,7 @@ async function fixture(failedPri = false, installedReader = true) {
   });
   const app = testApp({
     ...graph,
+    accessDecisions: source.stores.accessDecisions,
     workItems: graph.workItems,
     optimizer: coordinator,
     auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
@@ -189,9 +205,9 @@ async function fixture(failedPri = false, installedReader = true) {
       throw Error('expected connected stage');
     return { ...captured, input: captured.input };
   };
-  const send = (inputHash: string, objective: 'pri' | 'time' = 'time', projectId = 'a1') =>
+  const send = (inputHash: string, objective: 'pri' | 'time' = 'time', workPackageId = 'a1') =>
     app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/optimization/retry`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/optimization/retry`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-WBS-Expected-Organization': 'org-a' },
         body: JSON.stringify({ inputHash, objective }),
@@ -235,7 +251,7 @@ async function fixture(failedPri = false, installedReader = true) {
 it('mounted connected Retry returns retained terminal 409 without writes or a launcher', async () => {
   const f = await fixture();
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   expect(f.errors).toEqual([]);
   const before = f.snapshot();
@@ -252,7 +268,7 @@ it('mounted connected Retry returns retained terminal 409 without writes or a la
 it('mounted connected Retry compares submitted hash before retained terminal preflight', async () => {
   const f = await fixture();
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   const before = f.snapshot();
   const reply = await f.send('old-hash');
@@ -266,15 +282,15 @@ it('mounted connected Retry compares submitted hash before retained terminal pre
 
 it('mounted connected Retry reports target and missing calendars without writes', async () => {
   const f = await fixture();
-  f.sqlite.run("UPDATE project SET start_date=NULL WHERE id='a2'");
+  f.sqlite.run("UPDATE work_package SET start_date=NULL WHERE id='a2'");
   const before = f.snapshot();
   const reply = await f.send('unused');
   expect(reply.status).toBe(409);
   expect(await reply.json()).toEqual({
     code: 'schedule-input-unavailable',
     reason: 'dependency_calendar_missing',
-    projectId: 'a1',
-    projects: [{ projectId: 'a2', abbreviation: 'PA2', name: 'a2' }],
+    workPackageId: 'a1',
+    workPackages: [{ workPackageId: 'a2', abbreviation: 'PA2', name: 'a2' }],
   });
   expect(f.snapshot()).toEqual(before);
   expect(f.launched).toEqual([]);
@@ -294,7 +310,7 @@ it('mounted connected Retry reports an idle target without creating a question',
 it('mounted Retry admits failed Pri beside terminal Time using the current connected hash', async () => {
   const f = await fixture(true);
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   expect(f.errors).toEqual([]);
   const hash = captureConnectedQuestion(captured.input.stage, 'pri', installed).inputHash;
@@ -314,7 +330,7 @@ it('mounted Retry admits failed Pri beside terminal Time using the current conne
 it('mounted Retry rebuilds a changed foreign boundary before terminal lookup', async () => {
   const f = await fixture();
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   const oldHash = captureConnectedQuestion(captured.input.stage, 'time', installed).inputHash;
   f.sqlite.run(
@@ -333,10 +349,10 @@ it('mounted Retry rebuilds a changed foreign boundary before terminal lookup', a
 it('mounted Retry retains terminal authority before a replaced generation and conceals foreign targets', async () => {
   const f = await fixture();
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   f.sqlite.run(
-    "UPDATE optimization_generation SET input_hash='replacement',generation=generation+1 WHERE project_id='a1'",
+    "UPDATE optimization_generation SET input_hash='replacement',generation=generation+1 WHERE work_package_id='a1'",
   );
   const before = f.snapshot();
   const reply = await f.send(
@@ -358,7 +374,7 @@ it('mounted connected Retry preserves explicit unavailable input with no mutatio
   expect(await reply.json()).toEqual({
     code: 'schedule-input-unavailable',
     reason: 'engine_unavailable',
-    projectId: 'a1',
+    workPackageId: 'a1',
   });
   expect(f.snapshot()).toEqual(before);
   expect(f.launched).toEqual([]);
@@ -367,7 +383,7 @@ it('mounted connected Retry preserves explicit unavailable input with no mutatio
 it('mounted connected Retry authorizes before capture and rechecks membership inside the writer', async () => {
   const f = await fixture();
   const captured = await f.capture();
-  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
   await f.coordinator.drain();
   const hash = captureConnectedQuestion(captured.input.stage, 'time', installed).inputHash;
   const reads = f.readCount();
@@ -381,6 +397,23 @@ it('mounted connected Retry authorizes before capture and rechecks membership in
   const reply = await f.send(hash);
   expect(reply.status).toBe(403);
   expect(await reply.json()).toEqual({ error: 'forbidden' });
+  expect(f.snapshot()).toEqual(before);
+  expect(f.openReads()).toBe(0);
+});
+
+it('mounted connected Retry preserves package.manage_settings after writer grant revocation', async () => {
+  const f = await fixture();
+  const captured = await f.capture();
+  await f.coordinator.admitCaptured({ workPackageId: 'a1', ...captured });
+  await f.coordinator.drain();
+  const hash = captureConnectedQuestion(captured.input.stage, 'time', installed).inputHash;
+  const before = f.snapshot();
+  f.afterRead(() => {
+    f.sqlite.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='retry-manager'");
+  });
+  const reply = await f.send(hash);
+  expect(reply.status).toBe(403);
+  expect(await reply.json()).toEqual({ error: 'forbidden', permission: 'package.manage_settings' });
   expect(f.snapshot()).toEqual(before);
   expect(f.openReads()).toBe(0);
 });

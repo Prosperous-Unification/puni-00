@@ -1,25 +1,25 @@
 import { type Elsewhere, type Schedule, schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
+import type { ResolvedPlanInputReads } from '../../ports/saved-plan-capture-values';
 import { prepareCapturedScheduleParts } from '../../service/schedule-parts';
 import type { SavedPlanResource } from './saved-plan.resource';
 
 /**
  * Derive historical canonical inputs through the same preparation as live reads.
- * Captures have no actual dates. Project settings, typed dependencies, holds and
+ * Captures have no actual dates. Work package settings, typed dependencies, holds and
  * optional elsewhere bookings come exclusively from the detached observation.
  * Cycles remain scheduling failures; this boundary does not hide them.
  */
 export function scheduleInputOfCaptured(
-  reads: PlanInputReads,
+  reads: ResolvedPlanInputReads,
   elsewhere?: Elsewhere,
 ): ScheduleInput {
   return prepareCapturedScheduleParts(reads, elsewhere).input;
 }
 
 /** Schedules the canonical input derived from detached capture reads. */
-export function schedulePlanInput(reads: PlanInputReads, elsewhere?: Elsewhere): Schedule {
+export function schedulePlanInput(reads: ResolvedPlanInputReads, elsewhere?: Elsewhere): Schedule {
   const input = scheduleInputOfCaptured(reads, elsewhere);
   return schedule(
     input.rows,
@@ -37,14 +37,14 @@ export function schedulePlanInput(reads: PlanInputReads, elsewhere?: Elsewhere):
   );
 }
 
-/** One project's captured plan input and the dates computed from it. */
+/** One work package's captured plan input and the dates computed from it. */
 export interface CapturedPlan {
-  readonly reads: PlanInputReads;
+  readonly reads: ResolvedPlanInputReads;
   readonly planned: Schedule;
 }
 
 /**
- * Capture a project's plan input, then schedule it — in that order, with the
+ * Capture a work package's plan input, then schedule it — in that order, with the
  * read snapshot released in between.
  *
  * The ordering is the guarantee, so it is written as two statements rather than
@@ -61,10 +61,10 @@ export interface CapturedPlan {
  */
 export async function captureAndSchedulePlan(
   capture: Pick<SavedPlanResource, 'capturePlan'>,
-  projectId: string,
-  schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
+  workPackageId: string,
+  schedulePlan: (reads: ResolvedPlanInputReads) => Schedule = schedulePlanInput,
 ): Promise<CapturedPlan | null> {
-  const reads = await capture.capturePlan(projectId);
+  const reads = await capture.capturePlan(workPackageId);
   if (reads === null) return null;
   return { reads, planned: schedulePlan(reads) };
 }

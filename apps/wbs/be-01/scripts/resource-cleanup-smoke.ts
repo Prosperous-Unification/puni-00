@@ -40,7 +40,7 @@ if (process.pid !== 1)
   throw new Error(
     'Run this smoke in a disposable PID namespace with unshare --user --map-root-user --pid --fork --mount-proc bun',
   );
-const projectIdentity = type({ project: { id: 'string' } });
+const workPackageIdentity = type({ workPackage: { id: 'string' } });
 const commandIdentities = type({ results: type({ id: 'string' }).array() });
 const identity = type({ id: 'string' });
 const uses = type({ uses: resourceUse.array() });
@@ -136,12 +136,12 @@ try {
     personId: 'runtime-agent',
     issuedBy: h.userId('owner'),
   });
-  const project = await h.call('owner', 'POST', '/api/projects', {
+  const workPackage = await h.call('owner', 'POST', '/api/work-packages', {
     name: 'Real cleanup roundtrip',
   });
-  assert.equal(project.status, 200);
-  const projectId = projectIdentity.assert(project.body).project.id;
-  const work = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+  assert.equal(workPackage.status, 200);
+  const workPackageId = workPackageIdentity.assert(workPackage.body).workPackage.id;
+  const work = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Disposable proof' }],
   });
   assert.equal(work.status, 200);
@@ -207,7 +207,7 @@ try {
   const send = forwardedTools(issued.key);
   const use = await runtime.create(
     {
-      projectId,
+      projectId: workPackageId,
       resourceId,
       workItemId,
       agentRun: 'proof-run',
@@ -225,7 +225,7 @@ try {
   );
   assert.equal(runtime.outbox().length, 1);
   await runtime.synchronize(send);
-  const path = `/api/projects/${projectId}/resource-uses`;
+  const path = `/api/work-packages/${workPackageId}/resource-uses`;
   let projection = await h.call('owner', 'GET', path);
   assert.equal(projection.status, 200);
   assert.equal(firstUse(projection.body).state, 'active');
@@ -339,7 +339,7 @@ try {
   assert.equal(runtime.inspect(delayed.id).state, 'released');
   assert.equal(
     (
-      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'deleteWorkItem', workItemId }],
       })
     ).status,
@@ -349,7 +349,7 @@ try {
   assert.equal(runtime.outbox().length, 0);
   const survivingWork = commandId(
     (
-      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', parentId: null, name: 'Following admission' }],
       })
     ).body,
@@ -393,7 +393,7 @@ try {
   );
   assert.equal(
     (
-      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'deleteWorkItem', workItemId: survivingWork }],
       })
     ).status,
@@ -438,7 +438,7 @@ try {
   assert.equal(existsSync(rejected.locator), false);
   const finalWork = commandId(
     (
-      await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'createWorkItem', parentId: null, name: 'After refusal' }],
       })
     ).body,

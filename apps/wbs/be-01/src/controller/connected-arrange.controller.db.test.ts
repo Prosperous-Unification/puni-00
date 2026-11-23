@@ -2,6 +2,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 let target: string;
@@ -12,34 +13,29 @@ beforeEach(async () => {
   harness = OrganizationHarness.openComposedWith({ withOptimizer: true, solverVersion: '0.4.0' });
   await harness.register('ada');
   harness.organization('arrange-org');
-  harness.member('arrange-org', 'ada', 'admin');
+  harness.member('arrange-org', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'arrange-org');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
-  const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/projects', { name });
-    expect(answer.status).toBe(200);
-    return answer.body as { project: { id: string }; steps: { id: string }[] };
-  };
-  const first = await create('Target');
-  const second = await create('Predecessor');
-  target = first.project.id;
-  predecessor = second.project.id;
-  targetStep = first.steps[0].id;
-  predecessorStep = second.steps[0].id;
-  harness.sqlite.run("UPDATE project SET start_date='2026-10-05'");
-  for (const [id, project, step, position] of [
+  target = await createFixturePackage(harness, 'ada', 'Target');
+  predecessor = await createFixturePackage(harness, 'ada', 'Predecessor');
+  const first = (await readFixturePackage(harness, 'ada', target)).steps.at(0);
+  const second = (await readFixturePackage(harness, 'ada', predecessor)).steps.at(0);
+  if (first === undefined || second === undefined) throw new Error('fixture step absent');
+  targetStep = first.id;
+  predecessorStep = second.id;
+  await harness.drainOptimization();
+  harness.sqlite.run("UPDATE work_package SET start_date='2026-10-05'");
+  for (const [id, workPackage, step, position] of [
     ['late', target, targetStep, 10],
     ['z-held', target, targetStep, 20],
     ['early', target, targetStep, 30],
     ['remote', predecessor, predecessorStep, 10],
   ] as const) {
-    harness.sqlite.run('INSERT INTO work_item (id,project_id,position,name) VALUES (?,?,?,?)', [
-      id,
-      project,
-      position,
-      id,
-    ]);
+    harness.sqlite.run(
+      'INSERT INTO work_item (id,work_package_id,position,name) VALUES (?,?,?,?)',
+      [id, workPackage, position, id],
+    );
     harness.sqlite.run(
       'INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,1,1)',
       [id, step],
@@ -47,7 +43,7 @@ beforeEach(async () => {
   }
   harness.sqlite.run("UPDATE work_item SET hold='on_hold' WHERE id='z-held'");
   harness.sqlite.run(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES ('wait','arrange-org',?,?,'remote','late','node','node',?,?,'FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES ('wait','arrange-org',?,?,'remote','late','node','node',?,?,'FS')",
     [predecessor, target, predecessorStep, targetStep],
   );
 });
@@ -55,23 +51,30 @@ afterEach(async () => {
   await harness.closeComposed();
 });
 const arrange = () =>
-  harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+  harness.call('ada', 'POST', `/api/work-packages/${target}/commands`, {
     commands: [{ kind: 'arrangeBySchedule' }],
   });
 const positions = () =>
-  harness.sqlite.query('SELECT id,project_id,position FROM work_item ORDER BY id').all();
+  harness.sqlite.query('SELECT id,work_package_id,position FROM work_item ORDER BY id').all();
 const order = () =>
-  harness.sqlite.query('SELECT id FROM work_item WHERE project_id=? ORDER BY position').all(target);
+  harness.sqlite
+    .query('SELECT id FROM work_item WHERE work_package_id=? ORDER BY position')
+    .all(target);
 const journal = () => harness.sqlite.query('SELECT * FROM command_journal').all();
 const state = () =>
   Object.fromEntries(
-    ['work_item', 'project', 'command_journal', 'plan_event', 'event_log', 'event_sequencer'].map(
-      (table) => [table, harness.sqlite.query(`SELECT * FROM ${table}`).all()],
-    ),
+    [
+      'work_item',
+      'work_package',
+      'command_journal',
+      'plan_event',
+      'event_log',
+      'event_sequencer',
+    ].map((table) => [table, harness.sqlite.query(`SELECT * FROM ${table}`).all()]),
   );
 
 test('connected arrangement uses final captured foreign dates, leaves held and foreign rows, and replays stored positions', async () => {
-  const tree = await harness.call('ada', 'GET', `/api/projects/${target}/work-items`);
+  const tree = await harness.call('ada', 'GET', `/api/work-packages/${target}/work-items`);
   expect(tree.status).toBe(200);
   expect(tree.body).toMatchObject({
     workItems: [
@@ -91,11 +94,11 @@ test('connected arrangement uses final captured foreign dates, leaves held and f
   const arranged = state();
   expect(await arrange()).toMatchObject({ status: 200 });
   expect(state()).toEqual(arranged);
-  expect(await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).toMatchObject({
+  expect(await harness.call('ada', 'POST', `/api/work-packages/${target}/undo`)).toMatchObject({
     status: 200,
   });
   expect(positions()).toEqual(before);
-  expect(await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).toMatchObject({
+  expect(await harness.call('ada', 'POST', `/api/work-packages/${target}/redo`)).toMatchObject({
     status: 200,
   });
   expect(order()).toEqual([{ id: 'early' }, { id: 'z-held' }, { id: 'late' }]);
@@ -104,7 +107,7 @@ test('connected arrangement uses final captured foreign dates, leaves held and f
 const stagedLink = () => ({
   kind: 'addTypedDependency' as const,
   predecessor: {
-    projectId: predecessor,
+    workPackageId: predecessor,
     workItemId: 'remote',
     scope: 'node' as const,
     stepId: predecessorStep,
@@ -128,7 +131,7 @@ const durableState = () =>
 test('same-batch staged external prerequisite changes arrangement and actual GET order', async () => {
   harness.sqlite.run("DELETE FROM external_dependency WHERE id='wait'");
   const before = positions();
-  const unlinked = await harness.call('ada', 'GET', `/api/projects/${target}/work-items`);
+  const unlinked = await harness.call('ada', 'GET', `/api/work-packages/${target}/work-items`);
   expect(unlinked).toMatchObject({
     status: 200,
     body: {
@@ -140,36 +143,40 @@ test('same-batch staged external prerequisite changes arrangement and actual GET
     },
   });
   expect(
-    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${target}/commands`, {
       commands: [stagedLink(), { kind: 'arrangeBySchedule' }],
     }),
   ).toMatchObject({ status: 200 });
-  expect(await harness.call('ada', 'GET', `/api/projects/${target}/work-items`)).toMatchObject({
-    status: 200,
-    body: {
-      workItems: [
-        { id: 'early', schedule: { earliestStart: 0 } },
-        { id: 'z-held', schedule: null },
-        { id: 'late', schedule: { earliestStart: 1 } },
-      ],
+  expect(await harness.call('ada', 'GET', `/api/work-packages/${target}/work-items`)).toMatchObject(
+    {
+      status: 200,
+      body: {
+        workItems: [
+          { id: 'early', schedule: { earliestStart: 0 } },
+          { id: 'z-held', schedule: null },
+          { id: 'late', schedule: { earliestStart: 1 } },
+        ],
+      },
     },
-  });
+  );
   expect(
     positions().filter((row) => ['remote', 'z-held'].includes((row as { id: string }).id)),
   ).toEqual(before.filter((row) => ['remote', 'z-held'].includes((row as { id: string }).id)));
   expect(
     harness.sqlite
-      .query('SELECT predecessor_project_id,successor_project_id FROM external_dependency')
+      .query(
+        'SELECT predecessor_work_package_id,successor_work_package_id FROM external_dependency',
+      )
       .all(),
-  ).toEqual([{ predecessor_project_id: predecessor, successor_project_id: target }]);
+  ).toEqual([{ predecessor_work_package_id: predecessor, successor_work_package_id: target }]);
 });
 
 test('same-batch staged external prerequisite rolls back every table when its calendar is unavailable', async () => {
   harness.sqlite.run("DELETE FROM external_dependency WHERE id='wait'");
-  harness.sqlite.run('UPDATE project SET start_date=NULL WHERE id=?', [predecessor]);
+  harness.sqlite.run('UPDATE work_package SET start_date=NULL WHERE id=?', [predecessor]);
   const before = durableState();
   expect(
-    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${target}/commands`, {
       commands: [stagedLink(), { kind: 'arrangeBySchedule' }],
     }),
   ).toMatchObject({
@@ -182,7 +189,7 @@ test('same-batch staged external prerequisite rolls back every table when its ca
 test.each(['target', 'foreign'])(
   'connected arrangement refuses missing %s calendar atomically',
   async (missing) => {
-    harness.sqlite.run('UPDATE project SET start_date=NULL WHERE id=?', [
+    harness.sqlite.run('UPDATE work_package SET start_date=NULL WHERE id=?', [
       missing === 'target' ? target : predecessor,
     ]);
     const before = state();
@@ -196,7 +203,7 @@ test.each(['target', 'foreign'])(
 
 test('connected selected optimized pending arrangement refuses without admission or writes', async () => {
   harness.sqlite.run(
-    "UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?",
+    "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?",
     [target],
   );
   const before = state();
@@ -206,10 +213,10 @@ test('connected selected optimized pending arrangement refuses without admission
 });
 
 test('missing calendar rolls back an earlier collected edit', async () => {
-  harness.sqlite.run('UPDATE project SET start_date=NULL WHERE id=?', [predecessor]);
+  harness.sqlite.run('UPDATE work_package SET start_date=NULL WHERE id=?', [predecessor]);
   const before = state();
   expect(
-    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${target}/commands`, {
       commands: [
         { kind: 'patchWorkItem', workItemId: 'early', patch: { name: 'Changed' } },
         { kind: 'arrangeBySchedule' },
@@ -221,7 +228,7 @@ test('missing calendar rolls back an earlier collected edit', async () => {
 
 test('connected arrangement refuses a cycle atomically', async () => {
   harness.sqlite.run(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('cycle','arrange-org',?,?,'late','remote','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('cycle','arrange-org',?,?,'late','remote','whole','whole','FS')",
     [target, predecessor],
   );
   const before = state();
@@ -232,9 +239,9 @@ test('connected arrangement refuses a cycle atomically', async () => {
 test('shared connected arrangement honors foreign people without moving a held sibling', async () => {
   harness.sqlite.run("UPDATE external_dependency SET type='SS' WHERE id='wait'");
   const principalId = harness.userId('ada');
-  harness.sqlite.run('DELETE FROM project_rank');
+  harness.sqlite.run('DELETE FROM work_package_rank');
   harness.sqlite.run(
-    "INSERT INTO project_rank (project_id,organization_id,position,created_at,created_by) VALUES (?,'arrange-org',0,1,?),(?,'arrange-org',1,1,?)",
+    "INSERT INTO work_package_rank (work_package_id,organization_id,position,created_at,created_by) VALUES (?,'arrange-org',0,1,?),(?,'arrange-org',1,1,?)",
     [predecessor, principalId, target, principalId],
   );
 
@@ -267,7 +274,7 @@ test.each([
     .get();
   const before = positions();
   const readOrder = async () => {
-    const answer = await harness.call('ada', 'GET', `/api/projects/${target}/work-items`);
+    const answer = await harness.call('ada', 'GET', `/api/work-packages/${target}/work-items`);
     expect(answer.status).toBe(200);
     return (answer.body as { workItems: { id: string }[] }).workItems.map((row) => row.id);
   };
@@ -279,7 +286,7 @@ test.each([
   ).toEqual(heldBefore);
   expect(
     harness.sqlite
-      .query('SELECT id,position FROM work_item WHERE project_id=? ORDER BY position,id')
+      .query('SELECT id,position FROM work_item WHERE work_package_id=? ORDER BY position,id')
       .all(target),
   ).toEqual([
     { id: 'early', position: late },
@@ -289,12 +296,12 @@ test.each([
   const arranged = state();
   expect(await arrange()).toMatchObject({ status: 200 });
   expect(state()).toEqual(arranged);
-  expect(await harness.call('ada', 'POST', `/api/projects/${target}/undo`)).toMatchObject({
+  expect(await harness.call('ada', 'POST', `/api/work-packages/${target}/undo`)).toMatchObject({
     status: 200,
   });
   expect(positions()).toEqual(before);
   expect(await readOrder()).toEqual(['late', 'z-held', 'early']);
-  expect(await harness.call('ada', 'POST', `/api/projects/${target}/redo`)).toMatchObject({
+  expect(await harness.call('ada', 'POST', `/api/work-packages/${target}/redo`)).toMatchObject({
     status: 200,
   });
   expect(await readOrder()).toEqual(['early', 'z-held', 'late']);
@@ -313,7 +320,7 @@ test('connected arrangement allocates valid duplicate slots around an immutable 
     .query("SELECT position,revision FROM work_item WHERE id='z-held'")
     .get();
   expect(await arrange()).toMatchObject({ status: 200 });
-  const read = await harness.call('ada', 'GET', `/api/projects/${target}/work-items`);
+  const read = await harness.call('ada', 'GET', `/api/work-packages/${target}/work-items`);
   expect((read.body as { workItems: { id: string }[] }).workItems.map((row) => row.id)).toEqual([
     'z-held',
     'late',
@@ -323,7 +330,7 @@ test('connected arrangement allocates valid duplicate slots around an immutable 
     harness.sqlite.query("SELECT position,revision FROM work_item WHERE id='z-held'").get(),
   ).toEqual(heldBefore);
   const placed = harness.sqlite
-    .query<{ position: number }, [string]>('SELECT position FROM work_item WHERE project_id=?')
+    .query<{ position: number }, [string]>('SELECT position FROM work_item WHERE work_package_id=?')
     .all(target);
   expect(placed.every((row) => Number.isFinite(row.position))).toBe(true);
   const arranged = state();
@@ -334,10 +341,10 @@ test('connected arrangement allocates valid duplicate slots around an immutable 
 test('connected arrangement refuses an impossible order between equal held anchors without any write', async () => {
   harness.sqlite.run('DELETE FROM external_dependency');
   harness.sqlite.run(
-    'DELETE FROM estimate WHERE work_item_id IN (SELECT id FROM work_item WHERE project_id=?)',
+    'DELETE FROM estimate WHERE work_item_id IN (SELECT id FROM work_item WHERE work_package_id=?)',
     [target],
   );
-  harness.sqlite.run('DELETE FROM work_item WHERE project_id=?', [target]);
+  harness.sqlite.run('DELETE FROM work_item WHERE work_package_id=?', [target]);
   for (const [id, position, hold] of [
     ['z-late', 10, null],
     ['k-held', 20, 'on_hold'],
@@ -345,7 +352,7 @@ test('connected arrangement refuses an impossible order between equal held ancho
     ['m-held', 20, 'on_hold'],
   ] as const) {
     harness.sqlite.run(
-      'INSERT INTO work_item (id,project_id,position,name,hold) VALUES (?,?,?,?,?)',
+      'INSERT INTO work_item (id,work_package_id,position,name,hold) VALUES (?,?,?,?,?)',
       [id, target, position, id, hold],
     );
     harness.sqlite.run(
@@ -354,7 +361,7 @@ test('connected arrangement refuses an impossible order between equal held ancho
     );
   }
   harness.sqlite.run(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('wait','arrange-org',?,?,'remote','z-late','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('wait','arrange-org',?,?,'remote','z-late','whole','whole','FS')",
     [predecessor, target],
   );
   const before = state();
@@ -364,7 +371,7 @@ test('connected arrangement refuses an impossible order between equal held ancho
   });
   expect(state()).toEqual(before);
   expect(
-    await harness.call('ada', 'POST', `/api/projects/${target}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${target}/commands`, {
       commands: [
         { kind: 'patchWorkItem', workItemId: 'l-early', patch: { name: 'Uncommitted' } },
         { kind: 'arrangeBySchedule' },

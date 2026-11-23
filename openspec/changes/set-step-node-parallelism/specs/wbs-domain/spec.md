@@ -376,29 +376,43 @@ replay its historical snapshot without rereading its original source policy.
 - **AND** empty selected policy or unrelated policy permits replay with its exact facts intact
 - **AND** root restoration succeeds without consulting a poisoned sparse reader
 
-### Requirement: Terminal project drain validates incident sparse policy
+### Requirement: Terminal work-package drain validates incident sparse policy
 
-The project arm of terminal optimization drain SHALL validate sparse facts
+The work-package arm of terminal optimization drain SHALL validate sparse facts
 synchronously inside its existing transaction after absent, open, waiting and
 existing dependency refusals and before deletion. Selection SHALL include facts
-incident through an owner OR step in the deleting project and SHALL preserve
-missing references through left joins. Selected owner and step SHALL exist in
-the deleting project, the owner SHALL be a leaf and the maximum SHALL be an
-integer from 1 through 1000. Malformed or unavailable trusted evidence SHALL throw
+whose actual work-item owner belongs to the deleting work package OR whose
+work-item owner is wholly absent, preserving missing references through left
+joins. Sharing an organization-level step definition alone SHALL NOT make a
+known bystander's fact incident. Selected owners SHALL exist in the deleting
+work package; selected step definitions SHALL exist in its actual organization,
+and explicit values SHALL exist for the exact (work package, step) pair. Package
+organization mappings and actual parent/organization evidence SHALL agree. This
+terminal identity validation SHALL NOT add live binding/type applicability
+admission. The owner SHALL be a leaf and the maximum SHALL be an integer from
+1 through 1000. Malformed or unavailable trusted evidence SHALL throw
 without graph deletion. Valid local policy SHALL cascade with successful terminal
-project deletion; bystander policy SHALL remain byte-equal.
+work-package deletion; bystander policy SHALL remain byte-equal.
 
-#### Scenario: Both incident directions prevent cross-project cascades
+#### Scenario: Selected identity corruption prevents cleanup
 
-- **GIVEN** target-owner/foreign-step or foreign-owner/target-step sparse evidence
-- **WHEN** raw finish, last-slot release or expired reclaim reaches terminal project deletion
+- **GIVEN** a target-owned fact naming a missing or foreign-organization definition, missing exact package values, or a wholly absent work-item owner
+- **WHEN** raw finish, last-slot release or expired reclaim reaches terminal work-package deletion
 - **THEN** validation throws and restores all graph, generation, slot and sparse state
+
+#### Scenario: Shared definition identity does not confer package ownership
+
+- **GIVEN** packages A and B use the same organization-level definition S
+- **WHEN** A finishes deleting while a sparse fact belongs to B's work item
+- **THEN** B's fact, values, shared definition and scope bindings remain unchanged
+- **AND** malformed B policy or missing (B, S) values does not veto A
+- **AND** B's own terminal drain refuses its selected missing values
 
 #### Scenario: Trusted malformed and unavailable evidence cannot become absence
 
 - **GIVEN** a selected missing owner, missing step, parent owner or invalid maximum
 - **OR** absent or unreadable sparse storage
-- **WHEN** terminal project deletion is attempted
+- **WHEN** terminal work-package deletion is attempted
 - **THEN** it throws before cleanup and rolls back preceding slot and generation changes
 
 #### Scenario: Valid policy survives every rollback boundary

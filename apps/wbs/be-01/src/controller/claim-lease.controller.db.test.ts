@@ -8,12 +8,13 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const T = 1_900_000_000_000;
 let now = T;
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let leaf: string;
 let stepId: string;
 let key: string;
@@ -47,17 +48,15 @@ beforeEach(async () => {
   });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
-  projectId = plan.project.id;
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  const plan = await readFixturePackage(h, 'dany', workPackageId);
   const firstStep = plan.steps.at(0);
-  if (firstStep === undefined) throw new Error('project omitted its first workflow step');
+  if (firstStep === undefined) throw new Error('work package omitted its first workflow step');
   stepId = firstStep.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -70,6 +69,10 @@ beforeEach(async () => {
   });
   key = issued.key;
   credentialId = issued.id;
+  h.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-worker','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
+    [issued.id],
+  );
 });
 
 afterEach(async () => {
@@ -81,7 +84,7 @@ function asAgent(method: string, path: string, body?: unknown): Promise<Answer> 
 }
 
 async function claimAsAgent(): Promise<void> {
-  const claimed = await asAgent('POST', `/api/projects/${projectId}/commands`, {
+  const claimed = await asAgent('POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       {
         kind: 'claimWorkItem',
@@ -100,10 +103,10 @@ function claims(): number {
 }
 
 /**
- * The projects each pushed `claims_changed` was announced to, in push order.
+ * The work packages each pushed `claims_changed` was announced to, in push order.
  * Each is transient (C21): pushed with no sequence, and never in the event log.
  */
-function claimsChangedProjects(): string[] {
+function claimsChangedWorkPackages(): string[] {
   const recorded = h.sqlite
     .query<{ message: string }, []>('SELECT message FROM event_log')
     .all()
@@ -114,32 +117,36 @@ function claimsChangedProjects(): string[] {
   const sequenced = announced.find(({ seq }) => seq !== undefined);
   if (sequenced !== undefined)
     throw new Error(`claims_changed pushed at seq ${String(sequenced.seq)}`);
-  return announced.map(({ subscription }) => subscription.slice('project:'.length));
+  return announced.map(({ subscription }) => subscription.slice('work-package:'.length));
 }
 
-async function createLeaf(name: string): Promise<{ project: string; leaf: string; step: string }> {
-  const created = await h.call('dany', 'POST', '/api/projects', { name });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
-  const project = plan.project.id;
+async function createLeaf(
+  name: string,
+): Promise<{ workPackage: string; leaf: string; step: string }> {
+  const workPackage = await createFixturePackage(h, 'dany', name);
+  const plan = await readFixturePackage(h, 'dany', workPackage);
   const step = plan.steps.at(0)?.id;
-  if (step === undefined) throw new Error('project omitted its first workflow step');
-  const rows = await h.call('dany', 'POST', `/api/projects/${project}/commands`, {
+  if (step === undefined) throw new Error('work package omitted its first workflow step');
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
-  return { project, leaf: (rows.body as { results: { id: string }[] }).results[0]?.id ?? '', step };
+  return {
+    workPackage,
+    leaf: (rows.body as { results: { id: string }[] }).results[0]?.id ?? '',
+    step,
+  };
 }
 
-/** Adds an independent eligible leaf so renewal must deduplicate two moved leases per project. */
-async function claimAnother(project: string, step: string, runId: string): Promise<void> {
-  const created = await h.call('dany', 'POST', `/api/projects/${project}/commands`, {
+/** Adds an independent eligible leaf so renewal must deduplicate two moved leases per work package. */
+async function claimAnother(workPackage: string, step: string, runId: string): Promise<void> {
+  const created = await h.call('dany', 'POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: runId }],
   });
   if (created.status !== 200) throw new Error(`second leaf refused: ${JSON.stringify(created)}`);
   const workItemId = (created.body as { results: { id: string }[] }).results.at(0)?.id;
   if (workItemId === undefined) throw new Error('second leaf absent');
-  const claimed = await asAgent('POST', `/api/projects/${project}/commands`, {
+  const claimed = await asAgent('POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [{ kind: 'claimWorkItem', workItemId, personId: 'codex', runId, steps: [step] }],
   });
   if (claimed.status !== 200) throw new Error(`second claim refused: ${JSON.stringify(claimed)}`);
@@ -148,11 +155,11 @@ async function claimAnother(project: string, step: string, runId: string): Promi
 describe('a claim lease over HTTP', () => {
   it("shows an agent's lease on the person-work and startable reads", async () => {
     await claimAsAgent();
-    const work = await asAgent('GET', `/api/projects/${projectId}/people/codex/work`);
+    const work = await asAgent('GET', `/api/work-packages/${workPackageId}/people/codex/work`);
     expect(work.status).toBe(200);
     const held = (work.body as { claims: { leaseExpiresAt: number | null }[] }).claims;
     expect(held.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([T + CLAIM_LEASE_MS]);
-    const startable = await asAgent('GET', `/api/projects/${projectId}/startable`);
+    const startable = await asAgent('GET', `/api/work-packages/${workPackageId}/startable`);
     expect(startable.status).toBe(200);
     const claimed = (startable.body as { claimed: { leaseExpiresAt: number | null }[] }).claimed;
     expect(claimed.map(({ leaseExpiresAt }) => leaseExpiresAt)).toEqual([T + CLAIM_LEASE_MS]);
@@ -173,7 +180,7 @@ describe('a claim lease over HTTP', () => {
 
   it('refuses a heartbeat carrying a body or a query as a typed 400, renewing nothing', async () => {
     await claimAsAgent();
-    await claimAnother(projectId, stepId, 'run-2');
+    await claimAnother(workPackageId, stepId, 'run-2');
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew', {})).toMatchObject({
       status: 400,
@@ -214,21 +221,21 @@ describe('a claim lease over HTTP', () => {
     ).toMatchObject({ status: 204 });
     await sweep.settled();
     expect(claims()).toBe(0);
-    const history = await h.call('dany', 'GET', `/api/projects/${projectId}/history`);
+    const history = await h.call('dany', 'GET', `/api/work-packages/${workPackageId}/history`);
     expect(JSON.stringify(history.body)).toContain('(credential revoked)');
   });
 });
 
 /**
  * The heartbeat's announcement (`wbs-claim-display` C4): one type-only
- * `claims_changed` per project in which the renewal moved a lease, recorded
+ * `claims_changed` per work package in which the renewal moved a lease, recorded
  * after the renewal commits, and nothing when nothing moved.
  */
 describe('a heartbeat announcing claims_changed', () => {
-  it('announces once to each project whose lease moved', async () => {
+  it('announces once to each work package whose lease moved', async () => {
     await claimAsAgent();
     const other = await createLeaf('Plan of A, second');
-    const claimed = await asAgent('POST', `/api/projects/${other.project}/commands`, {
+    const claimed = await asAgent('POST', `/api/work-packages/${other.workPackage}/commands`, {
       commands: [
         {
           kind: 'claimWorkItem',
@@ -240,27 +247,27 @@ describe('a heartbeat announcing claims_changed', () => {
       ],
     });
     expect(claimed.status).toBe(200);
-    await claimAnother(projectId, stepId, 'run-3');
-    await claimAnother(other.project, other.step, 'run-4');
+    await claimAnother(workPackageId, stepId, 'run-3');
+    await claimAnother(other.workPackage, other.step, 'run-4');
     expect(claims()).toBe(4);
-    expect(claimsChangedProjects()).toEqual([]);
+    expect(claimsChangedWorkPackages()).toEqual([]);
     now = T + 2 * 60_000;
     expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
       status: 200,
       body: { leases: 4, leaseExpiresAt: now + CLAIM_LEASE_MS },
     });
-    // Proof: omitting SQLite's moved-project Set made this actual composed
+    // Proof: omitting SQLite's moved-work-package Set made this actual composed
     // heartbeat announce [A,A,B,B] instead of [A,B] (1 fail), then restored.
-    expect(claimsChangedProjects().sort()).toEqual([projectId, other.project].sort());
+    expect(claimsChangedWorkPackages().sort()).toEqual([workPackageId, other.workPackage].sort());
   });
 
   it('announces nothing for a heartbeat within the minute, nor a refused one', async () => {
     await claimAsAgent();
-    await claimAnother(projectId, stepId, 'run-2');
+    await claimAnother(workPackageId, stepId, 'run-2');
     expect(claims()).toBe(2);
     now = T + 2 * 60_000;
     expect((await asAgent('POST', '/api/claims/renew')).status).toBe(200);
-    expect(claimsChangedProjects()).toEqual([projectId]);
+    expect(claimsChangedWorkPackages()).toEqual([workPackageId]);
     now = T + 2 * 60_000 + 30_000;
     expect(await asAgent('POST', '/api/claims/renew')).toMatchObject({
       status: 200,
@@ -271,7 +278,7 @@ describe('a heartbeat announcing claims_changed', () => {
       status: 403,
       body: { error: 'not_pinned' },
     });
-    expect(claimsChangedProjects()).toEqual([projectId]);
+    expect(claimsChangedWorkPackages()).toEqual([workPackageId]);
   });
 
   it('announces nothing when the renewal rolls back', async () => {
@@ -283,7 +290,7 @@ describe('a heartbeat announcing claims_changed', () => {
     now = T + 2 * 60_000;
     const refused = await asAgent('POST', '/api/claims/renew');
     h.sqlite.run('DROP TRIGGER refuse_renewal');
-    expect(claimsChangedProjects()).toEqual([]);
+    expect(claimsChangedWorkPackages()).toEqual([]);
     expect(refused.status).toBe(500);
     expect(
       h.sqlite.query<{ at: number }, []>('SELECT min(lease_expires_at) AS at FROM claim').get()?.at,
@@ -293,16 +300,16 @@ describe('a heartbeat announcing claims_changed', () => {
 
 /**
  * A batch's own renewal (`wbs-claim-display` C19): the agent's leases in other
- * projects move with it, so each such project hears one `claims_changed` after
- * the batch commits; the batch's own project hears its `tree_replaced` alone.
+ * work packages move with it, so each such work package hears one `claims_changed` after
+ * the batch commits; the batch's own work package hears its `tree_replaced` alone.
  */
 describe('a batch renewal announcing claims_changed elsewhere', () => {
-  let other: { project: string; leaf: string; step: string };
+  let other: { workPackage: string; leaf: string; step: string };
 
   beforeEach(async () => {
     await claimAsAgent();
     other = await createLeaf('Plan of A, second');
-    const claimed = await asAgent('POST', `/api/projects/${other.project}/commands`, {
+    const claimed = await asAgent('POST', `/api/work-packages/${other.workPackage}/commands`, {
       commands: [
         {
           kind: 'claimWorkItem',
@@ -314,38 +321,40 @@ describe('a batch renewal announcing claims_changed elsewhere', () => {
       ],
     });
     if (claimed.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claimed)}`);
-    await claimAnother(projectId, stepId, 'run-3');
-    await claimAnother(other.project, other.step, 'run-4');
+    await claimAnother(workPackageId, stepId, 'run-3');
+    await claimAnother(other.workPackage, other.step, 'run-4');
     expect(claims()).toBe(4);
   });
 
   function renameAsAgent(workItemId: string, name: string): Promise<Answer> {
-    return asAgent('POST', `/api/projects/${projectId}/commands`, {
+    return asAgent('POST', `/api/work-packages/${workPackageId}/commands`, {
       commands: [{ kind: 'patchWorkItem', workItemId, patch: { name } }],
     });
   }
 
-  it('announces once to each other project, none extra to its own', async () => {
-    expect(claimsChangedProjects()).toEqual([]);
+  it('announces once to each other work package, none extra to its own', async () => {
+    expect(claimsChangedWorkPackages()).toEqual([]);
     now = T + 2 * 60_000;
     expect((await renameAsAgent(leaf, 'Leaf, renamed')).status).toBe(200);
-    expect(claimsChangedProjects()).toEqual([other.project]);
+    expect(claimsChangedWorkPackages()).toEqual([other.workPackage]);
     expect(
       h.sqlite.query<{ at: number }, []>('SELECT min(lease_expires_at) AS at FROM claim').get()?.at,
     ).toBe(now + CLAIM_LEASE_MS);
   });
 
-  it('announces its own project for a batch that changed no row', async () => {
+  it('announces its own work package for a batch that changed no row', async () => {
     now = T + 2 * 60_000;
-    const empty = await asAgent('POST', `/api/projects/${projectId}/commands`, { commands: [] });
+    const empty = await asAgent('POST', `/api/work-packages/${workPackageId}/commands`, {
+      commands: [],
+    });
     expect(empty.status).toBe(200);
-    expect(claimsChangedProjects().sort()).toEqual([projectId, other.project].sort());
+    expect(claimsChangedWorkPackages().sort()).toEqual([workPackageId, other.workPackage].sort());
     now = T + 4 * 60_000;
-    const tagged = await asAgent('POST', `/api/projects/${projectId}/commands`, {
-      commands: [{ kind: 'createTag', name: 'swarm' }],
+    const tagged = await asAgent('POST', `/api/work-packages/${workPackageId}/commands`, {
+      commands: [],
     });
     expect(tagged.status).toBe(200);
-    expect(claimsChangedProjects().filter((each) => each === projectId)).toHaveLength(2);
+    expect(claimsChangedWorkPackages().filter((each) => each === workPackageId)).toHaveLength(2);
   });
 
   it('announces nothing within the minute', async () => {
@@ -353,13 +362,13 @@ describe('a batch renewal announcing claims_changed elsewhere', () => {
     expect((await renameAsAgent(leaf, 'Leaf, renamed')).status).toBe(200);
     now = T + 2 * 60_000 + 30_000;
     expect((await renameAsAgent(leaf, 'Leaf, again')).status).toBe(200);
-    expect(claimsChangedProjects()).toEqual([other.project]);
+    expect(claimsChangedWorkPackages()).toEqual([other.workPackage]);
   });
 
   it('announces nothing for a refused batch', async () => {
     now = T + 2 * 60_000;
     expect((await renameAsAgent('no-such-item', 'Ghost')).status).not.toBe(200);
-    expect(claimsChangedProjects()).toEqual([]);
+    expect(claimsChangedWorkPackages()).toEqual([]);
   });
 
   it('announces nothing when the batch rolls back', async () => {
@@ -370,7 +379,7 @@ describe('a batch renewal announcing claims_changed elsewhere', () => {
     now = T + 2 * 60_000;
     const refused = await renameAsAgent(leaf, 'Leaf, renamed');
     h.sqlite.run('DROP TRIGGER refuse_renewal');
-    expect(claimsChangedProjects()).toEqual([]);
+    expect(claimsChangedWorkPackages()).toEqual([]);
     expect(refused.status).toBe(500);
     expect(
       h.sqlite

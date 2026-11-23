@@ -1,0 +1,47 @@
+{
+  "sourceParent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "records": [
+    {
+      "name": "legacy-schedule1-local",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-local.txt",
+      "sha256": "0c53003bfdabcf0073f3e2a0e193e127cce13febdf80367c4415fd15caa7688b",
+      "bytes": 663,
+      "version": 1,
+      "qualification": "Actual published schedule engine + original plain1 writer; nonempty projectStart slice."
+    },
+    {
+      "name": "legacy-schedule1-elsewhere",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-elsewhere.txt",
+      "sha256": "e553b859eac194097de5fe61ade0a7e0b207356a4b2a702f1ba659b9e6cc5518",
+      "bytes": 759,
+      "version": 1,
+      "qualification": "Actual published schedule engine + plain1 writer; nonempty elsewhereHolder.projectId."
+    },
+    {
+      "name": "legacy-schedule2-connected",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule2-connected.txt",
+      "sha256": "d46887cd42f3d704f727e20405a1517ceefb052e08661f640ccb61551cb1791f",
+      "bytes": 5932,
+      "version": 2,
+      "qualification": "Actual published deriveConnectedPlan(scheduleResolved) + captureConnectedHistory connected2 writer using original connected capture fixture; no hand-assembled timings."
+    },
+    {
+      "name": "legacy-schedule2-questions",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule2-questions.txt",
+      "sha256": "b7d1cd4e54926282b15a66a2192a0f5f3fd433c68051db7cddd937975b2193d2",
+      "bytes": 13615,
+      "version": 2,
+      "qualification": "Actual published connected2 writer executed against its original connected codec fixture and original target/calendar projection helper; source timings are fixture-captured, NOT engine-generated. Explicit original question hashes and packet strings retained."
+    },
+    {
+      "name": "legacy-schedule1-first-writer",
+      "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-first-writer.txt",
+      "sha256": "9fe1b72c02f317644407b97fc03a65982674ce1d0c62599f81098be85bfd62a5",
+      "bytes": 650,
+      "version": 1,
+      "sourceParent": "08bf836d9",
+      "qualification": "Actual first published08bf836d9 schedule engine+plain1 writer; nonempty slice predates lateBy. No field removed synthetically."
+    }
+  ],
+  "qualification": "Original published modules executed with explicit legacy tsconfig path mapping. These are test capture fixtures, not live deployment observations."
+}

@@ -9,12 +9,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { openConnection, openDatabase } from '../repository/db';
 import { type Gate, OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { runDomainProofWorker, startDomainProofWorker } from './domain-proof-worker';
 
 const DAY = 86_400_000;
 const START = 1_000_000;
-const migrations = new URL('../../drizzle', import.meta.url).pathname;
 const policy = new URL('../../../../../libs/wbs/domain/domain/src/', import.meta.url).pathname;
 let directory: string;
 let sqlite: ReturnType<typeof openDatabase>;
@@ -26,7 +25,7 @@ let connection: ReturnType<typeof openConnection>;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-domain-proof-worker-'));
   const path = join(directory, 'worker.db');
-  runMigrations(path, migrations);
+  migrateOrganizationCatalogueFixture(path);
   sqlite = openDatabase(path);
   sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
   sqlite.run(

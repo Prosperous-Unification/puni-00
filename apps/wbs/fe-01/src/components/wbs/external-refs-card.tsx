@@ -185,7 +185,7 @@ export function ExternalRefsCard({
                     target="_blank"
                     // Both words, and neither is decoration: `noopener` stops the
                     // opened page reaching back through `window.opener`, and
-                    // `noreferrer` stops this plan's URL — which names a project
+                    // `noreferrer` stops this plan's URL — which names a work package
                     // — being handed to whatever is on the other end.
                     rel="noreferrer noopener"
                     // The palette's own ink, not the user agent's: `-webkit-link`

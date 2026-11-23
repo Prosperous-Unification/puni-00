@@ -26,7 +26,7 @@ export interface ExternalRefsModalProps {
   onOpenChange: (open: boolean) => void;
   /** The work item's number, so the surface says whose links these are. */
   number: string;
-  projectId: string;
+  workPackageId: string;
   workItemId: string;
   /** The refs as they stand, in order. */
   refs: readonly ExternalRefView[];
@@ -121,7 +121,7 @@ export function ExternalRefsModal({
   open,
   onOpenChange,
   number,
-  projectId,
+  workPackageId,
   workItemId,
   refs,
   systems,
@@ -319,7 +319,11 @@ export function ExternalRefsModal({
                         Close delivery
                       </Button>
                     </div>
-                    <DeliveryPanel projectId={projectId} workItemId={workItemId} reference={ref} />
+                    <DeliveryPanel
+                      workPackageId={workPackageId}
+                      workItemId={workItemId}
+                      reference={ref}
+                    />
                   </div>
                 )}
               </div>

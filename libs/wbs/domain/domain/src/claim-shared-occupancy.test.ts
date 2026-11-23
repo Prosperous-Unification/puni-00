@@ -11,8 +11,8 @@ import {
 
 /**
  * `wbs-shared-occupancy` slice 2 (design S3): a claim counts against its
- * project's capacity and, when the resource states one, the directory
- * capacity across every project of the organization.
+ * work package's capacity and, when the resource states one, the directory
+ * capacity across every work package of the organization.
  */
 const F = 'account-f';
 const RAM = 'host-ram';
@@ -93,7 +93,7 @@ describe('a directory capacity is shared across the organization', () => {
     });
   });
 
-  it('holds one staging across projects, free again once A releases it', () => {
+  it('holds one staging across work packages, free again once A releases it', () => {
     const ask = {
       demand: [{ resourceId: STAGING, units: 1 }],
       directoryCapacities: [{ resourceId: STAGING, units: 1 }],
@@ -109,7 +109,7 @@ describe('a directory capacity is shared across the organization', () => {
     });
   });
 
-  it('keeps the project ceiling binding while the organization has units free', () => {
+  it('keeps the work package ceiling binding while the organization has units free', () => {
     const own = [row('a-1', RAM, 8)];
     expect(
       refuseOccupancy({
@@ -120,20 +120,20 @@ describe('a directory capacity is shared across the organization', () => {
         directoryCapacities: [{ resourceId: RAM, units: 16 }],
         organizationOccupied: totalsOf(own),
       }),
-    ).toMatchObject({ resourceId: RAM, free: 0, scope: 'project' });
+    ).toMatchObject({ resourceId: RAM, free: 0, scope: 'work_package' });
   });
 
   it('names the organization on a tie', () => {
-    // 16 - 8 = 8 free in the project and 16 - 8 = 8 in the organization: a tie.
-    const project = [row('a-1', RAM, 8)];
+    // 16 - 8 = 8 free in the work package and 16 - 8 = 8 in the organization: a tie.
+    const workPackage = [row('a-1', RAM, 8)];
     expect(
       refuseOccupancy({
         workItemId: 'a-2',
         asked: [{ resourceId: RAM, units: 10 }],
         capacities: [{ resourceId: RAM, units: 16 }],
-        occupancy: project,
+        occupancy: workPackage,
         directoryCapacities: [{ resourceId: RAM, units: 16 }],
-        organizationOccupied: totalsOf(project),
+        organizationOccupied: totalsOf(workPackage),
       }),
     ).toMatchObject({ free: 8, scope: 'organization' });
   });
@@ -189,14 +189,14 @@ describe('a directory capacity is shared across the organization', () => {
 });
 
 /**
- * One step of the two-project model. A claim, release, undo or redo of a
- * leaf in project 0 or 1; undo and redo act on that project's journal.
+ * One step of the two-work-package model. A claim, release, undo or redo of a
+ * leaf in work package 0 or 1; undo and redo act on that work package's journal.
  */
 type Act =
-  | { kind: 'claim'; project: number; leaf: number; units: number }
-  | { kind: 'release'; project: number; leaf: number }
-  | { kind: 'undo'; project: number }
-  | { kind: 'redo'; project: number };
+  | { kind: 'claim'; workPackage: number; leaf: number; units: number }
+  | { kind: 'release'; workPackage: number; leaf: number }
+  | { kind: 'undo'; workPackage: number }
+  | { kind: 'redo'; workPackage: number };
 
 /** A journal entry: what was claimed or released, so its inverse can put it back. */
 interface Entry {
@@ -208,21 +208,21 @@ describe('organization occupancy under any sequence of claims, releases, undos a
   const act: fc.Arbitrary<Act> = fc.oneof(
     fc.record({
       kind: fc.constant('claim' as const),
-      project: fc.nat({ max: 1 }),
+      workPackage: fc.nat({ max: 1 }),
       leaf: fc.nat({ max: 3 }),
       units: fc.integer({ min: 1, max: 12 }),
     }),
     fc.record({
       kind: fc.constant('release' as const),
-      project: fc.nat({ max: 1 }),
+      workPackage: fc.nat({ max: 1 }),
       leaf: fc.nat({ max: 3 }),
     }),
-    fc.record({ kind: fc.constant('undo' as const), project: fc.nat({ max: 1 }) }),
-    fc.record({ kind: fc.constant('redo' as const), project: fc.nat({ max: 1 }) }),
+    fc.record({ kind: fc.constant('undo' as const), workPackage: fc.nat({ max: 1 }) }),
+    fc.record({ kind: fc.constant('redo' as const), workPackage: fc.nat({ max: 1 }) }),
   );
   const world = fc.record({
     directory: fc.integer({ min: 0, max: 20 }),
-    // Project ceilings, unstated or stated, and free to sum above the directory.
+    // Work package ceilings, unstated or stated, and free to sum above the directory.
     ceilings: fc.array(fc.option(fc.integer({ min: 0, max: 24 }), { nil: null }), {
       minLength: 2,
       maxLength: 2,
@@ -238,12 +238,12 @@ describe('organization occupancy under any sequence of claims, releases, undos a
         const undone: Entry[][] = [[], []];
         let minted = 0;
         const organization = () => [...(rows[0] ?? []), ...(rows[1] ?? [])];
-        /** Puts `taken` back in `project` through the one check, leaf by leaf, all or nothing. */
-        const reacquire = (project: number, taken: readonly OccupancyRow[]): boolean => {
-          const own = [...(rows[project] ?? [])];
+        /** Puts `taken` back in `workPackage` through the one check, leaf by leaf, all or nothing. */
+        const reacquire = (workPackage: number, taken: readonly OccupancyRow[]): boolean => {
+          const own = [...(rows[workPackage] ?? [])];
           const org = organization();
           for (const each of taken) {
-            const ceiling = drawn.ceilings[project] ?? null;
+            const ceiling = drawn.ceilings[workPackage] ?? null;
             const refused = refuseOccupancy({
               workItemId: each.workItemId,
               asked: [{ resourceId: RAM, units: each.units }],
@@ -256,44 +256,46 @@ describe('organization occupancy under any sequence of claims, releases, undos a
             own.push(each);
             org.push(each);
           }
-          rows[project] = own;
+          rows[workPackage] = own;
           return true;
         };
-        const remove = (project: number, taken: readonly OccupancyRow[]) => {
+        const remove = (workPackage: number, taken: readonly OccupancyRow[]) => {
           const gone = new Set(taken.map(({ claimId }) => claimId));
-          rows[project] = (rows[project] ?? []).filter(({ claimId }) => !gone.has(claimId));
+          rows[workPackage] = (rows[workPackage] ?? []).filter(({ claimId }) => !gone.has(claimId));
         };
         for (const each of drawn.acts) {
-          const { project } = each;
+          const { workPackage } = each;
           if (each.kind === 'claim') {
-            const workItemId = `p${String(project)}-l${String(each.leaf)}`;
-            if ((rows[project] ?? []).some((held) => held.workItemId === workItemId)) continue;
+            const workItemId = `p${String(workPackage)}-l${String(each.leaf)}`;
+            if ((rows[workPackage] ?? []).some((held) => held.workItemId === workItemId)) continue;
             minted += 1;
             const claimed = { ...row(workItemId, RAM, each.units), claimId: `c${String(minted)}` };
-            if (!reacquire(project, [claimed])) continue;
-            done[project]?.push({ kind: 'claim', rows: [claimed] });
-            undone[project] = [];
+            if (!reacquire(workPackage, [claimed])) continue;
+            done[workPackage]?.push({ kind: 'claim', rows: [claimed] });
+            undone[workPackage] = [];
           } else if (each.kind === 'release') {
-            const workItemId = `p${String(project)}-l${String(each.leaf)}`;
-            const taken = (rows[project] ?? []).filter((held) => held.workItemId === workItemId);
+            const workItemId = `p${String(workPackage)}-l${String(each.leaf)}`;
+            const taken = (rows[workPackage] ?? []).filter(
+              (held) => held.workItemId === workItemId,
+            );
             if (taken.length === 0) continue;
-            remove(project, taken);
-            done[project]?.push({ kind: 'release', rows: taken });
-            undone[project] = [];
+            remove(workPackage, taken);
+            done[workPackage]?.push({ kind: 'release', rows: taken });
+            undone[workPackage] = [];
           } else if (each.kind === 'undo') {
-            const entry = done[project]?.at(-1);
+            const entry = done[workPackage]?.at(-1);
             if (entry === undefined) continue;
-            if (entry.kind === 'claim') remove(project, entry.rows);
-            else if (!reacquire(project, entry.rows)) continue; // stale_undo
-            done[project]?.pop();
-            undone[project]?.push(entry);
+            if (entry.kind === 'claim') remove(workPackage, entry.rows);
+            else if (!reacquire(workPackage, entry.rows)) continue; // stale_undo
+            done[workPackage]?.pop();
+            undone[workPackage]?.push(entry);
           } else {
-            const entry = undone[project]?.at(-1);
+            const entry = undone[workPackage]?.at(-1);
             if (entry === undefined) continue;
-            if (entry.kind === 'release') remove(project, entry.rows);
-            else if (!reacquire(project, entry.rows)) continue; // stale redo
-            undone[project]?.pop();
-            done[project]?.push(entry);
+            if (entry.kind === 'release') remove(workPackage, entry.rows);
+            else if (!reacquire(workPackage, entry.rows)) continue; // stale redo
+            undone[workPackage]?.pop();
+            done[workPackage]?.push(entry);
           }
           const held = occupancyByResource(organization()).at(0)?.occupied ?? 0;
           expect(held).toBeLessThanOrEqual(drawn.directory);

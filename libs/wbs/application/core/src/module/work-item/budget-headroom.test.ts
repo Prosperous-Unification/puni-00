@@ -55,7 +55,7 @@ const startable = (claimed = false): StartableWork => ({
     : [],
   subtreeClaims: [],
   resources: [],
-  occupancyScope: 'project',
+  occupancyScope: 'work_package',
 });
 
 const advisory = (remaining: number): BudgetReading => ({

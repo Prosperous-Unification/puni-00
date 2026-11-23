@@ -14,12 +14,19 @@ import { rollbackTo } from './migrate-down';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepParallelRepository } from './step-parallel';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { seedLegacyPackageParent, seedPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const migration = '20261015110000_add_step_node_parallelism';
 const baseline = '20261015100000_add_step_blockage_activation_receipt';
+const predecessor = '20261115120000_add_step_migration_report';
+const rollbackHead = '20261103110000_add_initial_access_offers';
 /** Migrations newer than this one, which every rollback to `baseline` reverses first. */
 const newer = [
+  rollbackHead,
+  '20261102130000_widen_organization_audit_access',
   '20261102120000_add_access_grants',
   '20261101120000_add_host_job_projection',
   '20261101100100_add_resource_directory_capacity',
@@ -56,40 +63,62 @@ const newer = [
 ];
 let directory: string;
 let path: string;
+let history: string;
 let connection: Connection;
+let closeConnection: (() => void) | undefined;
 let store: StepParallelRepository;
 const stamp = { at: 10, by: 'u' };
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'parallel-db-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, folder);
+  closeConnection = undefined;
+});
+
+function connect(): void {
   connection = openConnection(path);
+  closeConnection = connection.close.bind(connection);
+}
+
+function seedPredecessor(): void {
+  runMigrations(path, copyRecoveryPrefix(directory, predecessor));
+  seedLegacyPackageParent(path, 'org', 'plan-parent');
+  seedPackageParent(path, 'org', 'foreign-parent');
+  connect();
   connection.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
   );
   connection.db.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+    "INSERT INTO work_package (id,name,project_id,revision,created_at,created_by) VALUES ('p','Plan','plan-parent',0,1,'u'),('foreign','Foreign','foreign-parent',0,1,'u')",
   );
   connection.db.run(
-    "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','foreign','Foreign',1)",
+    "INSERT INTO step (id,work_package_id,name,code,position) VALUES ('dev','p','Dev','dev',1),('qa','p','QA','qa',2),('foreign','foreign','Foreign','foreign',1)",
   );
   connection.db.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('parent','p','Parent',2,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('parent','p','Parent',2,0)",
   );
   connection.db.run(
-    "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','parent','Child',1,0)",
+    "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','parent','Child',1,0)",
   );
-  store = new StepParallelRepository(connection.db, OPEN);
-});
+}
+
 afterEach(() => {
-  connection.close();
+  closeConnection?.();
   rmSync(directory, { recursive: true, force: true });
 });
 const insert = (owner = 'a', step = 'dev', value = '2') =>
   connection.db.run(
     `INSERT INTO step_parallel(work_item_id,step_id,max_parallel) VALUES ('${owner}','${step}',${value})`,
   );
-describe('sparse parallelism SQL contract', () => {
+describe('current sparse parallelism SQL contract', () => {
+  beforeEach(() => {
+    seedPredecessor();
+    connection.close();
+    closeConnection = undefined;
+    applyHistoricalCatalogueFixture(path, directory, {});
+    runMigrations(path, folder);
+    connect();
+    store = new StepParallelRepository(connection.db, OPEN);
+  });
   for (const value of ['0', '1001', '1.5', 'NULL'])
     it(`SQL rejects range/type ${value}`, () => {
       expect(() => insert('a', 'dev', value)).toThrow();
@@ -101,7 +130,7 @@ describe('sparse parallelism SQL contract', () => {
   for (const [name, owner, step] of [
     ['owner reference', 'absent', 'dev'],
     ['step reference', 'a', 'absent'],
-    ['project', 'a', 'foreign'],
+    ['work_package', 'a', 'foreign'],
     ['leaf', 'parent', 'dev'],
   ]) {
     it(`SQL rejects insert ${name}`, () => {
@@ -139,11 +168,14 @@ describe('sparse parallelism SQL contract', () => {
   });
   for (const [name, fault] of [
     ['owner', "PRAGMA foreign_keys=OFF; DELETE FROM work_item WHERE id='a'"],
-    ['step', "PRAGMA foreign_keys=OFF; DELETE FROM step WHERE id='dev'"],
-    ['project', "UPDATE step SET project_id='foreign' WHERE id='dev'"],
+    ['step', "PRAGMA foreign_keys=OFF; DELETE FROM step_definition WHERE id='dev'"],
+    [
+      'work_package',
+      "DROP TRIGGER step_parallel_owner_update; UPDATE step_parallel SET step_id='foreign'",
+    ],
     [
       'leaf',
-      "INSERT INTO work_item(id,project_id,parent_id,name,position,revision) VALUES('new','p','a','New',1,0)",
+      "INSERT INTO work_item(id,work_package_id,parent_id,name,position,revision) VALUES('new','p','a','New',1,0)",
     ],
     ['range', 'PRAGMA ignore_check_constraints=ON; UPDATE step_parallel SET max_parallel=1001'],
   ])
@@ -151,126 +183,154 @@ describe('sparse parallelism SQL contract', () => {
       insert();
       for (const statement of fault.split(';')) connection.db.run(statement);
       expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
-      await assertStepParallelRefusal(store.listByProject('p'));
+      await assertStepParallelRefusal(store.listByWorkPackage('p'));
       await assertStepParallelRefusal(store.listByWorkItems('p', ['a']));
     });
+});
+
+describe('original sparse parallelism migration', () => {
+  beforeEach(() => {
+    history = copyRecoveryPrefix(directory, rollbackHead);
+    runMigrations(path, history);
+    connect();
+    connection.db.run(
+      "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
+    );
+    connection.db.run(
+      "INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Plan','u',1)",
+    );
+    connection.db.run("INSERT INTO step (id,project_id,name,code) VALUES ('dev','p','Dev','dev')");
+    connection.db.run(
+      "INSERT INTO work_item (id,project_id,name,position) VALUES ('a','p','A',1),('parent','p','Parent',2)",
+    );
+    connection.db.run(
+      "INSERT INTO work_item (id,project_id,parent_id,name,position) VALUES ('child','p','parent','Child',1)",
+    );
+  });
+
   it('down refuses retained facts and preserves table and applied ledger', () => {
     insert();
     const before = connection.db
       .all<{ name: string }>('SELECT * FROM __drizzle_migrations')
       .filter(({ name }) => !newer.includes(name));
-    expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
+    expect(() => rollbackTo(path, history, baseline)).toThrow(/step parallelism overrides exist/);
     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
   });
   it('empty down and forward preserve existing work items', () => {
-    expect(rollbackTo(path, folder, baseline)).toEqual([...newer, migration]);
+    expect(rollbackTo(path, history, baseline)).toEqual([...newer, migration]);
     expect(connection.db.get<{ count: number }>('SELECT count(*) AS count FROM work_item')).toEqual(
       { count: 3 },
     );
-    runMigrations(path, folder);
+    runMigrations(path, history);
     expect(connection.db.all('SELECT * FROM step_parallel')).toEqual([]);
-    expect(readFileSync(join(folder, migration, 'migration.sql'), 'utf8')).toContain(
+    expect(readFileSync(join(history, migration, 'migration.sql'), 'utf8')).toContain(
       'CREATE TABLE',
     );
   });
 });
 
-for (const [name, owner, value, message] of [
-  ['owner', 'absent', 2, 'invalid work-item reference'],
-  ['project', 'other', 2, 'project mismatch'],
-  ['leaf', 'parent', 2, 'not a leaf'],
-  ['range', 'a', 1001, 'integer from 1 to 1000'],
-] as const)
-  it(`removal throws on corrupt retained SQLite ${name}`, async () => {
-    connection.db.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('other','foreign','Other',1,0)",
-    );
-    connection.db.run('PRAGMA foreign_keys = OFF');
-    connection.db.run('PRAGMA ignore_check_constraints = ON');
-    connection.db.run('DROP TRIGGER step_parallel_owner_insert');
-    insert(owner, 'dev', String(value));
-    const before = connection.db.all('SELECT * FROM step_parallel');
-    const steps = new StepRepository(connection.db, OPEN);
-    await assertStepParallelRefusal(steps.remove('p', 'dev', true, stamp), message);
-    expect(await steps.findById('dev')).not.toBeNull();
-    expect(connection.db.all('SELECT * FROM step_parallel')).toEqual(before);
-  });
+describe('pre-catalogue step removal', () => {
+  beforeEach(seedPredecessor);
 
-for (const cascade of [false, true])
-  it(`retains all SQLite state on sparse refusal and mixed rollback (cascade=${String(cascade)})`, async () => {
-    const stores = buildStores(connection.db, OPEN);
-    const uow = sqliteUnitOfWork(connection.db, OPEN, {
-      createScope: () => ({ stores: stores }),
-      createRepairScope: () => ({ stores: stores }),
+  for (const [name, owner, value, message] of [
+    ['owner', 'absent', 2, 'invalid work-item reference'],
+    ['work_package', 'other', 2, 'work package mismatch'],
+    ['leaf', 'parent', 2, 'not a leaf'],
+    ['range', 'a', 1001, 'integer from 1 to 1000'],
+  ] as const)
+    it(`removal throws on corrupt retained SQLite ${name}`, async () => {
+      connection.db.run(
+        "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('other','foreign','Other',1,0)",
+      );
+      connection.db.run('PRAGMA foreign_keys = OFF');
+      connection.db.run('PRAGMA ignore_check_constraints = ON');
+      connection.db.run('DROP TRIGGER step_parallel_owner_insert');
+      insert(owner, 'dev', String(value));
+      const before = connection.db.all('SELECT * FROM step_parallel');
+      const steps = new StepRepository(connection.db, OPEN);
+      await assertStepParallelRefusal(steps.remove('p', 'dev', true, stamp), message);
+      expect(await steps.findById('dev')).not.toBeNull();
+      expect(connection.db.all('SELECT * FROM step_parallel')).toEqual(before);
     });
+
+  for (const cascade of [false, true])
+    it(`retains all SQLite state on sparse refusal and mixed rollback (cascade=${String(cascade)})`, async () => {
+      const stores = buildStores(connection.db, OPEN);
+      const uow = sqliteUnitOfWork(connection.db, OPEN, {
+        createScope: () => ({ stores: stores }),
+        createRepairScope: () => ({ stores: stores }),
+      });
+      connection.db.run(
+        "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('foreign-owner','foreign','Other',1,0)",
+      );
+      await stores.stepParallels.set(
+        { workItemId: 'foreign-owner', stepId: 'foreign', maxParallel: 3 },
+        stamp,
+      );
+      await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
+      const tables = [
+        'work_package',
+        'work_item',
+        'step',
+        'step_parallel',
+        'command_journal',
+        'event_log',
+      ];
+      const before = tables.map((table) => connection.db.all(`SELECT * FROM ${table}`));
+      const refusal = {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        nodes: [{ workItemId: 'a', stepId: 'dev' }],
+      } satisfies StepRemoved;
+      expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual(refusal);
+      expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
+      await uow.run(async ({ stores }) => {
+        await stores.steps.rename('p', 'dev', 'Changed', stamp);
+        expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual(refusal);
+        await stores.stepParallels.remove('a', 'dev', stamp);
+        expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toMatchObject({ ok: true });
+        return { commit: false, value: undefined };
+      });
+      expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
+    });
+
+  it('preserves retained cascade families before refusing sparse parallelism', async () => {
+    const stores = buildStores(connection.db, OPEN);
     connection.db.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('foreign-owner','foreign','Other',1,0)",
+      "INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('a','dev',1,2,3)",
     );
-    await stores.stepParallels.set(
-      { workItemId: 'foreign-owner', stepId: 'foreign', maxParallel: 3 },
-      stamp,
+    connection.db.run(
+      "INSERT INTO actual(work_item_id,step_id,days,recorded_at) VALUES ('a','dev',1,1)",
+    );
+    connection.db.run(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) VALUES ('a','dev','in_progress',1)",
+    );
+    await stores.directory.addPerson({ id: 'worker', name: 'Worker' }, [], stamp);
+    connection.db.run(
+      "INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('a','dev','worker')",
     );
     await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
     const tables = [
-      'project',
+      'work_package',
       'work_item',
       'step',
       'step_parallel',
+      'estimate',
+      'actual',
+      'step_progress',
+      'assignment',
       'command_journal',
       'event_log',
     ];
     const before = tables.map((table) => connection.db.all(`SELECT * FROM ${table}`));
-    const refusal = {
+    for (const table of ['estimate', 'actual', 'step_progress', 'assignment'])
+      expect(connection.db.all(`SELECT * FROM ${table}`)).toHaveLength(1);
+    expect(await stores.steps.remove('p', 'dev', true, stamp)).toEqual({
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes: [{ workItemId: 'a', stepId: 'dev' }],
-    } satisfies StepRemoved;
-    expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual(refusal);
-    expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
-    await uow.run(async ({ stores }) => {
-      await stores.steps.rename('p', 'dev', 'Changed', stamp);
-      expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual(refusal);
-      await stores.stepParallels.remove('a', 'dev', stamp);
-      expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toMatchObject({ ok: true });
-      return { commit: false, value: undefined };
     });
     expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
   });
-
-it('preserves retained cascade families before refusing sparse parallelism', async () => {
-  const stores = buildStores(connection.db, OPEN);
-  await stores.estimates.set(
-    { workItemId: 'a', stepId: 'dev', optimistic: 1, realistic: 2, pessimistic: 3 },
-    stamp,
-  );
-  await stores.actuals.set({ workItemId: 'a', stepId: 'dev', days: 1, recordedAt: 1 }, stamp);
-  await stores.progress.set(
-    { workItemId: 'a', stepId: 'dev', state: 'in_progress', statedAt: 1 },
-    stamp,
-  );
-  await stores.directory.addPerson({ id: 'worker', name: 'Worker' }, [], stamp);
-  expect(await stores.directory.assign('a', 'dev', 'worker', stamp)).toEqual({ ok: true });
-  await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
-  const tables = [
-    'project',
-    'work_item',
-    'step',
-    'step_parallel',
-    'estimate',
-    'actual',
-    'step_progress',
-    'assignment',
-    'command_journal',
-    'event_log',
-  ];
-  const before = tables.map((table) => connection.db.all(`SELECT * FROM ${table}`));
-  for (const table of ['estimate', 'actual', 'step_progress', 'assignment'])
-    expect(connection.db.all(`SELECT * FROM ${table}`)).toHaveLength(1);
-  expect(await stores.steps.remove('p', 'dev', true, stamp)).toEqual({
-    ok: false,
-    reason: 'referenced_by_step_parallel',
-    nodes: [{ workItemId: 'a', stepId: 'dev' }],
-  });
-  expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
 });

@@ -34,21 +34,23 @@ describe('internal contracts', () => {
 
   it('InternalResumeResponse carries the replayed events', () => {
     const v = parseOrThrow(InternalResumeResponse, {
-      'project:abc': { status: 'replaying', events: [{ seq: 4, message: { type: 'x' } }] },
-      'project:def': { status: 'denied', reason: 'out_of_range' },
+      'work-package:abc': { status: 'replaying', events: [{ seq: 4, message: { type: 'x' } }] },
+      'work-package:def': { status: 'denied', reason: 'out_of_range' },
     });
-    expect(v['project:abc']).toEqual({
+    expect(v['work-package:abc']).toEqual({
       status: 'replaying',
       events: [{ seq: 4, message: { type: 'x' } }],
     });
-    expect(v['project:def']).toEqual({ status: 'denied', reason: 'out_of_range' });
+    expect(v['work-package:def']).toEqual({ status: 'denied', reason: 'out_of_range' });
   });
 
   it('InternalResumeResponse rejects a replaying answer with no events list', () => {
     // The count-only shape this replaced. Accepting it would let a stub that
     // reads nothing pass for an implementation again.
     expect(() =>
-      parseOrThrow(InternalResumeResponse, { 'project:abc': { status: 'replaying', count: 0 } }),
+      parseOrThrow(InternalResumeResponse, {
+        'work-package:abc': { status: 'replaying', count: 0 },
+      }),
     ).toThrow(ValidationError);
   });
 

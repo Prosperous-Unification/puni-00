@@ -7,7 +7,7 @@ import type {
  * What a host must supply to install {@link calendarMarkerModule}.
  *
  * Exactly {@link CalendarMarkerServiceOptions}, unchanged by the move: the
- * project and marker stores of the one scope being installed over, the clock,
+ * work package and marker stores of the one scope being installed over, the clock,
  * and the optional broadcaster. `servicesOver` supplies the stores of each
  * admitted scope, so one installation never outlives the scope it was built
  * over.
@@ -16,7 +16,7 @@ import type {
  * imports the domain library and repository ports and no other resource, and
  * `ports/sideways-type-boundaries.test.ts` keeps Plan document from reading
  * markers through it. What this extraction does not close is delivery's side:
- * `http/calendar-marker.routes.ts` and `http/project.routes.ts` still accept
+ * `http/calendar-marker.routes.ts` and `http/work-package.routes.ts` still accept
  * `CalendarMarkerService` directly, the direct resource dependency of delivery
  * (K2) the backend module map lists under its composition hazards. Tracked
  * under task 7.4 of `openspec/changes/adopt-di-composition/tasks.md`.

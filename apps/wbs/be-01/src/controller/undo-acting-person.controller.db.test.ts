@@ -1,16 +1,21 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let humanLeaf: string;
 let codexLeaf: string;
 let claudeLeaf: string;
@@ -19,7 +24,7 @@ let claudeKey: string;
 let qa: string;
 
 /**
- * One undo stack per (project, account, acting person), over HTTP through
+ * One undo stack per (work package, account, acting person), over HTTP through
  * be-01's production composition and real SQLite. `codex` and `claude` are
  * agent persons bound to `dany`'s account, each with its own API key: both act
  * as `dany`'s account, and neither may undo, clear the redo of, or prune the
@@ -34,17 +39,15 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({ machineGrants });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const opened = created.body as { project: { id: string }; steps: { id: string; name: string }[] };
-  projectId = opened.project.id;
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  const opened = await readFixturePackage(h, 'dany', workPackageId);
   const qaStep = opened.steps.find(({ name }) => name === 'QA');
-  if (qaStep === undefined) throw new Error('a project without its seed step QA');
+  if (qaStep === undefined) throw new Error('a work package without its seed step QA');
   qa = qaStep.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: ['Human', 'Codex', 'Claude'].map((name) => ({
       kind: 'createWorkItem',
       parentId: null,
@@ -56,20 +59,34 @@ beforeEach(async () => {
   [humanLeaf = '', codexLeaf = '', claudeLeaf = ''] = ids;
   for (const person of ['codex', 'claude'])
     addAgentPerson(h.sqlite, person, 'org-a', h.userId('dany'));
-  codexKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'codex',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
-  claudeKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'claude',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const codexCredential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'codex',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    codexCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
+  codexKey = codexCredential.key;
+  const claudeCredential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'claude',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claudeCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
+  claudeKey = claudeCredential.key;
 });
 
 afterEach(async () => {
@@ -89,7 +106,7 @@ async function rename(
   workItemId: string,
   name: string,
 ): Promise<{ undoable: boolean; redoable: boolean }> {
-  const renamed = await as(actor, 'POST', `/api/projects/${projectId}/commands`, {
+  const renamed = await as(actor, 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'patchWorkItem', workItemId, patch: { name } }],
   });
   if (renamed.status !== 200) throw new Error(`rename refused: ${JSON.stringify(renamed)}`);
@@ -98,7 +115,7 @@ async function rename(
 }
 
 function press(actor: Actor, key: 'undo' | 'redo'): Promise<Answer> {
-  return as(actor, 'POST', `/api/projects/${projectId}/${key}`);
+  return as(actor, 'POST', `/api/work-packages/${workPackageId}/${key}`);
 }
 
 function names(): Record<string, string> {
@@ -109,7 +126,7 @@ function names(): Record<string, string> {
 }
 
 async function undoState(actor: Actor): Promise<{ undoable: boolean; redoable: boolean }> {
-  const tree = await as(actor, 'GET', `/api/projects/${projectId}/work-items`);
+  const tree = await as(actor, 'GET', `/api/work-packages/${workPackageId}/work-items`);
   if (tree.status !== 200) throw new Error(`tree refused: ${JSON.stringify(tree)}`);
   const { undoable, redoable } = tree.body as { undoable: boolean; redoable: boolean };
   return { undoable, redoable };
@@ -117,7 +134,7 @@ async function undoState(actor: Actor): Promise<{ undoable: boolean; redoable: b
 
 /** QA's allowance as the plan read shows it. */
 async function qaAllowance(): Promise<number> {
-  const read = await h.call('dany', 'GET', `/api/projects/${projectId}`);
+  const read = await h.call('dany', 'GET', `/api/work-packages/${workPackageId}`);
   const steps = (read.body as { steps: { id: string; allowancePercent: number }[] }).steps;
   const held = steps.find(({ id }) => id === qa);
   if (held === undefined) throw new Error('QA is gone');
@@ -195,27 +212,26 @@ describe('undo per acting person over HTTP', () => {
     expect(names()[codexLeaf]).toBe('Codex 50');
   }, 30_000);
 
-  // The step PATCH journals through `runCommandBatchAfter`, whose acting
-  // person is its own derivation.
-  // Proof: with `actingPersonOf(...)` in `runCommandBatchAfter` replaced by
-  // null, the agent's undo answered 409 nothing_to_undo instead of 200 here
-  // (5 pass, 1 fail; watched 2026-10-26).
-  it("an agent's step allowance edit is undone on its own stack, never the human's", async () => {
+  it("a capped agent's refused step allowance leaves both undo stacks unchanged", async () => {
     await rename('dany', humanLeaf, 'Human, renamed');
     const before = await qaAllowance();
+    const history = h.sqlite.query('SELECT * FROM command_journal').all();
     expect(
-      await as('codex', 'PATCH', `/api/projects/${projectId}/steps/${qa}`, {
-        allowancePercent: 25,
+      await as('codex', 'PATCH', `/api/work-packages/${workPackageId}/steps/${qa}`, {
+        allowanceBps: 2500,
       }),
-    ).toMatchObject({ status: 200 });
-    expect(await qaAllowance()).toBe(25);
-
-    expect(await press('codex', 'undo')).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'package.manage_settings' },
+    });
     expect(await qaAllowance()).toBe(before);
-    expect(names()[humanLeaf]).toBe('Human, renamed');
-    expect(await press('dany', 'undo')).toMatchObject({ status: 200 });
+    expect(h.sqlite.query('SELECT * FROM command_journal').all()).toEqual(history);
+    expect(await press('codex', 'undo')).toMatchObject({
+      status: 409,
+      body: { error: 'nothing_to_undo' },
+    });
+    expect((await press('dany', 'undo')).status).toBe(200);
     expect(names()[humanLeaf]).toBe('Human');
-    expect(await qaAllowance()).toBe(before);
   });
 });
 
@@ -226,9 +242,11 @@ it('two credentials pinned to the same person share one undo stack', async () =>
     issuedBy: h.userId('dany'),
     name: 'Second codex credential',
   });
+  grantCredential(h.sqlite, 'org-a', rotated.id, 'project-contributor', 'organization', 'org-a');
   await rename('codex', codexLeaf, 'First credential edit');
   expect(
-    (await callForwarded(h, rotated.key, 'POST', `/api/projects/${projectId}/undo`)).status,
+    (await callForwarded(h, rotated.key, 'POST', `/api/work-packages/${workPackageId}/undo`))
+      .status,
   ).toBe(200);
   expect(names()[codexLeaf]).toBe('Codex');
   expect(await undoState('codex')).toEqual({ undoable: false, redoable: true });

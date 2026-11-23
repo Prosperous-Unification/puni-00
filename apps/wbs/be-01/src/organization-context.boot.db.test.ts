@@ -13,7 +13,15 @@ test('boot composition refuses stale cookie context without effects', async () =
   await be.register('ada');
   for (const organizationId of ['org-a', 'org-b']) {
     be.organization(organizationId);
+    be.sqlite.run(
+      'INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES(?,?,?,?,1)',
+      ['context-' + organizationId, organizationId, 'Context project', be.userId('ada')],
+    );
     be.member(organizationId, 'ada', 'super_admin');
+    be.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-super-admin','route',1)",
+      ['context-' + organizationId, organizationId, organizationId, be.userId('ada')],
+    );
   }
   be.activate();
   const process = be;
@@ -40,7 +48,7 @@ test('boot composition refuses stale cookie context without effects', async () =
     if (cookie === undefined) throw new Error('booted selection cookie is absent');
     const snapshot = () =>
       [
-        'project',
+        'work_package',
         'service_team',
         'command_journal',
         'organization_audit',
@@ -49,7 +57,7 @@ test('boot composition refuses stale cookie context without effects', async () =
       ].map((table) => process.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
     const before = snapshot();
     for (const [path, body] of [
-      ['/api/projects', { name: 'stale project' }],
+      ['/api/work-packages', { projectId: 'context-org-b', name: 'stale work package' }],
       ['/api/directory/commands', { commands: [{ kind: 'createTeam', name: 'stale team' }] }],
     ] as const) {
       const response = await send(path, body, cookie, 'org-a');
@@ -57,8 +65,15 @@ test('boot composition refuses stale cookie context without effects', async () =
       expect(await response.json()).toEqual({ error: 'organization_context_changed' });
       expect(snapshot()).toEqual(before);
     }
-    expect((await send('/api/projects', { name: 'current project' }, cookie, 'org-b')).status).toBe(
-      200,
-    );
+    expect(
+      (
+        await send(
+          '/api/work-packages',
+          { projectId: 'context-org-b', name: 'current work package' },
+          cookie,
+          'org-b',
+        )
+      ).status,
+    ).toBe(200);
   }
 });

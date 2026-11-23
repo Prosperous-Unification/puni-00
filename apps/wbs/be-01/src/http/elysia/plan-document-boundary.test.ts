@@ -1,4 +1,10 @@
-import { defineEndpointShape, planDocumentRequest, responseSchema } from '@wbs/contracts';
+import {
+  defineEndpointShape,
+  PLAN_DOCUMENT_EXTERNAL_VERSION,
+  PLAN_DOCUMENT_VERSION,
+  planDocumentRequest,
+  responseSchema,
+} from '@wbs/contracts';
 import { classifyPlanDocument, prepareImport } from '@wbs/core';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { countingUnitOfWork } from '@wbs/core/testing/writes-fixture';
@@ -10,7 +16,7 @@ import { mountEndpoints } from './mount';
 
 const boundary = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/import',
+  path: '/api/work-packages/import',
   operationId: 'testPlanDocumentBoundary',
   policies: [],
   body: planDocumentRequest,
@@ -65,7 +71,7 @@ function mounted(
                 path: classified.path,
               },
             };
-          const prepared = prepareImport(classified.value, scheduler);
+          const prepared = prepareImport(classified.value, scheduler, 'document');
           if (!prepared.ok)
             return {
               ok: false,
@@ -99,7 +105,7 @@ function mounted(
 
 async function postPlan(app: ReturnType<typeof mounted>, supplied: unknown) {
   return app.handle(
-    new Request('https://backend.example/api/projects/import', {
+    new Request('https://backend.example/api/work-packages/import', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(supplied),
@@ -180,7 +186,7 @@ test('mounted malformed priority names workItems[3].priority', async () => {
   const supplied = documentBody();
   Reflect.set(supplied.workItems[3] ?? {}, 'priority', 'high');
   const response = await mounted().handle(
-    new Request('https://backend.example/api/projects/import', {
+    new Request('https://backend.example/api/work-packages/import', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(supplied),
@@ -195,10 +201,14 @@ test('mounted malformed priority names workItems[3].priority', async () => {
 
 test('mounted unknown version precedes version-specific validation', async () => {
   const supplied = documentBody();
-  Reflect.set(supplied.document, 'version', 13);
+  Reflect.set(
+    supplied.document,
+    'version',
+    Math.max(PLAN_DOCUMENT_VERSION, PLAN_DOCUMENT_EXTERNAL_VERSION) + 1,
+  );
   Reflect.set(supplied.workItems[3] ?? {}, 'priority', 'high');
   const response = await mounted().handle(
-    new Request('https://backend.example/api/projects/import', {
+    new Request('https://backend.example/api/work-packages/import', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(supplied),
@@ -242,11 +252,11 @@ const preparationFaults: readonly (readonly [
     'workItems[0].deadline',
   ],
   [
-    'deadline before project start',
+    'deadline before work package start',
     (supplied) => {
       rowOf(supplied).deadline = '2026-09-13';
     },
-    'deadline_before_project_start',
+    'deadline_before_work_package_start',
     'workItems[0].deadline',
   ],
   [

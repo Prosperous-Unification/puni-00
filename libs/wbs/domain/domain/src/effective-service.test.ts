@@ -147,7 +147,7 @@ describe('effectiveServicesOf', () => {
   });
 
   it('answers for a row whose parent is not in the list', () => {
-    // A parent from another project, or one that has been removed: the walk runs
+    // A parent from another work package, or one that has been removed: the walk runs
     // out of rows rather than throwing, and the row simply has no service.
     const rows = [row('orphan', 'elsewhere')];
 

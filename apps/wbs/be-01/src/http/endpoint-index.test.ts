@@ -11,22 +11,22 @@ function endpoint(method: string, path: string): BoundEndpoint {
 }
 
 const AMBIGUOUS = [
-  endpoint('GET', '/api/projects/:id'),
-  endpoint('GET', '/api/projects/active'),
+  endpoint('GET', '/api/work-packages/:id'),
+  endpoint('GET', '/api/work-packages/active'),
   endpoint('GET', '/api/:kind/active'),
   endpoint('GET', '/api/:kind/:id'),
   endpoint('GET', '/api/:other/:key'),
-  endpoint('POST', '/api/projects/:id'),
+  endpoint('POST', '/api/work-packages/:id'),
   endpoint('GET', '/'),
-  endpoint('GET', '/api/projects/:id/'),
-  endpoint('DELETE', '/api/projects/:id/steps/:stepId'),
+  endpoint('GET', '/api/work-packages/:id/'),
+  endpoint('DELETE', '/api/work-packages/:id/steps/:stepId'),
 ];
 
 describe('indexEndpoints', () => {
   it('prefers a static segment at the first divergence', () => {
     const lookup = indexEndpoints(AMBIGUOUS);
-    expect(lookup('GET', '/api/projects/active')?.endpoint).toBe(AMBIGUOUS[1]);
-    expect(lookup('GET', '/api/projects/7')?.endpoint).toBe(AMBIGUOUS[0]);
+    expect(lookup('GET', '/api/work-packages/active')?.endpoint).toBe(AMBIGUOUS[1]);
+    expect(lookup('GET', '/api/work-packages/7')?.endpoint).toBe(AMBIGUOUS[0]);
     expect(lookup('GET', '/api/spaces/active')?.endpoint).toBe(AMBIGUOUS[2]);
   });
 
@@ -39,15 +39,15 @@ describe('indexEndpoints', () => {
 
   it('lets HEAD reach GET endpoints and keeps other methods apart', () => {
     const lookup = indexEndpoints(AMBIGUOUS);
-    expect(lookup('HEAD', '/api/projects/active')?.endpoint).toBe(AMBIGUOUS[1]);
-    expect(lookup('POST', '/api/projects/active')?.endpoint).toBe(AMBIGUOUS[5]);
-    expect(lookup('PUT', '/api/projects/7')).toBeUndefined();
-    expect(lookup('DELETE', '/api/projects/7')).toBeUndefined();
+    expect(lookup('HEAD', '/api/work-packages/active')?.endpoint).toBe(AMBIGUOUS[1]);
+    expect(lookup('POST', '/api/work-packages/active')?.endpoint).toBe(AMBIGUOUS[5]);
+    expect(lookup('PUT', '/api/work-packages/7')).toBeUndefined();
+    expect(lookup('DELETE', '/api/work-packages/7')).toBeUndefined();
   });
 
   it('ignores one trailing request slash but never the root', () => {
     const lookup = indexEndpoints(AMBIGUOUS);
-    expect(lookup('GET', '/api/projects/active/')?.endpoint).toBe(AMBIGUOUS[1]);
+    expect(lookup('GET', '/api/work-packages/active/')?.endpoint).toBe(AMBIGUOUS[1]);
     expect(lookup('GET', '/')?.endpoint).toBe(AMBIGUOUS[6]);
   });
 

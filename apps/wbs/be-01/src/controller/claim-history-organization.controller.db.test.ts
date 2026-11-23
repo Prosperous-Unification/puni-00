@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
- * The claim history read (`GET /api/projects/:id/claim-history`,
+ * The claim history read (`GET /api/work-packages/:id/claim-history`,
  * `wbs-claim-display` task 8.2) under organization isolation, over real SQLite
  * and the production organization access; see {@link OrganizationHarness}.
  * Plan events are seeded as SQL in the shapes the claim, release and lease
@@ -14,19 +15,21 @@ let own: string;
 let foreign: string;
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   h.sqlite.run('INSERT INTO person (id, name) VALUES (?, ?)', ['pe-codex', 'root-pe-codex']);
   h.sqlite.run(
     'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
@@ -37,21 +40,15 @@ beforeEach(async () => {
     ['w-080-1', 'w-080', 0, null],
   ] as const) {
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
       [id, own, parent, position, `Item ${id}`, frozen],
     );
   }
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
-
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
-}
 
 /** A claim as a stored command carries it. */
 function storedClaim(id: string, workItemId: string, personId: string) {
@@ -66,22 +63,22 @@ function storedClaim(id: string, workItemId: string, personId: string) {
   };
 }
 
-/** One plan event of `projectId`, written as `record` or the lease sweep writes it. */
+/** One plan event of `workPackageId`, written as `record` or the lease sweep writes it. */
 function writeEvent(
-  projectId: string,
+  workPackageId: string,
   id: string,
   at: number,
   kind: 'claim' | 'release',
   after: unknown,
 ): void {
   h.sqlite.run(
-    'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, projectId, h.userId('ada'), kind, kind, null, null, 'null', JSON.stringify(after), at],
+    'INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, workPackageId, h.userId('ada'), kind, kind, null, null, 'null', JSON.stringify(after), at],
   );
 }
 
-const read = (username: string, projectId: string, query = '') =>
-  h.call(username, 'GET', `/api/projects/${projectId}/claim-history${query}`);
+const read = (username: string, workPackageId: string, query = '') =>
+  h.call(username, 'GET', `/api/work-packages/${workPackageId}/claim-history${query}`);
 
 describe('the claim history read', () => {
   it('lists claims and releases newest first, with reasons, to a member and a viewer alike', async () => {
@@ -185,13 +182,13 @@ describe('the claim history read', () => {
 
   it('refuses a stranger exactly as the tree read does', async () => {
     for (const tail of ['work-items', 'claim-history']) {
-      const toForeign = await h.call('ada', 'GET', `/api/projects/${foreign}/${tail}`);
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
       expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      const stranger = await h.call('grace', 'GET', `/api/projects/${own}/${tail}`);
+      const stranger = await h.call('grace', 'GET', `/api/work-packages/${own}/${tail}`);
       expect({ tail, ...stranger }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      const absent = await h.call('ada', 'GET', `/api/projects/no-such-project/${tail}`);
+      const absent = await h.call('ada', 'GET', `/api/work-packages/no-such-work-package/${tail}`);
       expect({ tail, ...absent }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('nell', 'GET', `/api/projects/${own}/${tail}`)).toEqual({
+      expect(await h.call('nell', 'GET', `/api/work-packages/${own}/${tail}`)).toEqual({
         status: 403,
         body: { error: 'no_active_organization' },
       });
@@ -200,7 +197,7 @@ describe('the claim history read', () => {
 
   it('refuses a removed member alike with the tree read', async () => {
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('vic')]);
-    const tree = await h.call('vic', 'GET', `/api/projects/${own}/work-items`);
+    const tree = await h.call('vic', 'GET', `/api/work-packages/${own}/work-items`);
     expect(tree).toEqual({ status: 403, body: { error: 'not_a_member' } });
     expect(await read('vic', own)).toEqual(tree);
   });

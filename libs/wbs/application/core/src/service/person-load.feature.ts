@@ -16,11 +16,11 @@ import {
 } from '@wbs/domain';
 
 import type { DirectoryService } from '../module/directory/directory.resource';
-import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
+import type { WorkPackageService } from '../module/work-package/work-package.resource';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { ProjectRankStore } from '../ports/project-rank-store';
 import type { AccessRefused } from '../ports/shared-people-values';
+import type { WorkPackageRankStore } from '../ports/work-package-rank-store';
 
 /** The longest window a load read answers, in calendar days between `from` and `to`. */
 export const LOAD_WINDOW_DAYS = 182;
@@ -35,7 +35,7 @@ export interface LoadWindow {
 /**
  * The window `from`..`to` names, or null when either is not a calendar day,
  * `to` precedes `from`, or the two lie more than {@link LOAD_WINDOW_DAYS}
- * apart. A load read is a Fast schedule per project; the cap bounds what one
+ * apart. A load read is a Fast schedule per work package; the cap bounds what one
  * request may ask the fe to draw, not what it costs.
  *
  * Proof: the cap removed made `refuses a year-long window` in
@@ -53,7 +53,7 @@ export function loadWindowOf(from: string, to: string): LoadWindow | null {
   };
 }
 
-/** Why a readable project's bookings could not be read. */
+/** Why a readable work package's bookings could not be read. */
 export type LoadUnavailableReason =
   'engine_unavailable' | 'dependency_calendar_missing' | 'cycle' | 'calendar_range';
 
@@ -68,19 +68,19 @@ export interface BookingView {
   readonly width: number;
 }
 
-export interface NamedProject {
-  readonly projectId: string;
+export interface NamedWorkPackage {
+  readonly workPackageId: string;
   readonly name: string;
 }
 
-export interface UnavailableProject extends NamedProject {
+export interface UnavailableWorkPackage extends NamedWorkPackage {
   readonly reason: LoadUnavailableReason;
 }
 
 export interface PersonLoadRead {
   readonly person: { readonly id: string; readonly name: string };
-  readonly projects: (NamedProject & {
-    /** 1-based place in the organization's project rank; creation order under legacy access. */
+  readonly workPackages: (NamedWorkPackage & {
+    /** 1-based place in the organization's work package rank; creation order under legacy access. */
     readonly rank: number;
     readonly engine: 'fast' | 'optimized';
     readonly bookings: BookingView[];
@@ -89,13 +89,13 @@ export interface PersonLoadRead {
     readonly startsOn: IsoDate;
     readonly endsOn: IsoDate;
     readonly bookings: {
-      readonly projectId: string;
+      readonly workPackageId: string;
       readonly workItemId: string;
       readonly stepId: string | null;
     }[];
   }[];
-  readonly undated: NamedProject[];
-  readonly unavailable: UnavailableProject[];
+  readonly undated: NamedWorkPackage[];
+  readonly unavailable: UnavailableWorkPackage[];
 }
 
 export interface OrganizationLoadRead {
@@ -104,51 +104,51 @@ export interface OrganizationLoadRead {
     readonly name: string;
     readonly weeks: LoadWeek[];
   }[];
-  readonly undated: NamedProject[];
-  readonly unavailable: UnavailableProject[];
+  readonly undated: NamedWorkPackage[];
+  readonly unavailable: UnavailableWorkPackage[];
 }
 
-/** A slice of one project's displayed schedule that holds a person. */
+/** A slice of one work package's displayed schedule that holds a person. */
 interface Booking extends WorkdaySpan, BookingView {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly personId: string;
 }
 
 /**
- * What one project contributes to every person's load, derived from its
+ * What one work package contributes to every person's load, derived from its
  * displayed schedule. `assigned` names the people an undated or unschedulable
- * project would have booked; `null` where even that is unknown, because the
+ * work package would have booked; `null` where even that is unknown, because the
  * engine it displays is not installed here.
  */
-type ProjectReading =
+type WorkPackageReading =
   | { kind: 'dated'; engine: 'fast' | 'optimized'; bookings: readonly Booking[] }
   | { kind: 'undated'; assigned: ReadonlySet<string> }
   | { kind: 'unschedulable'; reason: LoadUnavailableReason; assigned: ReadonlySet<string> }
   | { kind: 'engine_unavailable' };
 
 export interface PersonLoadOptions {
-  projects: Pick<ProjectService, 'listWithin'>;
+  workPackages: Pick<WorkPackageService, 'listWithin'>;
   workItems: Pick<WorkItemService, 'latestSeq' | 'treeWithin' | 'sharedTreesWithin'>;
   directory: Pick<DirectoryService, 'listWithin'>;
-  ranks: Pick<ProjectRankStore, 'orderIn'>;
-  /** How many project readings the process keeps; the least recently read goes first. */
+  ranks: Pick<WorkPackageRankStore, 'orderIn'>;
+  /** How many work package readings the process keeps; the least recently read goes first. */
   memoSize?: number;
 }
 
 /**
- * A person's bookings across every project the caller can open (WBS
- * 010.4.16, `openspec/changes/share-people-across-projects`, design D2–D5).
+ * A person's bookings across every work package the caller can open (WBS
+ * 010.4.16, `openspec/changes/share-people-across-work-packages`, design D2–D5).
  *
- * Reads only: it schedules each project exactly as the project's own read
- * does and changes nothing. Isolated projects come from
- * {@link ProjectService.listWithin}; shared projects come from one authorized
- * aggregate observation. Neither path can name a project the caller cannot open.
+ * Reads only: it schedules each work package exactly as the work package's own read
+ * does and changes nothing. Isolated work packages come from
+ * {@link WorkPackageService.listWithin}; shared work packages come from one authorized
+ * aggregate observation. Neither path can name a work package the caller cannot open.
  */
 export class PersonLoad {
-  /** Per-process readings keyed by access and project; see {@link reading}. */
+  /** Per-process readings keyed by access and work package; see {@link reading}. */
   private readonly memo = new Map<
     string,
-    { revision: number; seq: number; basis: string | null; reading: ProjectReading }
+    { revision: number; seq: number; basis: string | null; reading: WorkPackageReading }
   >();
   private readonly memoSize: number;
 
@@ -175,18 +175,18 @@ export class PersonLoad {
       (candidate) => candidate.id === personId,
     );
     if (person === undefined) return null;
-    const readings = await this.readProjects(actorId, access);
+    const readings = await this.readWorkPackages(actorId, access);
     if ('kind' in readings) return readings;
-    const projects: PersonLoadRead['projects'][number][] = [];
+    const workPackages: PersonLoadRead['workPackages'][number][] = [];
     const theirs: Booking[] = [];
-    for (const { project, rank, reading } of readings) {
+    for (const { workPackage, rank, reading } of readings) {
       if (reading.kind !== 'dated') continue;
       const mine = reading.bookings.filter((booking) => booking.personId === personId);
       theirs.push(...mine);
       const shown = mine.filter((booking) => intersects(booking, window.span));
       if (shown.length === 0) continue;
-      projects.push({
-        ...project,
+      workPackages.push({
+        ...workPackage,
         rank,
         engine: reading.engine,
         bookings: shown.map(viewOf),
@@ -194,14 +194,14 @@ export class PersonLoad {
     }
     return {
       person: { id: person.id, name: person.name },
-      projects,
+      workPackages,
       overlaps: overlapsOf(theirs)
         .filter((overlap) => intersects(overlap, window.span))
         .map((overlap) => ({
           startsOn: dateOfWorkdayOrdinal(firstWorkdayOf(overlap.start)),
           endsOn: dateOfWorkdayOrdinal(lastWorkdayOf(overlap.start, overlap.end)),
-          bookings: overlap.bookings.map(({ projectId, workItemId, stepId }) => ({
-            projectId,
+          bookings: overlap.bookings.map(({ workPackageId, workItemId, stepId }) => ({
+            workPackageId,
             workItemId,
             stepId,
           })),
@@ -217,7 +217,7 @@ export class PersonLoad {
     access: ResourceAccess,
   ): Promise<OrganizationLoadRead | AccessRefused> {
     const people = await this.opts.directory.listWithin('people', access);
-    const readings = await this.readProjects(actorId, access);
+    const readings = await this.readWorkPackages(actorId, access);
     if ('kind' in readings) return readings;
     const byPerson = new Map<string, Booking[]>();
     for (const { reading } of readings) {
@@ -239,44 +239,50 @@ export class PersonLoad {
   }
 
   /**
-   * Every project the caller can open, with a 1-based rank. Shared projects
+   * Every work package the caller can open, with a 1-based rank. Shared work packages
    * are detached from one authorized aggregate observation. Connected members
-   * have a null basis and bypass this process's cache on every observation. Isolated projects
-   * use the organization's project rank, or under legacy access, creation order.
+   * have a null basis and bypass this process's cache on every observation. Isolated work packages
+   * use the organization's work package rank, or under legacy access, creation order.
    *
-   * The rank is renumbered over the caller's listed projects, not copied from
+   * The rank is renumbered over the caller's listed work packages, not copied from
    * the organization's order. Today the two agree, because every current
-   * member lists every project of the organization; were a read restriction
+   * member lists every work package of the organization; were a read restriction
    * ever to hide one, copying the organization's numbers would leave a gap
-   * that tells the reader a project exists they cannot see.
+   * that tells the reader a work package exists they cannot see.
    *
-   * A project listed and then deleted before its tree is read is gone, not
-   * unreadable, and is left out like any project the list no longer holds. One
+   * A work package listed and then deleted before its tree is read is gone, not
+   * unreadable, and is left out like any work package the list no longer holds. One
    * created between the list and the rank read follows every ranked one, as an
-   * unranked project does.
+   * unranked work package does.
    *
-   * Proof: listing and reading the projects under legacy access instead of
-   * the caller's made `omits a foreign project that assigns the same person
-   * id` in `person-load.controller.db.test.ts` name organization B's project,
+   * Proof: listing and reading the work packages under legacy access instead of
+   * the caller's made `omits a foreign workPackage that assigns the same person
+   * id` in `person-load.controller.db.test.ts` name organization B's work package,
    * and four more cases there count it; watched 2026-09-29.
    */
-  private async readProjects(
+  private async readWorkPackages(
     actorId: string,
     access: ResourceAccess,
-  ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[] | AccessRefused> {
+  ): Promise<
+    { workPackage: NamedWorkPackage; rank: number; reading: WorkPackageReading }[] | AccessRefused
+  > {
     const observed = await this.opts.workItems.sharedTreesWithin(actorId, access);
     if (observed.kind === 'access_refused') return observed;
     if (observed.kind === 'shared' || observed.kind === 'isolated-connected') {
-      const readings: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
+      const readings: {
+        workPackage: NamedWorkPackage;
+        rank: number;
+        reading: WorkPackageReading;
+      }[] = [];
       for (const entry of observed.entries) {
-        const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${entry.projectId}`;
+        const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${entry.workPackageId}`;
         const held = this.memo.get(key);
         // Availability and authority come from this same observation before any held value can win.
         // Proof: accepting a held entry first made the mounted unavailable-influencer test show old dates.
         const tree = entry.tree;
         if ('kind' in tree) {
           readings.push({
-            project: { projectId: entry.projectId, name: entry.name },
+            workPackage: { workPackageId: entry.workPackageId, name: entry.name },
             rank: entry.rank,
             reading: { kind: 'engine_unavailable' },
           });
@@ -290,7 +296,7 @@ export class PersonLoad {
           held.revision === entry.revision &&
           held.basis === entry.basis
             ? held.reading
-            : readingOf(entry.projectId, tree);
+            : readingOf(entry.workPackageId, tree);
         // Proof: omitting the null-basis storage guard failed the same mounted test: the following isolated load omitted Billing.
         if (
           entry.basis !== null &&
@@ -306,7 +312,7 @@ export class PersonLoad {
           });
         }
         readings.push({
-          project: { projectId: entry.projectId, name: entry.name },
+          workPackage: { workPackageId: entry.workPackageId, name: entry.name },
           rank: entry.rank,
           reading,
         });
@@ -318,7 +324,7 @@ export class PersonLoad {
       }
       return readings;
     }
-    const listed = await this.opts.projects.listWithin(actorId, access);
+    const listed = await this.opts.workPackages.listWithin(actorId, access);
     const byCreation = [...listed].sort(
       (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
@@ -326,23 +332,26 @@ export class PersonLoad {
       access.kind === 'scoped'
         ? new Map(
             (await this.opts.ranks.orderIn(access.scope.organizationId)).map(
-              (each) => [each.projectId, each.rank] as const,
+              (each) => [each.workPackageId, each.rank] as const,
             ),
           )
         : new Map<string, number>();
     // Proof: ordering by creation alone made `orders the load reads by the rank,
-    // naming each rank` in `project-rank.controller.db.test.ts` read
+    // naming each rank` in `work-package-rank.controller.db.test.ts` read
     // `Platform, Billing` instead of `Billing, Platform`; watched 2026-09-29.
     const ordered = byCreation
-      .map((project, index) => ({ project, rank: place.get(project.id) ?? place.size + index + 1 }))
+      .map((workPackage, index) => ({
+        workPackage,
+        rank: place.get(workPackage.id) ?? place.size + index + 1,
+      }))
       .sort((a, b) => a.rank - b.rank);
-    const read: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
-    for (const [index, { project }] of ordered.entries()) {
-      const reading = await this.reading(project.id, project.revision, access);
+    const read: { workPackage: NamedWorkPackage; rank: number; reading: WorkPackageReading }[] = [];
+    for (const [index, { workPackage }] of ordered.entries()) {
+      const reading = await this.reading(workPackage.id, workPackage.revision, access);
       if (reading?.kind === 'access_refused') return reading;
       if (reading !== null) {
         read.push({
-          project: { projectId: project.id, name: project.name },
+          workPackage: { workPackageId: workPackage.id, name: workPackage.name },
           rank: index + 1,
           reading,
         });
@@ -352,19 +361,19 @@ export class PersonLoad {
   }
 
   /**
-   * An isolated project's reading, from the memo when neither the project row's
+   * An isolated work package's reading, from the memo when neither the work package row's
    * `revision` nor its event sequence has moved since it was computed. Shared
-   * reads also compare the captured incoming-calendar basis in {@link readProjects}.
+   * reads also compare the captured incoming-calendar basis in {@link readWorkPackages}.
    * Connected trees on the isolated-capacity path are not memoized: a foreign
-   * calendar or engine can change without moving this project's identity.
+   * calendar or engine can change without moving this work package's identity.
    *
    * Both, because they cover different writes. `revision` commits with every
-   * edit to the project row — start date, PERT weights, reach, estimate method
-   * and rounding — and a project PATCH announces an event only for the three
+   * edit to the work package row — start date, PERT weights, reach, estimate method
+   * and rounding — and a work package PATCH announces an event only for the three
    * optimizer settings. `seq` advances when a plan edit, a directory or
    * capacity change, or a `schedule_optimized` result is announced after its
-   * commit, and none of those moves the project row. `revision` is the one the
-   * caller's project list has just read, so it is never older than this
+   * commit, and none of those moves the work package row. `revision` is the one the
+   * caller's work package list has just read, so it is never older than this
    * request. Keyed on the access too: a scoped read fails closed on rows that
    * cross the organization where a legacy read does not, so the two never share
    * an answer. Correctness never rests on a hit: a miss re-reads.
@@ -375,12 +384,12 @@ export class PersonLoad {
    * 2026-09-29.
    */
   private async reading(
-    projectId: string,
+    workPackageId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<ProjectReading | AccessRefused | null> {
-    const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${projectId}`;
-    const seq = await this.opts.workItems.latestSeq(projectId);
+  ): Promise<WorkPackageReading | AccessRefused | null> {
+    const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${workPackageId}`;
+    const seq = await this.opts.workItems.latestSeq(workPackageId);
     const held = this.memo.get(key);
     // Proof: the revision comparison removed made `follows a start date moved
     // after a warm read`, `… cleared …` and `follows an estimate rule changed
@@ -390,21 +399,21 @@ export class PersonLoad {
     // shared read kept Billing at 2026-10-08 instead of its isolated 2026-10-05.
     if (held?.seq === seq && held.revision === revision && held.basis === null) {
       // A hit skips `treeWithin`'s crossing-row check, which ran when this
-      // reading was computed. Not an access decision: the project list above
+      // reading was computed. Not an access decision: the work package list above
       // re-ran the caller's access on this request, and a crossing row is
       // corrupt state no write creates without moving `seq` or `revision`.
       this.memo.delete(key);
       this.memo.set(key, held);
       return held.reading;
     }
-    const tree = await this.opts.workItems.treeWithin(projectId, access);
+    const tree = await this.opts.workItems.treeWithin(workPackageId, access);
     if (tree === null) return null;
     // Never memoized: it holds no bookings worth keeping, and a memo entry
     // would outlive the reason it was refused.
-    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable project output.
+    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable work package output.
     if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'engine_unavailable' };
-    const reading = readingOf(projectId, tree);
+    const reading = readingOf(workPackageId, tree);
     // Proof: allowing connected storage failed mounted isolated-capacity calendar recovery: Target retained missing-calendar after Remote gained an anchor.
     if (tree.connectedDependencies !== undefined) return reading;
     this.memo.delete(key);
@@ -421,10 +430,10 @@ export class PersonLoad {
 type Tree = Exclude<Awaited<ReturnType<WorkItemService['treeWithin']>>, null | { kind: string }>;
 
 /**
- * A project's bookings, from the tree its own page reads.
+ * A work package's bookings, from the tree its own page reads.
  *
  * Offsets are snapped before they are placed on the shared axis: a finish of
- * 3.0000000000000004 beside another project's start of 3 is a hand-off with a
+ * 3.0000000000000004 beside another work package's start of 3 is a hand-off with a
  * drifted bit, not an overlap of a trillionth of a day. The dates are the
  * plan's own arithmetic on the unsnapped offsets, so a load bar and the plan's
  * row name the same days.
@@ -432,7 +441,7 @@ type Tree = Exclude<Awaited<ReturnType<WorkItemService['treeWithin']>>, null | {
  * @throws when a slice names a work item the tree does not hold: the two come
  * from one read, so a miss is a broken read, never a booking to drop.
  */
-function readingOf(projectId: string, tree: Tree): ProjectReading {
+function readingOf(workPackageId: string, tree: Tree): WorkPackageReading {
   const assigned = new Set(tree.assignedPeople.map((person) => person.id));
   if (tree.scheduleError !== null) {
     // Proof: bypassing structured-reason mapping made mounted isolated-capacity load reads return 500.
@@ -455,7 +464,7 @@ function readingOf(projectId: string, tree: Tree): ProjectReading {
       throw new Error(`slice ${slice.id} names work item ${slice.workItemId} the tree lacks`);
     }
     bookings.push({
-      projectId,
+      workPackageId,
       personId: slice.personId,
       workItemId: slice.workItemId,
       number: row.number,
@@ -482,23 +491,23 @@ function intersects(span: WorkdaySpan, window: WorkdaySpan): boolean {
 }
 
 /**
- * The readable projects that could not contribute bookings: undated ones and
- * unschedulable ones that `names` someone, and every project whose engine is
+ * The readable work packages that could not contribute bookings: undated ones and
+ * unschedulable ones that `names` someone, and every work package whose engine is
  * not installed here — whom it names is unknowable without its schedule.
  */
 function missingFrom(
-  readings: readonly { project: NamedProject; reading: ProjectReading }[],
+  readings: readonly { workPackage: NamedWorkPackage; reading: WorkPackageReading }[],
   names: (assigned: ReadonlySet<string>) => boolean,
-): { undated: NamedProject[]; unavailable: UnavailableProject[] } {
-  const undated: NamedProject[] = [];
-  const unavailable: UnavailableProject[] = [];
-  for (const { project, reading } of readings) {
-    if (reading.kind === 'undated' && names(reading.assigned)) undated.push(project);
+): { undated: NamedWorkPackage[]; unavailable: UnavailableWorkPackage[] } {
+  const undated: NamedWorkPackage[] = [];
+  const unavailable: UnavailableWorkPackage[] = [];
+  for (const { workPackage, reading } of readings) {
+    if (reading.kind === 'undated' && names(reading.assigned)) undated.push(workPackage);
     if (reading.kind === 'unschedulable' && names(reading.assigned)) {
-      unavailable.push({ ...project, reason: reading.reason });
+      unavailable.push({ ...workPackage, reason: reading.reason });
     }
     if (reading.kind === 'engine_unavailable') {
-      unavailable.push({ ...project, reason: 'engine_unavailable' });
+      unavailable.push({ ...workPackage, reason: 'engine_unavailable' });
     }
   }
   return { undated, unavailable };

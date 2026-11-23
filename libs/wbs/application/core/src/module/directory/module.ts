@@ -3,7 +3,7 @@ import { DiBag } from 'di-bag';
 import type { Clock } from '../../ports/clock';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
-import type { Broadcaster } from '../../ports/project-event';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { DIRECTORY_LABEL } from './contract';
 import { DirectoryService, type DirectoryServiceOptions } from './directory.resource';
 
@@ -25,10 +25,12 @@ export const directoryModule = DiBag.createBuilder()
     directoryOptions: DiBag.createProvider(
       ({
         directoryStore,
+        accessDecisions,
         broadcast,
         clock,
         organizationLimits,
       }: {
+        accessDecisions: DirectoryServiceOptions['accessDecisions'];
         directoryStore: DirectoryStore;
         broadcast: Broadcaster;
         clock: Clock;
@@ -39,6 +41,7 @@ export const directoryModule = DiBag.createBuilder()
         // wires` failing (4 pass, 1 fail): the team's id read "unsupplied".
       }): DirectoryServiceOptions => ({
         directory: directoryStore,
+        accessDecisions,
         broadcast,
         clock,
         ...(organizationLimits === null ? {} : { organizationLimits }),

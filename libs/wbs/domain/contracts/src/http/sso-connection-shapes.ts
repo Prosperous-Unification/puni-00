@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -38,7 +39,16 @@ const common = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
   // Only a current super-admin administers enterprise SSO.
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: dropping this permission property (schema-sso-connection-shapes) failed `keeps the catalog permission vocabulary at getApiOrganizationSso-connections`; restored GREEN.
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
 ] as const;
 const malformed = {
   status: 400,

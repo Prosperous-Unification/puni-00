@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,45 +12,34 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
 import type { Connection } from '../repository/db';
-import { openConnection } from '../repository/db';
+import { openConnection, openDatabase } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { planEvent, savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
-import { projectRow } from '../testing/project-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
 import { savedConnectedHistoryFixture } from '../testing/saved-connected-history-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 const OPENED_AT = 1_756_000_123;
 
 /**
- * The id a saved plan in this file was written under.
- *
- * A *recorded older* one, which is what task 5.1 asks for: the live constant is
- * `slice-leveling-v3` (`libs/wbs/domain/domain/src/schedule.ts`), and a record stamped
- * with an id this build no longer produces is the only record that can tell a
- * reader-of-bytes apart from a reader-that-recomputes by anything other than
- * luck. Deliberately **not** imported from `SCHEDULE_ALGORITHM_ID` and not
- * asserted against it: this is a value out of the past, so a bump of that
- * constant must not silently move this fixture along with it.
- *
- * `schedule-algorithm-id.test.ts` and `live-plan-identity.test.ts` own the
- * question of what the *current* identity is and what changing it means. This
- * file borrows neither baseline; it only needs a value that is not the current
- * one.
+ * Synthetic retired identity shared by stored body and header. It proves that a
+ * byte reader does not call the current engine; it is not evidence of an actual
+ * released writer at this identity. Timing/body shape remains the coherent capture.
  */
-const OLDER_ALGORITHM_ID = 'slice-leveling-v0-retired';
+const RETIRED_ALGORITHM_ID = 'slice-leveling-v0-retired';
 
 /**
  * Tasks 5.1 and 5.1b — the read path returns stored bytes, and checks them.
@@ -77,7 +66,7 @@ describe('reading a saved plan back', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -102,32 +91,30 @@ describe('reading a saved plan back', () => {
     schedulerMayRun = true;
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-read-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
+      wrote,
+    );
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -173,7 +160,7 @@ describe('reading a saved plan back', () => {
     await new SavedPlanRepository({ openConnection: () => openConnection(path) }).write(
       {
         id: 'historical',
-        projectId: 'p1',
+        workPackageId: 'p1',
         name: 'Frozen',
         createdBy: 'Ada',
         createdById: null,
@@ -219,33 +206,61 @@ describe('reading a saved plan back', () => {
     expect(compared.left).toEqual(compared.right);
     if (compared.left.provenance.kind !== 'connected')
       throw new Error('connected summary required');
-    expect(compared.left.provenance.projects.map((project) => project.name).sort()).toEqual([
-      'Alpha',
-      'Beta',
-    ]);
-    expect(reader.db.all("SELECT id FROM project WHERE id = 'B'")).toEqual([]);
+    expect(
+      compared.left.provenance.workPackages.map((workPackage) => workPackage.name).sort(),
+    ).toEqual(['Alpha', 'Beta']);
+    expect(reader.db.all("SELECT id FROM work_package WHERE id = 'B'")).toEqual([]);
   });
 
   /**
-   * Saves one plan and back-stamps its `scheduler_algorithm_id` to an id this
-   * build no longer produces — the "recorded older" record 5.1 asks for.
+   * Saves one coherent capture and assigns a synthetic retired identity to both
+   * body/header, with matching hashes. No actual old writer is claimed.
    */
-  const saveUnderTheOlderAlgorithm = async () => {
+  const saveRetiredAlgorithmPlan = async () => {
     const saved = await service().save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById: null,
     });
     if (saved.outcome !== 'saved') throw new Error(`expected a save, got ${saved.outcome}`);
-    reader.db.run(
-      `UPDATE saved_plan SET scheduler_algorithm_id = '${OLDER_ALGORITHM_ID}' WHERE id = 'sp-1'`,
-    );
-    return saved.record;
+    const recorded = saved.record;
+    if (!recorded.schedule.present)
+      throw new Error('retired identity fixture requires saved dates');
+    const body = JSON.parse(recorded.schedule.body.bytes) as Record<string, unknown>;
+    body['algorithmId'] = RETIRED_ALGORITHM_ID;
+    const bytes = JSON.stringify(body);
+    const sha256 = await bodySha256(nodeDigest, bytes);
+    const historical = openDatabase(path);
+    try {
+      historical.transaction(() => {
+        historical
+          .query(
+            "UPDATE saved_plan SET scheduler_algorithm_id=?,schedule_sha256=?,schedule_bytes=? WHERE id='sp-1'",
+          )
+          .run(RETIRED_ALGORITHM_ID, sha256, Buffer.byteLength(bytes));
+        historical
+          .query(
+            "UPDATE saved_plan_body SET bytes=? WHERE saved_plan_id='sp-1' AND kind='schedule'",
+          )
+          .run(bytes);
+      })();
+    } finally {
+      historical.close();
+    }
+
+    return {
+      ...recorded,
+      schedule: {
+        ...recorded.schedule,
+        algorithmId: RETIRED_ALGORITHM_ID,
+        body: { ...recorded.schedule.body, bytes, sha256 },
+      },
+    };
   };
 
   it('returns the stored bytes without calling the scheduler', async () => {
-    const record = await saveUnderTheOlderAlgorithm();
+    const record = await saveRetiredAlgorithmPlan();
     // The save is what called it. Zeroed here so the assertion after the read
     // is about the read alone.
     expect(scheduleCalls.length).toBe(1);
@@ -272,13 +287,13 @@ describe('reading a saved plan back', () => {
     // The record still names the algorithm it was written under, rather than
     // the one this build would compute — a reader that re-derived would have
     // had to say `slice-leveling-v3` here.
-    expect(read.plan.schedule.algorithmId).toBe(OLDER_ALGORITHM_ID);
+    expect(read.plan.schedule.algorithmId).toBe(RETIRED_ALGORITHM_ID);
     // The header, handed over as stored.
     expect(read.plan.input.sha256).toBe(record.input.sha256);
     expect(read.plan.createdAt).toBe(OPENED_AT);
     expect(read.plan.createdBy).toBe('Ada Lovelace');
     expect(read.plan.name).toBe('before the rewire');
-    expect(read.plan.projectId).toBe('p1');
+    expect(read.plan.workPackageId).toBe('p1');
   });
 
   it('still returns those bytes when the live plan has moved underneath them', async () => {
@@ -286,7 +301,7 @@ describe('reading a saved plan back', () => {
     // indistinguishable from one that did not while the live plan still matches
     // the capture; moving the live plan is what makes "the stored bytes" a
     // claim with a false version.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     const live = openConnection(path);
     await new WorkItemRepository(live.db, OPEN).remove(['wi-2'], [], wrote);
     live.close();
@@ -299,7 +314,7 @@ describe('reading a saved plan back', () => {
   });
 
   it('refuses a body whose stored bytes no longer hash to the header', async () => {
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     // One byte, flipped underneath the record — 5.1b's negative. Appending
     // rather than substituting so the change is provably in the bytes and not
     // in some equal rendering of them.
@@ -316,7 +331,7 @@ describe('reading a saved plan back', () => {
   it('refuses the schedule side by itself, naming that body and not the input', async () => {
     // The refusal has to name *which* half, or a reader holding a good input
     // and a corrupt schedule is told the whole record is untrustworthy.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE kind = 'schedule'`);
 
     const read = await service().read('sp-1');
@@ -326,7 +341,7 @@ describe('reading a saved plan back', () => {
   });
 
   it('refuses a header whose body row is gone', async () => {
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`DELETE FROM saved_plan_body WHERE kind = 'input'`);
 
     const read = await service().read('sp-1');
@@ -344,7 +359,7 @@ describe('reading a saved plan back', () => {
     // *link* between them. `verifyBody` cannot see this and neither can 2.4's
     // source scan — that guard proves nothing rewrites the column, not that the
     // value in it belongs here.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(
       `UPDATE saved_plan SET schedule_input_sha256 = '${'0'.repeat(64)}' WHERE id = 'sp-1'`,
     );
@@ -363,7 +378,7 @@ describe('reading a saved plan back', () => {
     // path, and that the 365-day prune cannot reach a saved plan. A record that
     // needed an event row would be a record whose lifetime is the retention
     // window's, which is not what "saved" means.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`DELETE FROM plan_event`);
     const remaining = await reader.db.select().from(planEvent);
     expect(remaining.length).toBe(0);
@@ -388,12 +403,22 @@ describe('reading a saved plan back', () => {
      * route for.
      */
     const writeWithout = async (id: string, absentReason: string) => {
-      const bytes = `{"schemaVersion":1,"marker":"${id}"}`;
+      const body = JSON.parse(
+        readFileSync(
+          new URL(
+            '../../../../../libs/wbs/domain/domain/src/saved-plan/fixtures/input-v1.txt',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      ) as { project: { name: string } };
+      body.project.name = id;
+      const bytes = JSON.stringify(body);
       const plans = new SavedPlanRepository({ openConnection: () => openConnection(path) });
       const written = await plans.write<never>(
         {
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: `no schedule: ${absentReason}`,
           createdBy: 'Ada Lovelace',
           createdById: null,
@@ -419,7 +444,7 @@ describe('reading a saved plan back', () => {
         // The reason itself, not a boolean: absence has a cause and a
         // comparison surface renders it (task 8.5).
         expect(read.plan.schedule.absentReason).toBe(absentReason);
-        // And the live project *does* schedule — this file's other tests save a
+        // And the live work package *does* schedule — this file's other tests save a
         // plan with dates from it — so a reader that fell back would have had
         // something to fall back to. Zero calls is the assertion that names it.
         expect(scheduleCalls.length).toBe(0);
@@ -444,7 +469,7 @@ describe('reading a saved plan back', () => {
     // an unknown version is a fact about the build — every record at that
     // version is unreadable here, so the honest report is that this reader is
     // too old.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`UPDATE saved_plan SET input_schema_version = 99 WHERE id = 'sp-1'`);
 
     let thrown: unknown;
@@ -464,7 +489,7 @@ describe('reading a saved plan back', () => {
     // Two columns, two checks. A reader that only guarded the input would parse
     // an unknown schedule body optimistically, which is the exact slip 5.5's
     // negative describes.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`UPDATE saved_plan SET schedule_schema_version = 99 WHERE id = 'sp-1'`);
 
     let thrown: unknown;
@@ -488,7 +513,7 @@ describe('reading a saved plan back', () => {
     // `schedule_input_sha256` still names the input that was actually
     // scheduled. One `UPDATE` cannot make a tampered record consistent; that is
     // the whole point of storing the link rather than assuming it.
-    await saveUnderTheOlderAlgorithm();
+    await saveRetiredAlgorithmPlan();
     reader.db.run(`UPDATE saved_plan_body SET bytes = bytes || ' ' WHERE kind = 'input'`);
     const rows = await reader.db.select().from(savedPlanBody);
     const flipped = rows.find((row) => row.kind === 'input');

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * Project command batches, undo and redo under organization isolation (task
+ * Work package command batches, undo and redo under organization isolation (task
  * 3.4, part 1), over be-01's production composition and real SQLite; see
  * {@link OrganizationHarness.openComposed}. Directory commands have their own
  * suite, `directory-command-organization.controller.db.test.ts`.
@@ -37,9 +37,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -62,25 +62,85 @@ beforeEach(async () => {
   );
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const activation = h.sqlite
+    .query<{ state: string }, []>('SELECT state FROM organization_activation WHERE singleton=1')
+    .get();
+  if (activation === null) throw new Error('fixture activation absent');
+  const scoped = activation.state === 'activated';
+  const organizationId = scoped ? (username === 'grace' ? 'org-b' : 'org-a') : 'command-legacy';
+  let projectId: string;
+  if (scoped) {
+    const parent = await h.call(username, 'POST', '/api/projects', { name: name + ' project' });
+    expect(parent.status).toBe(201);
+    projectId = (parent.body as { project: { id: string } }).project.id;
+    await h.publicWrites().uow.run(async ({ stores }) => {
+      const definition = await stores.stepCatalogue.defineAndBindStep(
+        organizationId,
+        {
+          id: crypto.randomUUID(),
+          code: name.toLowerCase().replaceAll(' ', '-'),
+          name: name + ' step',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          bindingId: crypto.randomUUID(),
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position: 10,
+        },
+        { at: 1, by: h.userId(username) },
+      );
+      expect(definition).toMatchObject({ ok: true });
+      return { commit: true, value: undefined };
+    });
+  } else {
+    expect(activation.state).toBe('pre_activation');
+    h.sqlite.run('INSERT INTO organization(id,name,legacy,created_at) VALUES(?,?,1,1)', [
+      organizationId,
+      name,
+    ]);
+    projectId = 'command-legacy-project';
+    h.sqlite.run('INSERT INTO project(id,organization_id,name,created_at) VALUES(?,?,?,1)', [
+      projectId,
+      organizationId,
+      name,
+    ]);
+  }
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name, projectId });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
+  return workPackageId;
 }
 
-async function firstStep(username: string, projectId: string): Promise<string> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function firstStep(username: string, workPackageId: string): Promise<string> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const step = (answer.body as { steps: { id: string }[] }).steps.at(0);
-  if (step === undefined) throw new Error('the project started with no step');
+  if (step === undefined) throw new Error('the work package started with no step');
   return step.id;
 }
 
-function batch(username: string, projectId: string, commands: unknown[]): Promise<Answer> {
-  return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+function batch(username: string, workPackageId: string, commands: unknown[]): Promise<Answer> {
+  return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
+}
+
+function clearAssignment(username: string, workItemId: string): Promise<Answer> {
+  return batch(username, own, [
+    { kind: 'setAssignee', workItemId, stepId: ownStep, personId: null },
+  ]);
+}
+
+function changeAllowance(username: string): Promise<Answer> {
+  return h.call(username, 'PATCH', `/api/work-packages/${own}/steps/${ownStep}`, {
+    allowanceBps: 1500,
+  });
 }
 
 async function expectApplied(answer: Answer): Promise<void> {
@@ -107,14 +167,14 @@ function seedCatalogs(org: 'a' | 'b'): void {
   }
 }
 
-/** The one root work item of a project, by its name. */
-function rowOf(projectId: string): { id: string; name: string } {
+/** The one root work item of a work package, by its name. */
+function rowOf(workPackageId: string): { id: string; name: string } {
   const row = h.sqlite
     .query<{ id: string; name: string }, [string]>(
-      'SELECT id, name FROM work_item WHERE project_id = ? AND parent_id IS NULL ORDER BY position LIMIT 1',
+      'SELECT id, name FROM work_item WHERE work_package_id = ? AND parent_id IS NULL ORDER BY position LIMIT 1',
     )
-    .get(projectId);
-  if (row === null) throw new Error(`project ${projectId} has no root row`);
+    .get(workPackageId);
+  if (row === null) throw new Error(`work package ${workPackageId} has no root row`);
   return row;
 }
 
@@ -130,7 +190,7 @@ function snapshot(): unknown {
     'assignment',
     'estimate',
     'dependency',
-    'project_team_capacity',
+    'work_package_team_capacity',
     'tag',
     'command_journal',
   ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
@@ -138,7 +198,7 @@ function snapshot(): unknown {
 
 describe('before activation', () => {
   it('runs any batch deployment-wide, directory commands included', async () => {
-    h.close();
+    await h.closeComposed();
     h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'grace']) await h.register(username);
     const theirs = await create('grace', 'Legacy plan');
@@ -156,107 +216,141 @@ describe('before activation', () => {
 });
 
 describe('after activation', () => {
-  it('rolls back admitted project and scoped step capture failures before either write', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('rolls back admitted work package and scoped step capture failures before either write', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    h.sqlite.run('DROP TABLE project_rank');
-    const tables = ['project', 'step', 'organization_audit', 'event_log', 'event_sequencer'];
+    h.sqlite.run('DROP TABLE work_package_rank');
+    const tables = [
+      'work_package',
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'command_journal',
+      'organization_audit',
+      'event_log',
+      'event_sequencer',
+    ];
     const before = tables.map((table) =>
       h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     );
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-06' }))
+        .status,
     ).toBe(500);
     expect(
       tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`)).status,
-    ).toBe(500);
+    expect((await changeAllowance('nell')).status).toBe(500);
     expect(
       tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
   });
 
-  it('refuses a queued project demotion before shared observation', async () => {
+  it('refuses a queued work package demotion before shared observation', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    h.sqlite.run('DROP TABLE project_rank');
+    h.sqlite.run('DROP TABLE work_package_rank');
     changeAfterResolution = () => {
+      h.sqlite.run(
+        "UPDATE access_grant SET role_id = CASE scope_kind WHEN 'work_package' THEN 'package-viewer' ELSE 'project-viewer' END WHERE subject_id = ?",
+        [h.userId('ada')],
+      );
       h.sqlite.run(
         "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('ada')],
       );
     };
-    const before = ['project', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
-      h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+    const before = ['work_package', 'organization_audit', 'event_log', 'event_sequencer'].map(
+      (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     );
     expect(
-      await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+      await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-06' }),
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(
-      ['project', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
+      ['work_package', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
         h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
       ),
     ).toEqual(before);
   });
 
   it('refuses a queued scoped recovery demotion before shared observation', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
+    let demoted = false;
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    h.sqlite.run('DROP TABLE project_rank');
+    h.sqlite.run('DROP TABLE work_package_rank');
     changeAfterResolution = () => {
+      demoted = true;
+      h.sqlite.run(
+        "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id=? AND scope_kind='work_package' AND scope_id=?",
+        [h.userId('nell'), own],
+      );
       h.sqlite.run(
         "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('nell')],
       );
     };
-    const before = ['step', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
-      h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-    );
+    const before = [
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'command_journal',
+      'organization_audit',
+      'event_log',
+      'event_sequencer',
+    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    expect(await changeAllowance('nell')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
+    expect(demoted).toBe(true);
     expect(
-      await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
-    expect(
-      ['step', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
-        h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
+      [
+        'step_definition',
+        'step_binding',
+        'work_package_step',
+        'command_journal',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
   });
 
-  it('keeps one scoped step recovery audit and its downstream fan-out in the same turn', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('keeps a granted scoped step and downstream fan-out in the same turn without recovery audit', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const downstream = [
       await create('ada', 'Recovery downstream B'),
       await create('ada', 'Recovery downstream C'),
     ];
     const upstreamRow = rowOf(own).id;
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    for (const projectId of [own, ...downstream])
+    for (const workPackageId of [own, ...downstream])
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-        [projectId],
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        [workPackageId],
       );
     const rows: [string, string][] = [[upstreamRow, ownStep]];
-    for (const [index, projectId] of downstream.entries()) {
-      const stepId = await firstStep('ada', projectId);
+    for (const [index, workPackageId] of downstream.entries()) {
+      const stepId = await firstStep('ada', workPackageId);
       const workItemId = `recovery-downstream-${String(index)}`;
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        workItemId,
-        projectId,
-        workItemId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+        [workItemId, workPackageId, workItemId],
+      );
       rows.push([workItemId, stepId]);
     }
     for (const [workItemId, stepId] of rows) {
@@ -274,6 +368,7 @@ describe('after activation', () => {
       h.sqlite
         .query<{ detail: string }, []>('SELECT detail FROM organization_audit ORDER BY rowid')
         .all();
+    const initialAudits = audits();
     const downstreamEvents = () =>
       h.sqlite
         .query<{ subscription: string; message: string }, []>(
@@ -281,22 +376,33 @@ describe('after activation', () => {
         )
         .all()
         .filter(({ subscription }) =>
-          downstream.some((projectId) => subscription === `project:${projectId}`),
+          downstream.some((workPackageId) => subscription === `work-package:${workPackageId}`),
         );
-    expect(audits()).toEqual([]);
     expect(
-      (await h.call('nell', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' })).status,
+      (await h.call('nell', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-06' }))
+        .status,
     ).toBe(200);
-    expect(audits()).toEqual([{ detail: '{"fields":["startDate"]}' }]);
+    expect(audits()).toEqual(initialAudits);
     expect(downstreamEvents()).toHaveLength(2);
-    const before = [
-      'step',
+    const capturedTables = [
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'command_journal',
+      'work_item',
       'estimate',
       'assignment',
       'organization_audit',
       'event_log',
       'event_sequencer',
-    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    ];
+    const readCapturedRows = () =>
+      capturedTables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = readCapturedRows();
+    h.sqlite.run(
+      "UPDATE access_grant SET role_id = CASE scope_kind WHEN 'work_package' THEN 'package-viewer' ELSE 'project-viewer' END WHERE subject_id = ?",
+      [h.userId('ada')],
+    );
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
@@ -308,15 +414,19 @@ describe('after activation', () => {
         { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('ada') },
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
         },
       ),
-    ).toEqual({ ok: false, reason: 'forbidden' });
+    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
     h.sqlite.run(
       "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
+    h.sqlite.run("DELETE FROM access_grant WHERE subject_id = ? AND scope_kind = 'work_package'", [
+      h.userId('nell'),
+    ]);
     expect(
       await h.removeBareStep(
         own,
@@ -324,20 +434,23 @@ describe('after activation', () => {
         { id: h.userId('nell'), username: 'nell', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('nell') },
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('nell'), role: 'super_admin' },
+          scope: {
+            cap: null,
+            organizationId: 'org-a',
+            userId: h.userId('nell'),
+          },
         },
       ),
-    ).toEqual({ ok: false, reason: 'forbidden' });
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
+    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
+    expect(readCapturedRows()).toEqual(before);
+    h.grant('org-a', 'ada', 'package-manager', 'work_package', own);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const second = [...downstream].sort().at(1);
     if (second === undefined) throw new Error('second recovery recipient is absent');
     h.sqlite.run(
-      `CREATE TRIGGER fail_recovery_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected recovery fan-out failure'); END`,
+      `CREATE TRIGGER fail_recovery_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected recovery fan-out failure'); END`,
     );
     let bareFailure: unknown;
     try {
@@ -347,28 +460,20 @@ describe('after activation', () => {
         { id: h.userId('ada'), username: 'ada', scopes: ['write'] },
         true,
         {
+          principal: { id: h.userId('ada') },
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: h.userId('ada'), role: 'member' },
+          scope: { cap: null, organizationId: 'org-a', userId: h.userId('ada') },
         },
       );
     } catch (cause) {
       bareFailure = cause;
     }
     expect(bareFailure).toBeInstanceOf(Error);
-    expect((bareFailure as Error).message).toContain('Failed query');
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`)).status,
-    ).toBe(500);
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
+    expect((bareFailure as Error).cause).toBeInstanceOf(Error);
+    expect(((bareFailure as Error).cause as Error).message).toContain('no such table: step');
+    expect(readCapturedRows()).toEqual(before);
+    expect((await clearAssignment('nell', upstreamRow)).status).toBe(500);
+    expect(readCapturedRows()).toEqual(before);
     h.sqlite.run('DROP TRIGGER fail_recovery_fanout');
     let enterPush!: () => void;
     let releasePush!: () => void;
@@ -383,31 +488,28 @@ describe('after activation', () => {
       await heldPush;
       return Response.json({ delivered_to_sockets: 0 });
     };
-    const removal = h.call('nell', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`);
+    const clearing = clearAssignment('nell', upstreamRow);
     await pushEntered;
     // Proof: moving recovery delivery into its UoW blocked this independent
     // SQLite writer until the held gateway push timed out with SQLITE_BUSY.
     try {
-      h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', ['writer entered', own]);
+      h.sqlite.run('UPDATE work_package SET name = ? WHERE id = ?', ['writer entered', own]);
     } finally {
       releasePush();
     }
-    expect((await removal).status).toBe(204);
-    expect(audits()).toEqual([
-      { detail: '{"fields":["startDate"]}' },
-      { detail: '{"step":"remove"}' },
-    ]);
+    expect((await clearing).status).toBe(200);
+    expect(audits()).toEqual(initialAudits);
     const [bridgeRecipient, lastRecipient] = downstream;
-    const changed = (projectId: string, causeProjectId: string) => ({
+    const changed = (workPackageId: string, causeWorkPackageId: string) => ({
       type: 'elsewhere_changed',
-      projectId,
-      causeProjectId,
+      workPackageId,
+      causeWorkPackageId,
     });
     const order = (left: ReturnType<typeof changed>, right: ReturnType<typeof changed>) =>
-      left.projectId.localeCompare(right.projectId) ||
-      left.causeProjectId.localeCompare(right.causeProjectId);
+      left.workPackageId.localeCompare(right.workPackageId) ||
+      left.causeWorkPackageId.localeCompare(right.causeWorkPackageId);
     expect(downstreamEvents().map(({ message }) => JSON.parse(message) as unknown)).toEqual([
-      ...downstream.map((projectId) => changed(projectId, own)).sort(order),
+      ...downstream.map((workPackageId) => changed(workPackageId, own)).sort(order),
       ...[
         changed(bridgeRecipient, own),
         changed(lastRecipient, own),
@@ -416,26 +518,26 @@ describe('after activation', () => {
     ]);
   });
 
-  it('captures a scoped recovery step before removal on the mounted route', async () => {
-    h.member('org-a', 'nell', 'super_admin');
+  it('captures the old shared assignment before a granted package writer clears it', async () => {
+    h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const downstream = await create('ada', 'Scoped recovery recipient');
     const downstreamStep = await firstStep('ada', downstream);
     const upstreamRow = rowOf(own).id;
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    for (const projectId of [own, downstream])
+    for (const workPackageId of [own, downstream])
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-        [projectId],
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        [workPackageId],
       );
-    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-      'scoped-recipient-row',
-      downstream,
-      'scoped-recipient-row',
-    ]);
+    h.sqlite.run(
+      'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+      ['scoped-recipient-row', downstream, 'scoped-recipient-row'],
+    );
     for (const [workItemId, stepId] of [
       [upstreamRow, ownStep],
       ['scoped-recipient-row', downstreamStep],
@@ -450,26 +552,29 @@ describe('after activation', () => {
         'pe-a',
       ]);
     }
-    const removed = await h.call(
-      'nell',
-      'DELETE',
-      `/api/projects/${own}/steps/${ownStep}?cascade=true`,
-    );
-    expect(removed.status).toBe(204);
+    const readAudits = () =>
+      h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all();
+    const beforeAudits = readAudits();
+    const cleared = await clearAssignment('nell', upstreamRow);
+    expect(cleared.status).toBe(200);
     expect(
       h.sqlite
-        .query<{ detail: string }, []>('SELECT detail FROM organization_audit ORDER BY rowid')
-        .all(),
-    ).toEqual([{ detail: '{"step":"remove"}' }]);
+        .query('SELECT person_id FROM assignment WHERE work_item_id=? AND step_id=?')
+        .all(upstreamRow, ownStep),
+    ).toEqual([]);
+    expect(
+      h.sqlite
+        .query('SELECT realistic FROM estimate WHERE work_item_id=? AND step_id=?')
+        .get(upstreamRow, ownStep),
+    ).toEqual({ realistic: 1 });
+    expect(readAudits()).toEqual(beforeAudits);
     const events = h.sqlite
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${downstream}`);
-    // Proof: moving the recovery observation after steps.remove made this
-    // mounted DELETE stay 204 but lose its old-step downstream event.
+      .all(`work-package:${downstream}`);
     expect(events.map(({ message }) => JSON.parse(message) as unknown)).toEqual([
-      { type: 'elsewhere_changed', projectId: downstream, causeProjectId: own },
+      { type: 'elsewhere_changed', workPackageId: downstream, causeWorkPackageId: own },
     ]);
   });
 
@@ -477,19 +582,18 @@ describe('after activation', () => {
     const downstream = [await create('ada', 'B'), await create('ada', 'C')];
     const upstreamRow = rowOf(own).id;
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    for (const projectId of [own, ...downstream])
+    for (const workPackageId of [own, ...downstream])
       h.sqlite.run(
-        "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-        [projectId],
+        "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+        [workPackageId],
       );
-    for (const [index, projectId] of downstream.entries()) {
-      const stepId = await firstStep('ada', projectId);
+    for (const [index, workPackageId] of downstream.entries()) {
+      const stepId = await firstStep('ada', workPackageId);
       const workItemId = `downstream-${String(index)}`;
-      h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        workItemId,
-        projectId,
-        workItemId,
-      ]);
+      h.sqlite.run(
+        'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+        [workItemId, workPackageId, workItemId],
+      );
       h.sqlite.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
         [workItemId, stepId],
@@ -519,7 +623,7 @@ describe('after activation', () => {
     const second = [...downstream].sort().at(1);
     if (second === undefined) throw new Error('second recipient is absent');
     h.sqlite.run(
-      `CREATE TRIGGER fail_second_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:${second}' BEGIN SELECT RAISE(FAIL, 'injected second fan-out insert failure'); END`,
+      `CREATE TRIGGER fail_second_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected second fan-out insert failure'); END`,
     );
     expect(
       (
@@ -545,17 +649,14 @@ describe('after activation', () => {
     const downstreamStep = await firstStep('ada', downstream);
     const upstreamRow = rowOf(own).id;
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    h.sqlite.run('UPDATE project SET start_date = ?, estimate_rounding = ? WHERE id IN (?, ?)', [
-      '2026-10-05',
-      'exact',
-      own,
-      downstream,
-    ]);
-    h.sqlite.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-      'downstream-row',
-      downstream,
-      'Downstream row',
-    ]);
+    h.sqlite.run(
+      'UPDATE work_package SET start_date = ?, estimate_rounding = ? WHERE id IN (?, ?)',
+      ['2026-10-05', 'exact', own, downstream],
+    );
+    h.sqlite.run(
+      'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+      ['downstream-row', downstream, 'Downstream row'],
+    );
     for (const [workItemId, stepId] of [
       [upstreamRow, ownStep],
       ['downstream-row', downstreamStep],
@@ -575,7 +676,7 @@ describe('after activation', () => {
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all(`project:${downstream}`);
+        .all(`work-package:${downstream}`);
     const before = rows();
     expect(
       (
@@ -593,23 +694,26 @@ describe('after activation', () => {
       rows()
         .slice(before.length)
         .map(({ message }) => JSON.parse(message) as unknown),
-    ).toEqual([{ type: 'elsewhere_changed', projectId: downstream, causeProjectId: own }]);
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/undo`)).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/redo`)).status).toBe(200);
+    ).toEqual([{ type: 'elsewhere_changed', workPackageId: downstream, causeWorkPackageId: own }]);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${own}/redo`)).status).toBe(200);
     expect(
       rows()
         .slice(before.length)
         .map(({ message }) => JSON.parse(message) as unknown),
     ).toEqual(
-      Array(3).fill({ type: 'elsewhere_changed', projectId: downstream, causeProjectId: own }),
+      Array(3).fill({
+        type: 'elsewhere_changed',
+        workPackageId: downstream,
+        causeWorkPackageId: own,
+      }),
     );
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-06' })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-06' }))
+        .status,
     ).toBe(200);
     expect(rows().slice(before.length)).toHaveLength(4);
-    expect(
-      (await h.call('ada', 'DELETE', `/api/projects/${own}/steps/${ownStep}?cascade=true`)).status,
-    ).toBe(204);
+    expect((await clearAssignment('ada', upstreamRow)).status).toBe(200);
     expect(rows().slice(before.length)).toHaveLength(5);
   });
 
@@ -622,13 +726,13 @@ describe('after activation', () => {
     ]);
     expect(renamed.status).toBe(200);
     expect(rowOf(own).name).toBe('Renamed');
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).status).toBe(200);
     expect(rowOf(own).name).toBe('Root');
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/redo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${own}/redo`)).status).toBe(200);
     expect(rowOf(own).name).toBe('Renamed');
   });
 
-  describe('super-admin recovery of a restricted project', () => {
+  describe('super-admin recovery of a restricted work package', () => {
     /** Every audit record, without its generated id and time. */
     const audits = () =>
       h.sqlite
@@ -636,52 +740,44 @@ describe('after activation', () => {
           'SELECT organization_id, actor_id, action, subject_kind, subject_id, detail FROM organization_audit ORDER BY rowid',
         )
         .all();
-    const recovery = (username: string, detail: string) => ({
-      organization_id: 'org-a',
-      actor_id: h.userId(username),
-      action: 'restricted_project_recovery',
-      subject_kind: 'project',
-      subject_id: own,
-      detail,
-    });
 
+    let initialAudits: ReturnType<typeof audits>;
     beforeEach(async () => {
       // nell as the super-admin, vic promoted to admin: only a super-admin recovers.
-      h.member('org-a', 'nell', 'super_admin');
+      h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
       h.bind('nell', 'org-a');
       h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
         h.userId('vic'),
       ]);
       expect(
-        (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+        (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
       ).toBe(200);
+      initialAudits = audits();
     });
 
-    it('recovers a restricted project through a batch, undo and redo, one record each', async () => {
+    it('refuses super-admin batch undo and redo recovery without a package write grant', async () => {
+      const before = snapshot();
       const row = rowOf(own);
       expect(
         (
           await batch('nell', own, [
-            { kind: 'patchWorkItem', workItemId: row.id, patch: { name: 'Kept' } },
+            { kind: 'patchWorkItem', workItemId: row.id, patch: { name: 'No' } },
           ])
         ).status,
-      ).toBe(200);
-      expect(rowOf(own).name).toBe('Kept');
-      expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(200);
-      expect((await h.call('nell', 'POST', `/api/projects/${own}/redo`)).status).toBe(200);
-      expect(rowOf(own).name).toBe('Kept');
-      expect(audits()).toEqual([
-        recovery('nell', '{"commands":["patchWorkItem"]}'),
-        recovery('nell', '{"journal":"undo"}'),
-        recovery('nell', '{"journal":"redo"}'),
-      ]);
-      const creator = h.sqlite
-        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
-        .get(own);
-      expect(creator).toEqual({ owner_id: h.userId('ada') });
+      ).toBe(403);
+      expect((await h.call('nell', 'POST', '/api/work-packages/' + own + '/undo')).status).toBe(
+        403,
+      );
+      expect((await h.call('nell', 'POST', '/api/work-packages/' + own + '/redo')).status).toBe(
+        403,
+      );
+      expect(snapshot()).toEqual(before);
+      expect(audits()).toEqual(initialAudits);
     });
 
     it('keeps no record of a refused batch, and none of an ordinary one', async () => {
+      h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
+      h.grant('org-a', 'vic', 'org-admin');
       const before = snapshot();
       expect(
         await batch('nell', own, [
@@ -689,11 +785,14 @@ describe('after activation', () => {
           { kind: 'patchWorkItem', workItemId: 'no-such-row', patch: { name: 'x' } },
         ]),
       ).toMatchObject({ status: 404 });
-      expect(await batch('vic', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
+      expect(await batch('vic', own, [])).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
       // nell has nothing to undo: the walk fails and takes its record back.
-      expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(409);
+      expect((await h.call('nell', 'POST', `/api/work-packages/${own}/undo`)).status).toBe(409);
       expect(snapshot()).toEqual(before);
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
       expect(
         (
           await batch('ada', own, [
@@ -701,19 +800,22 @@ describe('after activation', () => {
           ])
         ).status,
       ).toBe(200);
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
     });
 
     it('refuses a super-admin removed or demoted before the batch', async () => {
       h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
         h.userId('nell'),
       ]);
-      expect(await batch('nell', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
-      expect(await h.call('nell', 'POST', `/api/projects/${own}/undo`)).toEqual({
+      expect(await batch('nell', own, [])).toMatchObject({
         status: 403,
         body: { error: 'forbidden' },
       });
-      expect(audits()).toEqual([]);
+      expect(await h.call('nell', 'POST', `/api/work-packages/${own}/undo`)).toMatchObject({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
+      expect(audits()).toEqual(initialAudits);
     });
   });
 
@@ -727,7 +829,7 @@ describe('after activation', () => {
     expect(
       await batch('ada', own, [{ kind: 'patchWorkItem', workItemId: row, patch: { name: 'x' } }]),
     ).toEqual({ status: 403, body: { error: 'not_a_member' } });
-    expect(await h.call('ada', 'POST', `/api/projects/${own}/undo`)).toEqual({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });
@@ -739,14 +841,14 @@ describe('after activation', () => {
     expect(snapshot()).toEqual(before);
   });
 
-  it('answers 404 alike for a foreign and an absent project', async () => {
+  it('answers 404 alike for a foreign and an absent work package', async () => {
     const before = snapshot();
     const commands = [
       { kind: 'patchWorkItem', workItemId: rowOf(foreign).id, patch: { name: 'Seized' } },
     ];
     const foreignAnswer = await batch('ada', foreign, commands);
     expect(foreignAnswer).toEqual({ status: 404, body: { error: 'not_found' } });
-    expect(await batch('ada', 'no-such-project', commands)).toEqual(foreignAnswer);
+    expect(await batch('ada', 'no-such-work-package', commands)).toEqual(foreignAnswer);
     expect(await batch('ada', foreign, [])).toEqual(foreignAnswer);
     expect(snapshot()).toEqual(before);
   });
@@ -757,9 +859,9 @@ describe('after activation', () => {
       await batch('vic', own, [
         { kind: 'patchWorkItem', workItemId: rowOf(own).id, patch: { name: 'Viewer' } },
       ]),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     for (const walk of ['undo', 'redo']) {
-      expect(await h.call('vic', 'POST', `/api/projects/${own}/${walk}`)).toEqual({
+      expect(await h.call('vic', 'POST', `/api/work-packages/${own}/${walk}`)).toMatchObject({
         status: 403,
         body: { error: 'forbidden' },
       });
@@ -768,7 +870,7 @@ describe('after activation', () => {
       await h.call('vic', 'POST', '/api/directory/commands', {
         commands: [{ kind: 'createTag', name: 'x' }],
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(snapshot()).toEqual(before);
   });
 
@@ -853,7 +955,7 @@ describe('after activation', () => {
     }
   });
 
-  it('fails closed on a project that already crosses its organization', async () => {
+  it('fails closed on a work package that already crosses its organization', async () => {
     h.sqlite.run('INSERT INTO work_item_tag (work_item_id, tag_id) VALUES (?, ?)', [
       rowOf(own).id,
       'tg-b',
@@ -863,14 +965,14 @@ describe('after activation', () => {
     ]);
     expect(answer.status).toBe(500);
     expect(rowOf(own).name).toBe('Root');
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/undo`)).status).toBe(500);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).status).toBe(500);
   });
 
-  it('refuses undo and redo of a foreign project as of an absent one', async () => {
-    const absent = await h.call('ada', 'POST', '/api/projects/no-such-project/undo');
+  it('refuses undo and redo of a foreign work package as of an absent one', async () => {
+    const absent = await h.call('ada', 'POST', '/api/work-packages/no-such-work-package/undo');
     expect(absent).toEqual({ status: 404, body: { error: 'not_found' } });
     for (const walk of ['undo', 'redo']) {
-      expect(await h.call('ada', 'POST', `/api/projects/${foreign}/${walk}`)).toEqual(absent);
+      expect(await h.call('ada', 'POST', `/api/work-packages/${foreign}/${walk}`)).toEqual(absent);
     }
   });
 
@@ -881,18 +983,18 @@ describe('after activation', () => {
     );
     // An entry journalled before activation: its inverse puts back B's tag.
     h.sqlite.run(
-      'UPDATE command_journal SET inverse = replace(inverse, \'"tagIds":[]\', \'"tagIds":["tg-b"]\') WHERE project_id = ?',
+      'UPDATE command_journal SET inverse = replace(inverse, \'"tagIds":[]\', \'"tagIds":["tg-b"]\') WHERE work_package_id = ?',
       [own],
     );
     const before = snapshot();
-    expect(await h.call('ada', 'POST', `/api/projects/${own}/undo`)).toEqual({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
     });
     expect(snapshot()).toEqual(before);
   });
 
-  it("refuses an undo whose entry names another project's row, writing nothing", async () => {
+  it("refuses an undo whose entry names another work package's row, writing nothing", async () => {
     const row = rowOf(own).id;
     const theirs = rowOf(foreign);
     await expectApplied(
@@ -901,11 +1003,11 @@ describe('after activation', () => {
       ]),
     );
     h.sqlite.run(
-      'UPDATE command_journal SET inverse = replace(inverse, ?, ?) WHERE project_id = ?',
+      'UPDATE command_journal SET inverse = replace(inverse, ?, ?) WHERE work_package_id = ?',
       [row, theirs.id, own],
     );
     const before = snapshot();
-    expect(await h.call('ada', 'POST', `/api/projects/${own}/undo`)).toEqual({
+    expect(await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
     });
@@ -965,38 +1067,45 @@ describe('after activation', () => {
     }
   });
 
-  it('fails closed on a project another project reaches into, changing neither', async () => {
+  it('fails closed on a work package another work package reaches into, changing neither', async () => {
     const mine = rowOf(own).id;
     const theirs = rowOf(foreign).id;
     for (const [kind, statement, params] of [
       [
-        'incoming_step_row',
+        'foreign_step_fact',
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 2, 3)',
         [theirs, ownStep],
       ],
       [
-        'incoming_step_row',
+        'foreign_step_fact',
         "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES (?, ?, 'tokens', 1, 2, 3)",
         [theirs, ownStep],
       ],
       [
         'incoming_parent',
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-in', ?, ?, 9, 'In')",
+        "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-in', ?, ?, 9, 'In')",
         [foreign, mine],
       ],
       [
         'incoming_dependency',
-        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-in', ?, ?, ?)",
+        "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('d-in', ?, ?, ?)",
         [foreign, mine, theirs],
       ],
     ] as const) {
       h.sqlite.run(statement, [...params]);
+      // Step facts belong to their work item. Parent and dependency incidences also guard the referenced package.
+      const addressesStepFact = kind === 'foreign_step_fact';
+      const row = addressesStepFact ? theirs : mine;
       const before = snapshot();
       for (const command of [
-        { kind: 'patchWorkItem', workItemId: mine, patch: { name: 'Renamed' } },
-        { kind: 'deleteWorkItem', workItemId: mine },
+        { kind: 'patchWorkItem', workItemId: row, patch: { name: 'Renamed' } },
+        { kind: 'deleteWorkItem', workItemId: row },
       ]) {
-        const answer = await batch('ada', own, [command]);
+        const answer = await batch(
+          addressesStepFact ? 'grace' : 'ada',
+          addressesStepFact ? foreign : own,
+          [command],
+        );
         expect({ kind, command, status: answer.status }).toEqual({ kind, command, status: 500 });
       }
       expect(snapshot()).toEqual(before);
@@ -1011,7 +1120,7 @@ describe('after activation', () => {
 /** Replaces the inverse of `own`'s newest journal entry, as a pre-activation entry could hold. */
 function plantInverse(inverse: unknown): void {
   h.sqlite.run(
-    "UPDATE command_journal SET inverse = ?, preconditions = json_remove(preconditions, '$.estimateUnits') WHERE id = (SELECT id FROM command_journal WHERE project_id = ? ORDER BY seq DESC LIMIT 1)",
+    "UPDATE command_journal SET inverse = ?, preconditions = json_remove(preconditions, '$.estimateUnits') WHERE id = (SELECT id FROM command_journal WHERE work_package_id = ? ORDER BY seq DESC LIMIT 1)",
     [JSON.stringify(inverse), own],
   );
 }
@@ -1030,7 +1139,7 @@ describe('a replayed entry that names anything outside the organization', () => 
 
   const planted: [string, () => unknown][] = [
     [
-      'a step of another project',
+      'a step of another work package',
       () => ({
         do: 'set_estimate',
         workItemId: row,
@@ -1049,13 +1158,13 @@ describe('a replayed entry that names anything outside the organization', () => 
       }),
     ],
     [
-      'a restored row of another project',
+      'a restored row of another work package',
       () => ({
         do: 'restore_subtree',
         rows: [
           {
             id: 'w-planted',
-            projectId: foreign,
+            workPackageId: foreign,
             parentId: null,
             position: 5,
             name: 'Planted',
@@ -1098,7 +1207,7 @@ describe('a replayed entry that names anything outside the organization', () => 
             rows: [
               {
                 id: 'w-typed',
-                projectId: own,
+                workPackageId: own,
                 parentId: null,
                 position: 5,
                 name: 'Typed',
@@ -1144,7 +1253,7 @@ describe('a replayed entry that names anything outside the organization', () => 
     it(`is refused as not found, keeping the entry: ${what}`, async () => {
       plantInverse(inverse());
       const before = snapshot();
-      expect(await h.call('ada', 'POST', `/api/projects/${own}/undo`)).toEqual({
+      expect(await h.call('ada', 'POST', `/api/work-packages/${own}/undo`)).toEqual({
         status: 404,
         body: { error: 'not_found' },
       });

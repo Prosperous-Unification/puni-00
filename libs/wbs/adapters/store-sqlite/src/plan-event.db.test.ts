@@ -1,20 +1,19 @@
+import { rejects } from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PlanEvent, Project, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
-import type { Database } from 'bun:sqlite';
+import type { PlanEvent, WorkPackage, WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
-import { openDatabase, openDrizzle } from './db';
+import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
-import { ProjectRepository } from './project';
-import { UserRepository } from './user';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import type { CatalogueFixtureCustody } from './testing/catalogue-database';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { WorkPackageRepository } from './work-package';
 
 /** The stamp the setup's writes carry; `owner` is the account it creates first. */
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -31,14 +30,15 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
  */
 describe('the plan’s history, against a real database', () => {
   let dir: string;
-  let sqlite: Database;
+  let custody: CatalogueFixtureCustody;
+  let connection: ReturnType<typeof openConnection> | undefined;
   let events: PlanEventRepository;
 
-  const project = (id: string, name: string): Project =>
-    projectRow({
+  const workPackage = (id: string, name: string): WorkPackage =>
+    workPackageRow({
       id,
       name,
-      ownerId: 'owner',
+      projectId: 'fixture-project',
     });
 
   /** One recorded command, written the way `record` writes it. */
@@ -48,7 +48,7 @@ describe('the plan’s history, against a real database', () => {
     over: Partial<Omit<PlanEvent, 'id' | 'createdAt'>> = {},
   ): void {
     const row = {
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       kind: 'estimate',
       label: `estimate ${id}`,
@@ -58,50 +58,51 @@ describe('the plan’s history, against a real database', () => {
       after: { do: 'set_estimate', workItemId: 'w1', stepId: 'r1', days: { o: 1, r: 2, p: 3 } },
       ...over,
     };
-    sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
-        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        id,
-        row.projectId,
-        row.userId,
-        row.kind,
-        row.label,
-        row.workItemId,
-        row.stepId,
-        JSON.stringify(row.before),
-        JSON.stringify(row.after),
-        at,
-      ],
-    );
+    if (connection === undefined) throw new Error('plan history fixture has no database');
+    connection.db.run(sql`
+      INSERT INTO plan_event
+        (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)
+      VALUES (${id}, ${row.workPackageId}, ${row.userId}, ${row.kind}, ${row.label}, ${row.workItemId},
+        ${row.stepId}, ${JSON.stringify(row.before)}, ${JSON.stringify(row.after)}, ${at})
+    `);
   }
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-plan-event-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const db = openDrizzle(path);
-    sqlite = openDatabase(path);
-    events = new PlanEventRepository(db, OPEN);
-    await new UserRepository(db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [],
+      },
+      custody,
     );
-    const projects = new ProjectRepository(db, OPEN);
-    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
-    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
+    custody.hasUnknownOwner = true;
+    connection = openConnection(path);
+    custody.hasUnknownOwner = false;
+    const { db } = connection;
+    events = new PlanEventRepository(db, OPEN);
+    const workPackages = new WorkPackageRepository(db, OPEN);
+    await workPackages.create(workPackage('p1', 'Rewire the shed'), [], wrote);
+    await workPackages.create(workPackage('p2', 'Reroof the barn'), [], wrote);
   });
 
   afterEach(() => {
-    sqlite.close();
-    rmSync(dir, { recursive: true, force: true });
+    connection?.close();
+    connection = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('answers one project’s events, newest first, and nobody else’s', async () => {
+  it('answers one work package’s events, newest first, and nobody else’s', async () => {
     write('a', 1_000);
     write('c', 3_000);
     write('b', 2_000);
-    write('other', 9_000, { projectId: 'p2' });
+    write('other', 9_000, { workPackageId: 'p2' });
 
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['c', 'b', 'a']);
     // The other plan's event is the newest of the four and is not in that answer,
@@ -115,7 +116,7 @@ describe('the plan’s history, against a real database', () => {
     //
     // **Written `b` first and `a` second, and that is the whole of the test.**
     // With the rows inserted in id order the tie-break is unobservable: SQLite
-    // walks the `(project_id, created_at)` index backwards for a `DESC` read and
+    // walks the `(work_package_id, created_at)` index backwards for a `DESC` read and
     // hands back the later rowid first, which for `a` then `b` is `["b", "a"]` —
     // exactly what the tie-break asks for. That version passed with
     // `desc(planEvent.id)` struck: **7 pass, 0 fail**, watched 2026-08-17. Writing
@@ -199,25 +200,26 @@ describe('the plan’s history, against a real database', () => {
     expect(event.before).toEqual({ do: 'clear_estimate', workItemId: 'w1', stepId: 'r1' });
   });
 
-  it('throws on a stored command that is not JSON, rather than answering half a history', () => {
+  it('throws on a stored command that is not JSON, rather than answering half a history', async () => {
     // Malformed data in a column this process wrote is R5's "unknown is not OK",
     // and `asEntry` in `command-journal.ts` makes the identical call. A row read
     // as `null` would put a history on screen with a blank where a change was.
-    sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
-        " VALUES ('bad', 'p1', 'owner', 'estimate', 'x', NULL, NULL, 'not json', '{}', 1)",
-    );
-
-    expect(events.listFor('p1', {})).rejects.toThrow();
+    if (connection === undefined) throw new Error('plan history fixture has no database');
+    connection.db.run(sql`
+      INSERT INTO plan_event
+        (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)
+      VALUES ('bad', 'p1', 'owner', 'estimate', 'x', NULL, NULL, 'not json', '{}', 1)
+    `);
+    await rejects(events.listFor('p1', {}), SyntaxError);
   });
 
   it('prunes what is older than the cutoff, counts it, and leaves the rest', async () => {
     write('ancient', 1_000);
     write('old', 2_000);
     write('kept', 3_000);
-    write('other-plan', 1_500, { projectId: 'p2' });
+    write('other-plan', 1_500, { workPackageId: 'p2' });
 
-    // Every project's old events, in one statement: retention is about the table,
+    // Every work package's old events, in one statement: retention is about the table,
     // not about a plan somebody happens to be looking at.
     expect(await events.pruneOlderThan(3_000)).toBe(3);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['kept']);

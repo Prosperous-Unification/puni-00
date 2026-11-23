@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 export interface BoardJournalRow {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly userId: string;
   readonly personId: string | null;
   readonly seq: number;
@@ -18,17 +18,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Reads only the selected disposable project's real SQLite undo rows. */
-export function readBoardJournal(projectId: string): readonly BoardJournalRow[] {
+/** Reads only the selected disposable work package's real SQLite undo rows. */
+export function readBoardJournal(workPackageId: string): readonly BoardJournalRow[] {
   const databasePath = process.env['E2E_TEST_DATABASE'];
   if (databasePath === undefined || !isAbsolute(databasePath))
     throw new Error('E2E_TEST_DATABASE must name this run’s absolute database path');
   if (!statSync(databasePath).isFile()) throw new Error('Board journal database is not a file');
-  if (projectId.length === 0) throw new Error('Board journal project ID is empty');
+  if (workPackageId.length === 0) throw new Error('Board journal work package ID is empty');
   const reader = fileURLToPath(
     new URL('../../be-01/src/testing/board-journal-read.ts', import.meta.url),
   );
-  const output = execFileSync('bun', [reader, databasePath, projectId], {
+  const output = execFileSync('bun', [reader, databasePath, workPackageId], {
     encoding: 'utf8',
     env: { ...process.env, E2E_TEST_DATABASE: databasePath },
   });
@@ -42,7 +42,7 @@ export function readBoardJournal(projectId: string): readonly BoardJournalRow[] 
     const row = value;
     if (
       typeof row['id'] !== 'string' ||
-      row['projectId'] !== projectId ||
+      row['workPackageId'] !== workPackageId ||
       typeof row['userId'] !== 'string' ||
       (row['personId'] !== null && typeof row['personId'] !== 'string') ||
       typeof row['seq'] !== 'number' ||
@@ -54,7 +54,7 @@ export function readBoardJournal(projectId: string): readonly BoardJournalRow[] 
       throw new Error('Board journal reader returned a malformed row');
     rows.push({
       id: row['id'],
-      projectId,
+      workPackageId,
       userId: row['userId'],
       personId: row['personId'],
       seq: row['seq'],

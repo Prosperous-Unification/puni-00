@@ -24,8 +24,22 @@ const dany = person('dany', 'u1');
 const eve = person('eve', 'u2');
 const finn = person('finn', null);
 const MEMBERS = [
-  { userId: 'u1', username: 'dany-account', email: null, role: 'admin', createdAt: 1 },
-  { userId: 'u2', username: 'eve-account', email: null, role: 'member', createdAt: 2 },
+  {
+    userId: 'u1',
+    username: 'dany-account',
+    email: null,
+    effectiveRole: null,
+    grantCount: 0,
+    createdAt: 1,
+  },
+  {
+    userId: 'u2',
+    username: 'eve-account',
+    email: null,
+    effectiveRole: null,
+    grantCount: 0,
+    createdAt: 2,
+  },
 ];
 
 /** The Directory's person rows as the route draws them: one binding slot under each. */

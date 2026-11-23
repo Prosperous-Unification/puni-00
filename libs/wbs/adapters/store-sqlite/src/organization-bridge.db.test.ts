@@ -14,8 +14,11 @@ import {
   OrganizationOwnershipRepository,
   OWNED_ROOT_KINDS,
 } from './organization-ownership';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+/** The outgoing writer still supplies owner_id until the next migration requires a project parent. */
+const RENAME = '20261110100000_rename_project_to_work_package';
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 /** The activation marker, the folder stamped just below the bridge. */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
@@ -33,9 +36,14 @@ let path: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-bridge-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  run(["INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)"]);
 });
+
+function prepareBridge(through: string): string {
+  const migrations = copyRecoveryPrefix(dir, through);
+  runMigrations(path, migrations);
+  run(["INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)"]);
+  return migrations;
+}
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -60,16 +68,16 @@ function rows(query: string): unknown[] {
 }
 
 /** One root of every kind, written the way the outgoing release writes them. */
-function writeRoots(suffix: string): string[] {
+function writeRoots(suffix: string, table: 'work_package' | 'project' = 'work_package'): string[] {
   return [
-    `INSERT INTO project (id, name, owner_id, created_at) VALUES ('p${suffix}', 'Plan ${suffix}', 'u1', 1)`,
+    `INSERT INTO ${table} (id, name, owner_id, created_at) VALUES ('p${suffix}', 'Plan ${suffix}', 'u1', 1)`,
     `INSERT INTO person (id, name) VALUES ('pe${suffix}', 'Ada ${suffix}')`,
     `INSERT INTO service_team (id, name) VALUES ('st${suffix}', 'Platform ${suffix}')`,
     `INSERT INTO service (id, name) VALUES ('s${suffix}', 'Billing ${suffix}')`,
     `INSERT INTO tag (id, name) VALUES ('t${suffix}', 'urgent ${suffix}')`,
     `INSERT INTO work_item_type (id, name) VALUES ('w${suffix}', 'Bug ${suffix}')`,
     `INSERT INTO external_system (id, name) VALUES ('e${suffix}', 'Jira ${suffix}')`,
-    `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+    `INSERT INTO saved_plan (id, ${table}_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp${suffix}', 'p${suffix}', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
     `INSERT INTO resource (id, name, kind, unit_label) VALUES ('r${suffix}', 'RAM ${suffix}', 'divisible', 'GB')`,
   ];
@@ -80,7 +88,9 @@ function writeRoots(suffix: string): string[] {
  * (`20261020120000_add_resources`) a rollback below the bridge takes away.
  */
 function writeRootsBeforeResources(suffix: string): string[] {
-  return writeRoots(suffix).filter((statement) => !statement.startsWith('INSERT INTO resource '));
+  return writeRoots(suffix, 'project').filter(
+    (statement) => !statement.startsWith('INSERT INTO resource '),
+  );
 }
 
 const LEGACY =
@@ -140,6 +150,10 @@ it('writes one root of every owned kind, in the order OWNED_ROOT_KINDS lists the
 });
 
 describe('the legacy bridge before activation', () => {
+  beforeEach(() => {
+    prepareBridge(RENAME);
+  });
+
   it('maps nothing and refuses backfill while no legacy organization exists', async () => {
     run([
       ...writeRoots('1'),
@@ -157,7 +171,7 @@ describe('the legacy bridge before activation', () => {
   it('maps every root either release writes to the legacy organization, with its name', () => {
     run([LEGACY, ...writeRoots('1')]);
     expect(owners('1')).toEqual({
-      project: [{ organization_id: 'legacy' }],
+      work_package: [{ organization_id: 'legacy' }],
       person: [{ organization_id: 'legacy', name: 'Ada 1' }],
       service_team: [{ organization_id: 'legacy', name: 'Platform 1' }],
       service: [{ organization_id: 'legacy', name: 'Billing 1' }],
@@ -187,13 +201,13 @@ describe('the legacy bridge before activation', () => {
     run([
       LEGACY,
       "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
-      "INSERT INTO project_organization VALUES ('p1', 'org-b')",
+      "INSERT INTO work_package_organization VALUES ('p1', 'org-b')",
     ]);
     expect(await readRefusal(repository().backfillLegacyOwnership())).toBeInstanceOf(
       LegacyBackfillRefused,
     );
     expect(owners('1')).toEqual({
-      project: [{ organization_id: 'org-b' }],
+      work_package: [{ organization_id: 'org-b' }],
       person: [],
       service_team: [],
       service: [],
@@ -280,7 +294,7 @@ describe('the legacy bridge before activation', () => {
   }
 
   for (const [label, corruption] of BROKEN_MARKERS) {
-    // Each new root; the saved plan hangs off project `p1`, written before the marker broke.
+    // Each new root; the saved plan hangs off work package `p1`, written before the marker broke.
     it.each(
       writeRoots('9').map((insert, index) => [
         OWNED_ROOT_KINDS[index],
@@ -317,6 +331,10 @@ describe('the legacy bridge before activation', () => {
 });
 
 describe('the legacy bridge after activation', () => {
+  beforeEach(() => {
+    prepareBridge(RENAME);
+  });
+
   it("leaves a second organization's roots and names to explicit mappings", () => {
     run([
       LEGACY,
@@ -324,15 +342,15 @@ describe('the legacy bridge after activation', () => {
       ACTIVATE,
       "INSERT INTO tag (id, name) VALUES ('tb', 'b-tag')",
       "INSERT INTO tag_organization VALUES ('tb', 'org-b', 'urgent')",
-      "INSERT INTO project (id, name, owner_id, created_at) VALUES ('pb', 'B plan', 'u1', 1)",
-      "INSERT INTO project_organization VALUES ('pb', 'org-b')",
+      "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('pb', 'B plan', 'u1', 1)",
+      "INSERT INTO work_package_organization VALUES ('pb', 'org-b')",
       "UPDATE tag SET name = 'b-tag renamed' WHERE id = 'tb'",
     ]);
     expect(
       rows("SELECT organization_id, name FROM tag_organization WHERE resource_id = 'tb'"),
     ).toEqual([{ organization_id: 'org-b', name: 'urgent' }]);
     expect(
-      rows("SELECT organization_id FROM project_organization WHERE resource_id = 'pb'"),
+      rows("SELECT organization_id FROM work_package_organization WHERE resource_id = 'pb'"),
     ).toEqual([{ organization_id: 'org-b' }]);
   });
 
@@ -363,8 +381,11 @@ describe('the legacy bridge after activation', () => {
 
 describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', () => {
+    const migrations = prepareBridge(INITIAL_ACCESS_OFFERS);
     run([LEGACY, ...writeRootsBeforeResources('1')]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+    expect(rollbackTo(path, migrations, ORGANIZATION_ACTIVATION)).toEqual([
+      INITIAL_ACCESS_OFFERS,
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -434,6 +455,7 @@ describe('20260927190000_add_organization_bridge', () => {
     ).toEqual([{ organization_id: 'legacy', name: 'urgent 1' }]);
     // Read per table: the repository also walks `resource`, which this rollback removed.
     const unmapped = OWNED_ROOT_KINDS.filter((kind) => kind !== 'resource')
+      .map((kind) => (kind === 'work_package' ? 'project' : kind))
       .flatMap((kind) =>
         rows(
           `SELECT r.id AS id FROM ${kind} AS r LEFT JOIN ${kind}_organization AS o

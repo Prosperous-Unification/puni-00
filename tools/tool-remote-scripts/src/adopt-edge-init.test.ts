@@ -239,7 +239,7 @@ test('recovery projection retains ordered closed detail without nested private f
 });
 
 for (const bundled of [false, true]) {
-  test(`real ${bundled ? 'bundled' : 'source'} CLI composes the production factory under the actual inherited lock`, async () => {
+  const verifyFactory = async () => {
     const root = await mkdtemp(join(tmpdir(), 'edge-init-cli-'));
     const packet = join(root, 'PRIVATE_PACKET.json');
     await writeFile(packet, '{"private":"PRIVATE_PACKET_SENTINEL"}', { mode: 0o600 });
@@ -393,5 +393,11 @@ for (const bundled of [false, true]) {
     } finally {
       await rm(root, { recursive: true });
     }
-  });
+  };
+  // Nine native CLI invocations share one held lock. Both variants exhausted CI's 10-second default.
+  test(
+    `real ${bundled ? 'bundled' : 'source'} CLI composes the production factory under the actual inherited lock`,
+    verifyFactory,
+    30_000,
+  );
 }

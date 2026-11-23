@@ -13,12 +13,12 @@ describe('the generated shared OpenAPI document', () => {
     // operations and advertised an OIDC callback whose request returned 404.
     // Omitting importRoutes removed this exact operation from the mounted document.
     expect(paths).toHaveProperty(
-      ['/api/projects/import', 'post', 'operationId'],
-      'postApiProjectsImport',
+      ['/api/work-packages/import', 'post', 'operationId'],
+      'postApiWorkPackagesImport',
     );
     expect(paths).toHaveProperty(
       [
-        '/api/projects/import',
+        '/api/work-packages/import',
         'post',
         'requestBody',
         'content',
@@ -28,7 +28,7 @@ describe('the generated shared OpenAPI document', () => {
       ],
       'object',
     );
-    expect(JSON.stringify(paths['/api/projects/import'])).not.toContain('"$ref"');
+    expect(JSON.stringify(paths['/api/work-packages/import'])).not.toContain('"$ref"');
     expect(paths).not.toHaveProperty('/api/auth/okta/callback');
   });
   it('preserves operation names and omits operational routes until they have bindings', async () => {
@@ -36,8 +36,8 @@ describe('the generated shared OpenAPI document', () => {
     expect(document).toHaveProperty('openapi', '3.1.0');
     const paths = document['paths'];
     expect(paths).toHaveProperty(
-      ['/api/projects/{id}/commands', 'post', 'operationId'],
-      'postApiProjectsByIdCommands',
+      ['/api/work-packages/{id}/commands', 'post', 'operationId'],
+      'postApiWorkPackagesByIdCommands',
     );
     expect(paths).toHaveProperty(['/api/auth/login', 'post', 'operationId'], 'postApiAuthLogin');
     expect(paths).toHaveProperty('/health.get.operationId', 'getHealth');
@@ -64,7 +64,7 @@ describe('the generated shared OpenAPI document', () => {
         'application/json',
         'schema',
         'properties',
-        'projects',
+        'workPackages',
         'items',
         'properties',
         'claims',

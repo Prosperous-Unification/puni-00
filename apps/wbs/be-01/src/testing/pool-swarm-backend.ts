@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { importMachineGrantKeys } from '../runtime/machine-grant';
+import { grantCredential } from './machine-credential-fixture';
 import { OrganizationHarness } from './organization-harness';
 
 /**
@@ -44,7 +45,7 @@ const h = OrganizationHarness.openComposedWith({
 });
 await h.register(ADMIN);
 h.organization(ORGANIZATION);
-h.member(ORGANIZATION, ADMIN, 'super_admin');
+h.member(ORGANIZATION, ADMIN, 'super_admin', ['org-super-admin']);
 h.bind(ADMIN, ORGANIZATION);
 h.activate();
 const sweep = h.claimLeaseSweep();
@@ -62,6 +63,16 @@ async function fixture(request: Request, path: string): Promise<Response | undef
       body?: unknown;
     };
     return Response.json(await h.call(ADMIN, method, target, body));
+  }
+  if (request.method === 'POST' && path === '/__fixture/grant-credential') {
+    const { credentialId, roleId, scopeKind, scopeId } = (await request.json()) as {
+      credentialId: string;
+      roleId: string;
+      scopeKind: 'organization' | 'work_package';
+      scopeId: string;
+    };
+    grantCredential(h.sqlite, ORGANIZATION, credentialId, roleId, scopeKind, scopeId);
+    return Response.json({ granted: true });
   }
   if (request.method === 'GET' && path === '/__fixture/audit')
     return Response.json(

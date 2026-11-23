@@ -132,7 +132,7 @@ NOT be represented by an auth service whose store throws when first used.
 
 ### Requirement: Use cases retain authorization without HTTP
 
-Non-HTTP use cases SHALL retain the current actor scope, project access and internal-caller
+Non-HTTP use cases SHALL retain the current actor scope, work package access and internal-caller
 requirements. Saved-plan success SHALL publish once after commit; refusal SHALL publish
 nothing. Unexpected verifier/account errors SHALL propagate rather than become credential
 refusals.

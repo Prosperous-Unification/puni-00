@@ -213,7 +213,7 @@ describe('quantisedFastBaseline', () => {
     expect(infeasibilities(offsets, slices, ['A'], edges, noConstraints, (id) => [id])).toEqual([]);
   });
 
-  it('is the same key set the request projects, one offset per slice', () => {
+  it('is the same key set the request work packages, one offset per slice', () => {
     const { rows, edges, slices } = fiveWide;
     const offsets = quantisedFastBaseline(
       rows,

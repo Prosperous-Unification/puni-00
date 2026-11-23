@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Usage, UsageTerm } from '@optique/core';
+import { createLaunch } from '@shared/bun-startup';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { openAuthority } from './authority/authority-store';
@@ -38,6 +39,7 @@ function dependencies(planEnrollment: DashDependencies['planEnrollment']): DashD
     clock: FIXED_CLOCK,
     monotonic: FIXED_MONOTONIC,
     planEnrollment,
+    helperPrefix: [process.execPath, join(import.meta.dir, 'entrypoint.ts')],
     stdout: {
       write: () => {
         throw new Error('this dispatcher case writes nothing');
@@ -225,7 +227,7 @@ test('runDash refuses missing dependencies', async () => {
   const complete = dependencies(planner.run);
   // Proof: dropping `monotonic` from runDash's required-dependency list failed this test with
   // `error: Dash accepted incomplete dependencies` (2026-10-12).
-  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout', 'helperPrefix'] as const) {
     // The computed key widens to every dependency, so this models a JavaScript caller's omission.
     const partial = { ...complete, [name]: undefined };
     expect(await refusalOf(partial)).toBe(`Dash dependency is required: ${name}`);
@@ -250,6 +252,7 @@ function capturingDependencies(): { deps: DashDependencies; output: string[] } {
     deps: {
       clock: FIXED_CLOCK,
       monotonic: FIXED_MONOTONIC,
+      helperPrefix: [process.execPath, join(import.meta.dir, 'entrypoint.ts')],
       planEnrollment: () => Promise.reject(new Error('this case plans nothing')),
       stdout: { write: (text: string) => output.push(text) },
     },
@@ -445,16 +448,28 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
     // Proof: adding `ops job audit` to the parser and not to `opsHandlers` failed this
     // assertion with `+ "job audit"` (2026-11-01, Slice 3).
     expect(opsParserWords()).toEqual(
-      [...Object.keys(opsHandlers), 'release plan', 'release run'].sort(),
+      [
+        ...Object.keys(opsHandlers),
+        'job payload-internal-v1',
+        'lock hold-internal-v1',
+        'lock run',
+        'lock status',
+        'release plan',
+        'release run',
+      ].sort(),
     );
     expect(opsParserWords()).toEqual([
       'job admission',
       'job audit',
       'job calibrate',
+      'job payload-internal-v1',
       'job propose',
       'job render-audit-units',
       'job run',
       'job status',
+      'lock hold-internal-v1',
+      'lock run',
+      'lock status',
       'outbox drop',
       'pool init',
       'pool inspect',
@@ -483,6 +498,10 @@ describe('the ops namespace (dash-host-jobs J17)', () => {
         telemetry: linuxScopeTelemetry(),
         host: { cpuCores: () => 1, memoryGib: () => 1 },
         user: 'nobody',
+        helperPrefix: createLaunch(
+          process.execPath,
+          new URL('./entrypoint.ts', import.meta.url).pathname,
+        ),
         legacyLock: () => {
           throw new Error('no ops command ran');
         },
@@ -669,10 +688,14 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
       'ops job admission',
       'ops job audit',
       'ops job calibrate',
+      'ops job payload-internal-v1',
       'ops job propose',
       'ops job render-audit-units',
       'ops job run',
       'ops job status',
+      'ops lock hold-internal-v1',
+      'ops lock run',
+      'ops lock status',
       'ops outbox drop',
       'ops pool init',
       'ops pool inspect',
@@ -701,12 +724,20 @@ describe('typed command grammars (tasks 1.5–1.9)', () => {
   });
 
   test.each(commandPaths())('%s --help prints that command on stdout', (words) => {
-    expect(printedBy([...words.split(' '), '--help'])).toContain(`Usage: twilight-dash ${words} `);
+    expect(printedBy([...words.split(' '), '--help'])).toMatch(
+      new RegExp('^Usage: twilight-dash ' + words + '(?: |$)', 'mu'),
+    );
   });
 
   test.each(commandPaths())('%s refuses an unknown flag in its own usage line', (words) => {
     const line = refusalLineOf([...words.split(' '), '--no-such-flag']);
-    expect(line).toStartWith(`usage: twilight-dash ${words} `);
+    const visibleWords =
+      words === 'ops lock hold-internal-v1'
+        ? 'ops lock'
+        : words === 'ops job payload-internal-v1'
+          ? 'ops job'
+          : words;
+    expect(line).toStartWith(`usage: twilight-dash ${visibleWords} `);
     expect(line).not.toContain('\n');
   });
 

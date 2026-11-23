@@ -59,7 +59,7 @@ export interface LeavesUnderIndex {
  *
  * **Seeded with zero**, so the result is a floor at or above day zero whatever
  * the input says. That is not defensive rounding: a negative offset is a start
- * before the project's own day zero, which the placement has no representation
+ * before the work package's own day zero, which the placement has no representation
  * for, and it is the behaviour `schedule()` has always had.
  *
  * A leaf absent from the result is unconstrained; callers read absence as `0`,

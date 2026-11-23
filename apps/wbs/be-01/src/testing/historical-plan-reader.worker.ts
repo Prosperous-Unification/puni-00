@@ -47,24 +47,24 @@ try {
   harness.bind('ada', 'org-a');
   harness.activate();
   const legacy = planDocumentFixture();
-  const imported = await harness.call('ada', 'POST', '/api/projects/import', legacy);
+  const imported = await harness.call('ada', 'POST', '/api/work-packages/import', legacy);
   assert.equal(imported.status, 201, JSON.stringify(imported));
   assert.ok(typeof imported.body === 'object' && imported.body !== null);
-  const projectId: unknown = Reflect.get(imported.body, 'projectId');
-  assert.equal(typeof projectId, 'string');
+  const workPackageId: unknown = Reflect.get(imported.body, 'workPackageId');
+  assert.equal(typeof workPackageId, 'string');
   const exported = await harness.call(
     'ada',
     'GET',
-    `/api/projects/${String(projectId)}/export?format=json`,
+    `/api/work-packages/${String(workPackageId)}/export?format=json`,
   );
   assert.equal(exported.status, 200);
   assert.ok(typeof exported.body === 'object' && exported.body !== null);
   const header: unknown = Reflect.get(exported.body, 'document');
   assert.ok(typeof header === 'object' && header !== null);
   assert.equal(Reflect.get(header, 'version'), 10);
-  const reimported = await harness.call('ada', 'POST', '/api/projects/import', exported.body);
+  const reimported = await harness.call('ada', 'POST', '/api/work-packages/import', exported.body);
   assert.equal(reimported.status, 201, JSON.stringify(reimported));
-  assert.equal(harness.sqlite.query('SELECT id FROM project').all().length, 2);
+  assert.equal(harness.sqlite.query('SELECT id FROM work_package').all().length, 2);
   const content = process.argv.at(3);
   assert.ok(content === 'valid' || content === 'malformed');
   {
@@ -75,7 +75,7 @@ try {
     }
     const before = snapshotStore();
     const beforePushes = structuredClone(pushes);
-    const refused = await harness.call('ada', 'POST', '/api/projects/import', document);
+    const refused = await harness.call('ada', 'POST', '/api/work-packages/import', document);
     assert.deepEqual(refused, {
       status: 400,
       body: { error: 'unsupported_version', path: 'document.version', detail: null },

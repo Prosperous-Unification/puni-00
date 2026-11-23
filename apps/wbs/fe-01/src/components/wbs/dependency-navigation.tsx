@@ -18,9 +18,9 @@ export function DependencyNavigation({ dependency }: { dependency: TypedDependen
       {[dependency.predecessor, dependency.successor].map((endpoint, index) => {
         const captured = endpoint.captured;
         if (captured === undefined) return null;
-        // Proof: substituting the abbreviation for projectId failed both mounted stable-link href assertions (2026-10-22).
+        // Proof: substituting the abbreviation for workPackageId failed both mounted stable-link href assertions (2026-10-22).
         const query = new URLSearchParams({
-          project: captured.endpoint.projectId,
+          workPackage: captured.endpoint.workPackageId,
           workItem: captured.endpoint.workItemId,
         });
         if (captured.stepNodeId !== null) query.set('stepNode', captured.stepNodeId);
@@ -218,27 +218,31 @@ function readRelationship(type: string): TypedDependencyType {
 export function CapturedDependencyDetails(
   props: Parameters<typeof CapturedDependencyForm>[0] & {
     lookup?: DependencyLookup;
-    ownerProjectId?: string;
+    ownerWorkPackageId?: string;
   },
 ) {
   const captured = props.dependency.predecessor.captured;
-  if (props.lookup !== undefined && props.ownerProjectId !== undefined && captured !== undefined)
+  if (
+    props.lookup !== undefined &&
+    props.ownerWorkPackageId !== undefined &&
+    captured !== undefined
+  )
     return (
       <PersistedPredecessorDetails
         {...props}
         captured={captured}
         lookup={props.lookup}
-        ownerProjectId={props.ownerProjectId}
+        ownerWorkPackageId={props.ownerWorkPackageId}
       />
     );
   return <CapturedDependencyForm {...props} />;
 }
 
-/** Scope evidence is bound to the captured stable project and row; incomplete observations cannot authorize a save. */
+/** Scope evidence is bound to the captured stable work package and row; incomplete observations cannot authorize a save. */
 function PersistedPredecessorDetails(
   props: Parameters<typeof CapturedDependencyForm>[0] & {
     lookup: DependencyLookup;
-    ownerProjectId: string;
+    ownerWorkPackageId: string;
     captured: NonNullable<TypedDependencyView['predecessor']['captured']>;
   },
 ) {
@@ -246,19 +250,19 @@ function PersistedPredecessorDetails(
   const [editingSource, setEditingSource] = useState(false);
   const search = useDependencySearch({
     lookup: props.lookup,
-    projectId: props.ownerProjectId,
+    workPackageId: props.ownerWorkPackageId,
     ownerId: `persisted:${props.dependency.id}`,
     // Proof: eager lookup failed the mounted delayed no-search assertion before the explicit scope action (2026-10-23).
     active: editingSource,
-    typed: `${captured.projectAbbreviation}.${captured.workItemNumber}`,
+    typed: `${captured.workPackageAbbreviation}.${captured.workItemNumber}`,
     setTyped: () => {
-      throw new Error('Persisted scope editing cannot change project');
+      throw new Error('Persisted scope editing cannot change work package');
     },
     localEntries: [],
-    boundProject: {
-      projectId: captured.endpoint.projectId,
-      abbreviation: captured.projectAbbreviation,
-      name: captured.projectAbbreviation,
+    boundWorkPackage: {
+      workPackageId: captured.endpoint.workPackageId,
+      abbreviation: captured.workPackageAbbreviation,
+      name: captured.workPackageAbbreviation,
     },
   });
   // Proof: bypassing completeness enabled Save before More scopes in both mounted paginated predecessor cases (2026-10-23).
@@ -323,7 +327,7 @@ function PersistedPredecessorDetails(
                 heading: 'Predecessor scope',
                 // Proof: preferring the first choice enabled Save while the captured step was unavailable in all six mounted scope cases (2026-10-23).
                 preferredKey: JSON.stringify([
-                  captured.endpoint.projectId,
+                  captured.endpoint.workPackageId,
                   captured.endpoint.workItemId,
                   captured.endpoint.scope,
                   captured.endpoint.scope === 'whole' ? null : captured.endpoint.stepId,

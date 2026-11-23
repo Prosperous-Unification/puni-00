@@ -111,8 +111,8 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
  * The arithmetic this plan turns its estimates into days with: the PERT weights
  * and the rounding one step's figure is charged at.
  *
- * A section of `ProjectSettingsModal` rather than a control on the plan toolbar,
- * and `dep-reach-whole-item` is the precedent it follows: a project-wide
+ * A section of `WorkPackageSettingsModal` rather than a control on the plan toolbar,
+ * and `dep-reach-whole-item` is the precedent it follows: a work-package-wide
  * statement about **how the plan is computed** belongs where the teams'
  * capacity and the priority ladder are, not on a bar whose width is the scarce
  * resource and which already folded three such surfaces away. It is set once

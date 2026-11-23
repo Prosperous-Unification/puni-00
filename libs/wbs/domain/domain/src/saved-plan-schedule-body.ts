@@ -14,7 +14,7 @@ import { addWorkdays, firstWorkdayOf, type IsoDate, lastWorkdayOf } from './work
  * arithmetic rather than the container. Two bodies can share this version and
  * disagree about every date in them.
  */
-export const SCHEDULE_BODY_SCHEMA_VERSION = 1;
+export const SCHEDULE_BODY_SCHEMA_VERSION = 3;
 
 /**
  * The one key of `Schedule` that is never stored.
@@ -28,7 +28,7 @@ export const SCHEDULE_BODY_SCHEMA_VERSION = 1;
  */
 const NOT_STORED: ReadonlySet<string> = new Set(['eventsVisited']);
 
-/** One timing's calendar span, or nulls when the project is not on a calendar. */
+/** One timing's calendar span, or nulls when the work package is not on a calendar. */
 export interface SpanDates {
   readonly startsOn: IsoDate | null;
   readonly endsOn: IsoDate | null;
@@ -70,7 +70,7 @@ export interface ScheduleBody {
  * plan about a date neither of them computed differently, which is a difference
  * a reader would have no way to explain.
  *
- * Both keys are always present, `null` together when the project has no start
+ * Both keys are always present, `null` together when the work package has no start
  * date. An absent key would make the stored key set depend on the calendar, and
  * the comparison in slice 6 reads key sets.
  */
@@ -141,9 +141,9 @@ function datedRecordOf(
  * "The stored schedule body SHALL be deep-equal to what `schedule()`
  * returned") states the property as deep equality rather than as a schema.
  *
- * `startDate` is the captured project's own (`PlanInputReads.project`), not
+ * `startDate` is the captured work package's own (`PlanInputReads.workPackage`), not
  * today's: the dates a saved plan carries are the ones it had when it was
- * saved, and re-rendering them against a project whose start has since moved
+ * saved, and re-rendering them against a work package whose start has since moved
  * would restate the plan, which is the fault this whole feature exists to
  * prevent.
  *

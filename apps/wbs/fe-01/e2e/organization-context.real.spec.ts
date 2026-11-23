@@ -35,6 +35,12 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
     headers: { 'X-WBS-Expected-Organization': 'org-a' },
   });
   expect(staleRead.status()).toBe(200);
+  const created = await context.request.post('/api/projects', {
+    headers: { origin: 'http://localhost:7400', 'X-WBS-Expected-Organization': 'org-a' },
+    data: { name: 'Context A parent' },
+  });
+  expect(created.status()).toBe(201);
+  const parent = (await created.json()) as { project: { id: string } };
   const second = await context.newPage();
   await second.goto('/organization');
   await expect(second.getByText('Organization: org-a', { exact: true })).toBeVisible();
@@ -68,9 +74,9 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
   await expect(page.getByText('Organization: org-b', { exact: true })).toBeVisible();
   await expect(page.getByText('Organization: org-a', { exact: true })).toHaveCount(0);
   await page.unroute('**/api/organization/active');
-  const refused = await context.request.post('/api/projects', {
+  const refused = await context.request.post('/api/work-packages', {
     headers: { origin: 'http://localhost:7400', 'X-WBS-Expected-Organization': 'org-a' },
-    data: { name: 'stale A mutation' },
+    data: { name: 'stale A mutation', projectId: parent.project.id },
   });
   expect(refused.status()).toBe(409);
   expect(await refused.json()).toEqual({ error: 'organization_context_changed' });
@@ -78,11 +84,11 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
     headers: { 'X-WBS-Expected-Organization': 'org-a' },
   });
   expect(read.status()).toBe(409);
-  const projects = await context.request.get('/api/projects', {
+  const workPackages = await context.request.get('/api/work-packages', {
     headers: { 'X-WBS-Expected-Organization': 'org-b' },
   });
-  expect(projects.status()).toBe(200);
-  expect(JSON.stringify(await projects.json())).not.toContain('stale A mutation');
+  expect(workPackages.status()).toBe(200);
+  expect(JSON.stringify(await workPackages.json())).not.toContain('stale A mutation');
   await second.close();
   await page.bringToFront();
   await page.getByRole('link', { name: 'Directory', exact: true }).click();

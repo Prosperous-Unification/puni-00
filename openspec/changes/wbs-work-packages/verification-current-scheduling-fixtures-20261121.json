@@ -1,0 +1,283 @@
+{
+  "schema": "puni-current-scheduling-verification-v107",
+  "recordedAt": "2026-11-21T09:56:37.961Z",
+  "goalStatus": "active",
+  "status": "current-scheduling-integrated-performance-open",
+  "previous": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-http-final-state-v106.json",
+    "sha256": "92f7601109ae5ebed85740d6000a0ecaf9f1ff97f3ab60b8dbd74d835914318b",
+    "bytes": 5154056,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-before-v1.json",
+    "sha256": "19f38d625bbbec247c36f2d1c7f5bce23ada066f9fab2ab06148965ce3323491",
+    "bytes": 87459,
+    "mode": 384
+  },
+  "fixture": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+    "sha256": "6542066438c88f6849e1bca416665b660917cc5355aa7db8b6aaffab84ca5c7b",
+    "bytes": 87210,
+    "mode": 436
+  },
+  "inventory": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-scheduling-source-audit-v107.json",
+    "sha256": "bfea226ca91eca06870dbfbfb049d784ac212cc21062ab4a505674e5c18e57dd",
+    "bytes": 1878801,
+    "mode": 384
+  },
+  "experiments": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-rollup-performance-experiments-v1.json",
+    "sha256": "fad6506273b7a483cea9b31fb55d937fbb7a35657607958fbd484546bddb5baf",
+    "bytes": 7111,
+    "mode": 384
+  },
+  "mcpPinRepair": {
+    "stale": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "ec0d7ced0f081264685b0eed3d60967fdf28f9b155c84fcae86836828f0e7d60",
+      "bytes": 4636574,
+      "mode": 436
+    },
+    "verified": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "7cab2f4941ceab28b7cf40f00d14407d2d52d6b4db115b3d7025a2b4a1c99a05",
+      "bytes": 4657120,
+      "mode": 436
+    },
+    "qualification": "V106 generatedMcpDocument.after matches current bytes, but its curated list retained the before-generation pin. Replace that ledger pin only; no document content changed in this turn."
+  },
+  "checks": [
+    {
+      "name": "schedule-current-contract-selected-v2",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+          "--test-name-pattern",
+          "fails the export and the optimizer retry|installed saved capture and current comparison|stores shared S4|stores the selected ready|stores selected failed optimization",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-selected-v2.receipt.json",
+        "sha256": "f3d568c96962084a4d452919e3f5f93d7cb835154725cc798c66990488163e79",
+        "bytes": 1581,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-selected-v2.log",
+        "sha256": "4df9c3d47dc8d93f716bd94517e1e091ac6560a97f563329529de9f6be540e47",
+        "bytes": 3296,
+        "mode": 384
+      }
+    },
+    {
+      "name": "schedule-current-lifetime-selected-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+          "--test-name-pattern",
+          "shared tree and export agree|keeps live metadata and local names|closes the human Retry snapshot|Retry rejects an upstream-only|rebuilds a queued shared request",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-lifetime-selected-v1.receipt.json",
+        "sha256": "531febb45409fdfdfb73e4d3ec15efd89ade9b3c7a878b5f03153d89dca421ec",
+        "bytes": 1574,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-lifetime-selected-v1.log",
+        "sha256": "dea683e4f812158dee95c3c5ad6d9ba9c0e874984440c1a37747c3e32787b33f",
+        "bytes": 763,
+        "mode": 384
+      }
+    },
+    {
+      "name": "schedule-current-contract-full-v3",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-full-v3.receipt.json",
+        "sha256": "fe7b27410a834ed707f81482632eaf46dbf9447c91a472870b63d9124f03997c",
+        "bytes": 1369,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-full-v3.log",
+        "sha256": "552f0c45b739a5896f09920c52b7ffe6f2f5f941de64dbede1530811b0530db5",
+        "bytes": 37443,
+        "mode": 384
+      }
+    },
+    {
+      "name": "schedule-current-contract-types-v3",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-project-rollup-http-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-types-v3.receipt.json",
+        "sha256": "cbdcca713f153cf311df85d1ea054a948aed1df46dc7972a39610688e58c6232",
+        "bytes": 1348,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-types-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "schedule-current-contract-lint-v3",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-lint-v3.receipt.json",
+        "sha256": "6bb155ab8f7ae061486d7e4d45662287c0eecbe6b7a9421cfc3a824967087b0b",
+        "bytes": 1358,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-lint-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "schedule-current-contract-format-v2",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-format-v2.receipt.json",
+        "sha256": "d2afa1e953ee6ac4bde483c98f80eca007543d970e962a6cecabd25be6eadf57",
+        "bytes": 1385,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/schedule-current-contract-format-v2.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "full": { "pass": 74, "fail": 0, "assertions": 408 },
+    "files": 1,
+    "retainedDefinitions": [
+      "'reads any work package deployment-wide, crossing rows and all'",
+      "'reads a coherent own work package, to viewers too'",
+      "\"shows assignees under the organization's own names\"",
+      "'answers 404 alike for a foreign and an absent work package'",
+      "'refuses an unbound session and a removed member before any lookup'",
+      "`fails the schedule read closed over a crossing ${kind}`",
+      "'fails closed over a catalog entry the organization does not own at all'",
+      "'fails the export and the optimizer retry closed over a crossing row'",
+      "'installed saved capture and current comparison retain their own shared chain'",
+      "'rechecks admitted human authority inside shared %s capture'",
+      "'stores shared S4 %s for %s without live admission'",
+      "'stores the selected ready optimized schedule without admitting live work'",
+      "'stores selected %s optimization as unavailable through installed capture'",
+      "'shared tree and export agree'",
+      "'names whom a slice waits for in the work package above'",
+      "'shared command preflight sees staged writes and arrangement'",
+      "'keeps live metadata and local names on the scheduling observation'",
+      "'keeps isolated live responses without elsewhere and avoids directory materialization'",
+      "'shared calendar preflight independently sees staged estimates'",
+      "'shared arrangement sees staged work-item dates'",
+      "'refuses Retry for a required unavailable engine with its readable influencer identity'",
+      "'refuses Retry for a target %s without optimizer writes or launch'",
+      "'keeps a schedulable target when an upstream %s omits its bookings'",
+      "'rechecks human authority in the Retry capture after route write admission'",
+      "'closes the human Retry snapshot before a matching-hash launcher handoff'",
+      "'Retry rejects an upstream-only old hash and launches the matching holder-bearing input'",
+      "'rebuilds a queued shared request from the current upstream booking'",
+      "'closes the shared observation before admitting while retaining its display'",
+      "'keeps optimizer enablement and upstream input on one observation'",
+      "'export and borrowed arrangement do not admit a shared optimizer request'",
+      "'uses captured ready optimization for borrowed arrange and freeze (shared=%s)'",
+      "'edit admission hashes the changed upstream booking with its holder'",
+      "'admits a holder-bearing shared input after the captured tree closes'",
+      "'keeps publication after snapshot outside its captured display without live admission'",
+      "'refuses revocation between route admission and shared snapshot'",
+      "'retains authorization when membership is revoked after the snapshot authority read'",
+      "'refuses activation between legacy admission and snapshot'",
+      "'ignores compatibility membership labels introduced after admission'",
+      "'fails closed for %s introduced after admission'",
+      "'keeps structured export work package directory and markers on the captured observation (%s)'",
+      "`v9 sparse export uses its shared observation across concurrent change (${String(initiallyPresent)})`"
+    ],
+    "compilerRoots": 353,
+    "lintOwners": 1,
+    "sourceFiles": 6106,
+    "newProductionGuards": 0,
+    "productionCandidatesRetained": 0
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualifications": [
+    "Current scheduling fixtures publish the installed solver contract via contractVersionOf instead of stale18 literals. Newly saved/current comparison assertions retain exact recorded parent identity and local dependency provenance. Existing frozen historical fixtures, algorithm IDs and identity pins are untouched.",
+    "Package birth already grants the creator package-manager; the crossing export/retry case now asserts that real precondition instead of attempting a duplicate insert. Catalogue-binding edits finish through the installed optimizer before fixture packages are enabled or selected cache rows are seeded.",
+    "Nine launch handoff stand-ins previously returned forever-pending promises; composed shutdown correctly waited for them. The fixture now holds each handoff through its assertions and supplies an EOF/exit1 terminal child during cleanup, including late queued handoffs. This preserves the pending admission window and exercises actual coordinator drain without an external process. It proves fixture ownership/cleanup, not a successful solver or native launcher.",
+    "Scoped calendar-marker fixtures use current scope_kind/scope_id columns and consistent authored display names. Two sequence fixtures now explicitly upsert their intended12 cursor over actual catalogue-binding events, and no-write checks compare the complete pre-read event ledger instead of assuming an empty database. Original source case definitions and behavioral assertions are retained.",
+    "Performance remains unresolved. Direct native serialization, tuple row transport and one-statement materialized metadata-pair CTE candidates did not meet400ms at30 packages x300 rows/chunk20. Measured warm802.8/716.9/779.1ms; original V106725.8ms remains baseline. Both modified production files were restored byte-for-byte. Candidate42-case census passed only the rejected candidate; do not claim shipping performance or changed production safety.",
+    "The baseline profile measured cross-reference validation roughly230ms and serialization roughly160ms. A double-spied serializer diagnostic recursed; its timings are discarded. The requested CPU profile produced no file. These are diagnostic limits, not passing proofs.",
+    "The older scheduling runs with native180s deadlines retain settled=false/SIGTERM, observed original child, stopped/reaped owner and closed descriptors. The new bounded full run is separate fresh evidence; no observation timeout was treated as terminal and no live owner was blindly restarted.",
+    "No retained production guard changed this turn. Current inventory checks all6106 TS/TSX paths, permits only this scheduling fixture, and verifies all other Source/frontend/E2E pins. Broad core/domain/Memory/full Source, UI/Chromium, builds, secrets, migrations and exact-SHA host gates were not rerun here.",
+    "Full original9 requirements remain exact, including all13 fact families,15 historical guarantees, deferred step catalogue, entity/settings/space management, PUNI Optique1.3.6 aliases, exhaustive Bun client inventory/installed ownership and authorized delivery. Astra remains unavailable until recorded2026-11-22 10:09AM timezone unspecified. No new agents/install/PAX/public commit/push/PR/merge/deploy/activation."
+  ]
+}

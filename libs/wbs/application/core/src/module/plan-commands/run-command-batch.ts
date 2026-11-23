@@ -12,7 +12,7 @@ import type {
 export type RunCommandBatchGraph = Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>;
 
 export interface RunCommandBatchInput {
-  readonly projectId: string | null;
+  readonly workPackageId: string | null;
   readonly actor: AuthenticatedUser;
   readonly commands: readonly PlanCommand[];
   /** The caller's organization access, resolved before the batch is admitted. */
@@ -30,18 +30,18 @@ export function runCommandBatch(
   if (!input.actor.scopes.includes('write')) {
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
-  return input.projectId === null
+  return input.workPackageId === null
     ? graph.runDirectoryWithin(input.actor, input.commands, input.access)
-    : graph.runWithin(input.projectId, input.actor, input.commands, input.access);
+    : graph.runWithin(input.workPackageId, input.actor, input.commands, input.access);
 }
 
 /**
- * {@link runCommandBatch} for one project, with `prelude` settled in the same
+ * {@link runCommandBatch} for one work package, with `prelude` settled in the same
  * unit of work: see {@link PlanCommandRunner.runAfterWithin}.
  */
 export function runCommandBatchAfter<R>(
   graph: Pick<PlanCommandRunner, 'runAfterWithin'>,
-  input: RunCommandBatchInput & { readonly projectId: string },
+  input: RunCommandBatchInput & { readonly workPackageId: string },
   prelude: BatchPrelude<R>,
 ): Promise<RunCommandBatchOutcome | PreludeRefusal<R>> {
   // Proof: without this branch, `refuses a read-only actor before the prelude
@@ -50,5 +50,11 @@ export function runCommandBatchAfter<R>(
   if (!input.actor.scopes.includes('write')) {
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
-  return graph.runAfterWithin(input.projectId, input.actor, prelude, input.commands, input.access);
+  return graph.runAfterWithin(
+    input.workPackageId,
+    input.actor,
+    prelude,
+    input.commands,
+    input.access,
+  );
 }

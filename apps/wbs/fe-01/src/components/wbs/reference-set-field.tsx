@@ -89,7 +89,7 @@ export function ReferenceSetStrip({
    * The members in force from above, minus anything this row already states.
    *
    * Filtered here as well as in `effectiveTagsOf` because this strip is also the
-   * phone sheet's body and the sheet re-projects `ownIds` while a write is in
+   * phone sheet's body and the sheet re-work-packages `ownIds` while a write is in
    * flight: for the moment between "somebody added `Risk`, which the parent also
    * states" and the tree read that lands it, the two lists would both hold it
    * and the cell would draw `Risk` twice.
@@ -187,17 +187,17 @@ export function ReferenceSetStrip({
   }
 
   const mutate = async (
-    project: (current: string[]) => string[],
+    workPackage: (current: string[]) => string[],
     commit: (current: string[], next: string[]) => Promise<CommitOutcome>,
   ): Promise<CommitOutcome> => {
     if (pendingRef.current) return 'unsent';
     pendingRef.current = true;
     setPending(true);
     const current = projectedIdsRef.current;
-    const next = unique(project(current));
+    const next = unique(workPackage(current));
     try {
       const outcome = await commit(current, next);
-      // Creation cannot project the server-assigned id. Its unchanged `next`
+      // Creation cannot work package the server-assigned id. Its unchanged `next`
       // must not overwrite props that refreshed while the create was awaited.
       if (didLand(outcome) && current.join('\0') !== next.join('\0')) {
         projectedIdsRef.current = next;

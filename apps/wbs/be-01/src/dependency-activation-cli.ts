@@ -1,4 +1,4 @@
-import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
+import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 
 // Proof: removing this guard admitted all four invalid argument subprocesses (2026-10-22).

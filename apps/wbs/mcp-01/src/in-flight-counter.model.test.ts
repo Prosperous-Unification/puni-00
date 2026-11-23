@@ -55,7 +55,8 @@ const SIGNING = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const ORGANIZATIONS = ['org-a', 'org-b'] as const;
 type Organization = (typeof ORGANIZATIONS)[number];
 type Outcome = 'ok' | 'fail' | 'throw';
-const LIMITED = 'getApiProjects could not be called: too_many_in_flight (429). Retry after 1 s.';
+const LIMITED =
+  'getApiWorkPackages could not be called: too_many_in_flight (429). Retry after 1 s.';
 
 interface HeldCall {
   readonly organization: Organization;
@@ -117,7 +118,7 @@ async function world(): Promise<World> {
           else
             resolve(
               outcome === 'ok'
-                ? Response.json({ projects: [] })
+                ? Response.json({ workPackages: [] })
                 : Response.json({ error: 'internal' }, { status: 500 }),
             );
         },
@@ -200,7 +201,7 @@ async function callTools(
     jsonrpc: '2.0',
     id: index + 1,
     method: 'tools/call',
-    params: { name: 'getApiProjects', arguments: {} },
+    params: { name: 'getApiWorkPackages', arguments: {} },
   }));
   const response = await handle(
     new Request(MCP_URL, {

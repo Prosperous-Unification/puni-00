@@ -2,10 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
-import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import { addedBoardJournalRow, readBoardJournal } from './board-journal';
+import { ORDINARY_STEPS } from './catalogue-fixture';
+import { assertOrdinaryAccount, openOrdinaryContext } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import {
   fixtureClient,
   fixtureSuccess,
@@ -13,7 +15,7 @@ import {
   type SeededPlan,
   seedPlan,
 } from './plan-fixture';
-import { seedRenderingPlan } from './rendering-fixture';
+import { seedImportedRenderingPlan } from './rendering-fixture';
 
 const identity = (testName: string, worker: number) => ({
   run: 'step-board',
@@ -25,8 +27,10 @@ const boardOf = (page: Page): Locator => page.getByRole('region', { name: 'Step 
 
 async function storedStep(page: Page, seeded: SeededPlan, rowRef: string, stepName: string) {
   const tree = fixtureSuccess(
-    'getApiProjectsByIdWork-items',
-    await fixtureClient(page)['getApiProjectsByIdWork-items']({ params: { id: seeded.projectId } }),
+    'getApiWorkPackagesByIdWork-items',
+    await fixtureClient(page)['getApiWorkPackagesByIdWork-items']({
+      params: { id: seeded.workPackageId },
+    }),
   ).body;
   const row = tree.workItems.find((candidate) => candidate.id === seeded.rowIds[rowRef]);
   if (row === undefined) throw new Error(`Seeded row ${rowRef} is missing from stored tree`);
@@ -64,9 +68,9 @@ async function seedMixedBoard(page: Page, worker: number) {
     },
   ];
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await fixtureClient(page).postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await fixtureClient(page).postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: { commands },
     }),
   );
@@ -134,7 +138,7 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   const capturePath = (name: string) =>
     evidenceDirectory === undefined ? testInfo.outputPath(name) : join(evidenceDirectory, name);
   const seeded = await seedMixedBoard(page, testInfo.workerIndex);
-  const beforeShortcuts = readBoardJournal(seeded.projectId);
+  const beforeShortcuts = readBoardJournal(seeded.workPackageId);
   const writes: string[] = [];
   page.on('request', (request) => {
     if (['POST', 'PATCH', 'DELETE'].includes(request.method()))
@@ -215,14 +219,14 @@ test('renders the ordered mixed board and readable columns at desktop and 390px'
   await boardOf(page).press('ControlOrMeta+Shift+z');
   await boardOf(page).press('?');
   expect(writes).toEqual([]);
-  expect(readBoardJournal(seeded.projectId)).toEqual(beforeShortcuts);
+  expect(readBoardJournal(seeded.workPackageId)).toEqual(beforeShortcuts);
   await page.getByRole('button', { name: 'Return to Plan' }).click();
   await expect(plan).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Name of 010')).toHaveValue('Build a long first task');
   await plan.focus();
   await page.keyboard.press('ControlOrMeta+z');
-  await expect.poll(() => writes).toEqual([`POST /api/projects/${seeded.projectId}/undo`]);
-  expect(readBoardJournal(seeded.projectId).some((row) => row.undone === 1)).toBe(true);
+  await expect.poll(() => writes).toEqual([`POST /api/work-packages/${seeded.workPackageId}/undo`]);
+  expect(readBoardJournal(seeded.workPackageId).some((row) => row.undone === 1)).toBe(true);
   expect(seeded.rowIds['first']).not.toBe(seeded.rowIds['second']);
 });
 
@@ -242,7 +246,7 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   );
   await openSeededPlan(page, seeded);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const baseline = readBoardJournal(seeded.projectId);
+  const baseline = readBoardJournal(seeded.workPackageId);
   const board = boardOf(page);
   const unknown = page.getByRole('region', { name: 'Unknown', exact: true });
   const done = page.getByRole('region', { name: 'Done', exact: true });
@@ -252,11 +256,11 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   page.on('request', (request) => {
     if (request.method() !== 'POST') return;
     const path = new URL(request.url()).pathname;
-    if (path === `/api/projects/${seeded.projectId}/commands`)
+    if (path === `/api/work-packages/${seeded.workPackageId}/commands`)
       commands.push(request.postDataJSON());
     if (
-      path === `/api/projects/${seeded.projectId}/undo` ||
-      path === `/api/projects/${seeded.projectId}/redo`
+      path === `/api/work-packages/${seeded.workPackageId}/undo` ||
+      path === `/api/work-packages/${seeded.workPackageId}/redo`
     )
       history.push(path);
   });
@@ -312,7 +316,7 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
   await expect.poll(() => storedStep(page, seeded, 'first', 'QA')).toBeUndefined();
   await expect.poll(() => storedStep(page, seeded, 'other', 'Dev')).toBeUndefined();
-  const moveRow = addedBoardJournalRow(baseline, readBoardJournal(seeded.projectId));
+  const moveRow = addedBoardJournalRow(baseline, readBoardJournal(seeded.workPackageId));
   expect(moveRow).toMatchObject({ kind: 'progress', undone: 0 });
   expect(JSON.parse(moveRow.inverse)).toMatchObject({
     do: 'clear_progress',
@@ -323,20 +327,24 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   await page.getByRole('button', { name: 'Return to Plan' }).click();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(() => history).toHaveLength(1);
-  expect(history).toEqual([`/api/projects/${seeded.projectId}/undo`]);
+  expect(history).toEqual([`/api/work-packages/${seeded.workPackageId}/undo`]);
   await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
-  expect(readBoardJournal(seeded.projectId).find((row) => row.id === moveRow.id)?.undone).toBe(1);
+  expect(readBoardJournal(seeded.workPackageId).find((row) => row.id === moveRow.id)?.undone).toBe(
+    1,
+  );
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect.poll(() => history).toHaveLength(2);
   expect(history).toEqual([
-    `/api/projects/${seeded.projectId}/undo`,
-    `/api/projects/${seeded.projectId}/redo`,
+    `/api/work-packages/${seeded.workPackageId}/undo`,
+    `/api/work-packages/${seeded.workPackageId}/redo`,
   ]);
   await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
-  expect(readBoardJournal(seeded.projectId).find((row) => row.id === moveRow.id)?.undone).toBe(0);
+  expect(readBoardJournal(seeded.workPackageId).find((row) => row.id === moveRow.id)?.undone).toBe(
+    0,
+  );
 
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const beforeClear = readBoardJournal(seeded.projectId);
+  const beforeClear = readBoardJournal(seeded.workPackageId);
   await board
     .getByRole('button', { name: 'Clear progress for 010 Build / Dev (move to Unknown)' })
     .click();
@@ -364,7 +372,7 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   ]);
   await expect(unknown.getByRole('button', { name: 'Drag 010 Build / Dev' })).toBeVisible();
   await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBeUndefined();
-  const clearRow = addedBoardJournalRow(beforeClear, readBoardJournal(seeded.projectId));
+  const clearRow = addedBoardJournalRow(beforeClear, readBoardJournal(seeded.workPackageId));
   expect(clearRow).toMatchObject({ kind: 'clear_progress', undone: 0 });
   expect(JSON.parse(clearRow.inverse)).toMatchObject({
     do: 'set_progress',
@@ -375,7 +383,9 @@ test('moves one numbered card by native drag, then undoes, redoes and clears its
   await page.getByRole('button', { name: 'Return to Plan' }).click();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(() => storedStep(page, seeded, 'first', 'Dev')).toBe('done');
-  expect(readBoardJournal(seeded.projectId).find((row) => row.id === clearRow.id)?.undone).toBe(1);
+  expect(readBoardJournal(seeded.workPackageId).find((row) => row.id === clearRow.id)?.undone).toBe(
+    1,
+  );
 });
 
 test('cancels a started native card drag with Escape before a drop', async ({ page }, testInfo) => {
@@ -395,7 +405,7 @@ test('cancels a started native card drag with Escape before a drop', async ({ pa
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -477,7 +487,7 @@ test('uses the numbered keyboard control and a phone touch tap with delivered fo
   try {
     const touch = await touchContext.newPage();
     await touch.goto('/');
-    await expect(touch.getByRole('button', { name: 'local-dev' })).toBeVisible();
+    await assertOrdinaryAccount(touch);
     await openSeededPlan(touch, seeded);
     await touch.getByRole('button', { name: 'Board', exact: true }).click();
     await boardOf(touch).getByRole('button', { name: 'Move 010 Build / Dev to In progress' }).tap();
@@ -506,9 +516,9 @@ test('restores a prior step value with one Plan Undo after a Board correction', 
     identity('prior-progress', testInfo.workerIndex),
   );
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await fixtureClient(page).postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await fixtureClient(page).postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: {
         commands: [
           {
@@ -527,7 +537,7 @@ test('restores a prior step value with one Plan Undo after a Board correction', 
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -580,12 +590,12 @@ test('holds a Board command pending without an optimistic card move or duplicate
   const routeSettled = new Promise<void>((resolve) => {
     markRouteSettled = resolve;
   });
-  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const commandPath = `**/api/work-packages/${seeded.workPackageId}/commands`;
   const commands: unknown[] = [];
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -655,8 +665,8 @@ test('keeps Board admission pending through Plan remount while every post-comman
   );
   await openSeededPlan(page, seeded);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
-  const treePath = `**/api/projects/${seeded.projectId}/work-items`;
+  const commandPath = `**/api/work-packages/${seeded.workPackageId}/commands`;
+  const treePath = `**/api/work-packages/${seeded.workPackageId}/work-items`;
   const commands: unknown[] = [];
   let holdReads = false;
   let heldCount = 0;
@@ -675,7 +685,7 @@ test('keeps Board admission pending through Plan remount while every post-comman
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -697,7 +707,8 @@ test('keeps Board admission pending through Plan remount while every post-comman
     const commandResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        new URL(response.url()).pathname === `/api/projects/${seeded.projectId}/commands` &&
+        new URL(response.url()).pathname ===
+          `/api/work-packages/${seeded.workPackageId}/commands` &&
         response.ok(),
     );
     await boardOf(page).getByRole('button', { name: 'Move 010 Build / Dev to Done' }).click();
@@ -743,12 +754,12 @@ test('shows one modeled command refusal and leaves stored progress unchanged', a
   );
   await openSeededPlan(page, seeded);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
+  const commandPath = `**/api/work-packages/${seeded.workPackageId}/commands`;
   const commands: unknown[] = [];
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -789,7 +800,7 @@ test('shows one modeled command refusal and leaves stored progress unchanged', a
   }
 });
 
-test('does not carry an old admitted Board request into a newly selected project', async ({
+test('does not carry an old admitted Board request into a newly selected work package', async ({
   page,
 }, testInfo) => {
   const first = await seedPlan(
@@ -804,7 +815,7 @@ test('does not carry an old admitted Board request into a newly selected project
   );
   await openSeededPlan(page, first);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const commandPath = `**/api/projects/${first.projectId}/commands`;
+  const commandPath = `**/api/work-packages/${first.workPackageId}/commands`;
   let markHeld: () => void = () => {
     throw new Error('Old request did not start');
   };
@@ -821,7 +832,7 @@ test('does not carry an old admitted Board request into a newly selected project
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${first.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${first.workPackageId}/commands`
     )
       oldCommands.push(request.postDataJSON());
   });
@@ -838,11 +849,11 @@ test('does not carry an old admitted Board request into a newly selected project
     await boardOf(page).getByRole('button', { name: 'Move 010 Old card / Dev to Done' }).click();
     await held;
     await expect.poll(() => oldCommands).toHaveLength(1);
-    const picker = page.getByRole('combobox', { name: 'Project' });
+    const picker = page.getByRole('combobox', { name: 'Work package' });
     await picker.click();
-    await picker.fill(second.projectName);
-    await page.getByRole('option').filter({ hasText: second.projectName }).click();
-    await expect(picker).toHaveValue(second.projectName);
+    await picker.fill(second.workPackageName);
+    await page.getByRole('option').filter({ hasText: second.workPackageName }).click();
+    await expect(picker).toHaveValue(second.workPackageName);
     releaseOld();
     await page.getByRole('button', { name: 'Board', exact: true }).click();
     await expect(boardOf(page)).toContainText('New card');
@@ -867,14 +878,14 @@ test('keeps the delivered card after a successful command with failed covering r
   );
   await openSeededPlan(page, seeded);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
-  const commandPath = `**/api/projects/${seeded.projectId}/commands`;
-  const treePath = `**/api/projects/${seeded.projectId}/work-items`;
+  const commandPath = `**/api/work-packages/${seeded.workPackageId}/commands`;
+  const treePath = `**/api/work-packages/${seeded.workPackageId}/work-items`;
   let failReads = false;
   const commands: unknown[] = [];
   page.on('request', (request) => {
     if (
       request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/api/projects/${seeded.projectId}/commands`
+      new URL(request.url()).pathname === `/api/work-packages/${seeded.workPackageId}/commands`
     )
       commands.push(request.postDataJSON());
   });
@@ -941,7 +952,7 @@ test('keeps view controls in the phone toolbar and keyboard focus on the selecte
     identity('phone-room', testInfo.workerIndex),
   );
   await openSeededPlan(page, seeded);
-  const selector = page.getByRole('group', { name: 'Project view' });
+  const selector = page.getByRole('group', { name: 'Work package view' });
   const actions = page.getByRole('button', { name: 'Plan actions', exact: true });
   const selectorBox = await selector.boundingBox();
   const actionsBox = await actions.boundingBox();
@@ -960,7 +971,7 @@ test('keeps view controls in the phone toolbar and keyboard focus on the selecte
   for (const width of [768, 900, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     const header = page.getByRole('banner');
-    await expect(header.getByRole('group', { name: 'Project view' })).toBeVisible();
+    await expect(header.getByRole('group', { name: 'Work package view' })).toBeVisible();
     expect(
       await header.evaluate((node) => node.scrollWidth - node.clientWidth),
     ).toBeLessThanOrEqual(0);
@@ -980,15 +991,12 @@ test('wraps unbroken card labels inside every column at desktop and 390px', asyn
   const stepName = 'UnbrokenStep'.repeat(8);
   const seeded = await seedPlan(
     page,
-    { name: 'Step board wrapping', rows: [{ ref: 'first', name: title }] },
+    {
+      name: 'Step board wrapping',
+      steps: [...ORDINARY_STEPS, { code: 'board-wrapping', name: stepName }],
+      rows: [{ ref: 'first', name: title }],
+    },
     identity('wrapping', testInfo.workerIndex),
-  );
-  fixtureSuccess(
-    'postApiProjectsByIdSteps',
-    await fixtureClient(page).postApiProjectsByIdSteps({
-      params: { id: seeded.projectId },
-      body: { name: stepName },
-    }),
   );
   await openSeededPlan(page, seeded);
   await page.getByRole('button', { name: 'Board', exact: true }).click();
@@ -1048,12 +1056,10 @@ test('preserves a cancelled-pointer draft through peer delivery and commits it o
   await expect(boardOf(page)).toBeVisible();
   expect(writes).toEqual([]);
 
-  const peerContext = await browser.newContext({
-    baseURL: new URL(page.url()).origin,
-    locale: 'en-US',
-    timezoneId: 'UTC',
+  const peerContext = await openOrdinaryContext(browser, {
     viewport: { width: 1400, height: 900 },
   });
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await peer.goto('/');
@@ -1097,9 +1103,23 @@ test('preserves a cancelled-pointer draft through peer delivery and commits it o
     await commit;
     expect(writes.filter((request) => request.includes('/commands'))).toHaveLength(1);
     await expect(field).toHaveValue('Draft two');
-  } finally {
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 
   const planButton = page.getByRole('button', { name: 'Plan', exact: true });
   await planButton.focus();
@@ -1150,7 +1170,7 @@ test('shows a first read failure, retries, then retains cards after a later fail
   const firstReadRelease = new Promise<void>((resolve) => {
     releaseFirstRead = resolve;
   });
-  await page.route(`**/api/projects/${seeded.projectId}/work-items`, async (route) => {
+  await page.route(`**/api/work-packages/${seeded.workPackageId}/work-items`, async (route) => {
     if (route.request().method() !== 'GET' || !refuseReads) {
       await route.continue();
       return;
@@ -1180,7 +1200,8 @@ test('shows a first read failure, retries, then retains cards after a later fail
   await expect(boardOf(page)).toContainText('Before peer');
   await expect(boardOf(page).getByRole('alert')).toHaveCount(0);
 
-  const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const peerContext = await openOrdinaryContext(browser);
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await openSeededPlan(peer, seeded);
@@ -1202,23 +1223,37 @@ test('shows a first read failure, retries, then retains cards after a later fail
     await boardOf(page).getByRole('button', { name: 'Retry' }).click();
     await expect(boardOf(page)).toContainText('After peer');
     await expect(boardOf(page).getByRole('alert')).toHaveCount(0);
-  } finally {
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 });
 
-test('does not carry late old cards or a suspended draft into another project', async ({
+test('does not carry late old cards or a suspended draft into another work package', async ({
   browser,
   page,
 }, testInfo) => {
   const first = await seedPlan(
     page,
-    { name: 'Board first project', rows: [{ ref: 'first', name: 'First card' }] },
+    { name: 'Board first work package', rows: [{ ref: 'first', name: 'First card' }] },
     identity('switch-first', testInfo.workerIndex),
   );
   const second = await seedPlan(
     page,
-    { name: 'Board second project', rows: [{ ref: 'second', name: 'Second card' }] },
+    { name: 'Board second work package', rows: [{ ref: 'second', name: 'Second card' }] },
     identity('switch-second', testInfo.workerIndex),
   );
   await openSeededPlan(page, first);
@@ -1244,7 +1279,7 @@ test('does not carry late old cards or a suspended draft into another project', 
   const oldReadFinished = new Promise<void>((resolve) => {
     markOldReadFinished = resolve;
   });
-  await page.route(`**/api/projects/${first.projectId}/work-items`, async (route) => {
+  await page.route(`**/api/work-packages/${first.workPackageId}/work-items`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
       return;
@@ -1255,7 +1290,8 @@ test('does not carry late old cards or a suspended draft into another project', 
     await route.fulfill({ response });
     markOldReadFinished();
   });
-  const peerContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const peerContext = await openOrdinaryContext(browser);
+  let primary: { cause: unknown } | null = null;
   try {
     const peer = await peerContext.newPage();
     await openSeededPlan(peer, first);
@@ -1269,10 +1305,10 @@ test('does not carry late old cards or a suspended draft into another project', 
     await peer.getByLabel('Name of 010').blur();
     await peerWrite;
     await oldReadHeld;
-    const picker = page.getByRole('combobox', { name: 'Project' });
+    const picker = page.getByRole('combobox', { name: 'Work package' });
     await picker.click();
-    await picker.fill(second.projectName);
-    await page.getByRole('option').filter({ hasText: second.projectName }).click();
+    await picker.fill(second.workPackageName);
+    await page.getByRole('option').filter({ hasText: second.workPackageName }).click();
     await expect(page.getByLabel('Name of 010')).toHaveValue('Second card');
     releaseOldRead();
     await oldReadFinished;
@@ -1283,10 +1319,28 @@ test('does not carry late old cards or a suspended draft into another project', 
     await expect(boardOf(page)).not.toContainText('First private draft');
     await page.getByRole('button', { name: 'Return to Plan' }).click();
     await expect(page.getByLabel('Name of 010')).toHaveValue('Second card');
-  } finally {
-    releaseOldRead();
-    await peerContext.close();
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  try {
+    releaseOldRead();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  try {
+    await peerContext.close();
+  } catch (cause) {
+    cleanup.push(cause);
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError([primary.cause, ...cleanup], 'Peer interaction and cleanup failed', {
+        cause: primary.cause,
+      });
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Peer context cleanup failed');
 });
 
 test('keeps the delivered board visible while its live connection is down', async ({
@@ -1325,7 +1379,7 @@ test('keeps the delivered board visible while its live connection is down', asyn
   await page.context().setOffline(true);
   const closedCount = await page.evaluate(() => {
     const sockets: unknown = Reflect.get(window, 'boardSockets');
-    if (!Array.isArray(sockets)) throw new Error('project sockets were not observed');
+    if (!Array.isArray(sockets)) throw new Error('work package sockets were not observed');
     let count = 0;
     for (const socket of sockets) {
       if (!(socket instanceof WebSocket) || socket.readyState !== 1) continue;
@@ -1346,7 +1400,7 @@ test('measures every rendered card for a 500-leaf, five-step fixture', async ({
   page,
 }, testInfo) => {
   test.setTimeout(300_000);
-  const seeded = await seedRenderingPlan(page, { rows: 500, steps: 5, density: 'sparse' });
+  const seeded = await seedImportedRenderingPlan(page, { rows: 500, steps: 5, density: 'sparse' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   const started = performance.now();
@@ -1372,7 +1426,7 @@ test('measures every rendered card for a 500-leaf, five-step fixture', async ({
     host: `${process.platform}/${process.arch}`,
     commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     dirty: execFileSync('git', ['status', '--porcelain=v1'], { encoding: 'utf8' }).trim(),
-    projectId: seeded.projectId,
+    workPackageId: seeded.workPackageId,
   };
   await writeFile(
     testInfo.outputPath('step-board-500x5.json'),

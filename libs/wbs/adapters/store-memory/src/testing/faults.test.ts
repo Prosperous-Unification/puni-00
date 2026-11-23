@@ -1,13 +1,19 @@
 import { defineFault, recordFaultProof } from '@wbs/conformance';
 import type { NewJournalEntry, PlanEvent, SavedPlanWrite, SubtreeCopy } from '@wbs/core';
+import { seedLegacyPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
-import { memoryLateWriteControl, openMemorySourceWithFault } from './faults';
+import { workPackageRow } from '../work-package-fixture';
+import {
+  memoryLateWriteControl,
+  openMemoryFixtureWithFault,
+  openMemorySourceWithFault,
+} from './faults';
 
 const entry = (id: string): NewJournalEntry => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   personId: null,
   kind: 'estimate',
@@ -18,7 +24,7 @@ const entry = (id: string): NewJournalEntry => ({
 });
 const event = (id: string): PlanEvent => ({
   id: `event-${id}`,
-  projectId: 'p1',
+  workPackageId: 'p1',
   userId: 'owner',
   kind: 'estimate',
   label: id,
@@ -30,7 +36,7 @@ const event = (id: string): PlanEvent => ({
 });
 const savedPlan = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Owner',
   createdById: null,
@@ -44,7 +50,7 @@ const savedPlan = (id: string): SavedPlanWrite => ({
   },
 });
 const subtree = (id: string): SubtreeCopy => ({
-  rows: [workItemRow({ id, projectId: 'p1' })],
+  rows: [workItemRow({ id, workPackageId: 'p1' })],
   respaced: [],
   reparented: [],
   estimates: [{ workItemId: id, stepId: 'step-1', optimistic: 1, realistic: 2, pessimistic: 3 }],
@@ -59,6 +65,60 @@ const subtree = (id: string): SubtreeCopy => ({
   removedProgress: [],
   removedMeasures: [],
 });
+
+async function openSubtreeSource(control: ReturnType<typeof memoryLateWriteControl>) {
+  const fixture = openMemoryFixtureWithFault(control),
+    source = fixture.source,
+    stamp = { at: 1, by: 'owner' };
+  try {
+    await source.stores.users.create(
+      { id: 'owner', username: 'Owner', passwordHash: null, createdAt: 1 },
+      stamp,
+    );
+    seedLegacyPackageParent(fixture, {
+      organizationId: 'subtree-org',
+      projectId: 'subtree-project',
+      creator: 'owner',
+    });
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'subtree-org',
+      {
+        id: 'step-1',
+        code: 'dev',
+        name: 'Dev',
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'subtree-dev',
+        scopeKind: 'project',
+        scopeId: 'subtree-project',
+        workItemTypeId: null,
+        position: 10,
+      },
+      stamp,
+    );
+    if (!defined.ok)
+      throw new Error('subtree fixture definition refused: ' + JSON.stringify(defined));
+    const born = await source.stores.workPackages.createWithSteps(
+      workPackageRow({ id: 'p1', projectId: 'subtree-project' }),
+      stamp,
+      { kind: 'legacy' },
+    );
+    if (typeof born === 'string') throw new Error('subtree fixture birth refused: ' + born);
+    return source;
+  } catch (primary: unknown) {
+    try {
+      await source.close();
+    } catch (cleanup: unknown) {
+      throw new AggregateError([primary, cleanup], 'subtree fixture setup and close failed', {
+        cause: cleanup,
+      });
+    }
+    throw primary;
+  }
+}
 
 describe('memory conformance fault controls', () => {
   it('arms a named staged-state write point per run', () => {
@@ -137,7 +197,11 @@ describe('memory conformance fault controls', () => {
     // Proof: committing the staged state from the rejection path added `faulted` here.
     expect(
       (
-        await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null })
+        await source.stores.journal.entriesFor({
+          workPackageId: 'p1',
+          userId: 'owner',
+          personId: null,
+        })
       ).map(({ id }) => id),
     ).toEqual(['sentinel']);
     expect((await source.journalHistoryFor('p1')).map(({ id }) => id)).toEqual(['event-sentinel']);
@@ -149,7 +213,7 @@ describe('memory conformance fault controls', () => {
     expect(
       (
         await restored.stores.journal.entriesFor({
-          projectId: 'p1',
+          workPackageId: 'p1',
           userId: 'owner',
           personId: null,
         })
@@ -162,46 +226,52 @@ describe('memory conformance fault controls', () => {
 
   it('reaches the final subtree write inside the real staged source', async () => {
     const control = memoryLateWriteControl('subtree-final-satellite');
-    const source = openMemorySourceWithFault(control);
-    const stamp = { at: 1, by: 'owner' };
-    await source.uow.run(async ({ stores }) => {
-      await stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
-      return { commit: true, value: undefined };
-    });
-    expect(await source.stores.estimates.listByProject('p1')).toEqual([
-      ...subtree('sentinel').estimates,
-    ]);
-    control.arm();
+    const source = await openSubtreeSource(control);
+    const acquired = [source];
+    try {
+      const stamp = { at: 1, by: 'owner' };
+      await source.uow.run(async ({ stores }) => {
+        await stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
+        return { commit: true, value: undefined };
+      });
+      expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
+        ...subtree('sentinel').estimates,
+      ]);
+      control.arm();
 
-    const write = source.uow.run(async ({ stores }) => {
-      await stores.subtrees.insertSubtree(subtree('faulted'), stamp);
-      return { commit: true, value: undefined };
-    });
-    // Proof: disconnecting this staged seam resolved the write instead of rejecting.
-    expect(write).rejects.toThrow('injected memory fault at subtree-final-satellite');
-    await write.catch(() => undefined);
+      const write = source.uow.run(async ({ stores }) => {
+        await stores.subtrees.insertSubtree(subtree('faulted'), stamp);
+        return { commit: true, value: undefined };
+      });
+      // Proof: disconnecting this staged seam resolved the write instead of rejecting.
+      expect(write).rejects.toThrow('injected memory fault at subtree-final-satellite');
+      await write.catch(() => undefined);
 
-    expect(control.reached()).toBe(true);
-    // Proof: moving the barrier before the estimate write returned [] here.
-    expect(control.observedSatelliteKeys()).toEqual(['faulted:step-1']);
-    // Proof: committing the staged state from the rejection path added `faulted` here.
-    expect((await source.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
-      'sentinel',
-    ]);
-    expect(await source.stores.estimates.listByProject('p1')).toEqual([
-      ...subtree('sentinel').estimates,
-    ]);
-    const restored = openMemorySourceWithFault(memoryLateWriteControl('subtree-final-satellite'));
-    await restored.uow.run(async ({ stores }) => {
-      await stores.subtrees.insertSubtree(subtree('restored'), stamp);
-      return { commit: true, value: undefined };
-    });
-    expect((await restored.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
-      'restored',
-    ]);
-    expect(await restored.stores.estimates.listByProject('p1')).toEqual([
-      ...subtree('restored').estimates,
-    ]);
+      expect(control.reached()).toBe(true);
+      // Proof: moving the barrier before the estimate write returned [] here.
+      expect(control.observedSatelliteKeys()).toEqual(['faulted:step-1']);
+      // Proof: committing the staged state from the rejection path added `faulted` here.
+      expect((await source.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual([
+        'sentinel',
+      ]);
+      expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
+        ...subtree('sentinel').estimates,
+      ]);
+      const restored = await openSubtreeSource(memoryLateWriteControl('subtree-final-satellite'));
+      acquired.push(restored);
+      await restored.uow.run(async ({ stores }) => {
+        await stores.subtrees.insertSubtree(subtree('restored'), stamp);
+        return { commit: true, value: undefined };
+      });
+      expect((await restored.stores.workItems.listByWorkPackage('p1')).map(({ id }) => id)).toEqual(
+        ['restored'],
+      );
+      expect(await restored.stores.estimates.listByWorkPackage('p1')).toEqual([
+        ...subtree('restored').estimates,
+      ]);
+    } finally {
+      await Promise.all(acquired.map((opened) => opened.close()));
+    }
   });
 
   it('reaches the schedule body inside the real saved-plan write', async () => {

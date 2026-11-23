@@ -28,8 +28,8 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   for (const [, root, side] of CATALOGS) {

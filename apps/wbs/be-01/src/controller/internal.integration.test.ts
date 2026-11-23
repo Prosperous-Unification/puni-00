@@ -1,3 +1,4 @@
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
@@ -23,28 +24,35 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { createLegacyWorkPackageObservation } from '../testing/work-package-fixture';
+import { testWorkPackageService } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
 function buildHarness() {
   const { log, buffer, replay } = testReplay();
-  // Every project exists here, so these cases exercise the replay route itself;
-  // the per-project access check is gateway-browser.controller.db.test.ts's.
-  const projects = testProjectService();
-  spyOn(projects, 'readWithin').mockResolvedValue({ project: {}, steps: [] } as never);
-  const writes = testWrites();
+  // Every work package exists here, so these cases exercise the replay route itself;
+  // the per-work-package access check is gateway-browser.controller.db.test.ts's.
+  const workPackages = testWorkPackageService();
+  spyOn(workPackages, 'readWithin').mockResolvedValue({ workPackage: {}, steps: [] } as never);
+  const writes = testWrites(undefined, { workItems: testWorkItemService(openTestSource()) });
+  const history = testHistoryService();
   const app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -54,7 +62,8 @@ function buildHarness() {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -63,13 +72,13 @@ function buildHarness() {
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
+    history,
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     // Local mode: the forwarded principal is the fixed local identity.
     auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
-    projects,
-    workItems: testWorkItemService(),
+    workPackages,
+    workItems: testWorkItemService(openTestSource()),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     writes,
@@ -124,13 +133,13 @@ describe('POST /internal/forward', () => {
 
     await post('/internal/forward', { message: { type: 'ping' }, trace_id: 't-1' }, authed);
 
-    expect(await log.latestSeq('project:anything')).toBe(-1);
+    expect(await log.latestSeq('work-package:anything')).toBe(-1);
   });
 
   it('acks forged blockage setter, import, and activation frames without executing writes', async () => {
     const { post, authed, log, writes } = buildHarness();
     for (const message of [
-      { type: 'setStepBlocked', projectId: 'p', workItemId: 'w', stepId: 's', isBlocked: true },
+      { type: 'setStepBlocked', workPackageId: 'p', workItemId: 'w', stepId: 's', isBlocked: true },
       {
         type: 'importPlan',
         body: { version: 9, stepBlockages: [{ workItemId: 'w', stepId: 's', blockedAt: 1 }] },
@@ -140,7 +149,7 @@ describe('POST /internal/forward', () => {
       const response = await post('/internal/forward', { message, trace_id: 'forged' }, authed);
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({ ack: true });
-      expect(await log.latestSeq('project:p')).toBe(-1);
+      expect(await log.latestSeq('work-package:p')).toBe(-1);
       expect(writes.uow.calls).toEqual([]);
     }
   });
@@ -156,18 +165,18 @@ describe('POST /internal/forward', () => {
 describe('POST /internal/resume', () => {
   it('replays the recorded events after the requested sequence', async () => {
     const { post, authed, log } = buildHarness();
-    await log.record('project:a', { type: 'tree_replaced', workItems: [] });
-    await log.record('project:a', { type: 'tree_replaced', workItems: [] });
+    await log.record('work-package:a', { type: 'tree_replaced', workItems: [] });
+    await log.record('work-package:a', { type: 'tree_replaced', workItems: [] });
 
     const res = await post(
       '/internal/resume',
-      { resume_points: { 'project:a': 0 }, trace_id: 't-1' },
+      { resume_points: { 'work-package:a': 0 }, trace_id: 't-1' },
       authed,
     );
 
     expect(res.status).toBe(200);
     expect((await res.json()) as unknown).toEqual({
-      'project:a': {
+      'work-package:a': {
         status: 'replaying',
         events: [{ seq: 1, message: { type: 'tree_replaced', workItems: [] } }],
       },
@@ -182,13 +191,13 @@ describe('POST /internal/resume', () => {
 
     const res = await post(
       '/internal/resume',
-      { resume_points: { 'project:never-seen': 4 }, trace_id: 't-1' },
+      { resume_points: { 'work-package:never-seen': 4 }, trace_id: 't-1' },
       authed,
     );
 
     expect(res.status).toBe(200);
     expect((await res.json()) as unknown).toEqual({
-      'project:never-seen': { status: 'denied', reason: 'out_of_range' },
+      'work-package:never-seen': { status: 'denied', reason: 'out_of_range' },
     });
   });
 
@@ -222,15 +231,15 @@ it('checks internal identity before malformed JSON and refuses extra queries and
 
 it('replays event zero from -1 and surfaces a replay store failure', async () => {
   const { post, authed, log } = buildHarness();
-  await log.record('project:zero', { historical: ['payload'] });
+  await log.record('work-package:zero', { historical: ['payload'] });
   const response = await post(
     '/internal/resume',
-    { resume_points: { 'project:zero': -1 }, trace_id: 't' },
+    { resume_points: { 'work-package:zero': -1 }, trace_id: 't' },
     authed,
   );
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    'project:zero': {
+    'work-package:zero': {
       status: 'replaying',
       events: [{ seq: 0, message: { historical: ['payload'] } }],
     },
@@ -241,7 +250,7 @@ it('replays event zero from -1 and surfaces a replay store failure', async () =>
       (
         await post(
           '/internal/resume',
-          { resume_points: { 'project:zero': -1 }, trace_id: 't' },
+          { resume_points: { 'work-package:zero': -1 }, trace_id: 't' },
           authed,
         )
       ).status,

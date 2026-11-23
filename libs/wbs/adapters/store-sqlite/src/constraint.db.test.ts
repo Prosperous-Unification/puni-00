@@ -12,8 +12,7 @@ import {
 } from './constraint';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 let dir: string;
 let path: string;
@@ -21,7 +20,8 @@ let path: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-constraint-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  // The retired step table must still classify duplicate writes in the rollback schema.
+  runMigrations(path, copyRecoveryPrefix(dir, '20261115120000_add_step_migration_report'));
 });
 
 afterEach(() => {
@@ -50,7 +50,7 @@ function uniqueIndexesOn(table: string): string[][] {
       .query<{ name: string; unique: number }, []>(`PRAGMA index_list(${table})`)
       .all();
     // Partial unique indexes count: SQLite names their columns in the same
-    // message, and `organization_domain_claim_owner` and `step_project_code` are two.
+    // message, and `organization_domain_claim_owner` and `step_work_package_code` are two.
     return listed
       .filter((index) => index.unique === 1)
       .map((index) =>
@@ -68,12 +68,18 @@ function uniqueIndexesOn(table: string): string[][] {
   }
 }
 
-/** A user and a project, which `step` needs before it can hold two rows at all. */
-function seedProject(): void {
+/** A user and a work package, which `step` needs before it can hold two rows at all. */
+function seedWorkPackage(): void {
   const db = openDatabase(path);
   try {
     db.run(`INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1000)`);
-    db.run(`INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'P', 'u1', 1000)`);
+    db.run(`INSERT INTO organization (id, name, created_at) VALUES ('o1', 'Org', 1000)`);
+    db.run(
+      `INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES ('project', 'o1', 'Project', 1000, 'u1')`,
+    );
+    db.run(
+      `INSERT INTO work_package (id, project_id, name, created_by, created_at) VALUES ('p1', 'project', 'P', 'u1', 1000)`,
+    );
   } finally {
     db.close();
   }
@@ -104,7 +110,7 @@ function refusalOf(write: string): unknown {
  * SQLite joins them, and a comma without its space matches nothing while every
  * index still exists.
  *
- * Proof: `stepNameInProject` set back to the pre-rename `['role.project_id',
+ * Proof: `stepNameInWorkPackage` set back to the pre-rename `['role.work_package_id',
  * 'role.name']`, watched failing twice — `expect(received).toContainEqual(…) ·
  * Received: []` in the pragma case (`PRAGMA index_list` on a table SQLite does
  * not have answers an empty list rather than throwing, which is why the
@@ -127,7 +133,7 @@ describe('the unique indexes a refusal names', () => {
     // index would not, and an empty list contains nothing to disagree with.
     expect(Object.keys(UNIQUE_INDEXES).length).toBe(14);
     expect(uniqueIndexesOn('step').length).toBeGreaterThan(0);
-    expect(UNIQUE_INDEXES.stepNameInProject.length).toBe(2);
+    expect(UNIQUE_INDEXES.stepNameInWorkPackage.length).toBe(2);
   });
 
   it('matches the message a one-column index really produces', () => {
@@ -136,20 +142,20 @@ describe('the unique indexes a refusal names', () => {
   });
 
   it('matches the message a two-column index really produces', () => {
-    seedProject();
+    seedWorkPackage();
     const err = refusalOf(
-      `INSERT INTO step (id, project_id, name) VALUES (hex(randomblob(8)), 'p1', 'same')`,
+      `INSERT INTO step (id, work_package_id, name) VALUES (hex(randomblob(8)), 'p1', 'same')`,
     );
-    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject)).toBe(true);
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInWorkPackage)).toBe(true);
   });
 
   it('matches the message the partial step code index really produces', () => {
-    seedProject();
+    seedWorkPackage();
     const err = refusalOf(
-      `INSERT INTO step (id, project_id, name, code) VALUES (hex(randomblob(8)), 'p1', hex(randomblob(8)), 'dev')`,
+      `INSERT INTO step (id, work_package_id, name, code) VALUES (hex(randomblob(8)), 'p1', hex(randomblob(8)), 'dev')`,
     );
-    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepCodeInProject)).toBe(true);
-    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject)).toBe(false);
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepCodeInWorkPackage)).toBe(true);
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInWorkPackage)).toBe(false);
   });
 
   it('refuses to answer for an index the message does not name', () => {
@@ -157,7 +163,7 @@ describe('the unique indexes a refusal names', () => {
     // same call site stays an unknown, and the caller rethrows it.
     const err = refusalOf(`INSERT INTO tag (id, name) VALUES (hex(randomblob(8)), 'same')`);
     expect(isUniqueViolation(err, UNIQUE_INDEXES.personName)).toBe(false);
-    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject)).toBe(false);
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInWorkPackage)).toBe(false);
   });
 });
 
@@ -186,8 +192,9 @@ describe('a violation wrapped the way drizzle wraps it', () => {
   });
 
   it('finds a foreign key one cause down', () => {
+    seedWorkPackage();
     const inner = refusalOf(
-      `INSERT INTO project (id, name, owner_id, created_at) VALUES (hex(randomblob(8)), 'orphan', 'nobody', 1000)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, created_at) VALUES (hex(randomblob(8)), 'missing-project', 'orphan', 'u1', 1000)`,
     );
     expect(isForeignKeyViolation(wrapped(inner))).toBe(true);
   });

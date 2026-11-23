@@ -1,19 +1,20 @@
-import { applyProjectCommands, type SchemaShape, validateSchema } from '@wbs/contracts';
+import { applyWorkPackageCommands, type SchemaShape, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * Every refusal code `wbs-measure-budgets` slices 1 to 4 introduced, driven
  * through HTTP on each route that can answer it (task 4.1): the directory
- * batch, the project batch, the project patch. Each row names the request and
+ * batch, the work package batch, the work package patch. Each row names the request and
  * the exact status and body; none may reach the 500 an undeclared or unmapped
  * refusal answers. Over real SQLite and the production organization access
  * ({@link OrganizationHarness.openComposed}). The headroom read's own
  * refusals are in `budget-headroom.controller.db.test.ts`.
  */
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let dev: string;
 let parent: string;
 let leaf: string;
@@ -22,7 +23,7 @@ let timeId: string;
 let foreignTokensId: string;
 
 interface Row {
-  readonly route: 'directory' | 'project';
+  readonly route: 'directory' | 'work_package';
   readonly command: Record<string, unknown>;
   readonly status: number;
   readonly error: string;
@@ -44,20 +45,18 @@ beforeEach(async () => {
   h.organization('org-a');
   h.organization('org-b');
   // An admin: definition writes are an admin's (design D70).
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Refusals' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  const first = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .get(projectId)?.id;
-  if (first === undefined) throw new Error('the project has no step');
+  workPackageId = await createFixturePackage(h, 'ada', 'Refusals');
+  const { steps } = await readFixturePackage(h, 'ada', workPackageId);
+  const first = steps.at(0)?.id;
+  if (first === undefined) throw new Error('the work package has no step');
   dev = first;
-  const built = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+  const built = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
       {
@@ -94,7 +93,7 @@ afterEach(() => {
   h.close();
 });
 
-/** The directory commands' refusals; each is answered alike by the project batch. */
+/** The directory commands' refusals; each is answered alike by the work package batch. */
 function definitionRows(): Omit<Row, 'route'>[] {
   const patch = (measureId: string, fields: Record<string, unknown>) => ({
     kind: 'patchMeasure',
@@ -179,7 +178,7 @@ function definitionRows(): Omit<Row, 'route'>[] {
   ];
 }
 
-/** The plan commands' refusals, which only the project batch can answer. */
+/** The plan commands' refusals, which only the work package batch can answer. */
 function planRows(): Omit<Row, 'route'>[] {
   const fact = (metric: string, value: number, more: Record<string, unknown> = {}) => ({
     kind: 'setMeasure',
@@ -249,9 +248,9 @@ function planRows(): Omit<Row, 'route'>[] {
 function table(): Row[] {
   return [
     ...definitionRows().map((row) => ({ ...row, route: 'directory' as const })),
-    ...definitionRows().map((row) => ({ ...row, route: 'project' as const })),
-    ...planRows().map((row) => ({ ...row, route: 'project' as const })),
-    // A plan command has no project to run in from the directory batch.
+    ...definitionRows().map((row) => ({ ...row, route: 'work_package' as const })),
+    ...planRows().map((row) => ({ ...row, route: 'work_package' as const })),
+    // A plan command has no work package to run in from the directory batch.
     {
       route: 'directory',
       command: {
@@ -262,7 +261,7 @@ function table(): Row[] {
         policy: 'strict',
       },
       status: 400,
-      error: 'project_required',
+      error: 'work_package_required',
     },
   ];
 }
@@ -312,7 +311,9 @@ const MEASURE_BUDGET_CODES = [
 
 function send(route: Row['route'], commands: readonly unknown[]) {
   const path =
-    route === 'directory' ? '/api/directory/commands' : `/api/projects/${projectId}/commands`;
+    route === 'directory'
+      ? '/api/directory/commands'
+      : `/api/work-packages/${workPackageId}/commands`;
   return h.call('ada', 'POST', path, { commands });
 }
 
@@ -357,7 +358,7 @@ describe('measure refusals through every batch', () => {
     for (const row of table()) {
       const body = { at: 0, kind: row.command['kind'], error: row.error };
       let admitted = false;
-      for (const refusal of applyProjectCommands.refusals) {
+      for (const refusal of applyWorkPackageCommands.refusals) {
         if (refusal.status !== row.status || !('schema' in refusal)) continue;
         const schema: SchemaShape<unknown> = refusal.schema;
         if ('value' in (await validateSchema(schema, body))) admitted = true;
@@ -368,7 +369,7 @@ describe('measure refusals through every batch', () => {
   });
 
   it('answers a hand-up across two rate cards with 409 naming both', async () => {
-    const made = await send('project', [
+    const made = await send('work_package', [
       { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: leaf, afterId: null },
       { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf, afterId: null, afterRef: 'A' },
     ]);
@@ -382,10 +383,14 @@ describe('measure refusals through every batch', () => {
       value: 10,
       rateCardDigest,
     });
-    expect((await send('project', [priced(a, 'card-b'), priced(b, 'card-a')])).status).toBe(200);
+    expect((await send('work_package', [priced(a, 'card-b'), priced(b, 'card-a')])).status).toBe(
+      200,
+    );
     // `leaf` is `parent`'s only child: deleting it hands its branch up.
     expect(
-      await send('project', [{ kind: 'deleteWorkItem', workItemId: leaf, strategy: 'cascade' }]),
+      await send('work_package', [
+        { kind: 'deleteWorkItem', workItemId: leaf, strategy: 'cascade' },
+      ]),
     ).toEqual({
       status: 409,
       body: {
@@ -401,30 +406,35 @@ describe('measure refusals through every batch', () => {
   });
 });
 
-describe('measure refusals on the project patch', () => {
-  it('answers a budget factor out of range, and one that is not a number, with 422', async () => {
+describe('measure refusals on the work package patch', () => {
+  it('refuses numeric package-level factor overrides with409 and a malformed value with422', async () => {
     for (const budgetFactor of [0, -1, 1001])
-      expect(await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { budgetFactor })).toEqual({
-        status: 422,
-        body: { error: 'bad_budget_factor' },
+      expect(
+        await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { budgetFactor }),
+      ).toEqual({
+        status: 409,
+        body: { error: 'not_overridable_here', key: 'budgetFactor', level: 'work_package' },
       });
     // The patch's structural refusal, as for every other setting.
     expect(
-      await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { budgetFactor: 'two' }),
+      await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { budgetFactor: 'two' }),
     ).toEqual({ status: 422, body: { error: 'invalid_body' } });
-    const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
-    expect((read.body as { project: { budgetFactor?: number } }).project.budgetFactor).toBe(1);
+    const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
+    expect((read.body as { workPackage: { budgetFactor?: number } }).workPackage.budgetFactor).toBe(
+      1,
+    );
   });
 });
 
 describe('measure refusals before activation', () => {
   it('answers a definition write with 409 organization_required on both batches', async () => {
-    h.close();
+    await h.closeComposed();
     h = OrganizationHarness.openComposed();
     await h.register('ada');
-    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Legacy' });
-    const legacy = (created.body as { project: { id: string } }).project.id;
-    for (const path of ['/api/directory/commands', `/api/projects/${legacy}/commands`])
+    h.organization('org-a');
+    const legacy = await createFixturePackage(h, 'ada', 'Legacy');
+    h.sqlite.run("UPDATE organization SET legacy=0 WHERE id='org-a'");
+    for (const path of ['/api/directory/commands', `/api/work-packages/${legacy}/commands`])
       expect(await h.call('ada', 'POST', path, { commands: [GPU] })).toEqual({
         status: 409,
         body: { at: 0, kind: 'createMeasure', error: 'organization_required' },

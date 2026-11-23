@@ -351,7 +351,7 @@ const commandsArb = fc.commands<ChannelModel, ChannelWorld, false>(
  * The channel, run against a reference model.
  *
  * The record this executes is section 3.1 of
- * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-project-prerequisites.md`.
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-work-package-prerequisites.md`.
  */
 describe('the channel, against a reference model', () => {
   it('delivers exactly what the model says, under generated interleavings', async () => {

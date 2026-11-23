@@ -10,7 +10,7 @@ import {
   type TransactionalStores,
   type UnitOfWork,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -23,12 +23,12 @@ import { expect, test } from 'bun:test';
 import { buildStores } from './build-stores';
 import { openConnection } from './db';
 import { OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
+import { inertSqliteLateWriteSeam } from './late-write-seam';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 
 const ACTOR = 'import-owner';
 const ROWS = 500;
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 function measuredDocument(): PlanDocumentImport {
   const document = planDocumentFixture();
@@ -51,7 +51,35 @@ function measuredDocument(): PlanDocumentImport {
 test('measures preparation and admitted SQLite work separately for exactly 500 rows', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-import-measurement-'));
   const path = join(dir, 'source.db');
-  runMigrations(path, MIGRATIONS);
+  const stamp = { at: 1_757_851_200_000, by: ACTOR };
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp,
+      definitions: [
+        {
+          id: 'fixture-build',
+          code: 'impl',
+          name: 'Build',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          id: 'fixture-qa',
+          code: 'qa',
+          name: 'QA',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 30,
+        },
+      ],
+    },
+    { hasUnknownOwner: false },
+  );
   const statements: string[] = [];
   let nativeTransactions = 0;
   const connection = openConnection(
@@ -68,16 +96,18 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
   try {
     const coordinator = new WriteCoordinator();
     const stores = buildStores(connection.db, coordinator);
-    const admittedStores = buildStores(connection.db, OPEN);
+    const admittedStores = buildStores(
+      connection.db,
+      OPEN,
+      inertSqliteLateWriteSeam,
+      undefined,
+      undefined,
+      'borrowed',
+    );
     const sourceUow = sqliteUnitOfWork(connection.db, coordinator, {
       createScope: () => ({ stores: admittedStores }),
       createRepairScope: () => ({ stores: admittedStores }),
     });
-    const stamp = { at: 1_757_851_200_000, by: ACTOR };
-    await stores.users.create(
-      { id: ACTOR, username: ACTOR, passwordHash: 'x', createdAt: stamp.at },
-      stamp,
-    );
     statements.length = 0;
     nativeTransactions = 0;
 
@@ -87,7 +117,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const prepareStatementStart = statements.length;
     const prepareNativeStart = nativeTransactions;
     const prepareStarted = performance.now();
-    const preparation = prepareImport(document, fastScheduler);
+    const preparation = prepareImport(document, fastScheduler, 'catalogue');
     const prepareMs = performance.now() - prepareStarted;
     const prepareDrizzleStatements = statements.length - prepareStatementStart;
     const prepareNativeTransactions = nativeTransactions - prepareNativeStart;
@@ -130,7 +160,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
       announcements,
       batchServices: (scope, broadcast) =>
         servicesOver(scope.stores, {
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock,
           broadcast,
           scheduler: fastScheduler,
@@ -138,13 +168,17 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
         }),
     });
 
-    const outcome = await imports.import(document, { kind: 'legacy', actorId: ACTOR });
+    const outcome = await imports.import(
+      document,
+      { kind: 'legacy', actorId: ACTOR },
+      'fixture-project',
+    );
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) throw new Error(`measurement import refused at ${JSON.stringify(outcome)}`);
     expect(outcome.rows).toBe(ROWS);
-    expect(await stores.workItems.listByProject(outcome.projectId)).toHaveLength(ROWS);
+    expect(await stores.workItems.listByWorkPackage(outcome.workPackageId)).toHaveLength(ROWS);
     expect(queuedTag.name).toBe('Queued ordinary write');
     expect(queuedCompleted).toBeGreaterThanOrEqual(admittedStarted + admittedMs);
 
@@ -160,12 +194,15 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     expect(commitAt).toBeGreaterThan(beginAt);
     expect(queuedAt).toBeGreaterThan(commitAt);
     const drizzleStatements = commitAt - beginAt + 1;
-    // One project, bands, capacity, marker, team patch, person insert and subtree
-    // transaction, 500 label patches, and the response tree's unified typed read:
-    // 8 + 500 wrappers. Stack/boundary diagnostics observed the last read before COMMIT.
-    // Proof: omitting the native transaction observer reported 0 instead of 508,
+    // Current performance budget: 500 label patches plus seven package/directory/settings
+    // writes and fourteen applicability/fact/relationship reads, identified by native
+    // caller receipts in sqlite-current-fixture-v133-native-callers.histogram.json.
+    // This accounts for current capture work; it grants no transaction authority or history rewrite.
+    // Historical Proof: omitting the observer reported 0 instead of the former 508,
     // hiding its 1,016 SAVEPOINT/RELEASE controls from the admitted total.
-    expect(nativeTransactions).toBe(508);
+    // Proof: breaking the actual observer made this unchanged import reach the count
+    // assertion with 0 instead of 521; sqlite-current-fixture-v133-proof-native-observer.
+    expect(nativeTransactions).toBe(500 + 21);
     const nativeControls = nativeTransactions * 2;
     const admittedStatements = drizzleStatements + nativeControls;
 

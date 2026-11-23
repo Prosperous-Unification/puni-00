@@ -6,22 +6,31 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 import { UserRepository } from './user';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const pair = { issuer: 'https://issuer.example', subject: 'subject-1' };
 let folder: string;
+let custody: CatalogueFixtureCustody;
 let path: string;
 let users: UserRepository;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   folder = mkdtempSync(join(tmpdir(), 'wbs-oidc-readonly-'));
   path = join(folder, 'test.db');
-  runMigrations(path, MIGRATIONS);
+  migrateEmptyCatalogueFixture({ path, directory: folder, reportedAt: 1 }, custody);
   users = new UserRepository(openDrizzle(path), OPEN);
 });
 afterEach(() => {
+  // Proof: sqlite-cohort1-v233-user-oidc-readonly injected a throw after
+  // real close returned. Omission deleted this directory; restoration retained
+  // it. This did not inject a leaked native handle.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + folder);
   rmSync(folder, { recursive: true, force: true });
 });
 

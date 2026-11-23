@@ -6,12 +6,16 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 const read = defineEndpointShape({
   method: 'GET',
-  path: '/projects/:id',
-  operationId: 'readProject',
+  path: '/work-packages/:id',
+  operationId: 'readWorkPackage',
   policies: [{ kind: 'identity', require: 'signed-in' }],
   query: requestSchema(type({ 'filter?': 'string' })),
   responses: [
-    { kind: 'json', status: 200, schema: responseSchema(type({ project: { name: 'string' } })) },
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ workPackage: { name: 'string' } })),
+    },
   ],
   refusals: [
     { status: 429, schema: responseSchema(type({ error: "'rate_limited'" })) },
@@ -32,8 +36,8 @@ const read = defineEndpointShape({
 });
 const write = defineEndpointShape({
   method: 'POST',
-  path: '/projects/:id',
-  operationId: 'renameProject',
+  path: '/work-packages/:id',
+  operationId: 'renameWorkPackage',
   policies: [],
   body: requestSchema(type({ name: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
@@ -44,29 +48,29 @@ const client = clientFromShapes([read, write], () =>
   Promise.resolve({ kind: 'empty', status: 204 }),
 );
 
-/** Compile-only fixtures use the actual generated methods and the gate's spec project. */
+/** Compile-only fixtures use the actual generated methods and the gate's spec work package. */
 export async function clientTypeFixtures(): Promise<void> {
-  const missingOperation = 'deleteProject';
+  const missingOperation = 'deleteWorkPackage';
   // @ts-expect-error Only declared operation identifiers are methods.
   const _missingOperation: unknown = client[missingOperation];
   // @ts-expect-error Path parameters are mandatory.
-  await client.readProject({});
+  await client.readWorkPackage({});
   // @ts-expect-error Parameter names come from the declared path.
-  await client.readProject({ params: { projectId: 'p' } });
+  await client.readWorkPackage({ params: { workPackageId: 'p' } });
   // @ts-expect-error Unknown query fields are not part of this operation.
-  await client.readProject({ params: { id: 'p' }, query: { extra: 'x' } });
+  await client.readWorkPackage({ params: { id: 'p' }, query: { extra: 'x' } });
   // @ts-expect-error The declared request body is required.
-  await client.renameProject({ params: { id: 'p' } });
+  await client.renameWorkPackage({ params: { id: 'p' } });
   // @ts-expect-error A renamed body field must fail at the real caller.
-  await client.renameProject({ params: { id: 'p' }, body: { title: 'new' } });
+  await client.renameWorkPackage({ params: { id: 'p' }, body: { title: 'new' } });
   // @ts-expect-error Principals are resolved server-side, never supplied by clients.
-  await client.readProject({ params: { id: 'p' }, principal: { id: 'caller' } });
-  const readReply = await client.readProject({ params: { id: 'p' } });
+  await client.readWorkPackage({ params: { id: 'p' }, principal: { id: 'caller' } });
+  const readReply = await client.readWorkPackage({ params: { id: 'p' } });
   if (readReply.kind === 'success') {
-    const _name: string = readReply.body.project.name;
+    const _name: string = readReply.body.workPackage.name;
     const missingField = 'title';
     // @ts-expect-error Only fields from the response schema are statically readable.
-    const _missingField: unknown = readReply.body.project[missingField];
+    const _missingField: unknown = readReply.body.workPackage[missingField];
   } else if (readReply.kind === 'refusal' && readReply.status === 501) {
     const _versions: number[] = readReply.body.supported;
     // @ts-expect-error A 501 detail cannot widen into an unrelated refusal code.
@@ -88,8 +92,8 @@ export async function clientTypeFixtures(): Promise<void> {
     headers: new Headers(),
   };
   // @ts-expect-error The actual method's return type correlates each status and body.
-  const _checkedPair: Awaited<ReturnType<typeof client.readProject>> = wrongPair;
-  const written = await client.renameProject({ params: { id: 'p' }, body: { name: 'new' } });
+  const _checkedPair: Awaited<ReturnType<typeof client.readWorkPackage>> = wrongPair;
+  const written = await client.renameWorkPackage({ params: { id: 'p' }, body: { name: 'new' } });
   if (written.kind === 'success') {
     const _status: 204 = written.status;
     // @ts-expect-error An empty response has no JSON body.

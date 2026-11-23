@@ -1,4 +1,4 @@
-import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
+import type { CommittedWorkPackageEvent } from '@wbs/core/service/committed-fanout';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
@@ -7,7 +7,7 @@ import { installOptimization } from './check';
 import { OPTIMIZATION_LABEL, type OptimizationRequirements } from './contract';
 import { optimizationModule } from './module';
 
-const PROJECT = '11111111-1111-4111-8111-111111111111';
+const WORK_PACKAGE = '11111111-1111-4111-8111-111111111111';
 const CONTRACT = '18+0.4.0';
 const BUDGET_MS = 60_000;
 
@@ -126,20 +126,20 @@ describe('the Optimization module', () => {
     const supplied = requirements();
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: PROJECT,
-      causeProjectId: 'upstream',
+      workPackageId: WORK_PACKAGE,
+      causeWorkPackageId: 'upstream',
     };
     const envelope = {
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       event,
       recorded: {
-        subscription: `project:${PROJECT}`,
+        subscription: `work-package:${WORK_PACKAGE}`,
         seq: 0,
         message: event,
         createdAt: 10,
       },
     };
-    const delivered: CommittedProjectEvent[] = [];
+    const delivered: CommittedWorkPackageEvent[] = [];
     const optimizer = installOptimization({
       ...supplied,
       repository: {
@@ -157,7 +157,7 @@ describe('the Optimization module', () => {
     }).optimizer;
     expect(
       await optimizer.retry({
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         objective: 'pri',
         inputHash: 'port-hash',
         input: INPUT,
@@ -224,13 +224,13 @@ describe('the Optimization module', () => {
     };
     const { optimizer } = installOptimization({ ...requirements(), repository });
     const read = await optimizer.readPlan({
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       objective: 'pri',
       input: INPUT,
       enabled: true,
     });
     const retry = await optimizer.retry({
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       objective: 'pri',
       inputHash: 'port-hash',
       input: INPUT,
@@ -247,14 +247,14 @@ describe('the Optimization module', () => {
     const { optimizer } = installOptimization(requirements());
 
     const read = await optimizer.readPlan({
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       objective: 'pri',
       input: INPUT,
       enabled: false,
     });
 
     expect(read).toMatchObject({
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       inputHash: 'port-hash',
       contractVersion: CONTRACT,
       budgetMs: BUDGET_MS,
@@ -273,7 +273,7 @@ describe('the Optimization module', () => {
     const { optimizer } = installOptimization(requirements());
 
     const refused = await optimizer.retry({
-      projectId: PROJECT,
+      workPackageId: WORK_PACKAGE,
       objective: 'pri',
       inputHash: 'stale-hash',
       input: INPUT,
@@ -295,7 +295,7 @@ describe('the Optimization module', () => {
       },
     });
 
-    optimizer.inputChanged(PROJECT);
+    optimizer.inputChanged(WORK_PACKAGE);
     await optimizer.drain();
 
     expect(failures).toEqual([refused]);

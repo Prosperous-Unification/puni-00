@@ -122,9 +122,9 @@ export function CollapseIcon(): React.JSX.Element {
 }
 
 /**
- * `Project settings`' icon: a gear.
+ * `WorkPackage settings`' icon: a gear.
  *
- * The one control on the bar that stands for three (`project-config-modal`, D5):
+ * The one control on the bar that stands for three (`work-package-config-modal`, D5):
  * `Teams`, `Priorities` and `Steps` were three labelled buttons somebody uses
  * once and then not for weeks, permanently beside `Add work item` and `Undo` on a
  * bar whose width is the scarce resource. The word moved into the button's

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 const cli = new URL('./trusted-issuer-audience-check-cli.ts', import.meta.url).pathname;
@@ -18,6 +19,7 @@ const CREDENTIAL = {
 } as const;
 let directory: string;
 let path: string;
+const custody = { hasUnknownOwner: false };
 
 // Each run spawns the CLI, about two seconds apiece.
 setDefaultTimeout(30_000);
@@ -25,7 +27,8 @@ setDefaultTimeout(30_000);
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'audience-check-cli-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  custody.hasUnknownOwner = false;
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   const database = openDatabase(path);
   try {
     database.run("INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)");
@@ -42,7 +45,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  rmSync(directory, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 function register(id: string, organizationId: string, audience: string): void {

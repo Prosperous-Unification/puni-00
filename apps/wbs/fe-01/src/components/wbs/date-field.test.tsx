@@ -183,7 +183,7 @@ describe('how an edit ends', () => {
   });
 
   itDom('puts back the day the server agreed, for a field that stays on screen', () => {
-    // The toolbar's project start date is not unmounted by Escape — it is
+    // The toolbar's work package start date is not unmounted by Escape — it is
     // always on screen — so abandoning an edit there has to leave the box
     // reading what be-01 holds rather than the day nobody saved.
     const { box } = shownDay('2026-06-01');
@@ -232,7 +232,7 @@ describe('a day picked from the calendar', () => {
   // half beside it so the pair cannot drift apart.
 
   itDom('is sent the moment it lands, without waiting for the field to be left', () => {
-    // The bug this exists for: the project start date is the calendar the whole
+    // The bug this exists for: the work package start date is the calendar the whole
     // Gantt is drawn against, and “saved when you move on” read as a chart that
     // ignores the reader (`wbs-gantt-stale-on-start-date`, chunk 2 — the table
     // was stale too, and nothing had left the browser).

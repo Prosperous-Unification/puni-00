@@ -23,8 +23,8 @@ export interface DependencyEdge {
 /**
  * One work item's work for one step — the unit a schedule is computed in.
  *
- * `stepId` is null only in a project that holds no steps at all, which is
- * reachable: a project's last step can be removed. The work item still has to
+ * `stepId` is null only in a work package that holds no steps at all, which is
+ * reachable: a work package's last step can be removed. The work item still has to
  * be somewhere in the plan, so it gets one slice belonging to nobody rather
  * than falling out of the graph its neighbours' dependencies run through.
  *
@@ -93,7 +93,7 @@ export interface Slice {
    * R2 and R5): the leaf's own demands, charged on every one of its steps'
    * blocks, **resolved by the caller** for `width`'s reason.
    *
-   * Only resources the project states a capacity for appear here, each with
+   * Only resources the work package states a capacity for appear here, each with
    * its units already clamped to that capacity, exactly as `poolIds` holds only
    * sized teams and `width` is clamped to the narrowest of them. An unstated
    * capacity constrains nothing, and a demand larger than the capacity would
@@ -125,7 +125,7 @@ export interface Slice {
 /** One resource's units held by one block — see {@link Slice.demands}. */
 export interface ResourceDemand {
   readonly resourceId: string;
-  /** Whole units, from 1 up to the project's stated capacity for the resource. */
+  /** Whole units, from 1 up to the work package's stated capacity for the resource. */
   readonly units: number;
 }
 
@@ -224,7 +224,7 @@ export function sliceKey(workItemId: string, stepId: string | null): string {
 }
 
 /**
- * When a work item can happen, in whole days from the project's day zero.
+ * When a work item can happen, in whole days from the work package's day zero.
  *
  * `duration` is a leaf's own expected days and is 0 for a parent — a parent has
  * no work of its own, it has a span. `estimated` is what stops that zero being
@@ -244,7 +244,7 @@ export interface Scheduled {
 /**
  * What decided a slice's start: the latest of its floors, named.
  *
- * `projectStart` means nothing did — it starts on day zero. `predecessor` is a
+ * `workPackageStart` means nothing did — it starts on day zero. `predecessor` is a
  * dependency onto another work item, `stepOrder` the work item's own earlier
  * step, `notBefore` a manual date, `person` the assignee finishing something
  * else, and `capacity` the team having no free slot wide enough for the whole
@@ -262,20 +262,20 @@ export interface Scheduled {
  * says person.
  */
 /**
- * One booking a person holds in a project that outranks the one being
- * scheduled, on that project's own workday offsets (`[start, end)`, fractions
+ * One booking a person holds in a work package that outranks the one being
+ * scheduled, on that work package's own workday offsets (`[start, end)`, fractions
  * kept) — CONTEXT "Elsewhere", ADR 0034.
  */
 export interface ElsewhereBooking {
   readonly start: number;
   readonly end: number;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly workItemId: string;
 }
 
-/** The project and work item a person is booked on elsewhere. */
+/** The work package and work item a person is booked on elsewhere. */
 export interface ElsewhereHolder {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly workItemId: string;
 }
 
@@ -287,13 +287,13 @@ export interface ElsewhereHolder {
 export type Elsewhere = ReadonlyMap<string, readonly ElsewhereBooking[]>;
 
 export type ScheduleFloor =
-  | 'projectStart'
+  | 'workPackageStart'
   | 'predecessor'
   | 'stepOrder'
   | 'notBefore'
   | 'person'
   /**
-   * The assignee is booked by a project that outranks this one (CONTEXT
+   * The assignee is booked by a work package that outranks this one (CONTEXT
    * "Elsewhere", ADR 0034), and that booking is what set the start.
    *
    * Listed after `person` and before `capacity`, so a tie keeps the plan's own
@@ -322,7 +322,7 @@ export type ScheduleFloor =
    *
    * The render invariant survives additively: under this floor
    * {@link resourcePredecessorOf} returns {@link NOBODY} by the same rule that
-   * already covers `projectStart`, and {@link annotateCapacity} leaves
+   * already covers `workPackageStart`, and {@link annotateCapacity} leaves
    * `capacityPredecessors` empty and `capacityTeamId` null, so "set exactly when
    * `boundBy === 'capacity'`" is still true.
    */
@@ -336,7 +336,7 @@ export interface ScheduledSlice extends Scheduled {
   personId: string | null;
   boundBy: ScheduleFloor;
   /**
-   * The booking elsewhere this slice waited for: the project and work item
+   * The booking elsewhere this slice waited for: the work package and work item
    * holding its person when it could have started.
    *
    * **Present exactly when `boundBy` is `'elsewhere'`, and absent otherwise**,
@@ -372,7 +372,7 @@ export interface ScheduledSlice extends Scheduled {
    * The set rather than one edge, because one edge reports float that is not
    * there. Pool of 2, width-1 blocks A and B ending on days 5 and 7, width-2
    * block X therefore starting on day 7: with only B→X in the graph, A appears
-   * free to slip for ever — and A ending on day 8 pushes X and the project with
+   * free to slip for ever — and A ending on day 8 pushes X and the work package with
    * it. That is a row reported as having slack it has none of, which is the
    * class of fault that killed the first leveling algorithm.
    *
@@ -588,7 +588,7 @@ export function indexTree(rows: readonly PlannedRow[]): TreeIndex {
  *
  * Exported because `canDepend` must ask its question of **this** graph. Asking
  * it of the written edges instead let through an edge whose expansion closed a
- * cycle — the API accepted it, and every later read of the project threw. Two
+ * cycle — the API accepted it, and every later read of the work package threw. Two
  * reviewers found that independently, with different examples.
  */
 export function expandToLeaves(
@@ -671,7 +671,7 @@ function topological(
   let taken = 0;
   while (taken < ready.length) {
     // No `undefined` guard: `shift()` needed one and an index below `length`
-    // does not — this project does not run `noUncheckedIndexedAccess`, and
+    // does not — this work package does not run `noUncheckedIndexedAccess`, and
     // eslint's typed rule refuses the check as unreachable.
     const id = ready[taken];
     taken += 1;
@@ -981,7 +981,7 @@ function capacityProfile(sizes: ProfileSizes) {
     // nothing and the plan came back unconstrained; watched 2026-08-12.
     //
     // A resource is the same rule: the caller puts a demand on a slice only for
-    // a resource the project states a capacity for.
+    // a resource the work package states a capacity for.
     if (size === undefined) {
       throw new Error(
         kind === 'team' ? `no size for pool ${poolId}` : `no capacity for resource ${poolId}`,
@@ -1339,7 +1339,7 @@ interface SlicePriority {
   deadline: number;
   /** Where the critical path puts it, with nobody's calendar in the way. */
   start: number;
-  /** How much it could slip there without moving the project. */
+  /** How much it could slip there without moving the work package. */
   float: number;
   /**
    * Its work item's place in **tree order** — the tie goes to the row that
@@ -1462,7 +1462,7 @@ interface FloorCandidate {
  * Two callers of one function cannot drift the way two transcriptions of one
  * rule can, and the drift is the defect those reviews found. The body is
  * unchanged from the loop it replaces; the empty list still answers
- * `projectStart` at 0, which is what a slice with no floor above the project's
+ * `workPackageStart` at 0, which is what a slice with no floor above the work package's
  * own start has always meant.
  */
 function resolveFloor(candidates: readonly FloorCandidate[]): {
@@ -1470,7 +1470,7 @@ function resolveFloor(candidates: readonly FloorCandidate[]): {
   boundBy: ScheduleFloor;
 } {
   let start = 0;
-  let boundBy: ScheduleFloor = 'projectStart';
+  let boundBy: ScheduleFloor = 'workPackageStart';
   for (const floor of candidates) {
     if (floor.at <= start) continue;
     start = floor.at;
@@ -1585,7 +1585,7 @@ function pinFloor(
  * {@link annotateCapacity} and {@link tileFinish}: the optimized materialiser
  * produces `resourcePredecessorId` from the same three inputs and must not
  * restate the choice. Under 4.10's `'optimizer'` floor this returns
- * {@link NOBODY} by the same rule that already covers `projectStart` — neither
+ * {@link NOBODY} by the same rule that already covers `workPackageStart` — neither
  * is a resource — which is what keeps the render invariant true additively.
  */
 function resourcePredecessorOf(
@@ -1930,7 +1930,7 @@ function placeSlices(
     // Proof: this lookup made to answer `undefined` always, so the interval
     // search is bypassed, made `waits for a booking elsewhere before it
     // starts` (`schedule-elsewhere.test.ts`) place the slice across the
-    // foreign interval at 0 with `boundBy: 'projectStart'`; watched 2026-09-29.
+    // foreign interval at 0 with `boundBy: 'workPackageStart'`; watched 2026-09-29.
     const booked = personId === null ? undefined : elsewhere.get(personId);
     let away: { start: number; holder: ElsewhereBooking } | null = null;
     let window: JointWindow;
@@ -1967,7 +1967,7 @@ function placeSlices(
     //
     // Proof: the capacity entry deleted from this list and `waits for a team's
     // slots to come free before it starts` failed — the third block on a team
-    // of two came back at day 0 with `boundBy: 'projectStart'`; watched
+    // of two came back at day 0 with `boundBy: 'workPackageStart'`; watched
     // 2026-08-12.
     //
     // Proof: the capacity entry moved above `person` and `names the person, not
@@ -2078,7 +2078,7 @@ function placeSlices(
   // something already placed. Proof: this throw deleted and `throws on a cyclic
   // graph rather than returning a schedule` failed with `undefined is not an
   // object (evaluating 'unleveled.placed[at].start')` — an untyped error a
-  // reader would meet as a 500 on the whole project, where this one is what
+  // reader would meet as a 500 on the whole work package, where this one is what
   // `tree` turns into the banner saying why the plan has no dates; watched
   // 2026-08-09.
   if (order.length !== nodes.length) throw new ScheduleCycleError();
@@ -2197,14 +2197,14 @@ function windowAroundElsewhere(
 /** The holder a slice bound by `elsewhere` names, or a throw when none bound it. */
 function holderOf(key: string, away: { holder: ElsewhereBooking } | null): ElsewhereHolder {
   if (away === null) throw new Error(`${key} waited elsewhere with no booking holding it`);
-  return { projectId: away.holder.projectId, workItemId: away.holder.workItemId };
+  return { workPackageId: away.holder.workPackageId, workItemId: away.holder.workItemId };
 }
 
 /**
  * Refuses an `elsewhere` the engine cannot place around: a person listed with
  * no booking, or a booking that is not finite, holds no time, or overlaps or
  * precedes the one listed before it. The chain read builds these from other
- * projects' schedules, so a malformed one is a broken caller and never a plan
+ * work packages' schedules, so a malformed one is a broken caller and never a plan
  * to place around.
  *
  * **A listed person holds at least one booking**, and that is what makes
@@ -2556,7 +2556,7 @@ function placeWeightedSlices(
     placed[taken] = {
       start,
       finish: tiled.finish,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
       resourcePredecessor: NOBODY,
       capacityPredecessors: [],
       capacityTeamId: null,
@@ -2645,7 +2645,7 @@ function placeWeightedSlices(
         continue;
       }
       let planFloor = node.notBefore;
-      let planKind: ScheduleFloor = node.notBefore > 0 ? 'notBefore' : 'projectStart';
+      let planKind: ScheduleFloor = node.notBefore > 0 ? 'notBefore' : 'workPackageStart';
       for (const edge of incoming[taken]) {
         const before = placed[edge.before];
         // The reported floor follows actual boundaries after numerical
@@ -2935,7 +2935,7 @@ interface Late {
 }
 
 /**
- * How late every slice may run without moving the project, over the graph it is
+ * How late every slice may run without moving the work package, over the graph it is
  * handed — which for the schedule that comes out includes the resource edges.
  *
  * Backwards through the order the slices were placed in, which is a topological
@@ -2971,7 +2971,7 @@ function lateTimes(
   graph: SliceGraph,
   order: readonly number[],
   successorsOf: readonly (readonly number[])[],
-  projectFinish: number,
+  workPackageFinish: number,
   placed: readonly Placed[],
   hasQueues: boolean,
   elsewhere: Elsewhere = NOWHERE,
@@ -2984,7 +2984,7 @@ function lateTimes(
     const node = nodes[taken];
     const { offsets, at } = node;
     const successors = successorsOf[taken];
-    let finish = projectFinish;
+    let finish = workPackageFinish;
     for (const next of successors) {
       const settled = late[next].latestStart;
       if (settled < finish) finish = settled;
@@ -3002,7 +3002,7 @@ function lateTimes(
     }
 
     // The tight-path rule. Proof: with this branch removed, `reports a queue
-    // that ends the project as critical, exactly` failed on `a`'s late start —
+    // that ends the work package as critical, exactly` failed on `a`'s late start —
     // `Expected: 0 Received: -2.220446049250313e-16` — and, with that
     // assertion taken out of the way, on `b`'s: `Expected: 1.3333333333333333
     // Received: 1.333333333333333`; watched 2026-08-11.
@@ -3048,7 +3048,7 @@ function lateTimes(
  * to ±1e-15 rather than to 0. Three PERT sixths summing to exactly 15 arrive as
  * 15.000000000000002 (`snapWorkdays`' own example), every row that ends there
  * inherits the drifted bit, and an exact `=== 0` reads it as slack: cloud case
- * A1, live on dev — a chain and a flat row all ending the project, Slack
+ * A1, live on dev — a chain and a flat row all ending the work package, Slack
  * printing `0` on each of them and only one carrying `critical`.
  *
  * {@link snapWorkdays}, at the same 1e-9 window the calendar boundaries use,
@@ -3082,10 +3082,10 @@ function lateTimes(
  * Proof, both watched 2026-08-11 and each fault then reverted:
  *
  * - the `snapWorkdays` call dropped (a bare `latestStart - earliestStart`) and
- *   four tests failed — `paints every row that ends the project red, drift and
+ *   four tests failed — `paints every row that ends the workPackage red, drift and
  *   all` on `critical: false` with a float of `8.881784197001252e-16` for
  *   `chain-a`, which is case A1's own shape; `reports no float on a row a
- *   notBefore floor stands at the project finish` on `Expected: 0 Received:
+ *   notBefore floor stands at the workPackage finish` on `Expected: 0 Received:
  *   -1.7763568394002505e-15`; and both differential tests in
  *   `schedule-identity.test.ts`, `seed 1, r0c0g0.float: 0 became
  *   -1.7763568394002505e-15`.
@@ -3112,12 +3112,12 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * Which algorithm produced a schedule — the identity a saved plan stores.
  *
  * **The rule that moves it: any change to {@link schedule}'s semantics bumps
- * this in the same commit.** A semantics change is any edit after which some
- * input produces a different {@link Schedule} — a new floor kind, a changed
- * tie-break, a different reservation order, a bound that clamps where it did
- * not. TASK-219's dual objective and TASK-240's deadline both qualify.
- * Refactors, renames, comments and performance work that leave every output
- * identical do not.
+ * this in the same commit.** A new floor kind, a changed tie-break, a different
+ * reservation order or a newly clamped bound changes the scheduling facts.
+ * TASK-219's dual objective and TASK-240's deadline both qualify. The plain1→3
+ * and connected2→4 formats rename the start floor and holder while preserving
+ * their meaning. Their readers project the recorded vocabulary forward, so the
+ * same algorithm identity applies across those formats.
  *
  * Without that rule the column is a constant and the feature it exists for
  * fails silently. `saved_plan.scheduler_algorithm_id` is how a stored plan
@@ -3130,9 +3130,9 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * It is deliberately **not** a hash of this file. A source hash moves on every
  * comment edit, so it would be bumped by rote until nobody read it, and it
  * cannot be written into a migration, a fixture or a review by hand.
- * `schedule-algorithm-id.test.ts` supplies the enforcement a bare constant
- * cannot: a behavioural digest over a fixed corpus, pinned beside this value,
- * so a semantics change lands as one red test naming both.
+ * `schedule-algorithm-id.test.ts` pins the original corpus digest beside this
+ * identity and compares each raw current answer to the production reader's
+ * forward projection of those original facts.
  *
  * Format is `<engine>-v<n>` with `n` a monotonically increasing integer. The
  * value is stored, so it is never reused for a different meaning.
@@ -3141,7 +3141,7 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * edits, one identity: ready slices are now ordered by minimum slack and
  * earliest deadline in front of the four priority tie-breaks, and every slice
  * publishes {@link ScheduledSlice.lateBy}. A plan stamped `v1` was computed by
- * an engine that could not have ordered a deadlined project the way this one
+ * an engine that could not have ordered a deadlined work package the way this one
  * does and could not have reported a missed date at all, so re-reading its
  * dates as current is exactly the restatement this constant exists to refuse.
  *
@@ -3156,7 +3156,7 @@ function slackOf(latestStart: number, earliestStart: number): number {
 export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
 
 /**
- * The schedule for a project: computed in slices, and levelled so that one
+ * The schedule for a work package: computed in slices, and levelled so that one
  * person does one thing at a time.
  *
  * Two passes of {@link placeSlices}. The first has the people taken out and is
@@ -3176,7 +3176,7 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
  *
  * `slices` holds one entry per leaf and step, in **step order** — the order the
  * work runs in, so a leaf's `Dev` finishes before its `QA` starts. Every leaf
- * needs at least one, which is the adapter's job: a project holding no steps
+ * needs at least one, which is the adapter's job: a work package holding no steps
  * gives each leaf one slice belonging to nobody, so the plan still schedules.
  * A slice nobody has estimated is zero days long and imposes no wait, but it is
  * still a node, which is how an unestimated `Dev` in front of an estimated `QA`
@@ -3185,11 +3185,11 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
  * Edges are taken as written and expanded here: one declared on a parent means
  * every leaf beneath its predecessor has its **reached slice** finish before
  * every leaf beneath its successor starts. Which slice that is comes from the
- * project's own `reach` and from nothing else — {@link reachedSliceOf} — so
+ * work package's own `reach` and from nothing else — {@link reachedSliceOf} — so
  * this pass holds "all of 010 before any of 020" and "all of 010's first
  * estimated step before any of 020" with one line of difference between them.
  * `whole-item` is the default and Dany's 2026-08-29 call; `anchor-slice` is the
- * rule of 2026-08-11, which a project now asks for.
+ * rule of 2026-08-11, which a work package now asks for.
  *
  * On the **successor** side the edge lands on the first slice plain under
  * either reach, never the first estimated one and never the last: either would
@@ -3218,7 +3218,7 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
  * the slice they held back — see {@link SpanAnchor}.
  *
  * Everything here is an offset from day zero, in **working days**. The calendar
- * lives one layer up: `work-item.service` turns the project's start date and
+ * lives one layer up: `work-item.service` turns the work package's start date and
  * these offsets into dates with `addWorkdays`, and turns a manual "start no
  * earlier than" date back into the `notBefore` offsets below. Keeping the pass
  * itself in numbers means weekends are counted in exactly one place.
@@ -3238,7 +3238,7 @@ export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
  * storage type cannot come back without lint failing.
  *
  * Proof: `import { verifyToken } from '@wbs/auth'` (auth is `runtime:bun`)
- * watched failing on `A project tagged with "runtime:isomorphic" can only
+ * watched failing on `A workPackage tagged with "runtime:isomorphic" can only
  * depend on libs tagged with "runtime:isomorphic"`, and clean with it removed
  * (2026-09-02). The same rule also fires on a relative reach into
  * `'../../../apps/wbs/be-01/src/repository'`, but reports it as an ENOENT stack out
@@ -3276,12 +3276,12 @@ export function schedule(
    */
   poolSizes: PoolSizes = new Map(),
   /**
-   * How far into a predecessor a dependency reaches — the project's own
-   * setting, read from `project.dep_reach` and never supplied by a client.
+   * How far into a predecessor a dependency reaches — the work package's own
+   * setting, read from `workPackage.dep_reach` and never supplied by a client.
    *
    * Defaulted to `whole-item` because that is the column's default and the rule
    * every plan takes unless it asks otherwise; a call that omits it schedules
-   * the way an unmigrated caller's project would. The arm it selects is
+   * the way an unmigrated caller's work package would. The arm it selects is
    * {@link reachedSliceOf}'s, and nothing downstream of the edge join knows
    * which one produced the answer.
    */
@@ -3358,11 +3358,11 @@ export function schedule(
    */
   pinnedStarts?: ReadonlyMap<string, number>,
   /**
-   * Every person's bookings in the projects that outrank this one, on this
-   * project's workday offsets — the ninth field of {@link ScheduleInput}, and
+   * Every person's bookings in the work packages that outrank this one, on this
+   * work package's workday offsets — the ninth field of {@link ScheduleInput}, and
    * the tenth argument here, after `pinnedStarts`, so every existing caller's
    * positions stand;
-   * `share-people-across-projects` slice 4, ADR 0034.
+   * `share-people-across-work-packages` slice 4, ADR 0034.
    *
    * No slice of a person is placed across one of their bookings, and a slice
    * whose start a booking set reads `boundBy: 'elsewhere'` with the holder.
@@ -3379,8 +3379,8 @@ export function schedule(
    */
   elsewhere: Elsewhere = new Map(),
   /**
-   * How many units of each resource this project's plan may use, by resource
-   * id — the project's stated resource capacities (`wbs-resources` R1 and R5),
+   * How many units of each resource this work package's plan may use, by resource
+   * id — the work package's stated resource capacities (`wbs-resources` R1 and R5),
    * the tenth field of {@link ScheduleInput} and the eleventh argument here.
    *
    * A resource is a pool exactly as a sized team is: every slice demanding it
@@ -3525,7 +3525,7 @@ export function scheduleResolved(
     return found;
   };
 
-  // The graph already carries each project's resolved workflow, reach and
+  // The graph already carries each work package's resolved workflow, reach and
   // authored relationships; placement must not reinterpret them under one reach.
   const resolvedEdges = input.graph.edges;
   const weightedEdges: WeightedEdge[] = [];
@@ -3619,17 +3619,17 @@ export function scheduleResolved(
     };
   });
   const order = input.order;
-  const projectOrder = nodes.map((node) => {
+  const workPackageOrder = nodes.map((node) => {
     if (order.kind === 'local') return { id: '', rank: 0 };
-    const id = order.projectIdByWorkItem.get(node.slice.workItemId);
-    // Proof: replacing absent ownership with project A made the singleton
+    const id = order.workPackageIdByWorkItem.get(node.slice.workItemId);
+    // Proof: replacing absent ownership with work package A made the singleton
     // `connected ownership` refusal test return a schedule.
-    if (id === undefined) throw new Error('resolved order missing project ownership');
-    const rank = order.rankByProject.get(id);
+    if (id === undefined) throw new Error('resolved order missing work package ownership');
+    const rank = order.rankByWorkPackage.get(id);
     // Proof: removing this guard admitted a missing rank; removing only its
     // finite-number arm admitted NaN (`connected rank` / `connected nonfinite`).
     if (rank === undefined || !Number.isFinite(rank))
-      throw new Error('resolved order missing or invalid project rank');
+      throw new Error('resolved order missing or invalid work package rank');
     return { id, rank };
   });
 
@@ -3677,7 +3677,7 @@ export function scheduleResolved(
    * decided, and two tests failed — `gives the queue to the slice that can
    * start soonest, before the one with less slack` put `kat` on a slice she
    * could not begin for three days and pushed the other out to 5→7, finishing
-   * the project two days later than it needs to; watched 2026-08-09.
+   * the work package two days later than it needs to; watched 2026-08-09.
    *
    * Proof: the priority comparison deleted and 8 of the 11 tests in
    * `schedule-priority.test.ts` failed — `starts the smaller priority first
@@ -3686,13 +3686,15 @@ export function scheduleResolved(
    * `person`; watched 2026-08-11.
    */
   const goesFirst = (left: number, right: number): boolean => {
-    const firstProject = projectOrder[left];
-    const secondProject = projectOrder[right];
+    const firstWorkPackage = workPackageOrder[left];
+    const secondWorkPackage = workPackageOrder[right];
     // Proof: independently deleting rank and ID comparisons made `rank
-    // precedes local priority` and `bytewise project identity` place the wrong
-    // project's slice first on the shared person.
-    if (firstProject.rank !== secondProject.rank) return firstProject.rank < secondProject.rank;
-    if (firstProject.id !== secondProject.id) return firstProject.id < secondProject.id;
+    // precedes local priority` and `bytewise work package identity` place the wrong
+    // work package's slice first on the shared person.
+    if (firstWorkPackage.rank !== secondWorkPackage.rank)
+      return firstWorkPackage.rank < secondWorkPackage.rank;
+    if (firstWorkPackage.id !== secondWorkPackage.id)
+      return firstWorkPackage.id < secondWorkPackage.id;
     const first = priorityOf[left];
     const second = priorityOf[right];
     if (first.slack !== second.slack) return first.slack < second.slack;
@@ -3749,7 +3751,7 @@ export function scheduleResolved(
   const leveled = isWeighted
     ? placeWeightedSlices(graph, weightedEdges, levelOrder, true, sizes, elsewhere, pinnedByNode)
     : placeSlices(graph, levelOrder, true, sizes, elsewhere, pinnedByNode);
-  const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
+  const workPackageFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
   // next, so `float` and `critical` are only true of the plan that comes out if
@@ -3767,7 +3769,7 @@ export function scheduleResolved(
     ? weightedLateTimes(
         graph,
         [...weightedEdges, ...leveled.resourceEdges],
-        projectFinish,
+        workPackageFinish,
         leveled.placed,
         elsewhere,
       )
@@ -3775,7 +3777,7 @@ export function scheduleResolved(
         graph,
         leveled.order,
         augmented,
-        projectFinish,
+        workPackageFinish,
         leveled.placed,
         queues.some((next) => next.length > 0),
         elsewhere,
@@ -3871,7 +3873,7 @@ export function scheduleResolved(
   };
   const plan: Schedule = {
     slices: scheduledSlices,
-    workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
+    workItems: workPackageOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
     waitingForCapacity: waitingOnSlots.size,
     // Proof: present on every plan made `keeps every golden corpus case byte
@@ -3913,7 +3915,7 @@ export function scheduleResolved(
  * before there were slices at all: effort and span are different numbers, and
  * two independent children of 3 and 4 days are 7 days of work in a 4-day branch.
  */
-function projectOntoWorkItems(
+function workPackageOntoWorkItems(
   rows: readonly PlannedRow[],
   index: TreeIndex,
   slicesOf: (workItemId: string) => WorkItemSlices,
@@ -4052,7 +4054,7 @@ function projectOntoWorkItems(
       latestFinish,
       float: leastFloat,
       // A branch is critical when anything inside it is: shortening that leaf
-      // shortens the project, and the branch is where a reader looks first.
+      // shortens the work package, and the branch is where a reader looks first.
       critical: anyCritical,
     });
   }

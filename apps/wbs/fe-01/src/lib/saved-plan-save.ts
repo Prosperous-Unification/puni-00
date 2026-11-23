@@ -14,7 +14,7 @@ import { savedPlanFailureCode } from './saved-plan-api';
  * about listing or comparing without the signature changing to say so.
  */
 export interface SaveDeps {
-  save: (projectId: string, name?: string) => Promise<SavedPlanSaveReply>;
+  save: (workPackageId: string, name?: string) => Promise<SavedPlanSaveReply>;
 }
 
 /**
@@ -49,10 +49,10 @@ interface RunningSave {
 
 /**
  * The saves currently in flight, keyed by the API they went through and then by
- * project — **outside any component**, which is the whole point.
+ * work package — **outside any component**, which is the whole point.
  *
- * A save's owner is the *project*, not the mount that pressed the button. The
- * guard used to be a `useRef` and `ProjectPage` moves one `SavedPlanShelf`
+ * A save's owner is the *work package*, not the mount that pressed the button. The
+ * guard used to be a `useRef` and `WorkPackagePage` moves one `SavedPlanShelf`
  * between the app-header row and the cards renderer's toolbar sheet, so crossing
  * 768px wide or 500px tall replaces the shelf with a fresh instance holding a
  * fresh open lock. Two things then went wrong at once, both deterministic rather
@@ -71,8 +71,8 @@ interface RunningSave {
  */
 const runningSaves = new WeakMap<SaveDeps, Map<string, RunningSave>>();
 
-function runningFor(deps: SaveDeps, projectId: string): RunningSave | undefined {
-  return runningSaves.get(deps)?.get(projectId);
+function runningFor(deps: SaveDeps, workPackageId: string): RunningSave | undefined {
+  return runningSaves.get(deps)?.get(workPackageId);
 }
 
 /**
@@ -91,20 +91,20 @@ function runningFor(deps: SaveDeps, projectId: string): RunningSave | undefined 
  */
 const unclaimedAnswers = new WeakMap<SaveDeps, Map<string, SavedPlanSaveState>>();
 
-function takeUnclaimed(deps: SaveDeps, projectId: string): SavedPlanSaveState | undefined {
-  const byProject = unclaimedAnswers.get(deps);
-  const answer = byProject?.get(projectId);
-  byProject?.delete(projectId);
+function takeUnclaimed(deps: SaveDeps, workPackageId: string): SavedPlanSaveState | undefined {
+  const byWorkPackage = unclaimedAnswers.get(deps);
+  const answer = byWorkPackage?.get(workPackageId);
+  byWorkPackage?.delete(workPackageId);
   return answer;
 }
 
-function leaveUnclaimed(deps: SaveDeps, projectId: string, answer: SavedPlanSaveState): void {
-  let byProject = unclaimedAnswers.get(deps);
-  if (byProject === undefined) {
-    byProject = new Map<string, SavedPlanSaveState>();
-    unclaimedAnswers.set(deps, byProject);
+function leaveUnclaimed(deps: SaveDeps, workPackageId: string, answer: SavedPlanSaveState): void {
+  let byWorkPackage = unclaimedAnswers.get(deps);
+  if (byWorkPackage === undefined) {
+    byWorkPackage = new Map<string, SavedPlanSaveState>();
+    unclaimedAnswers.set(deps, byWorkPackage);
   }
-  byProject.set(projectId, answer);
+  byWorkPackage.set(workPackageId, answer);
 }
 
 /**
@@ -138,13 +138,13 @@ function leaveUnclaimed(deps: SaveDeps, projectId: string, answer: SavedPlanSave
  */
 export function useSavedPlanSave(
   deps: SaveDeps,
-  projectId: string,
+  workPackageId: string,
 ): { readonly state: SavedPlanSaveState; readonly save: (name?: string) => void } {
-  // Seeded rather than always `idle`: a shelf mounted while its project's save
+  // Seeded rather than always `idle`: a shelf mounted while its work package's save
   // is still running must draw the same disabled button the departed one drew,
   // from its very first paint.
   const [state, setState] = useState<SavedPlanSaveState>(() =>
-    runningFor(deps, projectId) === undefined ? { kind: 'idle' } : { kind: 'saving' },
+    runningFor(deps, workPackageId) === undefined ? { kind: 'idle' } : { kind: 'saving' },
   );
   const receive = useCallback((next: SavedPlanSaveState) => {
     setState(next);
@@ -198,18 +198,18 @@ export function useSavedPlanSave(
    * see. `cell-input.tsx` picks the same hook for the same kind of reason.
    */
   useLayoutEffect(() => {
-    const running = runningFor(deps, projectId);
+    const running = runningFor(deps, workPackageId);
     if (running === undefined) {
-      const unclaimed = takeUnclaimed(deps, projectId);
+      const unclaimed = takeUnclaimed(deps, workPackageId);
       setState((current) => unclaimed ?? (current.kind === 'saving' ? { kind: 'idle' } : current));
     } else {
       setState({ kind: 'saving' });
       running.waiting.add(receive);
     }
     return () => {
-      runningFor(deps, projectId)?.waiting.delete(receive);
+      runningFor(deps, workPackageId)?.waiting.delete(receive);
     };
-  }, [deps, projectId, receive]);
+  }, [deps, workPackageId, receive]);
 
   const save = useCallback(
     (name?: string) => {
@@ -217,25 +217,25 @@ export function useSavedPlanSave(
       // one React batch both read the same rendered state and would both pass a
       // `state.kind !== 'saving'` test. The entry is written before the await and
       // read synchronously, which is the only ordering that makes the guard true.
-      let byProject = runningSaves.get(deps);
-      if (byProject === undefined) {
-        byProject = new Map<string, RunningSave>();
-        runningSaves.set(deps, byProject);
+      let byWorkPackage = runningSaves.get(deps);
+      if (byWorkPackage === undefined) {
+        byWorkPackage = new Map<string, RunningSave>();
+        runningSaves.set(deps, byWorkPackage);
       }
-      if (byProject.has(projectId)) return;
+      if (byWorkPackage.has(workPackageId)) return;
       const running: RunningSave = { waiting: new Set([receive]) };
-      const held = byProject;
-      byProject.set(projectId, running);
+      const held = byWorkPackage;
+      byWorkPackage.set(workPackageId, running);
       setState({ kind: 'saving' });
 
       /** One exit for every way a save can end, so no path can skip the release. */
       const settle = (next: SavedPlanSaveState): void => {
         // Released before the state writes and never conditionally: the entry
-        // outlives every component, so a lock left latched here is a project
+        // outlives every component, so a lock left latched here is a work package
         // whose Save button never works again for the rest of the session.
-        held.delete(projectId);
+        held.delete(workPackageId);
         if (running.waiting.size === 0) {
-          leaveUnclaimed(deps, projectId, next);
+          leaveUnclaimed(deps, workPackageId, next);
           return;
         }
         for (const waiting of running.waiting) waiting(next);
@@ -250,7 +250,7 @@ export function useSavedPlanSave(
       // saying so here is one `try`.
       let request: ReturnType<SaveDeps['save']>;
       try {
-        request = name === undefined ? deps.save(projectId) : deps.save(projectId, name);
+        request = name === undefined ? deps.save(workPackageId) : deps.save(workPackageId, name);
       } catch (fault: unknown) {
         settle({ kind: 'error', code: codeOf(fault) });
         return;
@@ -297,7 +297,7 @@ export function useSavedPlanSave(
         .catch((fault: unknown): SavedPlanSaveState => ({ kind: 'error', code: codeOf(fault) }))
         .then(settle);
     },
-    [deps, projectId, receive],
+    [deps, workPackageId, receive],
   );
 
   return { state, save };
@@ -306,11 +306,11 @@ export function useSavedPlanSave(
 const savesOf = new WeakMap<SavedPlans, SaveDeps>();
 
 /**
- * The save of one project's {@link SavedPlans}, as the one {@link SaveDeps}
+ * The save of one work package's {@link SavedPlans}, as the one {@link SaveDeps}
  * identity {@link useSavedPlanSave} keys its running saves by.
  *
  * Cached per facade rather than built by the caller, because the facade is the
- * project runtime's and outlives every mount of the shelf: a shelf moved between
+ * work package runtime's and outlives every mount of the shelf: a shelf moved between
  * the header and the phone's sheet is a fresh component, and only a stable key
  * lets it join the save its predecessor started.
  */
@@ -320,7 +320,7 @@ export function saveOf(savedPlans: SavedPlans): SaveDeps {
   // Proof: on 2026-09-27, building a fresh object on every call here (v1) failed `joins a save
   // started before the shelf moved, rather than sending a second` on `expected [ [ 'p1' ],
   // [ 'p1' ] ] to have a length of 1 but got 2`.
-  const deps: SaveDeps = { save: (_projectId, name) => savedPlans.save(name) };
+  const deps: SaveDeps = { save: (_work_packageId, name) => savedPlans.save(name) };
   savesOf.set(savedPlans, deps);
   return deps;
 }

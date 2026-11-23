@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -10,8 +11,8 @@ export const resourceUse = type({
   id: 'string',
   source: "'reported' | 'runtime'",
   organizationId: 'string | null',
-  projectId: 'string',
-  projectName: 'string',
+  workPackageId: 'string',
+  workPackageName: 'string',
   resourceId: 'string',
   resourceName: 'string',
   unitLabel: 'string',
@@ -88,7 +89,19 @@ const refusals = [
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: manual-permission-schema-field.
+        // The recorded fault broke `validates the manual resource refusal against the full permission catalogue`; restored GREEN.
+        // Proof: manual-permission-schema-vocabulary.
+        // The recorded fault broke `validates the manual resource refusal against the full permission catalogue`; restored GREEN.
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   { status: 409, schema: responseSchema(type({ error: "'conflict'" })) },
   { status: 503, schema: responseSchema(type({ error: "'resource_tracking_unavailable'" })) },
@@ -110,8 +123,8 @@ const page = { 'cursor?': 'string', 'limit?': 'string' } as const;
 /** Registers a reported use; each physical copy is a separate registration request. */
 export const registerResourceUse = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/resource-uses',
-  operationId: 'postApiProjectsByIdResourceUses',
+  path: '/api/work-packages/:id/resource-uses',
+  operationId: 'postApiWorkPackagesByIdResourceUses',
   policies: writes,
   params,
   body: requestSchema(registration),
@@ -123,8 +136,8 @@ export const registerResourceUse = defineEndpointShape({
 });
 export const listResourceUses = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/resource-uses',
-  operationId: 'getApiProjectsByIdResourceUses',
+  path: '/api/work-packages/:id/resource-uses',
+  operationId: 'getApiWorkPackagesByIdResourceUses',
   policies: reads,
   params,
   query: requestSchema(type({ ...page, 'workItemId?': 'string', 'state?': state })),
@@ -143,8 +156,8 @@ export const listResourceUses = defineEndpointShape({
 });
 export const appendResourceUseEvent = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/resource-uses/:useId/events',
-  operationId: 'postApiProjectsByIdResourceUsesByUseIdEvents',
+  path: '/api/work-packages/:id/resource-uses/:useId/events',
+  operationId: 'postApiWorkPackagesByIdResourceUsesByUseIdEvents',
   policies: writes,
   params: useParams,
   body: requestSchema(event),
@@ -157,8 +170,8 @@ export const appendResourceUseEvent = defineEndpointShape({
 });
 export const readResourceUseHistory = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/resource-uses/:useId/history',
-  operationId: 'getApiProjectsByIdResourceUsesByUseIdHistory',
+  path: '/api/work-packages/:id/resource-uses/:useId/history',
+  operationId: 'getApiWorkPackagesByIdResourceUsesByUseIdHistory',
   policies: reads,
   params: useParams,
   query: requestSchema(type(page)),

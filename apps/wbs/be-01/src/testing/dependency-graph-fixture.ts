@@ -1,12 +1,12 @@
-import type { ProjectStore } from '@wbs/core';
+import type { WorkPackageStore } from '@wbs/core';
 import { createLocalDependencyContext, type ServiceDependencyContext } from '@wbs/core';
 import { buildStores } from '@wbs/store-sqlite/build-stores';
 import { OPEN } from '@wbs/store-sqlite/gate';
 
-/** Builds explicit local-only evidence over the test's project store and SQLite connection. */
+/** Builds explicit local-only evidence over the test's work package store and SQLite connection. */
 export function sqliteDependencyContext(
   db: Parameters<typeof buildStores>[0],
-  projects: ProjectStore,
+  workPackages: WorkPackageStore,
 ): ServiceDependencyContext {
-  return createLocalDependencyContext({ ...buildStores(db, OPEN), projects });
+  return createLocalDependencyContext({ ...buildStores(db, OPEN), workPackages });
 }

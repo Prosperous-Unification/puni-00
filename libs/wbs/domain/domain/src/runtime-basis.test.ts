@@ -5,8 +5,8 @@ import { describeRuntimeBasis, type RuntimeBasisInput } from './runtime-basis';
 const basis: RuntimeBasisInput = {
   ledgerId: 'ledger-a',
   organizationId: 'org-a',
-  projectId: 'project-a',
-  projectRevision: 2,
+  workPackageId: 'work-package-a',
+  workPackageRevision: 2,
   workItems: [
     { id: 'b', revision: 4 },
     { id: 'a', revision: 3 },
@@ -17,7 +17,7 @@ describe('runtime basis bytes', () => {
   it('pins every identity and revision in binary id order without mutating rows', () => {
     const rows = structuredClone(basis.workItems);
     expect(describeRuntimeBasis(basis)).toBe(
-      '["wbs-runtime-basis",1,"ledger-a","org-a","project-a",2,[["a",3],["b",4]]]',
+      '["wbs-runtime-basis",1,"ledger-a","org-a","work-package-a",2,[["a",3],["b",4]]]',
     );
     expect(basis.workItems).toEqual(rows);
     expect(describeRuntimeBasis({ ...basis, workItems: [...rows].reverse() })).toBe(
@@ -37,8 +37,8 @@ describe('runtime basis bytes', () => {
   it.each([
     { ledgerId: 'ledger-b' },
     { organizationId: 'org-b' },
-    { projectId: 'project-b' },
-    { projectRevision: 3 },
+    { workPackageId: 'work-package-b' },
+    { workPackageRevision: 3 },
     {
       workItems: [
         { id: 'b', revision: 5 },
@@ -60,15 +60,15 @@ describe('runtime basis bytes', () => {
   it.each([
     { ledgerId: '' },
     { organizationId: '' },
-    { projectId: '' },
+    { workPackageId: '' },
     { ledgerId: undefined },
     { organizationId: undefined },
-    { projectId: undefined },
-    { projectRevision: undefined },
-    { projectRevision: -1 },
-    { projectRevision: 0.5 },
-    { projectRevision: Number.MAX_SAFE_INTEGER + 1 },
-    { projectRevision: NaN },
+    { workPackageId: undefined },
+    { workPackageRevision: undefined },
+    { workPackageRevision: -1 },
+    { workPackageRevision: 0.5 },
+    { workPackageRevision: Number.MAX_SAFE_INTEGER + 1 },
+    { workPackageRevision: NaN },
     { workItems: undefined },
     { workItems: new Array(1) },
     { workItems: [undefined] },

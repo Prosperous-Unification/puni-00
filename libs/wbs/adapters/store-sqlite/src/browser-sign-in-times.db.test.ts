@@ -7,9 +7,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { SqliteBrowserAuthLifecycle } from './browser-auth-lifecycle';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const credential = (digest: string) =>
   ({ kind: 'oidc', userId: 'mia', digest: digest.repeat(64), expiresAt: 9_000_000 }) as const;
 
@@ -19,15 +21,22 @@ const credential = (digest: string) =>
  */
 describe('browser sign-in times', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-sign-in-times-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   });
 
   afterEach(() => {
+    // Proof: sqlite-cohort1-v233-browser-sign-in-times injected a throw after
+    // real close returned. Omission deleted this directory; restoration retained
+    // it. This did not inject a leaked native handle.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 

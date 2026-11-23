@@ -15,8 +15,8 @@ import type { ResourceScope } from './organization-context';
 export const OPENAPI_SPEC_PATH = '/api/openapi.json';
 
 export const SAVED_PLAN_SPEC_PATHS = [
-  '/api/projects/{id}/saved-plans',
-  '/api/projects/{id}/saved-plans/compare',
+  '/api/work-packages/{id}/saved-plans',
+  '/api/work-packages/{id}/saved-plans/compare',
   '/api/saved-plans/{id}',
 ] as const;
 
@@ -73,12 +73,12 @@ export type SavedPlanRenameReply = ClientReply<typeof renameSavedPlan>;
 export type SavedPlanRemoveReply = ClientReply<typeof deleteSavedPlan>;
 
 export interface SavedPlanApi {
-  list(projectId: string): Promise<SavedPlanListReply>;
-  save(projectId: string, name?: string): Promise<SavedPlanSaveReply>;
+  list(workPackageId: string): Promise<SavedPlanListReply>;
+  save(workPackageId: string, name?: string): Promise<SavedPlanSaveReply>;
   rename(savedPlanId: string, name: string): Promise<SavedPlanRenameReply>;
   remove(savedPlanId: string): Promise<SavedPlanRemoveReply>;
   compare(
-    projectId: string,
+    workPackageId: string,
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
   ): Promise<SavedPlanCompareReply>;
@@ -136,17 +136,19 @@ export function httpSavedPlanApi(scope?: ResourceScope): SavedPlanApi {
     scope,
   );
   return {
-    async list(projectId) {
-      const reply = await client['getApiProjectsByIdSaved-plans']({ params: { id: projectId } });
+    async list(workPackageId) {
+      const reply = await client['getApiWorkPackagesByIdSaved-plans']({
+        params: { id: workPackageId },
+      });
       if (reply.kind !== 'success') return reply;
       return {
         ...reply,
         body: { savedPlans: reply.body.savedPlans.map(listEntry) },
       };
     },
-    async save(projectId, name) {
-      const reply = await client['postApiProjectsByIdSaved-plans']({
-        params: { id: projectId },
+    async save(workPackageId, name) {
+      const reply = await client['postApiWorkPackagesByIdSaved-plans']({
+        params: { id: workPackageId },
         body: { name },
       });
       if (reply.kind !== 'success') return reply;
@@ -161,17 +163,17 @@ export function httpSavedPlanApi(scope?: ResourceScope): SavedPlanApi {
     remove(savedPlanId) {
       return client['deleteApiSaved-plansById']({ params: { id: savedPlanId } });
     },
-    async compare(projectId, left, right) {
-      const reply = await client['getApiProjectsByIdSaved-plansCompare']({
-        params: { id: projectId },
+    async compare(workPackageId, left, right) {
+      const reply = await client['getApiWorkPackagesByIdSaved-plansCompare']({
+        params: { id: workPackageId },
         query: { left: sideParam(left), right: sideParam(right) },
       });
       if (reply.kind !== 'success') return reply;
       // Proof: bypassing either binding accepted schema-valid swapped sources or
       // foreign target IDs in saved-plan-history.test.tsx (four negative cases).
       if (
-        !matchesSide(reply.body.left, left, projectId) ||
-        !matchesSide(reply.body.right, right, projectId)
+        !matchesSide(reply.body.left, left, workPackageId) ||
+        !matchesSide(reply.body.right, right, workPackageId)
       ) {
         return {
           kind: 'failure',
@@ -192,7 +194,7 @@ export function httpSavedPlanApi(scope?: ResourceScope): SavedPlanApi {
 function matchesSide(
   summary: SavedPlanSideSummary,
   side: SavedPlanSideRef,
-  projectId: string,
+  workPackageId: string,
 ): boolean {
   const sourceMatches =
     side === 'current'
@@ -200,6 +202,7 @@ function matchesSide(
       : summary.source.kind === 'saved' && summary.source.savedPlanId === side.saved;
   return (
     sourceMatches &&
-    (summary.provenance.kind !== 'connected' || summary.provenance.targetProjectId === projectId)
+    (summary.provenance.kind !== 'connected' ||
+      summary.provenance.targetWorkPackageId === workPackageId)
   );
 }

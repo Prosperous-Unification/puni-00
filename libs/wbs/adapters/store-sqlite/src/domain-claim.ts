@@ -9,37 +9,30 @@ import type {
   RetainedDomainProof,
   WriteStamp,
 } from '@wbs/core';
+import { retainSecurityPrincipal, type SecurityPrincipal } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
-import { readVerificationSnapshot } from './domain-verification';
+import { readVerificationSnapshotIn } from './domain-verification';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { loadPublicEmailPolicy } from './public-email-policy';
-import {
-  organizationDomainClaim,
-  organizationMembership,
-  organizationSsoConnection,
-} from './schema';
-
-/** A pending claim with its current challenge; only the token's digest is stored. */
-export interface OpenedDomainClaim {
-  readonly id: string;
-  readonly organizationId: string;
-  /** Already canonical: lowercase ASCII IDNA, checked against the public-domain policy. */
-  readonly domain: string;
-  readonly challengeDigest: string;
-  readonly challengeExpiresAt: number;
-}
+import { organizationDomainClaim, organizationSsoConnection } from './schema';
+import { readSecurityRefusal, runSecurityTransaction } from './security-transaction';
 
 /**
  * Domain claims and their single verified owner. Initial challenge issuance
- * is mounted only after activation and checks current super-admin authority;
+ * is mounted only after activation and checks current organization.manage_security grants;
  * DNS verification and retained proof checks are available through injected
  * ports; boot schedules retained checks only with authoritative DNS configuration.
+ *
+ * Proof: retired-method-openClaim; reintroduced the retired callable.
+ * 'does not expose the retired ungated domain API openClaim' (organization-records.db.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-method-promoteClaim; reintroduced the retired callable.
+ * 'does not expose the retired ungated domain API promoteClaim' (organization-records.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export class DomainClaimRepository implements DomainChallenges, DomainProofChecks {
   constructor(
@@ -189,7 +182,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
    */
   async rotateClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
     token: string,
     stamp: WriteStamp,
@@ -197,63 +190,52 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     | { kind: 'issued'; domain: string; dnsValue: string }
     | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
   > {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      return this.db.transaction(
-        (tx) => {
-          // Proof: 2026-09-28, bypassing this marker made `refuses rotation before
-          // activation and after super-admin demotion` issue a store proof before activation.
-          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
-          const member = tx
-            .select({ role: organizationMembership.role })
-            .from(organizationMembership)
-            .where(
-              and(
-                eq(organizationMembership.organizationId, organizationId),
-                eq(organizationMembership.userId, actorId),
-              ),
-            )
-            .get();
-          // Proof: 2026-09-28, bypassing this check made mounted rotation after
-          // demotion issue a new proof rather than 403.
-          if (member?.role !== 'super_admin') return { kind: 'forbidden' } as const;
-          const claim = tx
-            .select()
-            .from(organizationDomainClaim)
-            .where(
-              and(
-                eq(organizationDomainClaim.id, claimId),
-                eq(organizationDomainClaim.organizationId, organizationId),
-              ),
-            )
-            .get();
-          if (claim === undefined) return { kind: 'not_found' } as const;
-          if (claim.status !== 'verified' && claim.status !== 'suspended')
-            return { kind: 'stale' } as const;
-          // Proof: 2026-09-28, treating this trusted corruption as stale made
-          // mounted `throws for a verified claim with a missing retained proof
-          // digest on rotation` return 409 after the stored digest was forced NULL.
-          if (claim.proofDigest === null)
-            throw new Error(`verified domain ${claim.id} lacks retained proof digest`);
-          if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
-            return { kind: 'stale' } as const;
-          const dnsValue = `wbs-domain-verification=${organizationId}:${claim.domain}:${token}`;
-          const challengeDigest = createHash('sha256').update(dnsValue).digest('hex');
-          tx.update(organizationDomainClaim)
-            .set({
-              proofDigest: challengeDigest,
-              previousProofDigest: claim.proofDigest,
-              previousProofValidUntil: stamp.at + 86_400_000,
-              challengeDigest: null,
-              challengeExpiresAt: null,
-              ...auditOnUpdate(stamp),
-            })
-            .where(eq(organizationDomainClaim.id, claimId))
-            .run();
-          return { kind: 'issued', domain: claim.domain, dnsValue } as const;
-        },
-        { behavior: 'immediate' },
-      );
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-rotate) failed `retains the actual queued security principal and current grant at domain-rotate`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-stamp-domain-rotate) failed `retains detached queued security stamps and audit actors at domain-rotate`; restored GREEN.
+    stamp = structuredClone(stamp);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      // Proof: 2026-09-28, bypassing this marker made `refuses rotation before
+      // activation and after super-admin demotion` issue a store proof before activation.
+      if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-domain-rotate) failed `encodes a current grant denial before effects at domain-rotate`; restored GREEN.
+      if (refusal !== null) return { kind: refusal } as const;
+      const claim = tx
+        .select()
+        .from(organizationDomainClaim)
+        .where(
+          and(
+            eq(organizationDomainClaim.id, claimId),
+            eq(organizationDomainClaim.organizationId, organizationId),
+          ),
+        )
+        .get();
+      if (claim === undefined) return { kind: 'not_found' } as const;
+      if (claim.status !== 'verified' && claim.status !== 'suspended')
+        return { kind: 'stale' } as const;
+      // Proof: 2026-09-28, treating this trusted corruption as stale made
+      // mounted `throws for a verified claim with a missing retained proof
+      // digest on rotation` return 409 after the stored digest was forced NULL.
+      if (claim.proofDigest === null)
+        throw new Error(`verified domain ${claim.id} lacks retained proof digest`);
+      if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
+        return { kind: 'stale' } as const;
+      const dnsValue = `wbs-domain-verification=${organizationId}:${claim.domain}:${token}`;
+      const challengeDigest = createHash('sha256').update(dnsValue).digest('hex');
+      tx.update(organizationDomainClaim)
+        .set({
+          proofDigest: challengeDigest,
+          previousProofDigest: claim.proofDigest,
+          previousProofValidUntil: stamp.at + 86_400_000,
+          challengeDigest: null,
+          challengeExpiresAt: null,
+          ...auditOnUpdate(stamp),
+        })
+        .where(eq(organizationDomainClaim.id, claimId))
+        .run();
+      return { kind: 'issued', domain: claim.domain, dnsValue } as const;
     });
   }
 
@@ -280,167 +262,155 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Reads the current organization's verifiable claim after role and marker checks. */
+  /** Reads the current organization's verifiable claim after current grant and marker checks. */
   async readClaimForVerification(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
   ): Promise<DomainVerificationSnapshot | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
-    await Promise.resolve();
-    return readVerificationSnapshot(
-      this.db,
-      organizationId,
-      actorId,
-      claimId,
-      this.policyDirectory,
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-capture) failed `retains the actual queued security principal and current grant at domain-capture`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+    return runSecurityTransaction(this.db, this.gate, async (tx) =>
+      readVerificationSnapshotIn(tx, organizationId, principal, claimId, this.policyDirectory),
     );
   }
 
   /** Promotes a matching snapshot under an immediate write lock and current authority. */
   async verifyClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
     now: () => number,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'> {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-verify) failed `retains the actual queued security principal and current grant at domain-verify`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-stamp-domain-verify) failed `retains detached queued security stamps and audit actors at domain-verify`; restored GREEN.
+    stamp = structuredClone(stamp);
+    // Proof: dropping this detached snapshot (snapshot-payload-verifyClaim-claim) failed `retains a domain verification snapshot before its writer queue`; restored GREEN.
+    claim = structuredClone(claim);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
       try {
-        return this.db.transaction(
-          (tx) => {
-            // Proof: 2026-09-28, bypassing the commit marker read made store
-            // `keeps both verification phases inert before activation` promote a pending claim.
-            if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
-            const member = tx
-              .select({ role: organizationMembership.role })
-              .from(organizationMembership)
-              .where(
-                and(
-                  eq(organizationMembership.organizationId, organizationId),
-                  eq(organizationMembership.userId, actorId),
-                ),
-              )
-              .get();
-            // Proof: 2026-09-28, bypassing this recheck let the mounted late-demotion test promote a claim.
-            if (member?.role !== 'super_admin') return 'forbidden' as const;
-            const current = tx
-              .select()
-              .from(organizationDomainClaim)
-              .where(
-                and(
-                  eq(organizationDomainClaim.id, claim.id),
-                  eq(organizationDomainClaim.organizationId, organizationId),
-                ),
-              )
-              .get();
-            // Proof: 2026-09-28, replacing this missing-row answer with stale made mounted
-            // `retains a suspended owner until release and refuses a stale recovery after release`
-            // return 409 rather than 404 after release during DNS lookup.
-            if (current === undefined) return 'not_found' as const;
-            // Proof: 2026-09-28, removing this check made mounted `surfaces pending
-            // proof fields corrupted during DNS lookup as a server error` answer
-            // 409 stale for a pending row whose digest and expiry became NULL.
-            if (
-              current.status === 'pending' &&
-              (current.challengeDigest === null || current.challengeExpiresAt === null)
-            )
-              throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
-            if (claim.phase === 'rotation' || claim.phase === 'recovery') {
-              // Proof: 2026-09-28, clearing a suspended owner's retained digest
-              // during DNS lookup made mounted `throws when a suspended claim loses
-              // its retained digest during DNS lookup` answer stale 409 without this guard.
-              // Both previous fields null is the normal state after a competing
-              // verify or a worker's current match ends the overlap during this
-              // lookup; the snapshot comparison below answers stale. Only a split
-              // pair is corrupt.
-              // Proof: 2026-09-29, requiring both previous fields for a rotation
-              // snapshot made mounted `answers stale when a concurrent verify
-              // completes the rotation during DNS lookup` answer [200, 500].
-              // Proof: 2026-09-29, removing the split-pair clause made mounted
-              // `throws when a rotation overlap pair splits during DNS lookup`
-              // answer stale 409 after previous_proof_valid_until was forced NULL.
-              if (
-                (current.status === 'verified' || current.status === 'suspended') &&
-                (current.proofDigest === null ||
-                  current.lastSuccessAt === null ||
-                  current.lastCheckedAt === null ||
-                  (current.previousProofDigest === null) !==
-                    (current.previousProofValidUntil === null))
-              )
-                throw new Error(`owned domain ${current.id} lacks retained proof state`);
-              // Proof: 2026-09-28, omitting this branch made mounted `confirms a
-              // rotated proof through verify before the overlap ends` answer stale.
-              // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
-              // comparison made mounted `rechecks rotation snapshot after DNS
-              // lookup` return 200 after the stored deadline changed during DNS.
-              if (
-                current.status !== (claim.phase === 'rotation' ? 'verified' : 'suspended') ||
-                current.domain !== claim.domain ||
-                current.proofDigest !== claim.challengeDigest ||
-                current.previousProofDigest !== claim.previousProofDigest ||
-                current.previousProofValidUntil !== claim.previousProofValidUntil ||
-                observedDigest !== claim.challengeDigest
-              )
-                return 'stale' as const;
-              if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
-                return 'stale' as const;
-              tx.update(organizationDomainClaim)
-                .set({
-                  // Proof: 2026-09-28, retaining `suspended` made mounted
-                  // `restores a suspended claim through retained TXT proof without changing owner` observe false onboarding status.
-                  status: 'verified',
-                  previousProofDigest: null,
-                  previousProofValidUntil: null,
-                  lastSuccessAt: stamp.at,
-                  lastCheckedAt: stamp.at,
-                  ...auditOnUpdate(stamp),
-                })
-                .where(eq(organizationDomainClaim.id, claim.id))
-                .run();
-              return 'verified' as const;
-            }
-            // Proof: 2026-09-28, before this comparison mounted `refuses a claim
-            // whose domain changes during DNS lookup` promoted the renamed row (200 instead of 409).
-            // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
-            if (
-              current.status !== 'pending' ||
-              current.domain !== claim.domain ||
-              current.challengeDigest !== claim.challengeDigest ||
-              current.challengeExpiresAt !== claim.challengeExpiresAt ||
-              // Proof: 2026-09-28, bypassing this expiry recheck made mounted
-              // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
-              // Proof: 2026-09-28, replacing this transaction-time read with
-              // stamp.at made `refuses a challenge that expires while verification
-              // waits for the write gate` promote the expired claim.
-              current.challengeExpiresAt <= now() ||
-              observedDigest !== claim.challengeDigest
-            )
-              return 'stale' as const;
-            // Proof: 2026-09-28, bypassing this policy recheck made mounted
-            // `rechecks challenge expiry and maintained policy after DNS lookup` promote a newly denied domain (200 instead of 409).
-            if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
-              return 'stale' as const;
-            // Proof: 2026-09-28, dropping organization_domain_claim_owner made
-            // mounted `settles concurrent DNS lookups with one owner and an
-            // untouched losing proof` verify both claims (200, 200).
-            tx.update(organizationDomainClaim)
-              .set({
-                status: 'verified',
-                proofDigest: current.challengeDigest,
-                challengeDigest: null,
-                challengeExpiresAt: null,
-                lastSuccessAt: stamp.at,
-                lastCheckedAt: stamp.at,
-                ...auditOnUpdate(stamp),
-              })
-              .where(eq(organizationDomainClaim.id, claim.id))
-              .run();
-            return 'verified' as const;
-          },
-          { behavior: 'immediate' },
-        );
+        // Proof: 2026-09-28, bypassing the commit marker read made store
+        // `keeps both verification phases inert before activation` promote a pending claim.
+        if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
+        const refusal = await readSecurityRefusal(tx, organizationId, principal);
+        // Proof: bypassing this current permission check (permission-domain-verify) failed `rechecks current security grants after the lookup`; restored GREEN.
+        if (refusal !== null) return refusal;
+        const current = tx
+          .select()
+          .from(organizationDomainClaim)
+          .where(
+            and(
+              eq(organizationDomainClaim.id, claim.id),
+              eq(organizationDomainClaim.organizationId, organizationId),
+            ),
+          )
+          .get();
+        // Proof: 2026-09-28, replacing this missing-row answer with stale made mounted
+        // `retains a suspended owner until release and refuses a stale recovery after release`
+        // return 409 rather than 404 after release during DNS lookup.
+        if (current === undefined) return 'not_found' as const;
+        // Proof: 2026-09-28, removing this check made mounted `surfaces pending
+        // proof fields corrupted during DNS lookup as a server error` answer
+        // 409 stale for a pending row whose digest and expiry became NULL.
+        if (
+          current.status === 'pending' &&
+          (current.challengeDigest === null || current.challengeExpiresAt === null)
+        )
+          throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
+        if (claim.phase === 'rotation' || claim.phase === 'recovery') {
+          // Proof: 2026-09-28, clearing a suspended owner's retained digest
+          // during DNS lookup made mounted `throws when a suspended claim loses
+          // its retained digest during DNS lookup` answer stale 409 without this guard.
+          // Both previous fields null is the normal state after a competing
+          // verify or a worker's current match ends the overlap during this
+          // lookup; the snapshot comparison below answers stale. Only a split
+          // pair is corrupt.
+          // Proof: 2026-09-29, requiring both previous fields for a rotation
+          // snapshot made mounted `answers stale when a concurrent verify
+          // completes the rotation during DNS lookup` answer [200, 500].
+          // Proof: 2026-09-29, removing the split-pair clause made mounted
+          // `throws when a rotation overlap pair splits during DNS lookup`
+          // answer stale 409 after previous_proof_valid_until was forced NULL.
+          if (
+            (current.status === 'verified' || current.status === 'suspended') &&
+            (current.proofDigest === null ||
+              current.lastSuccessAt === null ||
+              current.lastCheckedAt === null ||
+              (current.previousProofDigest === null) !== (current.previousProofValidUntil === null))
+          )
+            throw new Error(`owned domain ${current.id} lacks retained proof state`);
+          // Proof: 2026-09-28, omitting this branch made mounted `confirms a
+          // rotated proof through verify before the overlap ends` answer stale.
+          // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
+          // comparison made mounted `rechecks rotation snapshot after DNS
+          // lookup` return 200 after the stored deadline changed during DNS.
+          if (
+            current.status !== (claim.phase === 'rotation' ? 'verified' : 'suspended') ||
+            current.domain !== claim.domain ||
+            current.proofDigest !== claim.challengeDigest ||
+            current.previousProofDigest !== claim.previousProofDigest ||
+            current.previousProofValidUntil !== claim.previousProofValidUntil ||
+            observedDigest !== claim.challengeDigest
+          )
+            return 'stale' as const;
+          if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
+            return 'stale' as const;
+          tx.update(organizationDomainClaim)
+            .set({
+              // Proof: 2026-09-28, retaining `suspended` made mounted
+              // `restores a suspended claim through retained TXT proof without changing owner` observe false onboarding status.
+              status: 'verified',
+              previousProofDigest: null,
+              previousProofValidUntil: null,
+              lastSuccessAt: stamp.at,
+              lastCheckedAt: stamp.at,
+              ...auditOnUpdate(stamp),
+            })
+            .where(eq(organizationDomainClaim.id, claim.id))
+            .run();
+          return 'verified' as const;
+        }
+        // Proof: 2026-09-28, before this comparison mounted `refuses a claim
+        // whose domain changes during DNS lookup` promoted the renamed row (200 instead of 409).
+        // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
+        if (
+          current.status !== 'pending' ||
+          current.domain !== claim.domain ||
+          current.challengeDigest !== claim.challengeDigest ||
+          current.challengeExpiresAt !== claim.challengeExpiresAt ||
+          // Proof: 2026-09-28, bypassing this expiry recheck made mounted
+          // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
+          // Proof: 2026-09-28, replacing this transaction-time read with
+          // stamp.at made `refuses a challenge that expires while verification
+          // waits for the write gate` promote the expired claim.
+          current.challengeExpiresAt <= now() ||
+          observedDigest !== claim.challengeDigest
+        )
+          return 'stale' as const;
+        // Proof: 2026-09-28, bypassing this policy recheck made mounted
+        // `rechecks challenge expiry and maintained policy after DNS lookup` promote a newly denied domain (200 instead of 409).
+        if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
+          return 'stale' as const;
+        // Proof: 2026-09-28, dropping organization_domain_claim_owner made
+        // mounted `settles concurrent DNS lookups with one owner and an
+        // untouched losing proof` verify both claims (200, 200).
+        tx.update(organizationDomainClaim)
+          .set({
+            status: 'verified',
+            proofDigest: current.challengeDigest,
+            challengeDigest: null,
+            challengeExpiresAt: null,
+            lastSuccessAt: stamp.at,
+            lastCheckedAt: stamp.at,
+            ...auditOnUpdate(stamp),
+          })
+          .where(eq(organizationDomainClaim.id, claim.id))
+          .run();
+        return 'verified' as const;
       } catch (error) {
         if (isUniqueViolation(error, UNIQUE_INDEXES.verifiedDomainOwner)) return 'taken';
         throw error;
@@ -451,108 +421,82 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
   /** Deletes one current organization's claim and invalidates older pending proofs for transfer. */
   async releaseClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
   ): Promise<
     'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive' | 'sso_connection_exists'
   > {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      // Proof: 2026-09-28, removing this transaction and injecting an
-      // owner-delete abort made mounted `rolls back pending proof deletion
-      // when owner deletion fails` lose the pending claim.
-      return this.db.transaction(
-        (tx) => {
-          // Proof: 2026-09-28, bypassing this marker made mounted
-          // `refuses release before activation, after demotion, and for a foreign claim`
-          // return not_found instead of inactive through the production store.
-          if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
-          const member = tx
-            .select({ role: organizationMembership.role })
-            .from(organizationMembership)
-            .where(
-              and(
-                eq(organizationMembership.organizationId, organizationId),
-                eq(organizationMembership.userId, actorId),
-              ),
-            )
-            .get();
-          // Proof: 2026-09-28, allowing a current non-super-admin made mounted
-          // `refuses release before activation, after demotion, and for a foreign claim`
-          // release the owned row after demotion instead of returning 403.
-          if (member?.role !== 'super_admin') return 'forbidden' as const;
-          const claim = tx
-            .select()
-            .from(organizationDomainClaim)
-            .where(
-              and(
-                eq(organizationDomainClaim.id, claimId),
-                // Proof: 2026-09-28, omitting this organization predicate made mounted
-                // `refuses release before activation, after demotion, and for a foreign claim`
-                // delete the foreign claim instead of returning 404.
-                eq(organizationDomainClaim.organizationId, organizationId),
-              ),
-            )
-            .get();
-          if (claim === undefined) return 'not_found' as const;
-          // Proof: 2026-09-28, admitting pending claims made mounted
-          // `releases ownership and requires a fresh claim before another organization can verify`
-          // return 204 instead of stale 409 before initial proof.
-          if (claim.status !== 'verified' && claim.status !== 'suspended') return 'stale' as const;
-          // A connection routes logins and vouches for emails on this domain;
-          // the super-admin deletes it first (`organization-sso`).
-          // Proof: 2026-10-12, dropping this check made mounted `refuses
-          // releasing a domain while a connection names it` in
-          // `sso-connection.controller.db.test.ts` fail its 409.
-          const connected = tx
-            .select({ id: organizationSsoConnection.id })
-            .from(organizationSsoConnection)
-            .where(eq(organizationSsoConnection.domainClaimId, claimId))
-            .get();
-          if (connected !== undefined) return 'sso_connection_exists' as const;
-          // Proof: 2026-09-28, keeping pre-release pending rows made mounted
-          // `releases ownership and requires a fresh claim before another organization can verify`
-          // accept B's old proof instead of returning 404.
-          // Proof: 2026-09-28, removing the domain predicate made mounted
-          // `keeps unrelated pending claims when an owner releases its domain`
-          // delete org-b's example.net claim.
-          tx.delete(organizationDomainClaim)
-            .where(
-              and(
-                eq(organizationDomainClaim.domain, claim.domain),
-                eq(organizationDomainClaim.status, 'pending'),
-              ),
-            )
-            .run();
-          tx.delete(organizationDomainClaim).where(eq(organizationDomainClaim.id, claimId)).run();
-          return 'released' as const;
-        },
-        { behavior: 'immediate' },
-      );
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-release) failed `retains the actual queued security principal and current grant at domain-release`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      // Proof: 2026-09-28, bypassing this marker made mounted
+      // `refuses release before activation, after demotion, and for a foreign claim`
+      // return not_found instead of inactive through the production store.
+      if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-domain-release) failed `encodes a current grant denial before effects at domain-release`; restored GREEN.
+      if (refusal !== null) return refusal;
+      const claim = tx
+        .select()
+        .from(organizationDomainClaim)
+        .where(
+          and(
+            eq(organizationDomainClaim.id, claimId),
+            // Proof: 2026-09-28, omitting this organization predicate made mounted
+            // `refuses release before activation, after demotion, and for a foreign claim`
+            // delete the foreign claim instead of returning 404.
+            eq(organizationDomainClaim.organizationId, organizationId),
+          ),
+        )
+        .get();
+      if (claim === undefined) return 'not_found' as const;
+      // Proof: 2026-09-28, admitting pending claims made mounted
+      // `releases ownership and requires a fresh claim before another organization can verify`
+      // return 204 instead of stale 409 before initial proof.
+      if (claim.status !== 'verified' && claim.status !== 'suspended') return 'stale' as const;
+      // A connection routes logins and vouches for emails on this domain;
+      // a security administrator deletes it first (`organization-sso`).
+      // Proof: 2026-10-12, dropping this check made mounted `refuses
+      // releasing a domain while a connection names it` in
+      // `sso-connection.controller.db.test.ts` fail its 409.
+      const connected = tx
+        .select({ id: organizationSsoConnection.id })
+        .from(organizationSsoConnection)
+        .where(eq(organizationSsoConnection.domainClaimId, claimId))
+        .get();
+      if (connected !== undefined) return 'sso_connection_exists' as const;
+      // Proof: 2026-09-28, keeping pre-release pending rows made mounted
+      // `releases ownership and requires a fresh claim before another organization can verify`
+      // accept B's old proof instead of returning 404.
+      // Proof: 2026-09-28, removing the domain predicate made mounted
+      // `keeps unrelated pending claims when an owner releases its domain`
+      // delete org-b's example.net claim.
+      tx.delete(organizationDomainClaim)
+        .where(
+          and(
+            eq(organizationDomainClaim.domain, claim.domain),
+            eq(organizationDomainClaim.status, 'pending'),
+          ),
+        )
+        .run();
+      tx.delete(organizationDomainClaim).where(eq(organizationDomainClaim.id, claimId)).run();
+      return 'released' as const;
     });
   }
 
   /** Lists exact claims for the organization established by current access. */
   async listClaims(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly DomainClaimSummary[] | 'forbidden'> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const member = tx
-        .select({ role: organizationMembership.role })
-        .from(organizationMembership)
-        .where(
-          and(
-            eq(organizationMembership.organizationId, organizationId),
-            eq(organizationMembership.userId, actorId),
-          ),
-        )
-        .get();
-      // Proof: 2026-09-28, bypassing this role check made mounted `rechecks
-      // super-admin authority after request access resolves` disclose the list
-      // after demotion (200 instead of 403).
-      if (member?.role !== 'super_admin') return 'forbidden';
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-list) failed `retains the actual queued security principal and current grant at domain-list`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-domain-list) failed `encodes a current grant denial before effects at domain-list`; restored GREEN.
+      if (refusal !== null) return 'forbidden';
       return (
         tx
           .select({
@@ -591,11 +535,11 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
    *
    * Proof: 2026-09-28, keeping the old digest on reissue made `reissues a
    * pending claim in place and invalidates its old digest` promote the old
-   * token; bypassing the role recheck made the mounted demoted-admin test issue.
+   * token; the current grant is rechecked before the owner mutates the challenge.
    */
   async reissueClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     domain: string,
     challengeDigest: string,
     challengeExpiresAt: number,
@@ -604,163 +548,59 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   > {
+    // Proof: dropping this detached snapshot (snapshot-principal-domain-challenge) failed `retains the actual queued security principal and current grant at domain-challenge`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-stamp-domain-challenge) failed `retains detached queued security stamps and audit actors at domain-challenge`; restored GREEN.
+    stamp = structuredClone(stamp);
+
     // Proof: 2026-09-28, bypassing gate.enter made `waits for a batch rollback
     // before issuing a durable challenge` answer issued inside the held batch;
     // after rollback the digest was still digest-c-a, not digest-after.
-    return await this.gate.enter(async () => {
-      await Promise.resolve();
-      return this.db.transaction(
-        (tx) => {
-          // Proof: 2026-09-28, bypassing this marker check made `does not issue a
-          // challenge before activation` insert a pending claim.
-          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
-          const member = tx
-            .select({ role: organizationMembership.role })
-            .from(organizationMembership)
-            .where(
-              and(
-                eq(organizationMembership.organizationId, organizationId),
-                eq(organizationMembership.userId, actorId),
-              ),
-            )
-            .get();
-          // Proof: 2026-09-28, bypassing this role recheck made `rechecks
-          // super-admin authority after request access resolves` issue a claim.
-          if (member?.role !== 'super_admin') return { kind: 'forbidden' } as const;
-          const policy = loadPublicEmailPolicy(this.policyDirectory);
-          if (!isClaimableDomain(domain, policy)) return { kind: 'unclaimable' } as const;
-          const existing = tx
-            .select({ id: organizationDomainClaim.id, status: organizationDomainClaim.status })
-            .from(organizationDomainClaim)
-            .where(
-              and(
-                // Proof: 2026-09-28, removing this organization predicate
-                // made mounted `lists only the active organization and never
-                // a foreign challenge` overwrite B's pending digest.
-                eq(organizationDomainClaim.organizationId, organizationId),
-                eq(organizationDomainClaim.domain, domain),
-              ),
-            )
-            .get();
-          if (existing !== undefined) {
-            if (existing.status !== 'pending') return { kind: 'already_claimed' } as const;
-            // Proof: 2026-09-28, leaving the old digest here made `reissues a
-            // pending claim in place and invalidates its old digest` promote it.
-            tx.update(organizationDomainClaim)
-              .set({ challengeDigest, challengeExpiresAt, ...auditOnUpdate(stamp) })
-              .where(eq(organizationDomainClaim.id, existing.id))
-              .run();
-            return { kind: 'issued', id: existing.id } as const;
-          }
-          const id = crypto.randomUUID();
-          tx.insert(organizationDomainClaim)
-            .values({
-              id,
-              organizationId,
-              domain,
-              status: 'pending',
-              challengeDigest,
-              challengeExpiresAt,
-              ...auditOnCreate(stamp),
-            })
-            .run();
-          return { kind: 'issued', id } as const;
-        },
-        { behavior: 'immediate' },
-      );
-    });
-  }
-
-  /**
-   * Records a pending claim, or answers `unclaimable` for a public mailbox
-   * provider, public suffix or top-level domain (see `isClaimableDomain`),
-   * writing nothing. A pending claim reserves nothing.
-   *
-   * @throws when the domain is not canonical.
-   */
-  async openClaim(claim: OpenedDomainClaim, stamp: WriteStamp): Promise<'opened' | 'unclaimable'> {
-    // Proof: skipping this made `never opens or promotes a claim on a public
-    // domain` in `organization-records.db.test.ts` open the claim; watched
-    // 2026-09-28.
-    if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
-      return 'unclaimable';
-    await this.gate.enter(async () => {
-      await Promise.resolve();
-      this.db
-        .insert(organizationDomainClaim)
-        .values({ ...claim, status: 'pending', ...auditOnCreate(stamp) })
-        .run();
-    });
-    return 'opened';
-  }
-
-  /**
-   * Promotes a pending claim whose DNS proof matched `observedDigest` to the
-   * verified owner, retaining that digest as the ownership proof.
-   *
-   * The update is conditioned on the digest and expiry the caller observed, so
-   * an in-flight lookup cannot revive a rotated or expired challenge
-   * (`stale`). The partial unique index `organization_domain_claim_owner`
-   * decides a concurrent race: the loser's update violates it and answers
-   * `taken`.
-   *
-   * Proof: dropping either the digest or the expiry predicate failed `refuses
-   * promotion with a stale or expired challenge` (`Received: "verified"`).
-   * Observed 2026-09-27.
-   *
-   * Answers `unclaimable`, writing nothing, when the claim's domain is one
-   * {@link isClaimableDomain} refuses: a claim opened before the policy
-   * listed it, or written around {@link openClaim}.
-   *
-   * @throws when the stored domain is not canonical.
-   */
-  async promoteClaim(
-    claimId: string,
-    observedDigest: string,
-    stamp: WriteStamp,
-  ): Promise<'verified' | 'taken' | 'stale' | 'unclaimable'> {
-    return await this.gate.enter(async () => {
-      await Promise.resolve();
-      const pending = this.db
-        .select({ domain: organizationDomainClaim.domain })
+    return await runSecurityTransaction(this.db, this.gate, async (tx) => {
+      // Proof: 2026-09-28, bypassing this marker check made `does not issue a
+      // challenge before activation` insert a pending claim.
+      if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-domain-challenge) failed `encodes a current grant denial before effects at domain-challenge`; restored GREEN.
+      if (refusal !== null) return { kind: refusal } as const;
+      const policy = loadPublicEmailPolicy(this.policyDirectory);
+      if (!isClaimableDomain(domain, policy)) return { kind: 'unclaimable' } as const;
+      const existing = tx
+        .select({ id: organizationDomainClaim.id, status: organizationDomainClaim.status })
         .from(organizationDomainClaim)
-        .where(eq(organizationDomainClaim.id, claimId))
+        .where(
+          and(
+            // Proof: 2026-09-28, removing this organization predicate
+            // made mounted `lists only the active organization and never
+            // a foreign challenge` overwrite B's pending digest.
+            eq(organizationDomainClaim.organizationId, organizationId),
+            eq(organizationDomainClaim.domain, domain),
+          ),
+        )
         .get();
-      // A claim opened before the policy listed its domain, or written around
-      // `openClaim`, is still never promoted.
-      // Proof: skipping this made `never opens or promotes a claim on a public
-      // domain` promote the planted claim; watched 2026-09-28.
-      if (
-        pending !== undefined &&
-        !isClaimableDomain(pending.domain, loadPublicEmailPolicy(this.policyDirectory))
-      )
-        return 'unclaimable';
-      try {
-        const promoted = this.db
-          .update(organizationDomainClaim)
-          .set({
-            status: 'verified',
-            proofDigest: observedDigest,
-            challengeDigest: null,
-            challengeExpiresAt: null,
-            lastSuccessAt: stamp.at,
-            lastCheckedAt: stamp.at,
-            ...auditOnUpdate(stamp),
-          })
-          .where(
-            and(
-              eq(organizationDomainClaim.id, claimId),
-              eq(organizationDomainClaim.status, 'pending'),
-              eq(organizationDomainClaim.challengeDigest, observedDigest),
-              gt(organizationDomainClaim.challengeExpiresAt, stamp.at),
-            ),
-          )
+      if (existing !== undefined) {
+        if (existing.status !== 'pending') return { kind: 'already_claimed' } as const;
+        // Proof: 2026-09-28, leaving the old digest here made `reissues a
+        // pending claim in place and invalidates its old digest` promote it.
+        tx.update(organizationDomainClaim)
+          .set({ challengeDigest, challengeExpiresAt, ...auditOnUpdate(stamp) })
+          .where(eq(organizationDomainClaim.id, existing.id))
           .run();
-        return promoted.changes === 1 ? 'verified' : 'stale';
-      } catch (err) {
-        if (isUniqueViolation(err, UNIQUE_INDEXES.verifiedDomainOwner)) return 'taken';
-        throw err;
+        return { kind: 'issued', id: existing.id } as const;
       }
+      const id = crypto.randomUUID();
+      tx.insert(organizationDomainClaim)
+        .values({
+          id,
+          organizationId,
+          domain,
+          status: 'pending',
+          challengeDigest,
+          challengeExpiresAt,
+          ...auditOnCreate(stamp),
+        })
+        .run();
+      return { kind: 'issued', id } as const;
     });
   }
 

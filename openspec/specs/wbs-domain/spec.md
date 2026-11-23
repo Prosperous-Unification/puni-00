@@ -160,7 +160,7 @@ it.
 
 `setStatus` SHALL act on a leaf, or on every leaf beneath a parent, as one journal entry whose
 inverse restores every prior progress statement, readiness, hold and fact date verbatim.
-`done` SHALL write today's done statements on every project step of each target leaf and clear its hold. `in_progress` on a leaf not
+`done` SHALL write today's done statements on every applicable step of each target leaf and clear its hold. `in_progress` on a leaf not
 reading `done` SHALL write `in_progress` on its first step in step order holding no statement,
 fill an empty fact start with `on` or the day of the act, and clear that leaf's hold. On a
 parent it SHALL start one leaf only: the first in tree order holding no progress statement,
@@ -169,7 +169,7 @@ clear the hold of that leaf alone, and a parent already reading `in_progress` SH
 nothing. `in_progress` on a leaf reading `done` SHALL reopen it: its last step in step order
 goes from `done` to `in_progress` and its fact end is cleared while its fact start stays; on a
 parent reading `done` the same SHALL happen on its first leaf in tree order, and the parent's
-own fact end SHALL be cleared too. In a project with no steps `in_progress` and `done` SHALL be
+own fact end SHALL be cleared too. In a work package with no applicable steps `in_progress` and `done` SHALL be
 refused `409 no_steps`, and the menu SHALL NOT offer `in_progress` there. `ready` and `draft` SHALL set readiness and clear the hold, and SHALL
 be refused `409 readiness_after_progress` when a leaf holds any progress statement. `on_hold`
 and `blocked` SHALL set the hold and leave progress, readiness and facts untouched, and SHALL
@@ -209,9 +209,9 @@ When nothing would change, nothing SHALL be written, journalled or announced.
 - **THEN** `QA` reads `in_progress`, `Dev` stays `done`, the fact end is `null`, the fact start is
   `2026-09-01`, and one undo restores `QA: done` and the fact end `2026-09-20`
 
-#### Scenario: a project with no steps cannot be started or finished
+#### Scenario: a work package with no applicable steps cannot be started or finished
 
-- **GIVEN** a project holding no steps and one leaf
+- **GIVEN** a work package holding no applicable steps and one leaf
 - **WHEN** `setStatus` sets the leaf `in_progress` or `done`
 - **THEN** it is refused `409 no_steps`, nothing is written, and the row menu offers neither
 
@@ -372,7 +372,7 @@ outline, its translucent fill and its `?` unchanged.
 
 #### Scenario: the anchor reach still means first _estimated_
 
-- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
+- **GIVEN** a work package on the `anchor-slice` reach, and a predecessor whose first
   step is unestimated and whose second step is estimated
 - **WHEN** the plan is scheduled
 - **THEN** the successor SHALL wait for the **second** step's finish
@@ -556,7 +556,7 @@ done bar's stop. A parent's bracket SHALL stay be-01's projection.
 
 ### Requirement: Dependencies constrain scheduled slices
 
-Legacy dependencies SHALL continue to use the project's dynamic `depReach`, including `anchor-slice`, until explicitly edited. Typed FS dependencies SHALL name a predecessor and a successor endpoint, each `{ scope: whole, workItemId }`, `{ scope: node, stepNodeId }` or `{ scope: descendant-step, workItemId, stepId }`, and SHALL constrain each resolved predecessor step node's finish to no later than each resolved successor step node's start. A whole leaf predecessor SHALL resolve to its last step node and a whole leaf successor to its first. A whole parent SHALL resolve to every descendant leaf, and a descendant-step endpoint to that step's node in every descendant leaf; every resolved predecessor/successor pair SHALL be constrained. A node endpoint SHALL name a leaf's step node; a descendant-step endpoint SHALL name a parent. A project without steps SHALL offer only whole scope, resolved to each leaf's work-item boundary. Unknown step nodes SHALL remain zero-duration graph nodes, irrespective of their visual placeholder width. Resolved typed edges SHALL carry `authored` provenance and their relationship ID beside `workflow` and `legacy` edges.
+Legacy dependencies SHALL continue to use the work package's dynamic `depReach`, including `anchor-slice`, until explicitly edited. Typed FS dependencies SHALL name a predecessor and a successor endpoint, each `{ scope: whole, workItemId }`, `{ scope: node, stepNodeId }` or `{ scope: descendant-step, workItemId, stepId }`, and SHALL constrain each resolved predecessor step node's finish to no later than each resolved successor step node's start. A whole leaf predecessor SHALL resolve to its last step node and a whole leaf successor to its first. A whole parent SHALL resolve to every descendant leaf, and a descendant-step endpoint to that step's node in every descendant leaf; every resolved predecessor/successor pair SHALL be constrained. A node endpoint SHALL name a leaf's step node; a descendant-step endpoint SHALL name a parent. A work package without steps SHALL offer only whole scope, resolved to each leaf's work-item boundary. Unknown step nodes SHALL remain zero-duration graph nodes, irrespective of their visual placeholder width. Resolved typed edges SHALL carry `authored` provenance and their relationship ID beside `workflow` and `legacy` edges.
 
 #### Scenario: Dev handoff overlaps QA
 
@@ -593,12 +593,12 @@ Legacy dependencies SHALL continue to use the project's dynamic `depReach`, incl
 #### Scenario: Legacy anchor remains dynamic
 
 - **GIVEN** an existing dependency under `anchor-slice` reach
-- **WHEN** the project's steps or estimates change without editing that dependency
+- **WHEN** the work package's steps or estimates change without editing that dependency
 - **THEN** it follows the current anchor rule, rather than a pinned explicit endpoint
 
 ### Requirement: Authored dependencies form an acyclic step-node graph
 
-The system SHALL validate the resolved step-node graph, including workflow and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; project `depReach` changes; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-node pairs and any selector expansion producing one, without silently omitting pairs. A valid step-node DAG SHALL NOT be refused merely because work-item IDs appear cyclic. Deleting a step referenced by a node or descendant-step endpoint SHALL be refused until its typed dependencies are removed or reassigned. When a leaf with node endpoints gains its first child, those endpoints SHALL move with the hand-down's step node mapping in the same transaction. Deleting a work item SHALL remove, in the same undoable entry, the typed relationships whose node or descendant-step endpoints lie in the deleted subtree; hand-up of facts SHALL carry no endpoints. A move or deletion that would leave a descendant-step endpoint naming a leaf SHALL be refused naming the affected dependencies. No structural edit SHALL broaden or narrow an endpoint's scope.
+The system SHALL validate the resolved step-node graph, including workflow and legacy edges, before accepting typed or legacy dependency creation, update or removal; reparenting, step insertion, deletion or reordering; work package `depReach` changes; estimate edits that move a dynamic legacy anchor; or undo/redo and batch replay. All relevant writes SHALL validate the combined graph atomically against their resulting tree, step order, estimates and links. A refusal SHALL preserve all earlier state. It SHALL reject directed cycles, self-node pairs and any selector expansion producing one, without silently omitting pairs. A valid step-node DAG SHALL NOT be refused merely because work-item IDs appear cyclic. Deleting a step referenced by a node or descendant-step endpoint SHALL be refused until its typed dependencies are removed or reassigned. When a leaf with node endpoints gains its first child, those endpoints SHALL move with the hand-down's step node mapping in the same transaction. Deleting a work item SHALL remove, in the same undoable entry, the typed relationships whose node or descendant-step endpoints lie in the deleted subtree; hand-up of facts SHALL carry no endpoints. A move or deletion that would leave a descendant-step endpoint naming a leaf SHALL be refused naming the affected dependencies. No structural edit SHALL broaden or narrow an endpoint's scope.
 
 #### Scenario: Apparent work-item cycle is a valid step-node DAG
 
@@ -621,7 +621,7 @@ The system SHALL validate the resolved step-node graph, including workflow and l
 #### Scenario: Changing dependency reach closes a cycle
 
 - **GIVEN** typed `A.qa` → `B.qa` and legacy B → A with `anchor-slice` reach anchored at B.Dev
-- **WHEN** a mounted project update changes `depReach` to `whole-item`
+- **WHEN** a mounted work package update changes `depReach` to `whole-item`
 - **THEN** the resulting combined-graph cycle is refused atomically and `depReach` and links stay unchanged
 
 #### Scenario: A legacy write bypasses a typed edge
@@ -844,21 +844,21 @@ the caret to stand over.
 
 ### Requirement: Calendar labels agree with the date columns
 
-The axis SHALL print calendar labels from the project start date through the
+The axis SHALL print calendar labels from the work package start date through the
 same workday mapping the date columns use, the finish label following the
 ceil−1 rule, so a bar's labelled dates and its row's Start/End cells SHALL
-never disagree. Without a project start date the axis SHALL print workday
+never disagree. Without a work package start date the axis SHALL print workday
 offsets. Weekends SHALL NOT appear on the axis.
 
 #### Scenario: the panel and the columns agree
 
-- **WHEN** the project starts Monday 2026-08-10 and a slice runs 3 → 5
+- **WHEN** the work package starts Monday 2026-08-10 and a slice runs 3 → 5
 - **THEN** the axis places that bar under Thursday 2026-08-13 through Friday
   2026-08-14, exactly the row's Start and End cells
 
 #### Scenario: no start date
 
-- **WHEN** the project has no start date
+- **WHEN** the work package has no start date
 - **THEN** the axis prints workday numbers and no calendar dates
 
 ### Requirement: One switch draws every mark the chart holds back
@@ -880,8 +880,8 @@ hand-off line whose far end is an assumed bar, and a not-before caret on every
 row holding a start date, parents and uncosted leaves among them.
 
 The answer SHALL be remembered by the browser under `wbs.ganttDetail` and SHALL
-survive a reload, a project switch and a remount of the panel. It is one
-preference for this browser, not one per project, and be-01 SHALL never be told
+survive a reload, a work package switch and a remount of the panel. It is one
+preference for this browser, not one per work package, and be-01 SHALL never be told
 about it. A stored answer that is not a boolean SHALL be dropped — the key
 removed and the switch left off — rather than read as anything.
 
@@ -1265,7 +1265,7 @@ restored here as one of the three families the `Detail` switch draws.
 A mark that has something to say beyond its own label SHALL carry those words in
 one of two attributes, and SHALL NOT carry a `title`.
 
-Words about **this project** — an inherited value and the row it came from, a
+Words about **this work package** — an inherited value and the row it came from, a
 computed date, a row's slack, a link's target, a refusal's reason — SHALL be
 carried in `data-fact`. Words about **what a control does** SHALL be carried in
 `data-hint`. A mark SHALL carry one or the other, never both; where the words

@@ -1,14 +1,14 @@
 import { expect, it } from 'bun:test';
 
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 async function connect(firstEvent = false) {
   const forwarded: unknown[] = [];
   const resumed: unknown[] = [];
   const app = buildApp({
     beUrl: 'http://be.invalid',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ingress-test',
@@ -23,7 +23,7 @@ async function connect(firstEvent = false) {
         resumed.push(request.resume_points);
         return Promise.resolve(
           Response.json({
-            'project:00000000-0000-4000-8000-0000000000aa': {
+            'work-package:00000000-0000-4000-8000-0000000000aa': {
               status: 'replaying',
               events: [{ seq: firstEvent ? 0 : 6, message: { kept: true } }],
             },
@@ -125,20 +125,20 @@ it('keeps supported forwarding and resume maps through the real socket boundary'
   try {
     for (const frame of frames) client.socket.send(JSON.stringify(frame));
     client.socket.send(
-      '{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":5}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":5}}',
     );
     await client.until(() =>
       client.received.some((frame) => (frame as { type?: string }).type === 'resume_ack'),
     );
     expect(client.forwarded).toEqual(frames);
-    expect(client.resumed).toEqual([{ 'project:00000000-0000-4000-8000-0000000000aa': 5 }]);
+    expect(client.resumed).toEqual([{ 'work-package:00000000-0000-4000-8000-0000000000aa': 5 }]);
     expect(client.received).toEqual([
       {
-        subscription: 'project:00000000-0000-4000-8000-0000000000aa',
+        subscription: 'work-package:00000000-0000-4000-8000-0000000000aa',
         seq: 6,
         message: { kept: true },
       },
-      { type: 'resume_ack', replayed: { 'project:00000000-0000-4000-8000-0000000000aa': 1 } },
+      { type: 'resume_ack', replayed: { 'work-package:00000000-0000-4000-8000-0000000000aa': 1 } },
     ]);
   } finally {
     await client.close();
@@ -160,20 +160,23 @@ for (const [name, prefix] of [
       client.received.length = 0;
       client.socket.send(prefix + JSON.stringify(forwarded));
       client.socket.send(
-        `${prefix}{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":5}}`,
+        `${prefix}{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":5}}`,
       );
       await client.until(() =>
         client.received.some((frame) => (frame as { type?: string }).type === 'resume_ack'),
       );
       expect(client.forwarded).toEqual([forwarded]);
-      expect(client.resumed).toEqual([{ 'project:00000000-0000-4000-8000-0000000000aa': 5 }]);
+      expect(client.resumed).toEqual([{ 'work-package:00000000-0000-4000-8000-0000000000aa': 5 }]);
       expect(client.received).toEqual([
         {
-          subscription: 'project:00000000-0000-4000-8000-0000000000aa',
+          subscription: 'work-package:00000000-0000-4000-8000-0000000000aa',
           seq: 6,
           message: { kept: true },
         },
-        { type: 'resume_ack', replayed: { 'project:00000000-0000-4000-8000-0000000000aa': 1 } },
+        {
+          type: 'resume_ack',
+          replayed: { 'work-package:00000000-0000-4000-8000-0000000000aa': 1 },
+        },
       ]);
       client.received.length = 0;
       client.socket.send(prefix + JSON.stringify('{"type":"ping"}'));
@@ -192,21 +195,21 @@ it('replays event zero from the covered empty-history cursor on a real socket', 
   const client = await connect(true);
   try {
     client.socket.send(
-      '{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":-1}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":-1}}',
     );
     await client.ping();
     await client.until(() =>
       client.received.some((frame) => (frame as { type?: string }).type === 'resume_ack'),
     );
-    expect(client.resumed).toEqual([{ 'project:00000000-0000-4000-8000-0000000000aa': -1 }]);
+    expect(client.resumed).toEqual([{ 'work-package:00000000-0000-4000-8000-0000000000aa': -1 }]);
     expect(client.received).toContainEqual({
-      subscription: 'project:00000000-0000-4000-8000-0000000000aa',
+      subscription: 'work-package:00000000-0000-4000-8000-0000000000aa',
       seq: 0,
       message: { kept: true },
     });
     client.received.length = 0;
     client.socket.send(
-      '{"type":"resume","resume_points":{"project:00000000-0000-4000-8000-0000000000aa":-2}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":-2}}',
     );
     await client.ping();
     expect(client.received).toEqual([{ type: 'error', code: 'invalid_payload' }, { type: 'pong' }]);

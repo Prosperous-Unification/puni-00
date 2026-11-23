@@ -7,15 +7,15 @@ import type {
   TransportInput,
 } from '@wbs/contracts';
 import {
-  addStep,
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
   clientFromShapes,
   createCalendarMarker,
   createProject,
-  exportProject,
+  createWorkPackage,
+  exportWorkPackage,
   getWorkItems,
-  importProject,
+  importWorkPackage,
   listCalendarMarkers,
   listExternalSystems,
   listMeasures,
@@ -25,66 +25,32 @@ import {
   listTags,
   listTeams,
   listWorkItemTypes,
-  patchProject,
+  listWorkPackages,
+  patchWorkPackage,
+  patchWorkPackageStepValues,
   preflightRequest,
   readClaimHistory,
-  readProject,
-  readProjectClaims,
-  readProjectResources,
   readTimezones,
-  recordProjectOpen,
-  redoProject,
+  readWorkPackage,
+  readWorkPackageClaims,
+  readWorkPackageResources,
+  recordWorkPackageOpen,
+  redoWorkPackage,
   removeCalendarMarker,
-  removeStep,
-  renameStep,
-  retryProjectOptimization,
-  undoProject,
+  retryWorkPackageOptimization,
+  undoWorkPackage,
   updateCalendarMarker,
 } from '@wbs/contracts';
+import { allowanceHundredthsOf } from '@wbs/domain/estimate';
 
 import {
   type CalendarMarkerView,
   type DeleteOptions,
   type PlanRead,
-  type ProjectApi,
   stepViewOf,
   type WbsOperationId,
+  type WorkPackageApi,
 } from '@/lib/wbs-api';
-
-/**
- * A {@link ProjectApi} whose every method refuses, except the ones a test
- * states.
- *
- * Four suites had each written this stand-in out by hand — `app-router`,
- * `page-shortcuts`, `project-page`, `plan-cards` — and every copy had drifted
- * the same way: seven methods the interface has grown since
- * (`setPriorityBands`, `setTeamCapacity`, `setDepReach`,
- * `setEstimateArithmetic`, `renameTag`, `removeTag`, `addWorkItemType`) were
- * missing from all four, and three carried stubs under names it had renamed
- * away (`create`, `patch`, `assign`, `move`, `remove`, `duplicate`, `freeze`,
- * `unfreeze`). No `typecheck` target compiled a test file here until
- * 2026-09-02, so nothing said so.
- *
- * One of those dead names made a **shipped proof vacuous**:
- * `page-shortcuts.test.tsx` asserts that a command chord behind a modal never
- * reaches the write, and it was watching a spy named `create` — a method
- * `ProjectApi` stopped having. The recorded proof says that assertion was once
- * seen failing on "`api.create` called once", and it could not have failed
- * again after the rename.
- *
- * A `Proxy` rather than 43 written-out refusals, so it cannot drift again:
- * anything the interface grows is refused here the day it is added, and a test
- * that reaches a method it did not state says so out loud instead of passing
- * against a silent default.
- *
- * Stated methods whose client view maps directly onto an endpoint run through
- * {@link clientFromShapes} with the answer as their in-process transport. The
- * same request, response, and refusal shapes therefore guard both this focused
- * fake and {@link fakeProjectApi}; a fixture cannot teach a screen a payload
- * the HTTP client would refuse.
- */
-/** What makes an object thenable, and so must read as absent here. */
-const PROMISE_PROTOCOL = new Set(['then', 'catch', 'finally']);
 
 function boundaryFailure(failure: { code: string; cause?: unknown }): never {
   if (failure.code === 'transport') throw failure.cause;
@@ -153,19 +119,19 @@ function emptyWhenUndefined<Value>(value: Value | undefined, empty: Value): Valu
   return value;
 }
 
-function markerWire(projectId: string, marker: CalendarMarkerView) {
-  return { ...marker, projectId, createdAt: 0 };
+function markerWire(workPackageId: string, marker: CalendarMarkerView) {
+  return { ...marker, workPackageId, createdAt: 0 };
 }
 
 function markerView(marker: CalendarMarkerView): CalendarMarkerView {
   return { id: marker.id, date: marker.date, name: marker.name, color: marker.color };
 }
 
-type ProjectPatch = ClientInput<typeof patchProject>['body'];
-type ProjectCommand = ClientInput<typeof applyProjectCommands>['body']['commands'][number];
+type WorkPackagePatch = ClientInput<typeof patchWorkPackage>['body'];
+type WorkPackageCommand = ClientInput<typeof applyWorkPackageCommands>['body']['commands'][number];
 type DirectoryCommand = ClientInput<typeof applyDirectoryCommands>['body']['commands'][number];
-type ProjectCommandResult = Extract<
-  ClientReply<typeof applyProjectCommands>,
+type WorkPackageCommandResult = Extract<
+  ClientReply<typeof applyWorkPackageCommands>,
   { kind: 'success' }
 >['body']['results'][number];
 type DirectoryCommandResult = Extract<
@@ -174,50 +140,49 @@ type DirectoryCommandResult = Extract<
 >['body']['results'][number];
 
 // Proof: deleting removeDependency made the spec typecheck fail with TS1360:
-// "Property 'removeDependency' is missing" from this Record<keyof ProjectApi, ...>.
-const PROJECT_API_OPERATIONS = {
+// "Property 'removeDependency' is missing" from this Record<keyof WorkPackageApi, ...>.
+const WORK_PACKAGE_API_OPERATIONS = {
+  listWorkPackages: 'getApiWorkPackages',
   listProjects: 'getApiProjects',
-  createProject: 'postApiProjects',
-  openProject: 'postApiProjectsByIdOpened',
-  renameProject: 'patchApiProjectsById',
-  setAbbreviation: 'patchApiProjectsById',
-  tree: 'getApiProjectsByIdWork-items',
-  exportPlan: 'getApiProjectsByIdExport',
-  importPlan: 'postApiProjectsImport',
-  undo: 'postApiProjectsByIdUndo',
-  redo: 'postApiProjectsByIdRedo',
-  setEstimateMethod: 'patchApiProjectsById',
-  setEstimateArithmetic: 'patchApiProjectsById',
-  setDepReach: 'patchApiProjectsById',
-  setOptimizationSettings: 'patchApiProjectsById',
-  retryOptimization: 'postApiProjectsByIdOptimizationRetry',
-  setStartDate: 'patchApiProjectsById',
-  setTimezone: 'patchApiProjectsById',
+  createProjectWithWorkPackage: 'postApiProjects',
+  createWorkPackage: 'postApiWorkPackages',
+  openWorkPackage: 'postApiWorkPackagesByIdOpened',
+  renameWorkPackage: 'patchApiWorkPackagesById',
+  setAbbreviation: 'patchApiWorkPackagesById',
+  tree: 'getApiWorkPackagesByIdWork-items',
+  exportPlan: 'getApiWorkPackagesByIdExport',
+  importPlan: 'postApiWorkPackagesImport',
+  undo: 'postApiWorkPackagesByIdUndo',
+  redo: 'postApiWorkPackagesByIdRedo',
+  setEstimateMethod: 'patchApiWorkPackagesById',
+  setEstimateArithmetic: 'patchApiWorkPackagesById',
+  setDepReach: 'patchApiWorkPackagesById',
+  setOptimizationSettings: 'patchApiWorkPackagesById',
+  retryOptimization: 'postApiWorkPackagesByIdOptimizationRetry',
+  setStartDate: 'patchApiWorkPackagesById',
+  setTimezone: 'patchApiWorkPackagesById',
   listTimezones: 'getApiTimezones',
-  listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
-  readClaims: 'getApiProjectsByIdClaims',
-  readClaimHistory: 'getApiProjectsByIdClaim-history',
-  createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
-  renameCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
-  recolorCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
-  deleteCalendarMarker: 'deleteApiProjectsByIdCalendar-markersByMarkerId',
-  setTeamCapacity: 'postApiProjectsByIdCommands',
-  setPriorityBands: 'postApiProjectsByIdCommands',
-  steps: 'getApiProjectsById',
-  addStep: 'postApiProjectsByIdSteps',
-  renameStep: 'patchApiProjectsByIdStepsByStepId',
-  setStepAllowance: 'patchApiProjectsByIdStepsByStepId',
-  setStepUnit: 'patchApiProjectsByIdStepsByStepId',
-  removeStep: 'deleteApiProjectsByIdStepsByStepId',
-  createWorkItem: 'postApiProjectsByIdCommands',
-  patchWorkItem: 'postApiProjectsByIdCommands',
-  setStatus: 'postApiProjectsByIdCommands',
-  setProgress: 'postApiProjectsByIdCommands',
-  clearProgress: 'postApiProjectsByIdCommands',
-  setStepBlocked: 'postApiProjectsByIdCommands',
-  startAttempt: 'postApiProjectsByIdCommands',
-  endAttempt: 'postApiProjectsByIdCommands',
-  removeAttempt: 'postApiProjectsByIdCommands',
+  listCalendarMarkers: 'getApiWorkPackagesByIdCalendar-markers',
+  readClaims: 'getApiWorkPackagesByIdClaims',
+  readClaimHistory: 'getApiWorkPackagesByIdClaim-history',
+  createCalendarMarker: 'postApiWorkPackagesByIdCalendar-markers',
+  renameCalendarMarker: 'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+  recolorCalendarMarker: 'patchApiWorkPackagesByIdCalendar-markersByMarkerId',
+  deleteCalendarMarker: 'deleteApiWorkPackagesByIdCalendar-markersByMarkerId',
+  setTeamCapacity: 'postApiWorkPackagesByIdCommands',
+  setPriorityBands: 'postApiWorkPackagesByIdCommands',
+  steps: 'getApiWorkPackagesById',
+  setStepAllowance: 'patchWorkPackageStepValues',
+  setStepUnit: 'patchWorkPackageStepValues',
+  createWorkItem: 'postApiWorkPackagesByIdCommands',
+  patchWorkItem: 'postApiWorkPackagesByIdCommands',
+  setStatus: 'postApiWorkPackagesByIdCommands',
+  setProgress: 'postApiWorkPackagesByIdCommands',
+  clearProgress: 'postApiWorkPackagesByIdCommands',
+  setStepBlocked: 'postApiWorkPackagesByIdCommands',
+  startAttempt: 'postApiWorkPackagesByIdCommands',
+  endAttempt: 'postApiWorkPackagesByIdCommands',
+  removeAttempt: 'postApiWorkPackagesByIdCommands',
   listTeams: 'getApiTeams',
   listTags: 'getApiTags',
   listServices: 'getApiServices',
@@ -231,44 +196,49 @@ const PROJECT_API_OPERATIONS = {
   addTeam: 'postApiDirectoryCommands',
   listPeople: 'getApiPeople',
   addPerson: 'postApiDirectoryCommands',
-  assignPerson: 'postApiProjectsByIdCommands',
-  moveWorkItem: 'postApiProjectsByIdCommands',
-  duplicateWorkItem: 'postApiProjectsByIdCommands',
-  removeWorkItem: 'postApiProjectsByIdCommands',
-  setEstimate: 'postApiProjectsByIdCommands',
-  clearEstimate: 'postApiProjectsByIdCommands',
+  assignPerson: 'postApiWorkPackagesByIdCommands',
+  moveWorkItem: 'postApiWorkPackagesByIdCommands',
+  duplicateWorkItem: 'postApiWorkPackagesByIdCommands',
+  removeWorkItem: 'postApiWorkPackagesByIdCommands',
+  setEstimate: 'postApiWorkPackagesByIdCommands',
+  clearEstimate: 'postApiWorkPackagesByIdCommands',
   listMeasures: 'getApiMeasures',
-  setMeasureEstimate: 'postApiProjectsByIdCommands',
-  clearMeasureEstimate: 'postApiProjectsByIdCommands',
-  setMeasure: 'postApiProjectsByIdCommands',
-  clearMeasure: 'postApiProjectsByIdCommands',
-  setBudget: 'postApiProjectsByIdCommands',
-  clearBudget: 'postApiProjectsByIdCommands',
-  arrangeBySchedule: 'postApiProjectsByIdCommands',
-  freezeProject: 'postApiProjectsByIdCommands',
-  unfreezeProject: 'postApiProjectsByIdCommands',
-  unfreezeWorkItem: 'postApiProjectsByIdCommands',
-  claimWorkItem: 'postApiProjectsByIdCommands',
-  releaseWorkItem: 'postApiProjectsByIdCommands',
-  addDependency: 'postApiProjectsByIdCommands',
-  removeDependency: 'postApiProjectsByIdCommands',
-  addTypedDependency: 'postApiProjectsByIdCommands',
-  updateTypedDependency: 'postApiProjectsByIdCommands',
-  removeTypedDependency: 'postApiProjectsByIdCommands',
-  readResources: 'getApiProjectsByIdResources',
-  setDemands: 'postApiProjectsByIdCommands',
-} as const satisfies Record<keyof ProjectApi, WbsOperationId>;
+  setMeasureEstimate: 'postApiWorkPackagesByIdCommands',
+  clearMeasureEstimate: 'postApiWorkPackagesByIdCommands',
+  setMeasure: 'postApiWorkPackagesByIdCommands',
+  clearMeasure: 'postApiWorkPackagesByIdCommands',
+  setBudget: 'postApiWorkPackagesByIdCommands',
+  clearBudget: 'postApiWorkPackagesByIdCommands',
+  arrangeBySchedule: 'postApiWorkPackagesByIdCommands',
+  freezeWorkPackage: 'postApiWorkPackagesByIdCommands',
+  unfreezeWorkPackage: 'postApiWorkPackagesByIdCommands',
+  unfreezeWorkItem: 'postApiWorkPackagesByIdCommands',
+  claimWorkItem: 'postApiWorkPackagesByIdCommands',
+  releaseWorkItem: 'postApiWorkPackagesByIdCommands',
+  addDependency: 'postApiWorkPackagesByIdCommands',
+  removeDependency: 'postApiWorkPackagesByIdCommands',
+  addTypedDependency: 'postApiWorkPackagesByIdCommands',
+  updateTypedDependency: 'postApiWorkPackagesByIdCommands',
+  removeTypedDependency: 'postApiWorkPackagesByIdCommands',
+  readResources: 'getApiWorkPackagesByIdResources',
+  setDemands: 'postApiWorkPackagesByIdCommands',
+} as const satisfies Record<keyof WorkPackageApi, WbsOperationId>;
 
-function isProjectApiMethod(key: string): key is keyof ProjectApi {
-  return Object.hasOwn(PROJECT_API_OPERATIONS, key);
+function isWorkPackageApiMethod(key: PropertyKey): key is keyof WorkPackageApi {
+  return Object.hasOwn(WORK_PACKAGE_API_OPERATIONS, key);
 }
 
-function projectWire(projectId: string, patch: ProjectPatch = {}) {
+/** Explicit transport-only parent metadata for facade methods which do not return a package. */
+export interface WorkPackageTransportContext {
+  projectIdOf(workPackageId: string): string;
+}
+
+function workPackageWire(workPackageId: string, projectId: string, patch: WorkPackagePatch = {}) {
   return {
-    id: projectId,
+    id: workPackageId,
     abbreviation: 'FAKE',
-    name: patch.name ?? 'Fake project',
-    ownerId: 'fake-owner',
+    name: patch.name ?? 'Fake work package',
+    projectId,
     restricted: patch.restricted ?? false,
     estimateMethod: patch.estimateMethod ?? 'pert',
     depReach: patch.depReach ?? 'whole-item',
@@ -291,13 +261,13 @@ function projectWire(projectId: string, patch: ProjectPatch = {}) {
  * assignee entries are the documented old-server swap shape; they normalize
  * to the same empty/absent values as `toTree` before entering the current wire.
  */
-function planWire(projectId: string, plan: PlanRead) {
+function planWire(workPackageId: string, plan: PlanRead) {
   return {
     waitingForPerson: 0,
     waitingForCapacity: 0,
     ...plan,
     workItems: plan.workItems.map((row, position) => ({
-      projectId,
+      workPackageId,
       position,
       serviceId: null,
       actuals: {},
@@ -316,37 +286,39 @@ function planWire(projectId: string, plan: PlanRead) {
         }),
       ),
     })),
-    steps: plan.steps.map((step, position) => ({ projectId, position, ...step })),
+    steps: plan.steps.map((step, position) => ({ workPackageId, position, ...step })),
   };
 }
 
-async function throughProjectPatch<Patch extends ProjectPatch>(
-  projectId: string,
+async function throughWorkPackagePatch<Patch extends WorkPackagePatch>(
+  workPackageId: string,
   patch: Patch,
-  mutate: (normalizedProjectId: string, normalizedPatch: Patch) => Promise<void>,
+  mutate: (normalizedWorkPackageId: string, normalizedPatch: Patch) => Promise<void>,
+  projectIdOf: (workPackageId: string) => string,
 ): Promise<void> {
   // Proof: bypassing this client made the malformed setDepReach case receive
   // { outcome: "resolved", after: "fake_invalid_response" } after it corrupted depReach.
-  // Proof: schema-only preflight let an empty project id mutate depReach; the state-window
+  // Proof: schema-only preflight let an empty work package id mutate depReach; the state-window
   // test failed on expected "whole-item", received "anchor-slice" after the rejection.
-  const preflight = preflightFakeRequest(patchProject, {
-    params: { id: projectId },
+  const preflight = preflightFakeRequest(patchWorkPackage, {
+    params: { id: workPackageId },
     body: patch,
   });
   const prepared = isPromiseLike(preflight) ? await preflight : preflight;
   // The shared request boundary permits only undefined-key omission, without
   // transforms or defaults, so the accepted patch remains within Patch.
   const normalizedPatch = prepared.body as Patch;
+  const projectId = projectIdOf(prepared.params.id);
   const mutation = mutate(prepared.params.id, normalizedPatch);
-  const client = clientFromShapes([patchProject], async () => {
+  const client = clientFromShapes([patchWorkPackage], async () => {
     await mutation;
     return {
       kind: 'json' as const,
       status: 200,
-      body: { project: projectWire(prepared.params.id, normalizedPatch) },
+      body: { workPackage: workPackageWire(prepared.params.id, projectId, normalizedPatch) },
     };
   });
-  const reply = await client.patchApiProjectsById({
+  const reply = await client.patchApiWorkPackagesById({
     params: prepared.params,
     body: normalizedPatch,
   });
@@ -368,34 +340,34 @@ class CapturedAnswer<T> {
   }
 }
 
-function throughProjectCommand<Command extends ProjectCommand, Answer>(
-  projectId: string,
+function throughWorkPackageCommand<Command extends WorkPackageCommand, Answer>(
+  workPackageId: string,
   command: Command,
-  mutate: (normalizedProjectId: string, normalizedCommand: Command) => Promise<Answer>,
-  resultOf: (answer: Answer) => ProjectCommandResult,
+  mutate: (normalizedWorkPackageId: string, normalizedCommand: Command) => Promise<Answer>,
+  resultOf: (answer: Answer) => WorkPackageCommandResult,
 ): Promise<void>;
-function throughProjectCommand<Command extends ProjectCommand, Answer, Facade>(
-  projectId: string,
+function throughWorkPackageCommand<Command extends WorkPackageCommand, Answer, Facade>(
+  workPackageId: string,
   command: Command,
-  mutate: (normalizedProjectId: string, normalizedCommand: Command) => Promise<Answer>,
-  resultOf: (answer: Answer) => ProjectCommandResult,
-  facadeOf: (validated: ProjectCommandResult) => Facade,
+  mutate: (normalizedWorkPackageId: string, normalizedCommand: Command) => Promise<Answer>,
+  resultOf: (answer: Answer) => WorkPackageCommandResult,
+  facadeOf: (validated: WorkPackageCommandResult) => Facade,
 ): Promise<Facade>;
-async function throughProjectCommand<Command extends ProjectCommand, Answer, Facade>(
-  projectId: string,
+async function throughWorkPackageCommand<Command extends WorkPackageCommand, Answer, Facade>(
+  workPackageId: string,
   command: Command,
-  mutate: (normalizedProjectId: string, normalizedCommand: Command) => Promise<Answer>,
-  resultOf: (answer: Answer) => ProjectCommandResult,
-  facadeOf?: (validated: ProjectCommandResult) => Facade,
+  mutate: (normalizedWorkPackageId: string, normalizedCommand: Command) => Promise<Answer>,
+  resultOf: (answer: Answer) => WorkPackageCommandResult,
+  facadeOf?: (validated: WorkPackageCommandResult) => Facade,
 ): Promise<Facade | undefined> {
-  const input = { params: { id: projectId }, body: { commands: [command] } };
-  // Proof: schema-only preflight let a dot-segment project id create a row; the state-window
+  const input = { params: { id: workPackageId }, body: { commands: [command] } };
+  // Proof: schema-only preflight let a dot-segment work package id create a row; the state-window
   // test failed on expected length 0, received 1 after the rejection.
-  const preflight = preflightFakeRequest(applyProjectCommands, input);
+  const preflight = preflightFakeRequest(applyWorkPackageCommands, input);
   const prepared = isPromiseLike(preflight) ? await preflight : preflight;
   const normalized = prepared.body.commands.at(0);
   if (normalized?.kind !== command.kind)
-    throw new Error('validated fake project command changed identity');
+    throw new Error('validated fake work package command changed identity');
   // The exact shared union validation and unchanged discriminant establish the
   // caller's command arm after JSON removes optional undefined fields.
   const normalizedCommand = normalized as Command;
@@ -406,7 +378,7 @@ async function throughProjectCommand<Command extends ProjectCommand, Answer, Fac
   const mutation = mutate(prepared.params.id, normalizedCommand);
   // Proof: bypassing this client made malformed setEstimate resolve undefined instead of reject;
   // a numeric createWorkItem id likewise resolved as { id: 7 } instead of fake_invalid_response.
-  const client = clientFromShapes([applyProjectCommands], async () => {
+  const client = clientFromShapes([applyWorkPackageCommands], async () => {
     const answer = await mutation;
     return {
       kind: 'json' as const,
@@ -414,7 +386,7 @@ async function throughProjectCommand<Command extends ProjectCommand, Answer, Fac
       body: { results: [resultOf(answer)], undoable: false, redoable: false },
     };
   });
-  const reply = await client.postApiProjectsByIdCommands({
+  const reply = await client.postApiWorkPackagesByIdCommands({
     params: prepared.params,
     body: prepared.body,
   });
@@ -460,72 +432,133 @@ async function throughDirectorySuccess<Command extends DirectoryCommand, Answer,
 }
 
 const VOID_COMMAND_RESULT = { index: 0 };
-const FAKE_PROJECT_ID = 'fake-project';
+const FAKE_WORK_PACKAGE_ID = 'fake-work-package';
 
-function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
-  const checked: Partial<ProjectApi> = {};
+function checkedAnswers(
+  answers: Partial<WorkPackageApi>,
+  context?: WorkPackageTransportContext,
+): Partial<WorkPackageApi> {
+  const projectIdOf = (workPackageId: string): string => {
+    if (context === undefined) throw new Error('fake_missing_project_context');
+    return context.projectIdOf(workPackageId);
+  };
+  const checked: Partial<WorkPackageApi> = {};
   const listProjectsAnswer = answers.listProjects;
   if (listProjectsAnswer !== undefined) {
     checked.listProjects = async () => {
-      // Proof: bypassing this client let listProjects resolve a project whose createdAt was
+      const client = clientFromShapes([listProjects], async () => ({
+        kind: 'json' as const,
+        status: 200,
+        body: { projects: await listProjectsAnswer() },
+      }));
+      const reply = await client.getApiProjects({});
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body.projects;
+    };
+  }
+  const combinedCreationAnswer = answers.createProjectWithWorkPackage;
+  if (combinedCreationAnswer !== undefined) {
+    checked.createProjectWithWorkPackage = async (projectName, workPackageName) => {
+      const started = startMutation(
+        createProject,
+        { body: { name: projectName, workPackage: { name: workPackageName } } },
+        (prepared) =>
+          combinedCreationAnswer(
+            prepared.body.name,
+            requiredNormalized(prepared.body.workPackage).name,
+          ),
+      );
+      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
+      const client = clientFromShapes([createProject], async () => ({
+        kind: 'json' as const,
+        status: 201,
+        body: await mutation,
+      }));
+      const reply = await client.postApiProjects({ body: prepared.body });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      const creation = reply.body;
+      const workPackage = creation.workPackage;
+      const steps = creation.steps;
+      if (
+        workPackage === undefined ||
+        steps === undefined ||
+        workPackage.projectId !== creation.project.id
+      )
+        throw new Error('fake_invalid_response');
+      return {
+        project: creation.project,
+        workPackage,
+        steps,
+      };
+    };
+  }
+  const listWorkPackagesAnswer = answers.listWorkPackages;
+  if (listWorkPackagesAnswer !== undefined) {
+    checked.listWorkPackages = async () => {
+      // Proof: bypassing this client let listWorkPackages resolve a work package whose createdAt was
       // "yesterday" instead of rejecting it with fake_invalid_response. Supplying missing name
-      // through projectWire's default also resolved as name: "Fake project" in the focused test.
-      const client = clientFromShapes([listProjects], async () => {
-        const projects = await listProjectsAnswer();
+      // through workPackageWire's default also resolved as name: "Fake work package" in the focused test.
+      const client = clientFromShapes([listWorkPackages], async () => {
+        const workPackages = await listWorkPackagesAnswer();
         return {
           kind: 'json' as const,
           status: 200,
           body: {
-            projects: projects.map((project) => ({
-              ...projectWire(project.id),
-              ...project,
-              id: project.id,
-              name: project.name,
-              abbreviation: project.abbreviation,
-              restricted: project.restricted,
-              startDate: project.startDate,
-              createdAt: project.createdAt,
-              ownerName: project.ownerName,
-              lastOpenedAt: project.lastOpenedAt,
+            workPackages: workPackages.map((workPackage) => ({
+              ...workPackageWire(workPackage.id, workPackage.projectId),
+              ...workPackage,
+              projectId: workPackage.projectId,
+              id: workPackage.id,
+              name: workPackage.name,
+              abbreviation: workPackage.abbreviation,
+              restricted: workPackage.restricted,
+              startDate: workPackage.startDate,
+              createdAt: workPackage.createdAt,
+              createdByName: workPackage.createdByName,
+              lastOpenedAt: workPackage.lastOpenedAt,
             })),
           },
         };
       });
-      const reply = await client.getApiProjects({});
+      const reply = await client.getApiWorkPackages({});
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return reply.body.projects.map((project) => ({
-        id: project.id,
-        name: project.name,
-        abbreviation: project.abbreviation,
-        restricted: project.restricted,
-        startDate: project.startDate,
-        createdAt: project.createdAt,
-        ownerName: project.ownerName,
-        lastOpenedAt: project.lastOpenedAt,
+      return reply.body.workPackages.map((workPackage) => ({
+        projectId: workPackage.projectId,
+        id: workPackage.id,
+        name: workPackage.name,
+        abbreviation: workPackage.abbreviation,
+        restricted: workPackage.restricted,
+        startDate: workPackage.startDate,
+        createdAt: workPackage.createdAt,
+        createdByName: workPackage.createdByName,
+        lastOpenedAt: workPackage.lastOpenedAt,
       }));
     };
   }
 
-  const createProjectAnswer = answers.createProject;
-  if (createProjectAnswer !== undefined) {
-    checked.createProject = async (name) => {
-      const started = startMutation(createProject, { body: { name } }, (prepared) =>
-        createProjectAnswer(prepared.body.name),
+  const createWorkPackageAnswer = answers.createWorkPackage;
+  if (createWorkPackageAnswer !== undefined) {
+    checked.createWorkPackage = async (projectId, name) => {
+      const started = startMutation(createWorkPackage, { body: { projectId, name } }, (prepared) =>
+        createWorkPackageAnswer(prepared.body.projectId, prepared.body.name),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      // Proof: bypassing this client made createProject(7) resolve
-      // { id: "project-1", name: "Plan", restricted: false } instead of reject. Defaulting a
+      // Proof: bypassing this client made createWorkPackage(7) resolve
+      // { id: "work-package-1", name: "Plan", restricted: false } instead of reject. Defaulting a
       // missing restricted likewise resolved it as false instead of fake_invalid_response.
-      const client = clientFromShapes([createProject], async () => {
+      const client = clientFromShapes([createWorkPackage], async () => {
         const made = await mutation;
         return {
           kind: 'json' as const,
           status: 200,
           body: {
-            project: {
-              ...projectWire(made.id),
+            workPackage: {
+              ...workPackageWire(made.id, made.projectId),
               ...made,
+              projectId: made.projectId,
               id: made.id,
               name: made.name,
               abbreviation: made.abbreviation,
@@ -535,30 +568,33 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           },
         };
       });
-      const reply = await client.postApiProjects({ body: prepared.body });
+      const reply = await client.postApiWorkPackages({ body: prepared.body });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return {
-        id: reply.body.project.id,
-        name: reply.body.project.name,
-        abbreviation: reply.body.project.abbreviation,
-        restricted: reply.body.project.restricted,
+        projectId: reply.body.workPackage.projectId,
+        id: reply.body.workPackage.id,
+        name: reply.body.workPackage.name,
+        abbreviation: reply.body.workPackage.abbreviation,
+        restricted: reply.body.workPackage.restricted,
       };
     };
   }
 
-  const openProjectAnswer = answers.openProject;
-  if (openProjectAnswer !== undefined) {
-    checked.openProject = async (projectId) => {
-      const started = startMutation(recordProjectOpen, { params: { id: projectId } }, (prepared) =>
-        openProjectAnswer(prepared.params.id),
+  const openWorkPackageAnswer = answers.openWorkPackage;
+  if (openWorkPackageAnswer !== undefined) {
+    checked.openWorkPackage = async (workPackageId) => {
+      const started = startMutation(
+        recordWorkPackageOpen,
+        { params: { id: workPackageId } },
+        (prepared) => openWorkPackageAnswer(prepared.params.id),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([recordProjectOpen], async () => {
+      const client = clientFromShapes([recordWorkPackageOpen], async () => {
         await mutation;
         return { kind: 'empty' as const, status: 204 };
       });
-      const reply = await client.postApiProjectsByIdOpened({ params: prepared.params });
+      const reply = await client.postApiWorkPackagesByIdOpened({ params: prepared.params });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
     };
@@ -566,16 +602,18 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const treeAnswer = answers.tree;
   if (treeAnswer !== undefined) {
-    checked.tree = async (projectId) => {
+    checked.tree = async (workPackageId) => {
       const completed = new CapturedAnswer<PlanRead>();
       // Proof: the former global exemption made a direct tree with seq: "next" resolve the
       // malformed PlanRead; refusing-api.test.ts observed the complete object instead of rejection.
       const client = clientFromShapes([getWorkItems], async () => {
-        const plan = await treeAnswer(projectId);
+        const plan = await treeAnswer(workPackageId);
         completed.set(plan);
-        return { kind: 'json' as const, status: 200, body: planWire(projectId, plan) };
+        return { kind: 'json' as const, status: 200, body: planWire(workPackageId, plan) };
       });
-      const reply = await client['getApiProjectsByIdWork-items']({ params: { id: projectId } });
+      const reply = await client['getApiWorkPackagesByIdWork-items']({
+        params: { id: workPackageId },
+      });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       const plan = completed.get('tree');
@@ -604,14 +642,14 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const exportPlanAnswer = answers.exportPlan;
   if (exportPlanAnswer !== undefined) {
-    checked.exportPlan = async (projectId) => {
-      const client = clientFromShapes([exportProject], async () => ({
+    checked.exportPlan = async (workPackageId) => {
+      const client = clientFromShapes([exportWorkPackage], async () => ({
         kind: 'json' as const,
         status: 200,
-        body: await exportPlanAnswer(projectId),
+        body: await exportPlanAnswer(workPackageId),
       }));
-      const reply = await client.getApiProjectsByIdExport({
-        params: { id: projectId },
+      const reply = await client.getApiWorkPackagesByIdExport({
+        params: { id: workPackageId },
         query: { format: 'json' },
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
@@ -623,13 +661,17 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const importPlanAnswer = answers.importPlan;
   if (importPlanAnswer !== undefined) {
-    checked.importPlan = async (document) => {
-      const client = clientFromShapes([importProject], async () => ({
+    checked.importPlan = async (projectId, document, options) => {
+      const retained = structuredClone(document);
+      const defineMissing = options.defineMissing;
+      const client = clientFromShapes([importWorkPackage], async () => ({
         kind: 'json' as const,
         status: 201,
-        body: await importPlanAnswer(document),
+        body: await importPlanAnswer(projectId, retained, { defineMissing }),
       }));
-      const reply = await client.postApiProjectsImport({ body: document });
+      const reply = await client.postApiWorkPackagesImport({
+        body: { projectId, document: retained, defineMissing },
+      });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
@@ -638,67 +680,92 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const setAbbreviationAnswer = answers.setAbbreviation;
   if (setAbbreviationAnswer !== undefined) {
-    checked.setAbbreviation = async (projectId, abbreviation) => {
-      const preflight = preflightFakeRequest(patchProject, {
-        params: { id: projectId },
+    checked.setAbbreviation = async (workPackageId, abbreviation) => {
+      const preflight = preflightFakeRequest(patchWorkPackage, {
+        params: { id: workPackageId },
         body: { abbreviation },
       });
       const prepared = isPromiseLike(preflight) ? await preflight : preflight;
+      const projectId = projectIdOf(prepared.params.id);
       const canonical = await setAbbreviationAnswer(prepared.params.id, abbreviation);
-      const client = clientFromShapes([patchProject], () =>
+      const client = clientFromShapes([patchWorkPackage], () =>
         Promise.resolve({
           kind: 'json' as const,
           status: 200,
-          body: { project: projectWire(prepared.params.id, { abbreviation: canonical }) },
+          body: {
+            workPackage: workPackageWire(prepared.params.id, projectId, {
+              abbreviation: canonical,
+            }),
+          },
         }),
       );
-      const reply = await client.patchApiProjectsById({
+      const reply = await client.patchApiWorkPackagesById({
         params: prepared.params,
         body: prepared.body,
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return reply.body.project.abbreviation;
+      return reply.body.workPackage.abbreviation;
     };
   }
 
-  const renameProjectAnswer = answers.renameProject;
-  if (renameProjectAnswer !== undefined) {
-    checked.renameProject = (projectId, name) =>
-      throughProjectPatch(projectId, { name }, (normalizedProjectId, normalizedPatch) =>
-        renameProjectAnswer(normalizedProjectId, normalizedPatch.name),
+  const renameWorkPackageAnswer = answers.renameWorkPackage;
+  if (renameWorkPackageAnswer !== undefined) {
+    checked.renameWorkPackage = (workPackageId, name) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        { name },
+        (normalizedWorkPackageId, normalizedPatch) =>
+          renameWorkPackageAnswer(normalizedWorkPackageId, normalizedPatch.name),
+        projectIdOf,
       );
   }
 
   const setEstimateMethodAnswer = answers.setEstimateMethod;
   if (setEstimateMethodAnswer !== undefined) {
-    checked.setEstimateMethod = (projectId, method) =>
-      throughProjectPatch(projectId, { estimateMethod: method }, (normalizedProjectId, patch) =>
-        setEstimateMethodAnswer(normalizedProjectId, patch.estimateMethod),
+    checked.setEstimateMethod = (workPackageId, method) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        { estimateMethod: method },
+        (normalizedWorkPackageId, patch) =>
+          setEstimateMethodAnswer(normalizedWorkPackageId, patch.estimateMethod),
+        projectIdOf,
       );
   }
 
   const setEstimateArithmeticAnswer = answers.setEstimateArithmetic;
   if (setEstimateArithmeticAnswer !== undefined) {
-    checked.setEstimateArithmetic = (projectId, arithmetic) =>
-      throughProjectPatch(projectId, arithmetic, (normalizedProjectId, normalizedArithmetic) =>
-        setEstimateArithmeticAnswer(normalizedProjectId, normalizedArithmetic),
+    checked.setEstimateArithmetic = (workPackageId, arithmetic) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        arithmetic,
+        (normalizedWorkPackageId, normalizedArithmetic) =>
+          setEstimateArithmeticAnswer(normalizedWorkPackageId, normalizedArithmetic),
+        projectIdOf,
       );
   }
 
   const setDepReachAnswer = answers.setDepReach;
   if (setDepReachAnswer !== undefined) {
-    checked.setDepReach = (projectId, reach) =>
-      throughProjectPatch(projectId, { depReach: reach }, (normalizedProjectId, patch) =>
-        setDepReachAnswer(normalizedProjectId, patch.depReach),
+    checked.setDepReach = (workPackageId, reach) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        { depReach: reach },
+        (normalizedWorkPackageId, patch) =>
+          setDepReachAnswer(normalizedWorkPackageId, patch.depReach),
+        projectIdOf,
       );
   }
 
   const setOptimizationSettingsAnswer = answers.setOptimizationSettings;
   if (setOptimizationSettingsAnswer !== undefined) {
-    checked.setOptimizationSettings = (projectId, patch) =>
-      throughProjectPatch(projectId, patch, (normalizedProjectId, normalizedPatch) =>
-        setOptimizationSettingsAnswer(normalizedProjectId, normalizedPatch),
+    checked.setOptimizationSettings = (workPackageId, patch) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        patch,
+        (normalizedWorkPackageId, normalizedPatch) =>
+          setOptimizationSettingsAnswer(normalizedWorkPackageId, normalizedPatch),
+        projectIdOf,
       );
   }
 
@@ -707,17 +774,17 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
     // Through the real shape like every wrapper here, so a test cannot assert
     // on a body be-01 would have refused. The 202 carries the variant back;
     // the caller ignores it and re-reads, which is what the screen does.
-    checked.retryOptimization = async (projectId, objective, inputHash) => {
-      const client = clientFromShapes([retryProjectOptimization], async () => {
-        await retryOptimizationAnswer(projectId, objective, inputHash);
+    checked.retryOptimization = async (workPackageId, objective, inputHash) => {
+      const client = clientFromShapes([retryWorkPackageOptimization], async () => {
+        await retryOptimizationAnswer(workPackageId, objective, inputHash);
         return {
           kind: 'json' as const,
           status: 202,
           body: { state: 'retrying' as const, generation: 1, inputHash },
         };
       });
-      const reply = await client.postApiProjectsByIdOptimizationRetry({
-        params: { id: projectId },
+      const reply = await client.postApiWorkPackagesByIdOptimizationRetry({
+        params: { id: workPackageId },
         body: { objective, inputHash },
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
@@ -729,17 +796,25 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const setStartDateAnswer = answers.setStartDate;
   if (setStartDateAnswer !== undefined) {
-    checked.setStartDate = (projectId, startDate) =>
-      throughProjectPatch(projectId, { startDate }, (normalizedProjectId, patch) =>
-        setStartDateAnswer(normalizedProjectId, patch.startDate),
+    checked.setStartDate = (workPackageId, startDate) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        { startDate },
+        (normalizedWorkPackageId, patch) =>
+          setStartDateAnswer(normalizedWorkPackageId, patch.startDate),
+        projectIdOf,
       );
   }
 
   const setTimezoneAnswer = answers.setTimezone;
   if (setTimezoneAnswer !== undefined) {
-    checked.setTimezone = (projectId, timezone) =>
-      throughProjectPatch(projectId, { timezone }, (normalizedProjectId, patch) =>
-        setTimezoneAnswer(normalizedProjectId, patch.timezone),
+    checked.setTimezone = (workPackageId, timezone) =>
+      throughWorkPackagePatch(
+        workPackageId,
+        { timezone },
+        (normalizedWorkPackageId, patch) =>
+          setTimezoneAnswer(normalizedWorkPackageId, patch.timezone),
+        projectIdOf,
       );
   }
 
@@ -760,23 +835,23 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const stepsAnswer = answers.steps;
   if (stepsAnswer !== undefined) {
-    checked.steps = async (projectId) => {
-      const client = clientFromShapes([readProject], async () => ({
+    checked.steps = async (workPackageId) => {
+      const client = clientFromShapes([readWorkPackage], async () => ({
         kind: 'json' as const,
         status: 200,
         body: {
-          project: projectWire(projectId),
+          workPackage: workPackageWire(workPackageId, projectIdOf(workPackageId)),
           // A distinct placeholder code per position: the read requires one,
           // and the screens this checks read only ids and names.
-          steps: (await stepsAnswer(projectId)).map((step, position) => ({
+          steps: (await stepsAnswer(workPackageId)).map((step, position) => ({
             ...step,
-            projectId,
+            workPackageId,
             position,
             code: `fake-${String(position + 1)}`,
           })),
         },
       }));
-      const reply = await client.getApiProjectsById({ params: { id: projectId } });
+      const reply = await client.getApiWorkPackagesById({ params: { id: workPackageId } });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body.steps.map(stepViewOf);
@@ -785,15 +860,17 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const undoAnswer = answers.undo;
   if (undoAnswer !== undefined) {
-    checked.undo = async (projectId) => {
-      const started = startMutation(undoProject, { params: { id: projectId } }, (prepared) =>
-        undoAnswer(prepared.params.id),
+    checked.undo = async (workPackageId) => {
+      const started = startMutation(
+        undoWorkPackage,
+        { params: { id: workPackageId } },
+        (prepared) => undoAnswer(prepared.params.id),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
       // Proof: bypassing this client let stale_undo detail 7 resolve instead of rejecting
       // the malformed modeled refusal with fake_invalid_response. Returning the raw checked
       // answer also leaked unchecked: true; the exact-equality case observed that extra key.
-      const client = clientFromShapes([undoProject], async () => {
+      const client = clientFromShapes([undoWorkPackage], async () => {
         const answer = await mutation;
         return isFacadeSuccess(answer)
           ? {
@@ -807,7 +884,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
               body: { ...answer, error: answer.reason, detail: answer.detail },
             };
       });
-      const reply = await client.postApiProjectsByIdUndo({ params: prepared.params });
+      const reply = await client.postApiWorkPackagesByIdUndo({ params: prepared.params });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'success')
         return { ok: true, done: reply.body.done, detail: reply.body.detail };
@@ -819,14 +896,16 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const redoAnswer = answers.redo;
   if (redoAnswer !== undefined) {
-    checked.redo = async (projectId) => {
-      const started = startMutation(redoProject, { params: { id: projectId } }, (prepared) =>
-        redoAnswer(prepared.params.id),
+    checked.redo = async (workPackageId) => {
+      const started = startMutation(
+        redoWorkPackage,
+        { params: { id: workPackageId } },
+        (prepared) => redoAnswer(prepared.params.id),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
       // Proof: returning the raw checked redo answer leaked unchecked: true; the shared
       // exact-equality case observed that extra key beside ok, done, and detail.
-      const client = clientFromShapes([redoProject], async () => {
+      const client = clientFromShapes([redoWorkPackage], async () => {
         const answer = await mutation;
         return isFacadeSuccess(answer)
           ? {
@@ -840,51 +919,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
               body: { ...answer, error: answer.reason, detail: answer.detail },
             };
       });
-      const reply = await client.postApiProjectsByIdRedo({ params: prepared.params });
+      const reply = await client.postApiWorkPackagesByIdRedo({ params: prepared.params });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'success')
         return { ok: true, done: reply.body.done, detail: reply.body.detail };
       if (reply.body.error === 'nothing_to_undo' || reply.body.error === 'stale_undo')
         return { ok: false, reason: reply.body.error, detail: reply.body.detail };
       throw new Error(reply.body.error);
-    };
-  }
-
-  const addStepAnswer = answers.addStep;
-  if (addStepAnswer !== undefined) {
-    checked.addStep = async (projectId, name, estimateUnit = 'workdays') => {
-      const started = startMutation(
-        addStep,
-        { params: { id: projectId }, body: { name, estimateUnit } },
-        (prepared) => addStepAnswer(prepared.params.id, prepared.body.name, estimateUnit),
-      );
-      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([addStep], async () => {
-        try {
-          const step = await mutation;
-          return {
-            kind: 'json',
-            status: 200,
-            body: { step: { ...step, projectId, position: 0 } },
-          };
-        } catch (cause) {
-          if (!(cause instanceof Error)) throw cause;
-          if (cause.message === 'taken')
-            return { kind: 'json', status: 409, body: { error: 'taken' } };
-          if (cause.message === 'name_required')
-            return { kind: 'json', status: 422, body: { error: 'name_required' } };
-          throw cause;
-        }
-      });
-      const reply = await client.postApiProjectsByIdSteps({
-        params: prepared.params,
-        body: prepared.body,
-      });
-      // Proof: bypassing this generated call invoked the stated answer with a numeric
-      // name; refusing-api.test.ts observed the mutation spy called and no rejection.
-      if (reply.kind === 'failure') boundaryFailure(reply.failure);
-      if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return stepViewOf(reply.body.step);
     };
   }
 
@@ -982,18 +1023,18 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const listCalendarMarkersAnswer = answers.listCalendarMarkers;
   if (listCalendarMarkersAnswer !== undefined) {
-    checked.listCalendarMarkers = async (projectId) => {
+    checked.listCalendarMarkers = async (workPackageId) => {
       const client = clientFromShapes([listCalendarMarkers], async () => ({
         kind: 'json',
         status: 200,
         body: {
-          markers: (await listCalendarMarkersAnswer(projectId)).map((marker) =>
-            markerWire(projectId, marker),
+          markers: (await listCalendarMarkersAnswer(workPackageId)).map((marker) =>
+            markerWire(workPackageId, marker),
           ),
         },
       }));
-      const reply = await client['getApiProjectsByIdCalendar-markers']({
-        params: { id: projectId },
+      const reply = await client['getApiWorkPackagesByIdCalendar-markers']({
+        params: { id: workPackageId },
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
@@ -1003,13 +1044,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const readClaimsAnswer = answers.readClaims;
   if (readClaimsAnswer !== undefined) {
-    checked.readClaims = async (projectId) => {
-      const client = clientFromShapes([readProjectClaims], async () => ({
+    checked.readClaims = async (workPackageId) => {
+      const client = clientFromShapes([readWorkPackageClaims], async () => ({
         kind: 'json',
         status: 200,
-        body: await readClaimsAnswer(projectId),
+        body: await readClaimsAnswer(workPackageId),
       }));
-      const reply = await client.getApiProjectsByIdClaims({ params: { id: projectId } });
+      const reply = await client.getApiWorkPackagesByIdClaims({ params: { id: workPackageId } });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
@@ -1018,13 +1059,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const readResourcesAnswer = answers.readResources;
   if (readResourcesAnswer !== undefined) {
-    checked.readResources = async (projectId) => {
-      const client = clientFromShapes([readProjectResources], async () => ({
+    checked.readResources = async (workPackageId) => {
+      const client = clientFromShapes([readWorkPackageResources], async () => ({
         kind: 'json',
         status: 200,
-        body: await readResourcesAnswer(projectId),
+        body: await readResourcesAnswer(workPackageId),
       }));
-      const reply = await client.getApiProjectsByIdResources({ params: { id: projectId } });
+      const reply = await client.getApiWorkPackagesByIdResources({ params: { id: workPackageId } });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
       return reply.body;
@@ -1033,20 +1074,20 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const setDemandsAnswer = answers.setDemands;
   if (setDemandsAnswer !== undefined) {
-    checked.setDemands = async (projectId, statements) => {
+    checked.setDemands = async (workPackageId, statements) => {
       const commands = statements.map(({ workItemId, resourceId, units }) => ({
         kind: 'setDemand' as const,
         workItemId,
         resourceId,
         units,
       }));
-      const preflight = preflightFakeRequest(applyProjectCommands, {
-        params: { id: projectId },
+      const preflight = preflightFakeRequest(applyWorkPackageCommands, {
+        params: { id: workPackageId },
         body: { commands },
       });
       const prepared = isPromiseLike(preflight) ? await preflight : preflight;
       const mutation = setDemandsAnswer(prepared.params.id, statements);
-      const client = clientFromShapes([applyProjectCommands], async () => {
+      const client = clientFromShapes([applyWorkPackageCommands], async () => {
         await mutation;
         return {
           kind: 'json' as const,
@@ -1058,7 +1099,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           },
         };
       });
-      const reply = await client.postApiProjectsByIdCommands({
+      const reply = await client.postApiWorkPackagesByIdCommands({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1069,14 +1110,14 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const readClaimHistoryAnswer = answers.readClaimHistory;
   if (readClaimHistoryAnswer !== undefined) {
-    checked.readClaimHistory = async (projectId) => {
+    checked.readClaimHistory = async (workPackageId) => {
       const client = clientFromShapes([readClaimHistory], async () => ({
         kind: 'json',
         status: 200,
-        body: { events: await readClaimHistoryAnswer(projectId) },
+        body: { events: await readClaimHistoryAnswer(workPackageId) },
       }));
-      const reply = await client['getApiProjectsByIdClaim-history']({
-        params: { id: projectId },
+      const reply = await client['getApiWorkPackagesByIdClaim-history']({
+        params: { id: workPackageId },
         query: {},
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
@@ -1087,10 +1128,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const createCalendarMarkerAnswer = answers.createCalendarMarker;
   if (createCalendarMarkerAnswer !== undefined) {
-    checked.createCalendarMarker = async (projectId, marker) => {
+    checked.createCalendarMarker = async (workPackageId, marker) => {
       const started = startMutation(
         createCalendarMarker,
-        { params: { id: projectId }, body: marker },
+        { params: { id: workPackageId }, body: marker },
         (prepared) => createCalendarMarkerAnswer(prepared.params.id, prepared.body),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
@@ -1101,7 +1142,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           marker: markerWire(prepared.params.id, await mutation),
         },
       }));
-      const reply = await client['postApiProjectsByIdCalendar-markers']({
+      const reply = await client['postApiWorkPackagesByIdCalendar-markers']({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1113,10 +1154,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const renameCalendarMarkerAnswer = answers.renameCalendarMarker;
   if (renameCalendarMarkerAnswer !== undefined) {
-    checked.renameCalendarMarker = async (projectId, markerId, name) => {
+    checked.renameCalendarMarker = async (workPackageId, markerId, name) => {
       const started = startMutation(
         updateCalendarMarker,
-        { params: { id: projectId, markerId }, body: { name } },
+        { params: { id: workPackageId, markerId }, body: { name } },
         (prepared) =>
           // The facade requires name and JSON normalization cannot omit a string value.
           renameCalendarMarkerAnswer(
@@ -1133,7 +1174,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           marker: markerWire(prepared.params.id, await mutation),
         },
       }));
-      const reply = await client['patchApiProjectsByIdCalendar-markersByMarkerId']({
+      const reply = await client['patchApiWorkPackagesByIdCalendar-markersByMarkerId']({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1145,10 +1186,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const recolorCalendarMarkerAnswer = answers.recolorCalendarMarker;
   if (recolorCalendarMarkerAnswer !== undefined) {
-    checked.recolorCalendarMarker = async (projectId, markerId, color) => {
+    checked.recolorCalendarMarker = async (workPackageId, markerId, color) => {
       const started = startMutation(
         updateCalendarMarker,
-        { params: { id: projectId, markerId }, body: { color } },
+        { params: { id: workPackageId, markerId }, body: { color } },
         (prepared) =>
           // The facade supplies color and JSON normalization retains string and null values.
           recolorCalendarMarkerAnswer(
@@ -1165,7 +1206,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           marker: markerWire(prepared.params.id, await mutation),
         },
       }));
-      const reply = await client['patchApiProjectsByIdCalendar-markersByMarkerId']({
+      const reply = await client['patchApiWorkPackagesByIdCalendar-markersByMarkerId']({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1177,10 +1218,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const deleteCalendarMarkerAnswer = answers.deleteCalendarMarker;
   if (deleteCalendarMarkerAnswer !== undefined) {
-    checked.deleteCalendarMarker = async (projectId, markerId) => {
+    checked.deleteCalendarMarker = async (workPackageId, markerId) => {
       const started = startMutation(
         removeCalendarMarker,
-        { params: { id: projectId, markerId } },
+        { params: { id: workPackageId, markerId } },
         (prepared) => deleteCalendarMarkerAnswer(prepared.params.id, prepared.params.markerId),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
@@ -1188,77 +1229,48 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         await mutation;
         return { kind: 'empty', status: 204 };
       });
-      const reply = await client['deleteApiProjectsByIdCalendar-markersByMarkerId']({
+      const reply = await client['deleteApiWorkPackagesByIdCalendar-markersByMarkerId']({
         params: prepared.params,
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
     };
   }
-
-  const renameStepAnswer = answers.renameStep;
-  if (renameStepAnswer !== undefined) {
-    checked.renameStep = async (projectId, stepId, name) => {
+  const setStepAllowanceAnswer = answers.setStepAllowance;
+  if (setStepAllowanceAnswer !== undefined) {
+    checked.setStepAllowance = async (workPackageId, stepId, allowancePercent) => {
+      // Proof: rounding this admission failed the fractional facade case and the real fake's unchanged-step refusal.
+      const allowanceBps = allowanceHundredthsOf(allowancePercent);
+      // Proof: omission lost four exact invalid_allowance outcomes; lower wire validation still blocked malformed bodies (step-values-boundary.test.ts).
+      if (allowanceBps === null) throw new RangeError('invalid_allowance');
       const started = startMutation(
-        renameStep,
-        { params: { id: projectId, stepId }, body: { name } },
-        (prepared) => renameStepAnswer(prepared.params.id, prepared.params.stepId, name),
+        patchWorkPackageStepValues,
+        // Proof: zeroing the encoded allowance changed the admitted mutation; exact precision observation failed in step-values-boundary.test.ts.
+        { params: { id: workPackageId, stepId }, body: { allowanceBps } },
+        (prepared) =>
+          setStepAllowanceAnswer(
+            prepared.params.id,
+            prepared.params.stepId,
+            requiredNormalized(prepared.body.allowanceBps) / 100,
+          ),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([renameStep], async () => {
+      const client = clientFromShapes([patchWorkPackageStepValues], async () => {
         try {
           const step = await mutation;
           return {
             kind: 'json',
             status: 200,
-            body: { step: { ...step, projectId, position: 0 } },
+            body: { step: { ...step, workPackageId, position: 0 } },
           };
         } catch (cause) {
           if (!(cause instanceof Error)) throw cause;
-          if (cause.message === 'taken')
-            return { kind: 'json', status: 409, body: { error: 'taken' } };
-          if (cause.message === 'name_required')
-            return { kind: 'json', status: 422, body: { error: 'name_required' } };
           if (cause.message === 'not_found')
             return { kind: 'json', status: 404, body: { error: 'not_found' } };
           throw cause;
         }
       });
-      const reply = await client.patchApiProjectsByIdStepsByStepId({
-        params: prepared.params,
-        body: prepared.body,
-      });
-      if (reply.kind === 'failure') boundaryFailure(reply.failure);
-      if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return stepViewOf(reply.body.step);
-    };
-  }
-
-  const removeStepAnswer = answers.removeStep;
-  const setStepAllowanceAnswer = answers.setStepAllowance;
-  if (setStepAllowanceAnswer !== undefined) {
-    checked.setStepAllowance = async (projectId, stepId, allowancePercent) => {
-      const started = startMutation(
-        renameStep,
-        { params: { id: projectId, stepId }, body: { allowancePercent } },
-        (prepared) =>
-          setStepAllowanceAnswer(prepared.params.id, prepared.params.stepId, allowancePercent),
-      );
-      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([renameStep], async () => {
-        try {
-          const step = await mutation;
-          return { kind: 'json', status: 200, body: { step: { ...step, projectId, position: 0 } } };
-        } catch (cause) {
-          if (!(cause instanceof Error)) throw cause;
-          if (cause.message === 'invalid_allowance')
-            return { kind: 'json', status: 422, body: { error: 'invalid_allowance' } };
-          if (cause.message === 'not_found')
-            return { kind: 'json', status: 404, body: { error: 'not_found' } };
-          throw cause;
-        }
-      });
-      const reply = await client.patchApiProjectsByIdStepsByStepId({
+      const reply = await client.patchWorkPackageStepValues({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1270,21 +1282,30 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const setStepUnitAnswer = answers.setStepUnit;
   if (setStepUnitAnswer !== undefined) {
-    checked.setStepUnit = async (projectId, stepId, estimateUnit) => {
+    checked.setStepUnit = async (workPackageId, stepId, estimateUnit) => {
       const started = startMutation(
-        renameStep,
-        { params: { id: projectId, stepId }, body: { estimateUnit } },
-        (prepared) => setStepUnitAnswer(prepared.params.id, prepared.params.stepId, estimateUnit),
+        // Proof: reverting preflight to renameStep let hours reach the stated answer before transport refusal; the no-mutation case failed.
+        patchWorkPackageStepValues,
+        { params: { id: workPackageId, stepId }, body: { estimateUnit } },
+        (prepared) =>
+          // Proof: omitting required normalization admitted an absent facade unit; step-values-boundary.test.ts failed.
+          setStepUnitAnswer(
+            prepared.params.id,
+            prepared.params.stepId,
+            requiredNormalized(prepared.body.estimateUnit),
+          ),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([renameStep], async () => {
+      const client = clientFromShapes([patchWorkPackageStepValues], async () => {
         try {
           const step = await mutation;
-          return { kind: 'json', status: 200, body: { step: { ...step, projectId, position: 0 } } };
+          return {
+            kind: 'json',
+            status: 200,
+            body: { step: { ...step, workPackageId, position: 0 } },
+          };
         } catch (cause) {
           if (!(cause instanceof Error)) throw cause;
-          if (cause.message === 'invalid_estimate_unit')
-            return { kind: 'json', status: 422, body: { error: 'invalid_estimate_unit' } };
           if (cause instanceof EstimateUnitConflict)
             return {
               kind: 'json',
@@ -1296,7 +1317,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           throw cause;
         }
       });
-      const reply = await client.patchApiProjectsByIdStepsByStepId({
+      const reply = await client.patchWorkPackageStepValues({
         params: prepared.params,
         body: prepared.body,
       });
@@ -1306,82 +1327,38 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
     };
   }
 
-  if (removeStepAnswer !== undefined) {
-    checked.removeStep = async (projectId, stepId, cascade) => {
-      const started = startMutation(
-        removeStep,
-        {
-          params: { id: projectId, stepId },
-          query: { cascade: cascade ? 'true' : undefined },
-        },
-        (prepared) =>
-          removeStepAnswer(
-            prepared.params.id,
-            prepared.params.stepId,
-            prepared.query?.cascade === 'true',
-          ),
-      );
-      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
-      const client = clientFromShapes([removeStep], async () => {
-        const removal = await mutation;
-        return isFacadeSuccess(removal)
-          ? { kind: 'empty' as const, status: 204 }
-          : {
-              kind: 'json' as const,
-              status: 409,
-              body: { ...removal, error: removal.reason, inUse: removal.inUse },
-            };
-      });
-      const reply = await client.deleteApiProjectsByIdStepsByStepId({
-        params: prepared.params,
-        query: prepared.query,
-      });
-      // Proof: hard-coding error: "in_use" made a facade answer with reason: "taken" resolve
-      // as in_use; preserving its reason here made refusing-api.test.ts reject that response.
-      // Omitting five usage counters also made this reject with fake_invalid_response instead
-      // of exposing a partial union, observed in the same test file.
-      if (reply.kind === 'failure') boundaryFailure(reply.failure);
-      if (reply.kind === 'refusal') {
-        if (reply.body.error === 'in_use')
-          return { ok: false, reason: 'in_use', inUse: reply.body.inUse };
-        throw new Error(reply.body.error);
-      }
-      return { ok: true };
-    };
-  }
-
   const setTeamCapacityAnswer = answers.setTeamCapacity;
   if (setTeamCapacityAnswer !== undefined) {
-    checked.setTeamCapacity = (projectId, teamId, size) =>
-      throughProjectCommand(
-        projectId,
+    checked.setTeamCapacity = (workPackageId, teamId, size) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'setCapacity', teamId, size },
-        (normalizedProjectId, normalized) =>
-          setTeamCapacityAnswer(normalizedProjectId, normalized.teamId, normalized.size),
+        (normalizedWorkPackageId, normalized) =>
+          setTeamCapacityAnswer(normalizedWorkPackageId, normalized.teamId, normalized.size),
         () => VOID_COMMAND_RESULT,
       );
   }
 
   const setPriorityBandsAnswer = answers.setPriorityBands;
   if (setPriorityBandsAnswer !== undefined) {
-    checked.setPriorityBands = (projectId, bands) =>
-      throughProjectCommand(
-        projectId,
+    checked.setPriorityBands = (workPackageId, bands) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'setPriorityBands', bands: [...bands] },
-        (normalizedProjectId, normalized) =>
-          setPriorityBandsAnswer(normalizedProjectId, normalized.bands),
+        (normalizedWorkPackageId, normalized) =>
+          setPriorityBandsAnswer(normalizedWorkPackageId, normalized.bands),
         () => VOID_COMMAND_RESULT,
       );
   }
 
   const createWorkItemAnswer = answers.createWorkItem;
   if (createWorkItemAnswer !== undefined) {
-    checked.createWorkItem = (projectId, input) =>
-      throughProjectCommand(
-        projectId,
+    checked.createWorkItem = (workPackageId, input) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'createWorkItem', ...input },
-        (normalizedProjectId, normalized) =>
-          createWorkItemAnswer(normalizedProjectId, {
+        (normalizedWorkPackageId, normalized) =>
+          createWorkItemAnswer(normalizedWorkPackageId, {
             parentId: normalized.parentId,
             ...(normalized.afterId === undefined ? {} : { afterId: normalized.afterId }),
             ...(normalized.name === undefined ? {} : { name: normalized.name }),
@@ -1400,8 +1377,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   if (patchWorkItemAnswer !== undefined) {
     checked.patchWorkItem = (workItemId, patch) => {
       const { teamIds, tagIds, serviceIds, typeIds, externalRefs, ...fields } = patch;
-      return throughProjectCommand(
-        FAKE_PROJECT_ID,
+      return throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'patchWorkItem',
           workItemId,
@@ -1416,7 +1393,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
               : { externalRefs: externalRefs.map((reference) => ({ ...reference })) }),
           },
         },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           patchWorkItemAnswer(normalized.workItemId, normalized.patch),
         () => VOID_COMMAND_RESULT,
       );
@@ -1426,8 +1403,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setStatusAnswer = answers.setStatus;
   if (setStatusAnswer !== undefined) {
     checked.setStatus = (workItemId, status, on, factStart) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'setStatus',
           workItemId,
@@ -1438,7 +1415,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         // `on` off the call rather than off the normalised command: the wire
         // shape has it optional, this client always sends it, and the fake's
         // answer wants the day as a string.
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           setStatusAnswer(normalized.workItemId, status, on, factStart),
         () => VOID_COMMAND_RESULT,
       );
@@ -1447,8 +1424,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setStepBlockedAnswer = answers.setStepBlocked;
   if (setStepBlockedAnswer !== undefined) {
     checked.setStepBlocked = (workItemId, stepId, isBlocked) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'setStepBlocked', workItemId, stepId, isBlocked },
         () => setStepBlockedAnswer(workItemId, stepId, isBlocked),
         () => VOID_COMMAND_RESULT,
@@ -1457,8 +1434,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const startAttemptAnswer = answers.startAttempt;
   if (startAttemptAnswer !== undefined) {
     checked.startAttempt = (workItemId, stepId, executorPersonId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'startAttempt',
           workItemId,
@@ -1476,8 +1453,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const endAttemptAnswer = answers.endAttempt;
   if (endAttemptAnswer !== undefined) {
     checked.endAttempt = (workItemId, stepId, outcome, reference) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'endAttempt',
           workItemId,
@@ -1496,8 +1473,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const removeAttemptAnswer = answers.removeAttempt;
   if (removeAttemptAnswer !== undefined) {
     checked.removeAttempt = (workItemId, stepId, attemptNumber) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'removeAttempt', workItemId, stepId, attemptNumber },
         () => removeAttemptAnswer(workItemId, stepId, attemptNumber),
         () => VOID_COMMAND_RESULT,
@@ -1507,10 +1484,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const assignPersonAnswer = answers.assignPerson;
   if (assignPersonAnswer !== undefined) {
     checked.assignPerson = (workItemId, stepId, personId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'setAssignee', workItemId, stepId, personId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           assignPersonAnswer(normalized.workItemId, normalized.stepId, normalized.personId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1519,10 +1496,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const moveWorkItemAnswer = answers.moveWorkItem;
   if (moveWorkItemAnswer !== undefined) {
     checked.moveWorkItem = (workItemId, parentId, afterId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'moveWorkItem', workItemId, parentId, afterId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           moveWorkItemAnswer(normalized.workItemId, normalized.parentId, normalized.afterId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1531,10 +1508,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const duplicateWorkItemAnswer = answers.duplicateWorkItem;
   if (duplicateWorkItemAnswer !== undefined) {
     checked.duplicateWorkItem = (workItemId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'duplicateWorkItem', workItemId },
-        (_normalizedProjectId, normalized) => duplicateWorkItemAnswer(normalized.workItemId),
+        (_normalizedWorkPackageId, normalized) => duplicateWorkItemAnswer(normalized.workItemId),
         (made) => ({ index: 0, id: made.id }),
         (validated) => {
           if (validated.id === undefined) throw new Error('fake_invalid_response');
@@ -1546,14 +1523,14 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const removeWorkItemAnswer = answers.removeWorkItem;
   if (removeWorkItemAnswer !== undefined) {
     checked.removeWorkItem = (workItemId, options) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'deleteWorkItem',
           workItemId,
           ...(options?.strategy === undefined ? {} : { strategy: options.strategy }),
         },
-        (_normalizedProjectId, normalized) => {
+        (_normalizedWorkPackageId, normalized) => {
           // The facade distinguishes an omitted options argument from a supplied
           // object whose optional strategy leaves the JSON wire. Reconstruct only
           // that container/key presence; the value still comes from validated input.
@@ -1574,10 +1551,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setEstimateAnswer = answers.setEstimate;
   if (setEstimateAnswer !== undefined) {
     checked.setEstimate = (workItemId, stepId, days) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'setEstimate', workItemId, stepId, days },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           setEstimateAnswer(normalized.workItemId, normalized.stepId, normalized.days),
         () => VOID_COMMAND_RESULT,
       );
@@ -1605,8 +1582,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setMeasureEstimateAnswer = answers.setMeasureEstimate;
   if (setMeasureEstimateAnswer !== undefined) {
     checked.setMeasureEstimate = (workItemId, stepId, measure, estimate, rateCardDigest) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'setMeasureEstimate',
           workItemId,
@@ -1615,7 +1592,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           estimate: { ...estimate },
           ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
         },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           setMeasureEstimateAnswer(
             workItemId,
             stepId,
@@ -1630,10 +1607,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const clearMeasureEstimateAnswer = answers.clearMeasureEstimate;
   if (clearMeasureEstimateAnswer !== undefined) {
     checked.clearMeasureEstimate = (workItemId, stepId, measure) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'clearMeasureEstimate', workItemId, stepId, measure },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           clearMeasureEstimateAnswer(workItemId, stepId, normalized.measure),
         () => VOID_COMMAND_RESULT,
       );
@@ -1642,8 +1619,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setMeasureAnswer = answers.setMeasure;
   if (setMeasureAnswer !== undefined) {
     checked.setMeasure = (workItemId, stepId, metric, value, rateCardDigest) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'setMeasure',
           workItemId,
@@ -1652,7 +1629,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           value,
           ...(rateCardDigest === undefined ? {} : { rateCardDigest }),
         },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           setMeasureAnswer(
             workItemId,
             stepId,
@@ -1667,10 +1644,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const clearMeasureAnswer = answers.clearMeasure;
   if (clearMeasureAnswer !== undefined) {
     checked.clearMeasure = (workItemId, stepId, metric) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'clearMeasure', workItemId, stepId, metric },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           clearMeasureAnswer(workItemId, stepId, normalized.metric),
         () => VOID_COMMAND_RESULT,
       );
@@ -1679,8 +1656,8 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const setBudgetAnswer = answers.setBudget;
   if (setBudgetAnswer !== undefined) {
     checked.setBudget = (workItemId, measure, budget) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         {
           kind: 'setBudget',
           workItemId,
@@ -1689,7 +1666,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           policy: budget.policy,
           ...(budget.holdPerAttempt === undefined ? {} : { holdPerAttempt: budget.holdPerAttempt }),
         },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           setBudgetAnswer(workItemId, normalized.measure, {
             cap: normalized.cap,
             policy: normalized.policy,
@@ -1704,10 +1681,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const clearBudgetAnswer = answers.clearBudget;
   if (clearBudgetAnswer !== undefined) {
     checked.clearBudget = (workItemId, measure) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'clearBudget', workItemId, measure },
-        (_normalizedProjectId, normalized) => clearBudgetAnswer(workItemId, normalized.measure),
+        (_normalizedWorkPackageId, normalized) => clearBudgetAnswer(workItemId, normalized.measure),
         () => VOID_COMMAND_RESULT,
       );
   }
@@ -1715,10 +1692,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const clearEstimateAnswer = answers.clearEstimate;
   if (clearEstimateAnswer !== undefined) {
     checked.clearEstimate = (workItemId, stepId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'clearEstimate', workItemId, stepId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           clearEstimateAnswer(normalized.workItemId, normalized.stepId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1726,33 +1703,33 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const arrangeByScheduleAnswer = answers.arrangeBySchedule;
   if (arrangeByScheduleAnswer !== undefined) {
-    checked.arrangeBySchedule = (projectId) =>
-      throughProjectCommand(
-        projectId,
+    checked.arrangeBySchedule = (workPackageId) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'arrangeBySchedule' },
-        (normalizedProjectId) => arrangeByScheduleAnswer(normalizedProjectId),
+        (normalizedWorkPackageId) => arrangeByScheduleAnswer(normalizedWorkPackageId),
         () => VOID_COMMAND_RESULT,
       );
   }
 
-  const freezeProjectAnswer = answers.freezeProject;
-  if (freezeProjectAnswer !== undefined) {
-    checked.freezeProject = (projectId) =>
-      throughProjectCommand(
-        projectId,
-        { kind: 'freezeProject' },
-        (normalizedProjectId) => freezeProjectAnswer(normalizedProjectId),
+  const freezeWorkPackageAnswer = answers.freezeWorkPackage;
+  if (freezeWorkPackageAnswer !== undefined) {
+    checked.freezeWorkPackage = (workPackageId) =>
+      throughWorkPackageCommand(
+        workPackageId,
+        { kind: 'freezeWorkPackage' },
+        (normalizedWorkPackageId) => freezeWorkPackageAnswer(normalizedWorkPackageId),
         () => VOID_COMMAND_RESULT,
       );
   }
 
-  const unfreezeProjectAnswer = answers.unfreezeProject;
-  if (unfreezeProjectAnswer !== undefined) {
-    checked.unfreezeProject = (projectId) =>
-      throughProjectCommand(
-        projectId,
-        { kind: 'unfreezeProject' },
-        (normalizedProjectId) => unfreezeProjectAnswer(normalizedProjectId),
+  const unfreezeWorkPackageAnswer = answers.unfreezeWorkPackage;
+  if (unfreezeWorkPackageAnswer !== undefined) {
+    checked.unfreezeWorkPackage = (workPackageId) =>
+      throughWorkPackageCommand(
+        workPackageId,
+        { kind: 'unfreezeWorkPackage' },
+        (normalizedWorkPackageId) => unfreezeWorkPackageAnswer(normalizedWorkPackageId),
         () => VOID_COMMAND_RESULT,
       );
   }
@@ -1760,10 +1737,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const unfreezeWorkItemAnswer = answers.unfreezeWorkItem;
   if (unfreezeWorkItemAnswer !== undefined) {
     checked.unfreezeWorkItem = (workItemId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'unfreezeWorkItem', workItemId },
-        (_normalizedProjectId, normalized) => unfreezeWorkItemAnswer(normalized.workItemId),
+        (_normalizedWorkPackageId, normalized) => unfreezeWorkItemAnswer(normalized.workItemId),
         () => VOID_COMMAND_RESULT,
       );
   }
@@ -1771,10 +1748,11 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const claimWorkItemAnswer = answers.claimWorkItem;
   if (claimWorkItemAnswer !== undefined) {
     checked.claimWorkItem = (workItemId, personId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'claimWorkItem', workItemId, personId },
-        (_normalizedProjectId, normalized) => claimWorkItemAnswer(normalized.workItemId, personId),
+        (_normalizedWorkPackageId, normalized) =>
+          claimWorkItemAnswer(normalized.workItemId, personId),
         () => VOID_COMMAND_RESULT,
       );
   }
@@ -1782,10 +1760,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const releaseWorkItemAnswer = answers.releaseWorkItem;
   if (releaseWorkItemAnswer !== undefined) {
     checked.releaseWorkItem = (workItemId, personId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'releaseWorkItem', workItemId, personId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           releaseWorkItemAnswer(normalized.workItemId, personId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1794,10 +1772,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const addDependencyAnswer = answers.addDependency;
   if (addDependencyAnswer !== undefined) {
     checked.addDependency = (workItemId, predecessorId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'addDependency', workItemId, predecessorId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           addDependencyAnswer(normalized.workItemId, normalized.predecessorId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1806,10 +1784,10 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   const removeDependencyAnswer = answers.removeDependency;
   if (removeDependencyAnswer !== undefined) {
     checked.removeDependency = (workItemId, predecessorId) =>
-      throughProjectCommand(
-        FAKE_PROJECT_ID,
+      throughWorkPackageCommand(
+        FAKE_WORK_PACKAGE_ID,
         { kind: 'removeDependency', workItemId, predecessorId },
-        (_normalizedProjectId, normalized) =>
+        (_normalizedWorkPackageId, normalized) =>
           removeDependencyAnswer(normalized.workItemId, normalized.predecessorId),
         () => VOID_COMMAND_RESULT,
       );
@@ -1817,13 +1795,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const addTypedDependencyAnswer = answers.addTypedDependency;
   if (addTypedDependencyAnswer !== undefined) {
-    checked.addTypedDependency = (projectId, predecessor, successor, type) =>
-      throughProjectCommand(
-        projectId,
+    checked.addTypedDependency = (workPackageId, predecessor, successor, type) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'addTypedDependency', predecessor, successor, type },
-        (normalizedProjectId, normalized) =>
+        (normalizedWorkPackageId, normalized) =>
           addTypedDependencyAnswer(
-            normalizedProjectId,
+            normalizedWorkPackageId,
             normalized.predecessor,
             normalized.successor,
             normalized.type,
@@ -1833,13 +1811,13 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   }
   const updateTypedDependencyAnswer = answers.updateTypedDependency;
   if (updateTypedDependencyAnswer !== undefined) {
-    checked.updateTypedDependency = (projectId, dependencyId, predecessor, successor, type) =>
-      throughProjectCommand(
-        projectId,
+    checked.updateTypedDependency = (workPackageId, dependencyId, predecessor, successor, type) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type },
-        (normalizedProjectId, normalized) =>
+        (normalizedWorkPackageId, normalized) =>
           updateTypedDependencyAnswer(
-            normalizedProjectId,
+            normalizedWorkPackageId,
             normalized.dependencyId,
             normalized.predecessor,
             normalized.successor,
@@ -1850,12 +1828,12 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   }
   const removeTypedDependencyAnswer = answers.removeTypedDependency;
   if (removeTypedDependencyAnswer !== undefined) {
-    checked.removeTypedDependency = (projectId, dependencyId) =>
-      throughProjectCommand(
-        projectId,
+    checked.removeTypedDependency = (workPackageId, dependencyId) =>
+      throughWorkPackageCommand(
+        workPackageId,
         { kind: 'removeTypedDependency', dependencyId },
-        (normalizedProjectId, normalized) =>
-          removeTypedDependencyAnswer(normalizedProjectId, normalized.dependencyId),
+        (normalizedWorkPackageId, normalized) =>
+          removeTypedDependencyAnswer(normalizedWorkPackageId, normalized.dependencyId),
         () => VOID_COMMAND_RESULT,
       );
   }
@@ -2047,17 +2025,53 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
   return checked;
 }
 
-export function refusingApi<Answers extends Partial<ProjectApi>>(
+/**
+ * A {@link WorkPackageApi} whose every method refuses, except the ones a test
+ * states.
+ *
+ * Four suites had each written this stand-in out by hand — `app-router`,
+ * `page-shortcuts`, `work-package-page`, `plan-cards` — and every copy had drifted
+ * the same way: seven methods the interface has grown since
+ * (`setPriorityBands`, `setTeamCapacity`, `setDepReach`,
+ * `setEstimateArithmetic`, `renameTag`, `removeTag`, `addWorkItemType`) were
+ * missing from all four, and three carried stubs under names it had renamed
+ * away (`create`, `patch`, `assign`, `move`, `remove`, `duplicate`, `freeze`,
+ * `unfreeze`). No `typecheck` target compiled a test file here until
+ * 2026-09-02, so nothing said so.
+ *
+ * One of those dead names made a **shipped proof vacuous**:
+ * `page-shortcuts.test.tsx` asserts that a command chord behind a modal never
+ * reaches the write, and it was watching a spy named `create` — a method
+ * `WorkPackageApi` stopped having. The recorded proof says that assertion was once
+ * seen failing on "`api.create` called once", and it could not have failed
+ * again after the rename.
+ *
+ * A `Proxy` rather than 43 written-out refusals, so it cannot drift again:
+ * anything the interface grows is refused here the day it is added, and a test
+ * that reaches a method it did not state says so out loud instead of passing
+ * against a silent default.
+ *
+ * Only declared method names are callable; unsupported members, including promise
+ * protocol names, are absent. Explicit fixture properties remain available.
+ *
+ * Stated methods whose client view maps directly onto an endpoint run through
+ * {@link clientFromShapes} with the answer as their in-process transport. The
+ * same request, response, and refusal shapes therefore guard both this focused
+ * fake and {@link fakeWorkPackageApi}; a fixture cannot teach a screen a payload
+ * the HTTP client would refuse.
+ */
+export function refusingApi<Answers extends Partial<WorkPackageApi>>(
   answers: Answers,
-): ProjectApi & Answers {
-  return new Proxy(answers as ProjectApi, {
+  context?: WorkPackageTransportContext,
+): WorkPackageApi & Answers {
+  return new Proxy(answers as WorkPackageApi, {
     get(target, key) {
       // Proof: replacing this lookup with `undefined` made all three boundary cases in
       // refusing-api.test.ts resolve instead of reject: malformed request, response, and refusal.
-      const shaped: unknown = Reflect.get(checkedAnswers(target), key);
+      const shaped: unknown = Reflect.get(checkedAnswers(target, context), key);
       if (shaped !== undefined) return shaped;
       const stated: unknown = Reflect.get(target, key);
-      if (stated !== undefined && typeof key === 'string' && isProjectApiMethod(key)) {
+      if (stated !== undefined && isWorkPackageApiMethod(key)) {
         // Proof: deleting removeDependency's wrapper made the exhaustive fake boundary test
         // fail with Received "Error: missing fake shape boundary: removeDependency".
         throw new Error(`missing fake shape boundary: ${key}`);
@@ -2069,10 +2083,11 @@ export function refusingApi<Answers extends Partial<ProjectApi>>(
       // object calls it — 34 of `plan-cards.test.tsx`'s 118 cases failed on
       // `api.then is not one this test answers`, watched 2026-09-02, before
       // this line existed.
-      if (typeof key !== 'string' || PROMISE_PROTOCOL.has(key)) return undefined;
+      // Proof: omitting this census exposed callable retired methods; the fake-surface case failed. Its healthy control also checks unknown symbols, awaiting the proxy and a declared missing answer.
+      if (!isWorkPackageApiMethod(key)) return undefined;
       return () => Promise.reject(new Error(`api.${key} is not one this test answers`));
     },
-  }) as ProjectApi & Answers;
+  }) as WorkPackageApi & Answers;
 }
 
 /** The modeled unit-edit conflict carries the stored estimate count. */

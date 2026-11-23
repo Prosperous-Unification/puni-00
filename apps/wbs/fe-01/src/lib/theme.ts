@@ -34,9 +34,9 @@ export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark']
 /**
  * Where this browser remembers the answer.
  *
- * One key for the browser and not one per project, for `wbs.ganttArrows`'
+ * One key for the browser and not one per work package, for `wbs.ganttArrows`'
  * reason: a palette is an answer about **this screen in this room**, and having
- * to say it again in the next project is the fault remembering it away is for.
+ * to say it again in the next work package is the fault remembering it away is for.
  */
 export { THEME_KEY };
 

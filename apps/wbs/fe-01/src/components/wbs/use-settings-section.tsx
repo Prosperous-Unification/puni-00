@@ -63,7 +63,7 @@ export interface SettingsSectionOptions {
 }
 
 /**
- * The five things every panel in the project settings modal does, so that
+ * The five things every panel in the work package settings modal does, so that
  * adding a fifth stops being "copy `estimating-panel.tsx` and remember five
  * things".
  *
@@ -193,7 +193,7 @@ export function SectionProblem({ problem }: { problem: string | null }): ReactNo
  * one it replaced. Shown only while the boxes say what landed: a new edit hides it.
  *
  * **Put back, not Undo** (UI review D8, F-068). The toolbar's ↶ is be-01's
- * command journal, and project settings are not journalled, so a second control
+ * command journal, and work package settings are not journalled, so a second control
  * called Undo on the same screen would promise a reach the first one does not
  * have. This one sends the replaced values as a new write; its hint says the ↶
  * does not reach it.
@@ -222,7 +222,7 @@ export function AppliedLine({
         size="sm"
         type="button"
         aria-label={`Put back the previous ${group}`}
-        data-hint={`Sends back the ${group} this one replaced. Project settings are not on the toolbar’s undo.`}
+        data-hint={`Sends back the ${group} this one replaced. Work package settings are not on the toolbar’s undo.`}
         disabled={busy}
         onClick={onUndo}
       >

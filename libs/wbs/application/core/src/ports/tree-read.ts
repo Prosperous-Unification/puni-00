@@ -4,7 +4,7 @@ import type { EngineUnavailable } from './scheduler';
 import type { AccessRefused } from './shared-people-values';
 
 /**
- * Project tree reads through the caller's resolved access, independent of the resource.
+ * Work package tree reads through the caller's resolved access, independent of the resource.
  *
  * Proof: restoring the concrete resource Pick directly or through a neutral-looking
  * port re-export made the committed production K6 boundary oracle fail with
@@ -12,9 +12,9 @@ import type { AccessRefused } from './shared-people-values';
  * fault patches: `openspec/changes/space-tree-port-boundary/verify.md`.
  */
 export interface TreeRead {
-  /** The project page's tree, with scoped assignee names and existing read refusals. */
+  /** The work package page's tree, with scoped assignee names and existing read refusals. */
   treeWithin(
-    projectId: string,
+    workPackageId: string,
     access: ResourceAccess,
   ): Promise<PlanTree | EngineUnavailable | null | AccessRefused>;
 
@@ -28,7 +28,7 @@ export interface TreeRead {
     | {
         readonly kind: 'isolated-connected';
         readonly entries: readonly {
-          readonly projectId: string;
+          readonly workPackageId: string;
           readonly name: string;
           readonly rank: number;
           readonly revision: number;
@@ -40,7 +40,7 @@ export interface TreeRead {
     | {
         readonly kind: 'shared';
         readonly entries: readonly {
-          readonly projectId: string;
+          readonly workPackageId: string;
           readonly name: string;
           readonly rank: number;
           readonly revision: number;

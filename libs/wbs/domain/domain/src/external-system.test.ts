@@ -38,7 +38,7 @@ describe('systemOfUrl', () => {
   });
 
   it('leaves an Atlassian URL that is neither to the reader', () => {
-    expect(systemOfUrl('https://acme.atlassian.net/jira/software/projects/SHED')).toBeNull();
+    expect(systemOfUrl('https://acme.atlassian.net/jira/software/work-packages/SHED')).toBeNull();
   });
 
   it('types a Slack message by host alone, because Slack has no second kind here', () => {

@@ -6,7 +6,7 @@ import { statusStripStyle } from './depends-card';
 import { DEP_LIST_WIDTH } from './plan-cell-props';
 import type { DependencySearch } from './use-dependency-search';
 
-/** The actual table and phone share project/endpoint actions and visible lookup outcomes. */
+/** The actual table and phone share work-package/endpoint actions and visible lookup outcomes. */
 export function DependencyOptions({
   search,
   onChoose,
@@ -33,7 +33,7 @@ export function DependencyOptions({
   isPending?: (key: string) => boolean;
 }) {
   const choose = (option: DependencyOption) => {
-    if (option.kind === 'project') search.chooseProject(option.project);
+    if (option.kind === 'work_package') search.chooseWorkPackage(option.workPackage);
     else onChoose(option);
   };
   const Option = phone ? 'button' : 'span';
@@ -146,19 +146,19 @@ export function DependencyOptions({
               option.kind === 'endpoint' && (option.refusal !== undefined || isPending(option.key))
             }
             aria-label={
-              option.kind === 'project'
-                ? `Project ${option.project.abbreviation} - ${option.project.name}`
+              option.kind === 'work_package'
+                ? `Work package ${option.workPackage.abbreviation} - ${option.workPackage.name}`
                 : `${option.label}${option.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[option.refusal]}`}`
             }
             // Proof: CI browser shard 3 failed the existing overflow assertion when this title was absent.
             title={
-              option.kind === 'project'
-                ? `Project ${option.project.abbreviation} - ${option.project.name}`
+              option.kind === 'work_package'
+                ? `Work package ${option.workPackage.abbreviation} - ${option.workPackage.name}`
                 : `${option.label}${option.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[option.refusal]}`}`
             }
             onClick={() => {
               if (
-                option.kind === 'project' ||
+                option.kind === 'work_package' ||
                 (option.refusal === undefined && !isPending(option.key))
               )
                 choose(option);
@@ -170,8 +170,8 @@ export function DependencyOptions({
               }
             }}
           >
-            {option.kind === 'project'
-              ? `Project ${option.project.abbreviation} - ${option.project.name}`
+            {option.kind === 'work_package'
+              ? `Work package ${option.workPackage.abbreviation} - ${option.workPackage.name}`
               : `${option.label}${option.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[option.refusal]}`}`}
           </Option>
           {option.kind === 'endpoint' && (

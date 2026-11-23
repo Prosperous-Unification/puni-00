@@ -1,7 +1,7 @@
 import type { CapacityPreviewStore, ResourceOccupancyStore } from './chain-snapshot-store';
-import type { ProjectReportSnapshot } from './project-report-store';
 import type { HistoryStores, PlanTransactionalStores } from './stores';
 import type { UnitOfWork } from './unit-of-work';
+import type { WorkPackageReportSnapshot } from './work-package-report-store';
 
 /** Whether an opened source can currently serve requests. */
 export type SourceHealth = { ok: true } | { ok: false; reason: 'unavailable' };
@@ -15,7 +15,7 @@ export interface Source<S extends PlanTransactionalStores = PlanTransactionalSto
   /** Committed capacity preview for a public graph without a live-plan reader. */
   readonly capacityPreview?: CapacityPreviewStore;
   /** Committed project reporting for a public graph without a live-plan reader. */
-  readonly projectReportSnapshot?: ProjectReportSnapshot;
+  readonly workPackageReportSnapshot?: WorkPackageReportSnapshot;
   readonly uow: UnitOfWork<S>;
   health(): Promise<SourceHealth>;
   close(): Promise<void>;

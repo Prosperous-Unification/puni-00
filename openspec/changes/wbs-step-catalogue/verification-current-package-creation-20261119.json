@@ -1,0 +1,1348 @@
+{
+  "recordedAt": "2026-11-19T14:16:26.111Z",
+  "goalStatus": "active",
+  "scope": "Current Source package birth with inherited project catalogue steps and explicit values",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/work-packages.ts",
+      "sha256": "17a9db2dac8db9f616e4c941be3f2711c397ec43a77a32fccb92e7cf477285e2",
+      "bytes": 5044,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "7b93f64e5a617328b0327303c2d1dbd1c67366bfc9fb023076d9b3318edec9b1",
+      "bytes": 81586,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "42d172fbdba66e1f04b057736e815a8ff99882abd3f929330dde1352d5781c1d",
+      "bytes": 318612,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "c70e2baf9918c89df9fee8875422325e5841e7ec2e4f879238add760a1249b43",
+      "bytes": 345245,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+      "sha256": "08afda2ada93e705c2821104bb39b21d3612c3e1c89df98854b117a3aae46272",
+      "bytes": 11057,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-creation-contract-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-first-red-v1.receipt.json",
+        "sha256": "c210ba254b38b1a6e30f56d70ea32c05e6ad85f798e9aa8e5aa305e34ca3a577",
+        "bytes": 1579,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current package creation|reinjects work package step, scope, and reader-order faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:04:10.779Z",
+        "endedAt": "2026-11-19T14:04:18.369Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-first-red-v1.log",
+          "sha256": "aae556717f5373aeae236045c65b74dd6935cacfd05cbb85370cb3d2fa293045",
+          "bytes": 4977
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-first-red-v1.log",
+        "sha256": "aae556717f5373aeae236045c65b74dd6935cacfd05cbb85370cb3d2fa293045",
+        "bytes": 4977,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-contract-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-after-v1.receipt.json",
+        "sha256": "19c9a34872e0f689d4eadf933e2b7e29338083aefa3f70d2f7ee40c7f2c24a70",
+        "bytes": 1570,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current package creation|reinjects work package step, scope, and reader-order faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:05:50.840Z",
+        "endedAt": "2026-11-19T14:05:58.943Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-after-v1.log",
+          "sha256": "191d699a18656f1e6ea1115801d292dacef1a02998c5a9ab6ec1383673ced76e",
+          "bytes": 717
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-contract-after-v1.log",
+        "sha256": "191d699a18656f1e6ea1115801d292dacef1a02998c5a9ab6ec1383673ced76e",
+        "bytes": 717,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-corruption-helper-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-corruption-helper-v1.receipt.json",
+        "sha256": "db809d79d8caa87bd6858a541296723fef8f479aad474f75b11b29557caf4de9",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-corruption-helper-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "-t",
+            "birth fixture value corruption",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:07:10.116Z",
+        "endedAt": "2026-11-19T14:07:12.866Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-corruption-helper-v1.log",
+          "sha256": "746ea54cf2a1a4c4d18a6aaed32155583543c5e17574aebdb2df781ede40f4aa",
+          "bytes": 382
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-corruption-helper-v1.log",
+        "sha256": "746ea54cf2a1a4c4d18a6aaed32155583543c5e17574aebdb2df781ede40f4aa",
+        "bytes": 382,
+        "mode": 384
+      }
+    },
+    {
+      "name": "creation-effect-memory-physical-removal-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1.receipt.json",
+        "sha256": "fffa8ed1d1289b63eecd7c1b086de5d91c0354f4ebf19c45d0f18377eb051e75",
+        "bytes": 1468,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "reinjects work package step, scope, and reader-order faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:08:41.495Z",
+        "endedAt": "2026-11-19T14:08:44.316Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1.log",
+          "sha256": "09ebd5a4a36c10a52a2e834e43c2d858a091a4cb360873bd237885c990381eb7",
+          "bytes": 938
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1.log",
+        "sha256": "09ebd5a4a36c10a52a2e834e43c2d858a091a4cb360873bd237885c990381eb7",
+        "bytes": 938,
+        "mode": 384
+      }
+    },
+    {
+      "name": "creation-effect-fixture-closed-owner-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1.receipt.json",
+        "sha256": "ab62a4c32645463baf37bf3af6353ed652042837e21c50d34e7e4adc94a376b3",
+        "bytes": 1461,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "-t",
+            "birth fixture value corruption rejects a closed Source",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:08:44.317Z",
+        "endedAt": "2026-11-19T14:08:46.965Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1.log",
+          "sha256": "0972f84f10c6d11fa7923f663076b748ae182c40a86a1a859b1a702b0002f2e7",
+          "bytes": 1050
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1.log",
+        "sha256": "0972f84f10c6d11fa7923f663076b748ae182c40a86a1a859b1a702b0002f2e7",
+        "bytes": 1050,
+        "mode": 384
+      }
+    },
+    {
+      "name": "creation-effect-fixture-absence-diagnostic-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1.receipt.json",
+        "sha256": "a5fb0decae06343d6a636d77ffcbb8cf1993ebb471bf7b0ac16bb27ec14782c3",
+        "bytes": 1480,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "-t",
+            "birth fixture value corruption removes only the addressed set",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:08:46.966Z",
+        "endedAt": "2026-11-19T14:08:49.544Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1.log",
+          "sha256": "83175acd9debd86ebf9c5f71c40f702629fa2053d7e707be5dbf44cafa64ed84",
+          "bytes": 1107
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1.log",
+        "sha256": "83175acd9debd86ebf9c5f71c40f702629fa2053d7e707be5dbf44cafa64ed84",
+        "bytes": 1107,
+        "mode": 384
+      }
+    },
+    {
+      "name": "creation-effect-sqlite-physical-removal-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1.receipt.json",
+        "sha256": "1b02485025f3962db6c8bc2c9808f46d6f1b4489452080068aa2025518884d49",
+        "bytes": 1471,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects work package step, scope, and reader-order faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:08:49.545Z",
+        "endedAt": "2026-11-19T14:08:54.543Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1.log",
+          "sha256": "38a82b05ed0de6be87fd508b282aed6d15c694eaa91be1a6199f8bd9ee8d7d22",
+          "bytes": 942
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1.log",
+        "sha256": "38a82b05ed0de6be87fd508b282aed6d15c694eaa91be1a6199f8bd9ee8d7d22",
+        "bytes": 942,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-lint-fix-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-lint-fix-v1.receipt.json",
+        "sha256": "cedcae26513cbd3489feac4e90bcdac37b20d21267dd9c67aaf095975e3d901f",
+        "bytes": 1667,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-lint-fix-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/conformance/src/stores/work-packages.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:10:24.887Z",
+        "endedAt": "2026-11-19T14:10:34.423Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-lint-fix-v1.log",
+          "sha256": "46e2acd5e6a95dac31b98ba6ae2402144010ec1209f1df4d9241a172648a5b47",
+          "bytes": 261
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-lint-fix-v1.log",
+        "sha256": "46e2acd5e6a95dac31b98ba6ae2402144010ec1209f1df4d9241a172648a5b47",
+        "bytes": 261,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-format-write-v1.receipt.json",
+        "sha256": "0624507ae2147ad1123775839c5491fa9101e68e5589d0d7f75d810ae3b80d80",
+        "bytes": 1682,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-format-write-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/application/conformance/src/stores/work-packages.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:11:56.766Z",
+        "endedAt": "2026-11-19T14:11:57.939Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-format-write-v1.log",
+          "sha256": "7c6f92b1bdcae5f681d9a430724052d771ac26cb433e7dcdae8dfa219ae1e8c6",
+          "bytes": 374
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-format-write-v1.log",
+        "sha256": "7c6f92b1bdcae5f681d9a430724052d771ac26cb433e7dcdae8dfa219ae1e8c6",
+        "bytes": 374,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-final-focused-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-focused-v1.receipt.json",
+        "sha256": "02a1616df1444ad95da63f7315bc3df600a4ae23ff9b5d0500483c8306494485",
+        "bytes": 1568,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-final-focused-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current package creation|reinjects work package step, scope, and reader-order faults",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:14:50.938Z",
+        "endedAt": "2026-11-19T14:14:58.674Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-focused-v1.log",
+          "sha256": "af3040970173e543318a0dcab8fc541cee0292bdcc89d72cee27c5d99b675332",
+          "bytes": 717
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-focused-v1.log",
+        "sha256": "af3040970173e543318a0dcab8fc541cee0292bdcc89d72cee27c5d99b675332",
+        "bytes": 717,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-final-regression-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-regression-v1.receipt.json",
+        "sha256": "2dc8e9391f30e6f70cabc9b18bb7c45830935eb45a557c383960857127d92d56",
+        "bytes": 1822,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-final-regression-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:15:02.711Z",
+        "endedAt": "2026-11-19T14:15:10.792Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-regression-v1.log",
+          "sha256": "b600cd1186728f5fa53763f57bb9cbb15add458026b445b17f6694dc6e446c47",
+          "bytes": 13567
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-regression-v1.log",
+        "sha256": "b600cd1186728f5fa53763f57bb9cbb15add458026b445b17f6694dc6e446c47",
+        "bytes": 13567,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-final-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-types-v1.receipt.json",
+        "sha256": "2eac2c1461e6ee3a45bc293419b53592e64d045e9e174ea4cde19f3b7a3d2412",
+        "bytes": 1437,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:15:14.181Z",
+        "endedAt": "2026-11-19T14:15:25.317Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-broad-memory-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-broad-memory-v1.receipt.json",
+        "sha256": "82e355f93cd0ac67770598307aab2cd1d8d9a76f63cb6112e6d73f1922f73784",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-broad-memory-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:15:25.469Z",
+        "endedAt": "2026-11-19T14:15:31.278Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-broad-memory-v1.log",
+          "sha256": "248557a940ebade22a78f199abb1b68ed829e6594092fe4906f58e8cb7994022",
+          "bytes": 14691
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-broad-memory-v1.log",
+        "sha256": "248557a940ebade22a78f199abb1b68ed829e6594092fe4906f58e8cb7994022",
+        "bytes": 14691,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-lint-v1.receipt.json",
+        "sha256": "45973e6b75eb9fb269c14a901794789860d9c309c77059f3bb7bf04f8d784e71",
+        "bytes": 1654,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/conformance/src/stores/work-packages.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:15:26.634Z",
+        "endedAt": "2026-11-19T14:15:35.184Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-creation-final-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-format-v1.receipt.json",
+        "sha256": "f9c8a7601681e391ced1d5a73d9361174ad902e2141e56a7e6fbe05de8aa74d4",
+        "bytes": 1681,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-creation-final-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/application/conformance/src/stores/work-packages.ts",
+            "libs/wbs/adapters/store-memory/src/source.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:15:45.489Z",
+        "endedAt": "2026-11-19T14:15:46.678Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-creation-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    }
+  ],
+  "effects": {
+    "pin": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-creation-effects-v1.json",
+      "sha256": "e8cc381687cf01366a83b5cbde42b67d687af55b920e45d275e79415c54735fe",
+      "bytes": 10159,
+      "mode": 384
+    },
+    "effects": [
+      {
+        "name": "memory-physical-removal",
+        "file": "libs/wbs/adapters/store-memory/src/source.ts",
+        "test": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+        "before": "      committed.tables.stepCatalogue.packageValues.delete(workPackageId);",
+        "after": "      // Injected omission: preserve the actual value set.",
+        "pattern": "reinjects work package step, scope, and reader-order faults",
+        "markers": ["1 fail", "observed"],
+        "healthySha256": "63572278d5992f89a3f53408410b7b1487efb555423eee05c34c716b5488d0c7",
+        "faultSha256": "c1e781212f63fe51f96d85422f941279d45b75fade09bbd4f0389f39ad5286b8",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+              "-t",
+              "reinjects work package step, scope, and reader-order faults",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:08:41.495Z",
+          "endedAt": "2026-11-19T14:08:44.316Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-memory-physical-removal-v1.log",
+            "sha256": "09ebd5a4a36c10a52a2e834e43c2d858a091a4cb360873bd237885c990381eb7",
+            "bytes": 938
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "fixture-closed-owner",
+        "file": "libs/wbs/adapters/store-memory/src/source.ts",
+        "test": "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+        "before": "    removePackageStepValues(workPackageId) {\n      assertSourceOpen();",
+        "after": "    removePackageStepValues(workPackageId) {",
+        "pattern": "birth fixture value corruption rejects a closed Source",
+        "markers": ["1 fail", "toThrow"],
+        "healthySha256": "63572278d5992f89a3f53408410b7b1487efb555423eee05c34c716b5488d0c7",
+        "faultSha256": "8aa20a6b80d38add57c437724e70bcbe8793c1366e5b6bf63b2abbfd50777d87",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+              "-t",
+              "birth fixture value corruption rejects a closed Source",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:08:44.317Z",
+          "endedAt": "2026-11-19T14:08:46.965Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-closed-owner-v1.log",
+            "sha256": "0972f84f10c6d11fa7923f663076b748ae182c40a86a1a859b1a702b0002f2e7",
+            "bytes": 1050
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "fixture-absence-diagnostic",
+        "file": "libs/wbs/adapters/store-memory/src/source.ts",
+        "test": "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+        "before": "      if (values === undefined) throw new Error('memory package explicit values set is absent');",
+        "after": "      // Injected omission: dereference an absent set.",
+        "pattern": "birth fixture value corruption removes only the addressed set",
+        "markers": ["1 fail", "explicit values set is absent"],
+        "healthySha256": "63572278d5992f89a3f53408410b7b1487efb555423eee05c34c716b5488d0c7",
+        "faultSha256": "9d37c06d5c637a0551b30f8fc7ef930c5b4bcbaa9fa08b585ab511ddc01e5f10",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+              "-t",
+              "birth fixture value corruption removes only the addressed set",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:08:46.966Z",
+          "endedAt": "2026-11-19T14:08:49.544Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-fixture-absence-diagnostic-v1.log",
+            "sha256": "83175acd9debd86ebf9c5f71c40f702629fa2053d7e707be5dbf44cafa64ed84",
+            "bytes": 1107
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "sqlite-physical-removal",
+        "file": "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "test": "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "before": "            source.db.run(sql`DELETE FROM work_package_step WHERE work_package_id=${created.id}`);",
+        "after": "            // Injected omission: preserve the actual newborn SQL value rows.",
+        "pattern": "reinjects work package step, scope, and reader-order faults",
+        "markers": ["1 fail", "observed"],
+        "healthySha256": "142cf0f8036652ae2241cb761da743902e81bfdd1189141d17b003d5198ab840",
+        "faultSha256": "9132ce4cf8b6a488b6bde148fac8b817e2fca88e220a48bc15214554b01e430a",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+              "-t",
+              "reinjects work package step, scope, and reader-order faults",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:08:49.545Z",
+          "endedAt": "2026-11-19T14:08:54.543Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/creation-effect-sqlite-physical-removal-v1.log",
+            "sha256": "38a82b05ed0de6be87fd508b282aed6d15c694eaa91be1a6199f8bd9ee8d7d22",
+            "bytes": 942
+          },
+          "settled": true
+        }
+      }
+    ]
+  },
+  "behavior": [
+    "The stable workPackages.create:steps case creates with no legacy starting definitions and expects actual inherited Dev/QA identities, codes, positions and explicit package values.",
+    "Both adapter fault owners await successful creation, then physically remove exactly two actual explicit values before marking reach. The current reader throws WorkPackageStepMissing. Healthy after-controls pass.",
+    "Memory fixture-only corruption names an absent set, rejects a closed owner and preserves sibling rows. It is not a public Source writer."
+  ],
+  "proofLimits": [
+    "Memory deletion omission makes the first proof assertion-passed; SQL DELETE omission fails its real removal prerequisite as phase-failed. Neither receives missing-value fault credit when no real corruption occurs.",
+    "Closed-owner omission fails the actual helper test. Absence-guard omission changes its named diagnostic to an incidental values.size TypeError; that effect proves classification only.",
+    "Four finite injections restored exact source bytes. Subsequent changes add Proof comments, formatting and the lint-required direct SQLite count read."
+  ],
+  "firstRed": {
+    "pass": 0,
+    "fail": 4,
+    "assertions": 369
+  },
+  "final": {
+    "focused": {
+      "pass": 4,
+      "fail": 0,
+      "assertions": 375
+    },
+    "regression": {
+      "pass": 150,
+      "fail": 0,
+      "assertions": 3429
+    },
+    "adapterCompilerRoots": ["store-memory", "store-sqlite"],
+    "lintFiles": 5,
+    "formatFiles": 5
+  },
+  "broaderMemory": {
+    "pass": 110,
+    "fail": 1,
+    "assertions": 11889,
+    "tests": 111,
+    "remainingInnerFailures": ["steps.add", "steps.rename"]
+  },
+  "corrections": [
+    "First lint --fix observed an unnecessary optional chain on the non-null SQLite aggregate row; direct count access passes fresh lint. Earlier effect epochs remain separately pinned."
+  ],
+  "remaining": [
+    "Current Source legacy step add/rename cases and SQL fault/lifecycle owners must migrate to actual resolved/unknown/detached reads; standalone legacy fixture writers remain separate.",
+    "No whole SQLite Source or whole-adapter successor count is inferred. Import/runtime/resource fixtures, corrupt ownership, full original entity/API/UI/history/import/scheduler/SC17/SC22/SC25 and Bun/PUNI surface work remain.",
+    "Astra is unavailable at its recorded account usage limit. Full products, exact committed host gates and authorized public release remain pending. Parent tasks and full goal stay open."
+  ]
+}

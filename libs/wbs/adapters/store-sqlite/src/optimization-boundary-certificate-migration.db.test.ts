@@ -6,29 +6,33 @@ import { expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const predecessor = '20261022212000_add_cross_project_dependency_activation';
 const certificateMigration = '20261022213000_add_optimization_boundary_certificates';
 it('creates retained certificate storage and rolls back only an intact empty table', () => {
   const directory = mkdtempSync(join(tmpdir(), 'connected-migration-'));
   const path = join(directory, 'store.db');
   try {
+    const folder = copyRecoveryPrefix(directory, certificateMigration);
     runMigrations(path, folder);
-    rollbackTo(path, folder, certificateMigration);
     const sqlite = openDatabase(path);
     expect(
       sqlite
         .query("SELECT name FROM sqlite_master WHERE name='optimization_boundary_certificate'")
         .get(),
     ).not.toBeNull();
+    expect(sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all()).toEqual(
+      readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })),
+    );
     const previousLedger = sqlite
       .query(
         "SELECT * FROM __drizzle_migrations WHERE name <> '20261022213000_add_optimization_boundary_certificates' ORDER BY id",
       )
       .all();
     sqlite.close();
-    rollbackTo(path, folder, '20261022212000_add_cross_project_dependency_activation');
+    expect(rollbackTo(path, folder, predecessor)).toEqual([certificateMigration]);
     const rolled = openDatabase(path);
     expect(
       rolled
@@ -48,8 +52,8 @@ for (const fault of ['retained', 'missing', 'replaced'] as const)
     const directory = mkdtempSync(join(tmpdir(), 'connected-down-'));
     const path = join(directory, 'store.db');
     try {
+      const folder = copyRecoveryPrefix(directory, certificateMigration);
       runMigrations(path, folder);
-      rollbackTo(path, folder, certificateMigration);
       const sqlite = openDatabase(path);
       if (fault === 'retained') {
         sqlite.run("INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)");
@@ -68,9 +72,7 @@ for (const fault of ['retained', 'missing', 'replaced'] as const)
       sqlite.close();
       // Proof: removing retention/schema predicates separately in scratch down scripts
       // made the pinned retained/replaced cases fail with no throw (2026-10-24).
-      expect(() =>
-        rollbackTo(path, folder, '20261022212000_add_cross_project_dependency_activation'),
-      ).toThrow(
+      expect(() => rollbackTo(path, folder, predecessor)).toThrow(
         fault === 'missing'
           ? 'no such table: optimization_boundary_certificate'
           : 'retained boundary certificates require compatible recovery',

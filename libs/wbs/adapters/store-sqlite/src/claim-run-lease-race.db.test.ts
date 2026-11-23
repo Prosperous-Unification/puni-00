@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { CredentialPin, PlanCommand, ResourceAccess } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -16,11 +16,11 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -34,8 +34,9 @@ const AGENT = 'codex';
 const RUNS = ['a', 'b', null] as const;
 type Run = (typeof RUNS)[number];
 const admin: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture: preserve the same person's optional run in command admission. */
@@ -57,33 +58,46 @@ function principalOf(pin: CredentialPin | null): AuthenticatedUser {
   };
 }
 
+let custody = { hasUnknownOwner: false };
 let directory: string | null = null;
 let source: SqliteSource | null = null;
 
-afterEach(async () => {
+async function closeWorld() {
   await source?.close();
-  if (directory !== null) rmSync(directory, { recursive: true, force: true });
   source = null;
-  directory = null;
-});
+  if (directory !== null) {
+    if (custody.hasUnknownOwner)
+      throw new Error('uncertain lease race fixture owner; retained ' + directory);
+    rmSync(directory, { recursive: true, force: true });
+    directory = null;
+  }
+}
+
+afterEach(closeWorld);
 
 /** A fresh store: organization A, Dany its admin, the agent `codex`, and `LEAVES` root leaves. */
 async function openWorld(clock: { now: number }) {
-  await source?.close();
-  if (directory !== null) rmSync(directory, { recursive: true, force: true });
+  await closeWorld();
   directory = mkdtempSync(join(tmpdir(), 'claim-run-lease-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path: dbPath, directory, reportedAt: 1 }, custody);
+  custody.hasUnknownOwner = true;
   const opened = openSqliteSource({
     dbPath,
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     organizationDefaultLimits: DEFAULTS,
   });
   source = opened;
+  custody.hasUnknownOwner = false;
   opened.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   opened.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(dbPath, 'org-a', 'fixture-project');
   opened.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+  );
+  opened.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('race-dany','org-a','organization','org-a','user','dany','org-admin','route',1),('race-credential','org-a','organization','org-a','machine_credential','fixture-credential','project-contributor','route',1)`,
   );
   opened.db.run(
     sql`INSERT INTO person (id, name, kind, account_id) VALUES (${AGENT}, ${AGENT}, 'agent', 'dany')`,
@@ -92,21 +106,48 @@ async function openWorld(clock: { now: number }) {
     sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${AGENT}, 'org-a', ${AGENT})`,
   );
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: clockOf({ now: () => clock.now, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(opened.stores),
   };
   const graph = servicesOver(opened.stores, options);
-  const created = await graph.projects.create('Runs', 'dany');
-  if (typeof created === 'string') throw new Error(`run fixture project refused: ${created}`);
-  const projectId = created.project.id;
-  const firstStep = created.steps.at(0);
-  if (firstStep === undefined) throw new Error('run fixture first step missing');
-  opened.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
+  for (const [position, name] of ['Dev', 'QA'].entries()) {
+    const id = name.toLowerCase();
+    const defined = await opened.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id,
+        code: id,
+        name,
+        position: position + 1,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: position + 1,
+      },
+      { at: 1, by: 'dany' },
+    );
+    if (!defined.ok) throw new Error('lease fixture step refused: ' + defined.reason);
+  }
+  const created = await seedOrganizationPackage(
+    opened.stores.workPackages,
+    options.clock,
+    'org-a',
+    'fixture-project',
+    'dany',
+    'Runs',
   );
+  const workPackageId = created.workPackage.id;
+  const firstStep = (await opened.stores.workPackages.stepsOf(workPackageId)).at(0);
+  if (firstStep === undefined) throw new Error('run fixture first step missing');
+
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: opened.uow,
@@ -125,7 +166,7 @@ async function openWorld(clock: { now: number }) {
     run === null ? { personId: AGENT } : { personId: AGENT, runId: run };
   const run = (commands: PlanCommand[], pin: CredentialPin | null) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       principalOf(pin),
       // Model claims use the first runnable step; later steps retain their workflow prerequisites.
       commands.map((command) =>
@@ -148,7 +189,7 @@ async function openWorld(clock: { now: number }) {
     sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
   );
   const leafIds = plan.results.map(({ id }) => id ?? '');
-  return { db: opened.db, projectId, runner, run, pinOf, leafIds };
+  return { db: opened.db, workPackageId, runner, run, pinOf, leafIds };
 }
 
 type World = Awaited<ReturnType<typeof openWorld>>;
@@ -311,7 +352,7 @@ class Sweep implements fc.AsyncCommand<Model, Real> {
   check = () => true;
   async run(model: Model, real: Real): Promise<void> {
     sweepIn(model);
-    await real.world.runner.releaseExpiredLeases(real.world.projectId);
+    await real.world.runner.releaseExpiredLeases(real.world.workPackageId);
     expectStoreMatches(model, real.world);
   }
   toString = () => 'sweep';

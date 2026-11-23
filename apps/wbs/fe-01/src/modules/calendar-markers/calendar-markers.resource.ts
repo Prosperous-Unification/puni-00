@@ -5,23 +5,23 @@ import type { CalendarMarkerEdit, CalendarMarkerPorts, CalendarMarkerWrites } fr
  *
  * `markers` and not the tree: a marker moves nothing in the schedule, which is
  * why be-01 answers the list on a read of its own rather than inside
- * {@link PlanRead} — the argument is on {@link ProjectApi.listCalendarMarkers}.
+ * {@link PlanRead} — the argument is on {@link WorkPackageApi.listCalendarMarkers}.
  */
 // Proof: on 2026-09-21, replacing this with [] made the dirtied-resource test receive [] instead of ['markers'].
 const DIRTIED = ['markers'] as const;
 
 /**
- * The four routes that change one project's calendar markers.
+ * The four routes that change one work package's calendar markers.
  *
  * The **resource**-service (rule K4): it writes through the HTTP client and
  * knows what each write dirties, and it knows nothing about who asked, whether
- * they are still there, or what a refusal should be called. `projectId` is bound
+ * they are still there, or what a refusal should be called. `workPackageId` is bound
  * once, because a resource is one aggregate's and not a catalogue of every
- * project's.
+ * work package's.
  */
 // @term calendar-marker
 export function createCalendarMarkerWrites({
-  projectId,
+  workPackageId,
   api,
 }: CalendarMarkerPorts): CalendarMarkerWrites {
   return {
@@ -29,21 +29,21 @@ export function createCalendarMarkerWrites({
     send: async (edit: CalendarMarkerEdit): Promise<void> => {
       // Proof: on 2026-09-21, blanking the marker name made the add-route test record an empty name.
       if (edit.kind === 'add') {
-        await api.createCalendarMarker(projectId, edit.marker);
+        await api.createCalendarMarker(workPackageId, edit.marker);
         return;
       }
       // Proof: on 2026-09-21, passing '' made the rename-route test receive rename:p1:launch:.
       if (edit.kind === 'rename') {
-        await api.renameCalendarMarker(projectId, edit.markerId, edit.name);
+        await api.renameCalendarMarker(workPackageId, edit.markerId, edit.name);
         return;
       }
       // Proof: on 2026-09-21, passing null made the recolour-route test lose #0386a5.
       if (edit.kind === 'recolor') {
-        await api.recolorCalendarMarker(projectId, edit.markerId, edit.color);
+        await api.recolorCalendarMarker(workPackageId, edit.markerId, edit.color);
         return;
       }
       // Proof: on 2026-09-21, replacing this call with Promise.resolve() left the route log empty and the production chip drawn.
-      await api.deleteCalendarMarker(projectId, edit.markerId);
+      await api.deleteCalendarMarker(workPackageId, edit.markerId);
     },
   };
 }

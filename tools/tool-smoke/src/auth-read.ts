@@ -102,7 +102,7 @@ async function fetchJson(
 
 /**
  * A failure's status and response shape, never its values: a `/api/auth/me`
- * body names the account and a project list names projects, and smoke output
+ * body names the account and a work package list names work packages, and smoke output
  * lands in deploy logs. Only an `error` code string is kept, since be-01's
  * refusals carry nothing else.
  */
@@ -121,9 +121,9 @@ function responseSummary(status: number, body: unknown): string {
  *
  * - signed-out probe: `GET /api/auth/me` without a credential answers
  *   `200 {"user":null}`;
- * - anonymous read refused: `GET /api/projects` without a credential is 401;
+ * - anonymous read refused: `GET /api/work-packages` without a credential is 401;
  * - signed-in reads: with {@link ReadIdentity} configured, `/api/auth/me`
- *   names that account and `/api/projects` answers `200 {projects: [...]}`.
+ *   names that account and `/api/work-packages` answers `200 {workPackages: [...]}`.
  */
 export async function runReadChecks(
   apiBase: string,
@@ -157,13 +157,13 @@ export async function runReadChecks(
   });
   // Proof: accepting any status here made `fails when projects are readable
   // anonymously` in auth-read.test.ts fail (8 pass, 1 fail, 2026-09-29).
-  await attempt('anonymous /api/projects refused', async () => {
-    const { status, body } = await fetchJson(`${apiBase}/api/projects`, null, fetchImpl);
+  await attempt('anonymous /api/work-packages refused', async () => {
+    const { status, body } = await fetchJson(`${apiBase}/api/work-packages`, null, fetchImpl);
     return status === 401 ? null : responseSummary(status, body);
   });
 
   if (identity.kind === 'unconfigured') {
-    for (const name of ['signed-in /api/auth/me', 'signed-in /api/projects']) {
+    for (const name of ['signed-in /api/auth/me', 'signed-in /api/work-packages']) {
       checks.push({ name, kind: 'skipped', reason: identity.reason });
     }
     return checks;
@@ -182,13 +182,13 @@ export async function runReadChecks(
       Reflect.get(user, 'id') === identity.id;
     return named ? null : responseSummary(status, body);
   });
-  await attempt('signed-in /api/projects', async () => {
-    const { status, body } = await fetchJson(`${apiBase}/api/projects`, session, fetchImpl);
+  await attempt('signed-in /api/work-packages', async () => {
+    const { status, body } = await fetchJson(`${apiBase}/api/work-packages`, session, fetchImpl);
     const listed =
       status === 200 &&
       body !== null &&
       typeof body === 'object' &&
-      Array.isArray(Reflect.get(body, 'projects'));
+      Array.isArray(Reflect.get(body, 'workPackages'));
     return listed ? null : responseSummary(status, body);
   });
   return checks;

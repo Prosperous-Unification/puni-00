@@ -23,7 +23,14 @@
         "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/fixtures/**/*"
+      ]
     },
     "test:unit": {
       "executor": "nx:run-commands",
@@ -31,7 +38,14 @@
         "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-core.unit.xml && files=$(find ./src -name '*.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-core:test:unit' >&2; exit 1; fi && bun test $files --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/fixtures/**/*"
+      ]
     },
     "typecheck": {
       "executor": "nx:run-commands",
@@ -65,9 +79,20 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun tools/tool-devsync/src/browser-level.ts portable",
-        "forwardAllArgs": false
-      }
+        "command": "bun --no-env-file --config=/dev/null apps/puni/cli/src/entrypoint.ts dash browser portable --repository .",
+        "forwardAllArgs": false,
+        "envFile": "tmp/puni-source-test-level.env",
+        "env": {
+          "PUNI_TEST_LEVEL_ROLE": "source"
+        }
+      },
+      "dependsOn": [
+        {
+          "target": "prepare-test-level-assets",
+          "projects": ["puni-cli"],
+          "params": "ignore"
+        }
+      ]
     },
     "typecheck:module": {
       "executor": "nx:run-commands",

@@ -1,0 +1,189 @@
+{
+  "schema": "puni-genuine-legacy-replay-fixtures-v1",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "producerScript": "legacy-history-producer.ts.txt",
+  "producerScriptSha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+  "cases": {
+    "parent-last-child": {
+      "database": {
+        "file": "legacy-parent-last-child.sqlite.gz",
+        "sha256": "d39671dfe4dea534820afa0592fe5a5fffdfc8a0a4aac398f1c13c40eb6272e6",
+        "gzipSha256": "42c3e22930369d55e00938f6ad5b7804a3b7d01364875b1ab30b92ea446bb8c0"
+      },
+      "producer": {
+        "file": "legacy-parent-last-child.producer.json.gz",
+        "sha256": "b47dad24739e18a18ea0d0dac568e7f396e29aa8cbf68af99c957c1cb258d555",
+        "gzipSha256": "3975ee22f4247430d049b5aef61900608543f98942556a5138c01329f974d1a2"
+      },
+      "control": {
+        "file": "legacy-parent-last-child.control.json.gz",
+        "sha256": "e77ade3ecc312284408c7c4eedf4ae873d7ccd30de09e3b245c1db7155e71d75",
+        "gzipSha256": "a332a4742448d800d4653497812642c9ea8f70a8df8499ede37b4f10a998db38"
+      },
+      "direction": "undo",
+      "oldExpected": true,
+      "currentOutcome": "protected_parent"
+    },
+    "parent-drift-state": {
+      "database": {
+        "file": "legacy-parent-drift-state.sqlite.gz",
+        "sha256": "b42b37422f8cfae6a5838b0bdd950179bc0cbea79edeb8f801fdfdc6c5de816c",
+        "gzipSha256": "8205f279a4370e13a4b6e47abb6a633a8ab21c12b7bc8d6a7d91e10aa6d469d3"
+      },
+      "producer": {
+        "file": "legacy-parent-drift-state.producer.json.gz",
+        "sha256": "62bd0322492efb97d5260f15bd494af8cd433711ab2ba77d70cb405e2ba8b5cd",
+        "gzipSha256": "c506bb704ed49f7bbf8b0cca2ded867aeb9846b4850d444f0137d2cf0866b227"
+      },
+      "control": {
+        "file": "legacy-parent-drift-state.control.json.gz",
+        "sha256": "c0313f42ff040c5d6a0644e994d700ef7518ae8fd7bdf0895f7a0909ef1c8fd2",
+        "gzipSha256": "bb1f9c36ef236d7b9131e0a3931018fb3e23e160059d871af8c4c7f17fe5ab18"
+      },
+      "direction": "undo",
+      "oldExpected": false,
+      "currentOutcome": "stale_parent"
+    },
+    "parent-drift-time": {
+      "database": {
+        "file": "legacy-parent-drift-time.sqlite.gz",
+        "sha256": "387e173efb7e63384f94ce4dbfcb4d459d7749eb4857d3e7a0e90f4623bebd19",
+        "gzipSha256": "7fa0635003aa90c973f482ecaff5bd97d01d0fd893445474493b68eaa80fd492"
+      },
+      "producer": {
+        "file": "legacy-parent-drift-time.producer.json.gz",
+        "sha256": "8b7d3016b561f2d50bd86929d40242a6938f8a6c8ce7be3fab39c30ca3747508",
+        "gzipSha256": "3d08ad48f258fdb7ac9bcee01df36df6dd7f781d8f1fbc98625ef030c6496af8"
+      },
+      "control": {
+        "file": "legacy-parent-drift-time.control.json.gz",
+        "sha256": "f592f2c43e3af8d535f879ba23bb923074aadafb14a65aeb73d3d5d79fe547de",
+        "gzipSha256": "4cd22ff679ba0a1a58c6d84ff997622749c27594e9d71e7fd6a8fdc50133e48b"
+      },
+      "direction": "undo",
+      "oldExpected": false,
+      "currentOutcome": "stale_parent"
+    },
+    "parent-drift-extra": {
+      "database": {
+        "file": "legacy-parent-drift-extra.sqlite.gz",
+        "sha256": "87735d3f734b7e0a5ddbe3bf95c41c75edfc978ae307d423c5010583a92d8ecd",
+        "gzipSha256": "4d982167ec2eb98d7f8a026d73fcc7861f437458bd22988ea71fbae880c48125"
+      },
+      "producer": {
+        "file": "legacy-parent-drift-extra.producer.json.gz",
+        "sha256": "c89bd04c8689141df4386970b45ff19eafd67e024da029602cd674f0c21e71bf",
+        "gzipSha256": "62fe595b3c3914d59954d6a79a49fd6c890b0c441cc2c247a36b6c76c1fb0634"
+      },
+      "control": {
+        "file": "legacy-parent-drift-extra.control.json.gz",
+        "sha256": "6e9b8910ff071b5de5279686e087264bdc94e12b7b17eea9407613f318dd43d4",
+        "gzipSha256": "d3bcb86844b4fa47981471d1362ecfaac72cda208962216d426cfbadb2b08145"
+      },
+      "direction": "undo",
+      "oldExpected": false,
+      "currentOutcome": "stale_parent"
+    },
+    "parent-drift-missing": {
+      "database": {
+        "file": "legacy-parent-drift-missing.sqlite.gz",
+        "sha256": "92dd0211fda36b1f5329ee59841dd0d654c1522aa47fa2e7d3e6b8cc0ce3829f",
+        "gzipSha256": "9cc8639099251a749c2f104c68c311c51a441edfb2353f8f6a6cbed90412e156"
+      },
+      "producer": {
+        "file": "legacy-parent-drift-missing.producer.json.gz",
+        "sha256": "8eef4220ad0cdc54123d071f0457267f3a919410416f7d663d33d35e41a3b937",
+        "gzipSha256": "627f1853ca799b1e3f6aba074bc9a4523ae2deaa6ba4da0eb73b7e801ce72fec"
+      },
+      "control": {
+        "file": "legacy-parent-drift-missing.control.json.gz",
+        "sha256": "c01d41dfbfb1cbda352771858d0843db1eea425d077987ced87a342e529d489a",
+        "gzipSha256": "bad5dd23516f343dda9f9b27b49503fa9653238ff75cb4f1d065a7238a06feef"
+      },
+      "direction": "undo",
+      "oldExpected": false,
+      "currentOutcome": "stale_parent"
+    },
+    "handup-new-progress": {
+      "database": {
+        "file": "legacy-handup-new-progress.sqlite.gz",
+        "sha256": "107cbe72e3e62aabb35d20dae712d7e0ecfeb3a88a25ba5b0358a03a41da5970",
+        "gzipSha256": "5f17d58df7cd16fc7a0cfdb89fb12ef758cc5dc60c31ce1e03a519f80154ccde"
+      },
+      "producer": {
+        "file": "legacy-handup-new-progress.producer.json.gz",
+        "sha256": "ed15c381fbd3eeaf37906dd635e09487aefb2e4599b54bdb1d27f1a2cb639122",
+        "gzipSha256": "efbc81227d1c679f6fb01642bc6be7cf40f67b1ba5e7aaab220e8684418b22ac"
+      },
+      "control": {
+        "file": "legacy-handup-new-progress.control.json.gz",
+        "sha256": "5be7eca7c44abf66e4354d1291c7919475873d4a8b4498688d739c1765a17f05",
+        "gzipSha256": "af599c608ce2950744d244f9815c121dd2c0c06db98adb671895e4838062ebed"
+      },
+      "direction": "undo",
+      "oldExpected": false,
+      "currentOutcome": "stale_parent"
+    },
+    "destination-redo-state": {
+      "database": {
+        "file": "legacy-destination-redo-state.sqlite.gz",
+        "sha256": "4794559d367f5903959bdcdb8450bd1b22bb007e32ee42ac52a613d626a6b2ae",
+        "gzipSha256": "76e55a033fb2b29823ad281611543dfff075162e3adb2be209db59f5c252a330"
+      },
+      "producer": {
+        "file": "legacy-destination-redo-state.producer.json.gz",
+        "sha256": "ba8820191443f600a48f2046c5f0fedb5550a0f29000c4ea80787b469e1f1439",
+        "gzipSha256": "e19999efd092e0aa071d0aed6f0f38ba5224de7ea9ef5328889c3e187fd4b094"
+      },
+      "control": {
+        "file": "legacy-destination-redo-state.control.json.gz",
+        "sha256": "fa53d98aea0cc33e35ca0d2c15c22ac6cef87ccea3c04961c3013ed05d05d3c5",
+        "gzipSha256": "5c9eb88bf083553b2f7a976668103d180c0abca6ae730a8a0b8d5100b7158773"
+      },
+      "direction": "redo",
+      "oldExpected": false,
+      "currentOutcome": "stale_destination"
+    },
+    "destination-redo-time": {
+      "database": {
+        "file": "legacy-destination-redo-time.sqlite.gz",
+        "sha256": "251f1615e196913de3edbd78b839dae119baadb6a334af45a33ae2c2fa1de16c",
+        "gzipSha256": "d512e55a7ae62c3a578b4e487e8fea57f9230fbaa663039eb6f76290c6779ef7"
+      },
+      "producer": {
+        "file": "legacy-destination-redo-time.producer.json.gz",
+        "sha256": "3f45e1b91cbbae7097137ffd77d8c480ea528e0bcc9a11fada4daedbb12de0c4",
+        "gzipSha256": "20e9c22b5f8e61da9629d833794b69e5e16c3ddbafa14abbbe0c6e04fa57cd5c"
+      },
+      "control": {
+        "file": "legacy-destination-redo-time.control.json.gz",
+        "sha256": "d464dbad4a6ba5e32c0e304a68988e1178214528153e102652ae6d6083728297",
+        "gzipSha256": "f3cca7ba416df36524b1ea741d1ae695e6b972f73e7c8da236d95a55487321af"
+      },
+      "direction": "redo",
+      "oldExpected": false,
+      "currentOutcome": "stale_destination"
+    },
+    "destination-redo-missing": {
+      "database": {
+        "file": "legacy-destination-redo-missing.sqlite.gz",
+        "sha256": "527c047b5bc0d4696269e8845620a95f1446a6b52917e01edfdaf4beefcdb240",
+        "gzipSha256": "27186f13306e713cba4fda40622ea9cd625e10e8f4799f67ac4ba04845451b73"
+      },
+      "producer": {
+        "file": "legacy-destination-redo-missing.producer.json.gz",
+        "sha256": "6021fb0abb6ac2982eb135591ea394a159b14d9084d2e730b60be6dea93d2db4",
+        "gzipSha256": "c0bc484ce19da8330a04156be9026f93d7699c38ef7d6e7756edde9a1a7833d3"
+      },
+      "control": {
+        "file": "legacy-destination-redo-missing.control.json.gz",
+        "sha256": "2c27578506043f5155bb8eeea5cfc29289422825c4d1f6efdd8dcada2e922b4b",
+        "gzipSha256": "84499af6503da8ba572465ae0ec1e9a7897e307fbef2f1ec1e063392f6908bac"
+      },
+      "direction": "redo",
+      "oldExpected": false,
+      "currentOutcome": "stale_destination"
+    }
+  },
+  "qualification": "Nine genuinely produced old histories and actual old replay controls, with no authored rows/recipes. Actual current admission and precise runner/borrowed refusals remain test responsibilities. Unavailable old SQLite laundering checkpoints remain excluded explicitly; their separate genuine Memory guarantees stay open."
+}

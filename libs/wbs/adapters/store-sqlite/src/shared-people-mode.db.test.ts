@@ -5,19 +5,34 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import { rollbackTo } from './migrate-down';
+import { runMigrations } from './migrate';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { readCapacityMode } from './shared-people-mode';
-import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
+
+const release = '20261103110000_add_initial_access_offers';
+const sharedPeople = '20261005110000_add_shared_people';
+const predecessor = '20261001010000_add_browser_credential_revocations';
 
 let directory: string;
 let path: string;
-beforeEach(async () => {
+beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-shared-mode-'));
-  path = await openSpaceDatabase(directory);
+  path = join(directory, 'test.db');
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
+
+function prepare(through: string) {
+  const folder = copyRecoveryPrefix(directory, through);
+  runMigrations(path, folder);
+  expect(execute('SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+    readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })),
+  );
+  execute("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1),('org-b','B',1)");
+  return folder;
+}
 
 function execute(statement: string) {
   const db = openDatabase(path);
@@ -30,6 +45,7 @@ function execute(statement: string) {
 
 describe('shared people mode storage', () => {
   it('strictly reads both stored modes and refuses corrupt or missing trusted state', () => {
+    prepare(sharedPeople);
     const db = openDrizzle(path);
     expect(readCapacityMode(db, 'org-a')).toBe('isolated');
     execute("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -48,6 +64,7 @@ describe('shared people mode storage', () => {
   });
 
   it('defaults every existing organization to isolated and constrains the stored mode', () => {
+    prepare(sharedPeople);
     const modes = execute('SELECT shared_people FROM organization');
     expect(modes.length).toBeGreaterThan(0);
     expect(
@@ -61,11 +78,11 @@ describe('shared people mode storage', () => {
   });
 
   it('refuses column rollback with a shared organization, preserving schema and ledger', () => {
+    const folder = prepare(release);
     execute("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    // Each migration reverses in its own transaction, so the newer, empty
-    // browser lifecycle is taken off first; the ledger claim is about the
-    // refused shared-people step, not about everything above it.
-    expect(rollbackTo(path, MIGRATIONS_FOLDER, '20261005110000_add_shared_people')).toEqual([
+    expect(rollbackTo(path, folder, sharedPeople)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -113,24 +130,41 @@ describe('shared people mode storage', () => {
       '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
     ]);
-    const ledger = execute('SELECT * FROM __drizzle_migrations');
-    expect(() => rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_project_rank')).toThrow(
-      'shared-people-rollback-cli.ts',
+    expect(execute('SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+      readMigrationFolders(folder)
+        .filter(({ name }) => name <= sharedPeople)
+        .map(({ name, hash }) => ({ name, hash })),
+    );
+    const before = readRecoveryState(path);
+    expect(() => rollbackTo(path, folder, predecessor)).toThrow(
+      'rolling back ' +
+        sharedPeople +
+        ' failed: CHECK constraint failed: shared organizations exist: use shared-people-rollback-cli.ts',
     );
     expect(execute("SELECT shared_people FROM organization WHERE id = 'org-a'")).toEqual([
       { shared_people: 1 },
     ]);
-    expect(execute('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    expect(readRecoveryState(path)).toEqual(before);
   });
 
   it('independently refuses column rollback while a rank exists', () => {
+    const folder = prepare(sharedPeople);
+    execute("INSERT INTO users(id,username,password_hash,created_at) VALUES('ada','ada','x',1)");
+    execute(
+      "INSERT INTO project(id,name,owner_id,created_at,created_by) VALUES('a1','A','ada',1,'ada')",
+    );
+    execute("INSERT INTO project_organization(resource_id,organization_id) VALUES('a1','org-a')");
     execute(
       "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1','org-a',1,1,'ada')",
     );
-    expect(() => rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_project_rank')).toThrow(
-      'project ranks exist',
+    const before = readRecoveryState(path);
+    expect(() => rollbackTo(path, folder, predecessor)).toThrow(
+      'rolling back ' +
+        sharedPeople +
+        ' failed: CHECK constraint failed: project ranks exist: use shared-people-rollback-cli.ts',
     );
-    expect(execute('SELECT shared_people FROM organization')).toHaveLength(2);
+    expect(execute('SELECT shared_people FROM organization WHERE shared_people=0')).toHaveLength(2);
     expect(execute('SELECT * FROM project_rank')).toHaveLength(1);
+    expect(readRecoveryState(path)).toEqual(before);
   });
 });

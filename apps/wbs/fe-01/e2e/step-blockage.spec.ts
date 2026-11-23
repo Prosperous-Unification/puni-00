@@ -1,7 +1,12 @@
 import { execFileSync } from 'node:child_process';
 
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 import { seedStepReadings } from './step-readings-seed';
 
 /** Explicit activation is confined to the fresh browser database selected by the fixture configuration. */
@@ -20,44 +25,60 @@ function activateFixture(): void {
 }
 
 async function seedBlockages(page: Page) {
-  const { projectId } = await seedStepReadings(page);
-  const identities = await page.evaluate(async (projectId) => {
-    const response = await fetch(`/api/projects/${projectId}/work-items`);
-    const tree = (await response.json()) as {
-      workItems: { id: string; number: string }[];
-      steps: { id: string; name: string }[];
-    };
-    const source = tree.workItems.find((row) => row.number === '040')?.id;
-    const target = tree.workItems.find((row) => row.number === '020')?.id;
-    const dev = tree.steps.find((step) => step.name === 'Dev')?.id;
-    const qa = tree.steps.find((step) => step.name === 'QA')?.id;
-    if (source === undefined || target === undefined || dev === undefined || qa === undefined)
-      throw new Error('Missing browser seed identities');
-    const written = await fetch(`/api/projects/${projectId}/commands`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        commands: [
-          { kind: 'setProgress', workItemId: source, stepId: dev, state: 'in_progress' },
-          { kind: 'setStepBlocked', workItemId: source, stepId: dev, isBlocked: true },
-          {
-            kind: 'addTypedDependency',
-            predecessor: { scope: 'node', workItemId: source, stepId: dev },
-            successor: { scope: 'node', workItemId: target, stepId: qa },
-            type: 'FS',
-          },
-        ],
-      }),
-    });
-    if (!written.ok)
-      throw new Error(
-        `Blockage fixture write failed: ${String(written.status)} ${await written.text()}`,
-      );
-    return { source, target, dev, qa };
-  }, projectId);
+  const { workPackageId } = await seedStepReadings(page);
+  const identities = await page.evaluate(
+    async ({ requestHeaders, fixtureInput }) => {
+      const workPackageId = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      const tree = (await response.json()) as {
+        workItems: { id: string; number: string }[];
+        steps: { id: string; name: string }[];
+      };
+      const source = tree.workItems.find((row) => row.number === '040')?.id;
+      const target = tree.workItems.find((row) => row.number === '020')?.id;
+      const dev = tree.steps.find((step) => step.name === 'Dev')?.id;
+      const qa = tree.steps.find((step) => step.name === 'QA')?.id;
+      if (source === undefined || target === undefined || dev === undefined || qa === undefined)
+        throw new Error('Missing browser seed identities');
+      const written = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+        method: 'POST',
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({
+          commands: [
+            { kind: 'setProgress', workItemId: source, stepId: dev, state: 'in_progress' },
+            { kind: 'setStepBlocked', workItemId: source, stepId: dev, isBlocked: true },
+            {
+              kind: 'addTypedDependency',
+              predecessor: { scope: 'node', workItemId: source, stepId: dev },
+              successor: { scope: 'node', workItemId: target, stepId: qa },
+              type: 'FS',
+            },
+          ],
+        }),
+      });
+      if (!written.ok)
+        throw new Error(
+          `Blockage fixture write failed: ${String(written.status)} ${await written.text()}`,
+        );
+      return { source, target, dev, qa };
+    },
+    {
+      requestHeaders: {
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+      fixtureInput: workPackageId,
+    },
+  );
   await page.reload();
   await expect(page.getByLabel('Name of 040')).toBeVisible();
-  return { projectId, ...identities };
+  return { workPackageId, ...identities };
 }
 
 async function openCard(page: Page, label: string) {
@@ -188,12 +209,17 @@ test.describe('step blockage on the production preview path', () => {
   test('nested blocked leaf and its downstream node retain named causes in both layouts', async ({
     page,
   }) => {
-    const { projectId, source, dev, target, qa } = await seedBlockages(page);
+    const { workPackageId, source, dev, target, qa } = await seedBlockages(page);
     const nested = await page.evaluate(
-      async ({ projectId, source, dev }) => {
-        const written = await fetch(`/api/projects/${projectId}/commands`, {
+      async ({ requestHeaders, fixtureInput }) => {
+        const { workPackageId, source, dev } = fixtureInput;
+
+        const written = await fetch(`/api/work-packages/${workPackageId}/commands`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+            ...{ 'content-type': 'application/json' },
+          },
           body: JSON.stringify({
             commands: [
               {
@@ -211,7 +237,9 @@ test.describe('step blockage on the production preview path', () => {
           throw new Error(
             `Nested fixture write failed: ${String(written.status)} ${await written.text()}`,
           );
-        const response = await fetch(`/api/projects/${projectId}/work-items`);
+        const response = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+          headers: requestHeaders.getWorkItems,
+        });
         const tree = (await response.json()) as {
           workItems: { id: string; number: string }[];
           stepNodes: { workItemId: string; stepId: string; reference: string | null }[];
@@ -224,7 +252,13 @@ test.describe('step blockage on the production preview path', () => {
           throw new Error('Missing nested fixture address');
         return { number, reference };
       },
-      { projectId, source, dev },
+      {
+        requestHeaders: {
+          applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+          getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        },
+        fixtureInput: { workPackageId, source, dev },
+      },
     );
     await page.reload();
     await expect(page.getByLabel(`Name of ${nested.number}`)).toBeVisible();
@@ -255,7 +289,7 @@ test.describe('step blockage on the production preview path', () => {
     page,
   }) => {
     const { source } = await seedBlockages(page);
-    await page.route('**/api/projects/*/work-items*', async (route) => {
+    await page.route('**/api/work-packages/*/work-items*', async (route) => {
       const response = await route.fetch();
       const tree = (await response.json()) as {
         workItems: { id: string; nodeReadings?: unknown }[];
@@ -266,15 +300,17 @@ test.describe('step blockage on the production preview path', () => {
       await route.fulfill({ response, json: tree });
     });
     await page.reload();
-    await expect(page.getByText('Something went wrong!', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Show Error' }).click();
-    await expect(page.getByText(/Missing node reading for/)).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('The app stopped: Something went wrong.');
+    await expect(page.getByRole('alert')).toContainText(/Reference AE_[0-9A-Z]+/);
+    await expect(page.getByRole('alert')).not.toContainText(/Missing node reading for/);
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+    await expect(page.locator('[data-grid], [data-card]')).toHaveCount(0);
   });
   test('malformed supported cause metadata reaches the application Error Boundary', async ({
     page,
   }) => {
     const { target, qa } = await seedBlockages(page);
-    await page.route('**/api/projects/*/work-items*', async (route) => {
+    await page.route('**/api/work-packages/*/work-items*', async (route) => {
       const response = await route.fetch();
       const tree = (await response.json()) as {
         workItems: { id: string; blockageCauses: Record<string, unknown> }[];
@@ -285,14 +321,14 @@ test.describe('step blockage on the production preview path', () => {
       await route.fulfill({ response, json: tree });
     });
     await page.reload();
-    await expect(page.getByText('Something went wrong!', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Show Error' }).click();
-    await expect(
-      page.getByText('Unknown blockage cause missing-root', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('The app stopped: Something went wrong.');
+    await expect(page.getByRole('alert')).toContainText(/Reference AE_[0-9A-Z]+/);
+    await expect(page.getByRole('alert')).not.toContainText('Unknown blockage cause missing-root');
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+    await expect(page.locator('[data-grid], [data-card]')).toHaveCount(0);
   });
   test('an inactive writer reports its 409 without changing the direct fact', async ({ page }) => {
-    const { projectId, source, dev } = await seedBlockages(page);
+    const { workPackageId, source, dev } = await seedBlockages(page);
     const database = process.env['E2E_TEST_DATABASE'];
     if (database === undefined) throw new Error('Missing isolated browser database');
     execFileSync(
@@ -307,7 +343,8 @@ test.describe('step blockage on the production preview path', () => {
     const card = await openCard(page, 'Dev estimate for 040');
     const refused = page.waitForResponse(
       (response) =>
-        response.url().endsWith(`/api/projects/${projectId}/commands`) && response.status() === 409,
+        response.url().endsWith(`/api/work-packages/${workPackageId}/commands`) &&
+        response.status() === 409,
     );
     await card.getByRole('button', { name: 'Clear step blockage on 040.s1-dev' }).click();
     expect(await (await refused).json()).toMatchObject({ error: 'step_blockage_inactive' });
@@ -315,21 +352,28 @@ test.describe('step blockage on the production preview path', () => {
       page.getByText('Step blockage changes are not enabled on this server.', { exact: true }),
     ).toBeVisible();
     const retained = await page.evaluate(
-      async ({ projectId, source, dev }) => {
-        const response = await fetch(`/api/projects/${projectId}/work-items`);
+      async ({ requestHeaders, fixtureInput }) => {
+        const { workPackageId, source, dev } = fixtureInput;
+
+        const response = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+          headers: requestHeaders.getWorkItems,
+        });
         const tree = (await response.json()) as {
           workItems: { id: string; blockages: Record<string, unknown> }[];
         };
         return tree.workItems.find((row) => row.id === source)?.blockages[dev];
       },
-      { projectId, source, dev },
+      {
+        requestHeaders: { getWorkItems: createOrdinaryHeaders(getWorkItemsShape) },
+        fixtureInput: { workPackageId, source, dev },
+      },
     );
     expect(retained).toBeDefined();
     await expect(page.locator('[data-app-fault]')).toHaveCount(0);
   });
   test('older backend metadata reads unknown and offers no blockage write', async ({ page }) => {
     await seedBlockages(page);
-    await page.route('**/api/projects/*/work-items*', async (route) => {
+    await page.route('**/api/work-packages/*/work-items*', async (route) => {
       const response = await route.fetch();
       const tree = (await response.json()) as {
         workItems: { blockages?: unknown; blockageCauses?: unknown; nodeReadings?: unknown }[];

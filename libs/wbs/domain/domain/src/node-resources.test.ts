@@ -12,8 +12,57 @@ const sizes = new Map([
 ]);
 
 describe('node resources', () => {
+  it('projects explicit own orders and an empty leaf beside nonempty leaves', () => {
+    const ownRows = [
+      rows[0],
+      { ...rows[1], id: 'first' },
+      { ...rows[1], id: 'second' },
+      { ...rows[1], id: 'zero' },
+    ];
+    const projected = nodeResourcesOf(
+      ownRows,
+      new Map([
+        ['first', ['dev', 'qa']],
+        ['second', ['qa', 'dev']],
+        ['zero', []],
+      ]),
+      new Map(),
+      sizes,
+    );
+    expect(Object.keys(projected.get('first') ?? {})).toEqual(['dev', 'qa']);
+    expect(Object.keys(projected.get('second') ?? {})).toEqual(['qa', 'dev']);
+    expect(projected.get('zero')).toEqual({});
+    expect(projected.has('parent')).toBe(false);
+  });
+
+  it('refuses a missing own resource list', () => {
+    expect(() => nodeResourcesOf(rows, new Map(), new Map(), sizes)).toThrow(
+      'resource step order is absent for leaf',
+    );
+  });
+
+  for (const extra of ['parent', 'foreign'])
+    it('refuses an extra ' + extra + ' resource list', () => {
+      expect(() =>
+        nodeResourcesOf(
+          rows,
+          new Map([
+            ['leaf', ['dev']],
+            [extra, []],
+          ]),
+          new Map(),
+          sizes,
+        ),
+      ).toThrow('resource step owner is not a leaf');
+    });
+
+  it('refuses repeated own resource step identities', () => {
+    expect(() =>
+      nodeResourcesOf(rows, new Map([['leaf', ['dev', 'dev']]]), new Map(), sizes),
+    ).toThrow('resource step order repeats an identity for leaf');
+  });
   it('reads inherited whole team sets, nullable unsized capacity and the narrowest width', () => {
-    const projected = nodeResourcesOf(rows, ['dev', 'qa'], new Map(), sizes);
+    const projected = nodeResourcesOf(rows, new Map([['leaf', ['dev', 'qa']]]), new Map(), sizes);
     expect(projected.has('parent')).toBe(false);
     expect(projected.get('leaf')).toEqual({
       dev: {
@@ -52,7 +101,7 @@ describe('node resources', () => {
   it('distinguishes explicit and sole assumed assignment, with named width one', () => {
     const projected = nodeResourcesOf(
       rows,
-      ['dev', 'qa'],
+      new Map([['leaf', ['dev', 'qa']]]),
       new Map([['leaf', { dev: 'ada' }]]),
       sizes,
     );
@@ -81,7 +130,7 @@ describe('node resources', () => {
   it('own teams replace ancestors and unsized teams do not create pools', () => {
     const projected = nodeResourcesOf(
       [rows[0], { ...rows[1], teamIds: ['unsized'], maxParallel: 4 }],
-      ['dev'],
+      new Map([['leaf', ['dev']]]),
       new Map(),
       sizes,
     );
@@ -97,7 +146,7 @@ describe('node resources', () => {
   it('own sized teams override narrower inherited capacity', () => {
     const projected = nodeResourcesOf(
       [rows[0], { ...rows[1], teamIds: ['wide'] }],
-      ['dev'],
+      new Map([['leaf', ['dev']]]),
       new Map(),
       sizes,
     );
@@ -114,8 +163,12 @@ describe('node resources', () => {
 
   it('reads unstated teams and stepless leaves without inventing nodes', () => {
     const leaf = [{ id: 'leaf', parentId: null, teamIds: [], maxParallel: 3 }];
-    expect(nodeResourcesOf(leaf, [], new Map(), sizes).get('leaf')).toEqual({});
-    expect(nodeResourcesOf(leaf, ['dev'], new Map(), sizes).get('leaf')?.['dev']).toEqual({
+    expect(nodeResourcesOf(leaf, new Map([['leaf', []]]), new Map(), sizes).get('leaf')).toEqual(
+      {},
+    );
+    expect(
+      nodeResourcesOf(leaf, new Map([['leaf', ['dev']]]), new Map(), sizes).get('leaf')?.['dev'],
+    ).toEqual({
       nodeId: 'sn1.leaf.dev',
       assignment: { kind: 'unassigned' },
       teams: { kind: 'unstated' },

@@ -1,0 +1,611 @@
+{
+  "schema": "puni-genuine-move-history-verification-v1",
+  "recordedAt": "2026-11-21T01:57:24.756Z",
+  "goalStatus": "active",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/historical-move-undo.db.test.ts",
+      "sha256": "e7d014f02769671f7a8e44f12486b5c2fa8d6796ac666e5e77bd6439f0a5bf7a",
+      "bytes": 10894,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+      "sha256": "9edb1da65d7b11b63d539ce8048caf9f32345def1e988827252051e39fb42287",
+      "bytes": 6701,
+      "mode": 436
+    }
+  ],
+  "assets": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json",
+      "sha256": "b182c7c9a0533b529a661fa9bb10e5be6f13553526a0b9c53479db7ea54656c1",
+      "bytes": 3373,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.sqlite.gz",
+      "sha256": "f565f590089ab4710fdf44275653d7fac1f80e4fe71e35f586af9373830ac07a",
+      "bytes": 63754,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.producer.json.gz",
+      "sha256": "caebbda2d6e75ee421a8a9f7a48db4d2fb69c2fa7b84c1c731eb3b35daa6605e",
+      "bytes": 7251,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.control.json.gz",
+      "sha256": "df6891e84d9d673daa8232ffde5f635e521bd1796461410faa7020222b1afee4",
+      "bytes": 564,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.sqlite.gz",
+      "sha256": "f0de7f1697af68ffbc5c03695377fb69eb49a4973345773473da660c5ec21d56",
+      "bytes": 63967,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.producer.json.gz",
+      "sha256": "a73782382ddbaa34d087375d55aa87edfbcbda78858268a8b8cbe5593c3df866",
+      "bytes": 7339,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.control.json.gz",
+      "sha256": "ce69a321d9895c20b1d89f5da4f15eb7d919501c5ebfafae904dc47b7d0e0ae8",
+      "bytes": 595,
+      "mode": 436
+    }
+  ],
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v93.json",
+    "sha256": "5d7b27600b916832e24eb202353c31075f65f1f092c86ed77d8a81c7d71f0589",
+    "bytes": 13326,
+    "mode": 384
+  },
+  "previousSourceState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-memory-contract-final-state-v1.json",
+    "sha256": "69b284b6143291fe709b6fe7b1a770b24e0b63ad429e4e5a79e116c4971c8343",
+    "bytes": 173791,
+    "mode": 384
+  },
+  "packaging": {
+    "path": "/tmp/puni-combined-proposal-v1/control/legacy-move-packaging-v1.json",
+    "sha256": "35f9e27f859ff157bd4df785b8e53f4b3159eafa22e0b48754a1cbe36cb65731",
+    "bytes": 2311,
+    "mode": 384
+  },
+  "genuineOriginals": [
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/producer.db",
+      "sha256": "38e8c7eb1b57febb58538107697e0fbd0fd503b0a1a224f603e0be618b3917fd",
+      "bytes": 1789952,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/producer.json",
+      "sha256": "374d9422193f43a344d6423479851fa5c579901bd2c0a894a6d9de949ebc8d06",
+      "bytes": 46249,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress/old-replay-control.json",
+      "sha256": "e1c94d3498edbd9009dcb58368936089e4c1f9cd48809f5ca02e5d7a8987f849",
+      "bytes": 5046,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/producer.db",
+      "sha256": "ab68bdc372b7dea0fa257b831c9a18a6a921a112dfc73801d0757a26ff0452f5",
+      "bytes": 1789952,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/producer.json",
+      "sha256": "ffdf5b3d1996ad3bfd2d1a6989a0d1be16bd1a0052f41c843d661bf0cb84a825",
+      "bytes": 47544,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/history-v2/restore-progress-blockage/old-replay-control.json",
+      "sha256": "1be374e2deb8cd608244abfe1e1635d4f95177ba0ead57a5d98d261b65ac659e",
+      "bytes": 5689,
+      "mode": 384
+    }
+  ],
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v33.json",
+    "sha256": "17bb8d4b8ca795bd22d95941c2fcef386160ed856073c2a4d8653ba286cee6c5",
+    "bytes": 1871589,
+    "mode": 384
+  },
+  "checks": [
+    {
+      "name": "genuine-move-current-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v1.receipt.json",
+        "sha256": "b192889abe350d78ec2754bfca815d74588949f8e82ca88360f4c6fc47af898d",
+        "bytes": 1371,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v1.log",
+        "sha256": "77104e210cc9028b2b0660926e9acce6148da9676cfa2750bd0389344e53c4bf",
+        "bytes": 31763,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-current-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v2.receipt.json",
+        "sha256": "59ce21883cab5c871b93b508bb1b3ec39a921719f2cef41f2c14327441ca7d7f",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v2.log",
+        "sha256": "e55ae1fc41f1511b7f4fe4938c28473ee1693eb7ec8dcc83386572babe76bb77",
+        "bytes": 8227,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-current-v3",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v3.receipt.json",
+        "sha256": "1e05662bb249ce20397dac95a8025dccbfdce9ce6d8c50f762ec1b75fad959a2",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-current-v3.log",
+        "sha256": "23bf4480f8f8ce4e66ccdb2508db176dc5a4840f3d0ddae47a74866e4fd267de",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-types-v1.receipt.json",
+        "sha256": "897acad0989c09d70d592d2b941dd58b4bbef0d88fac56c8e360c3f397d8611a",
+        "bytes": 1325,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-types-v1.log",
+        "sha256": "483b97f9e2ab6aca83feaac3df1113a0d745595724fd673dd4d1fd25b7c9dfc3",
+        "bytes": 2626,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-lint-v1.receipt.json",
+        "sha256": "bccdc157b6d5a0286ba00ffc58358f4ba4e9554114f2f5ca58c26ea324891dee",
+        "bytes": 1438,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-lint-v1.log",
+        "sha256": "5253c763660a382d073d45b0a3ad0056e47be7ec9fffcd9652acab17bf9e2981",
+        "bytes": 360,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-final-v1.receipt.json",
+        "sha256": "da572699f8a7ad33bb03be757812a6d63b668cc736ff290aa7fd6dd7c561f5e3",
+        "bytes": 1528,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-final-v1.log",
+        "sha256": "1b56268d119dbdce2c240778a5476799d535dcd1bd254b3466f04d5c18ce5802",
+        "bytes": 10619,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-format-write-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-format-write-v2.receipt.json",
+        "sha256": "bfc26e9f7794507b761cb0d3ed9001afebb75985002f1ba2e55e4e31adca8506",
+        "bytes": 1519,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-format-write-v2.log",
+        "sha256": "ed7534bb71da56d4c6c525a2a455cda9cea605e771d65762d59481c52e15dc35",
+        "bytes": 242,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-types-v2.receipt.json",
+        "sha256": "3c0af0cdca07879f36ad1d003eccfd3db00303606098e8df9639592877e3eacd",
+        "bytes": 1322,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-lint-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-lint-v2.receipt.json",
+        "sha256": "ac8ecfb8a8f8713fb13980dceb234731392b2d2dd138cd33d92f82afc0dbdd2e",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-final-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-final-v2.receipt.json",
+        "sha256": "7c0c74ebbde1f30e68581abb5bcc47e06bc22bd02ffa71d40622c5d3dcc5bb0c",
+        "bytes": 1527,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-final-v2.log",
+        "sha256": "218f10dd49eff9d2d535d65129e4c1bf57476b758de7964d8f6da843fc79fcb3",
+        "bytes": 2369,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-audit-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-audit-v1.receipt.json",
+        "sha256": "e28592e525bc0f3378054b179a2a6cf885b11c692be9bac473c6a77d5f8897df",
+        "bytes": 1265,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-audit-v1.log",
+        "sha256": "3d9ad64b856692d0de25f13e1a6fbb264c1c5c7103e7491dbb24d4e977601ce8",
+        "bytes": 275,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "genuine-move-fault-snapshot-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-snapshot-v1.receipt.json",
+        "sha256": "69be964bdc3b757515c5cbd64901ecf1e9c519e0eb38b2ff24489fe0569fa905",
+        "bytes": 1449,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-snapshot-v1.log",
+        "sha256": "05af47f11e86b7678dd14d99d0e68f26a5c1a1babfe0356eed52e7ee055f59b5",
+        "bytes": 1963,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-fault-progress-time-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-progress-time-v1.receipt.json",
+        "sha256": "cf3f41652c10b27a9985da7c5ce850b30a177cf555974bd9c9b1248559869b68",
+        "bytes": 1458,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-progress-time-v1.log",
+        "sha256": "61a9d5ef28c01f1bd89e17ba32d76ad87e4bacce8caff214b22c9d9db9da5aa6",
+        "bytes": 2293,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-fault-clear-progress-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-clear-progress-v1.receipt.json",
+        "sha256": "10d24a691c0d71427fac05b85eab57a973ce0ee91df299304aa1c15d9ad9eaec",
+        "bytes": 1460,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-clear-progress-v1.log",
+        "sha256": "d9a29c67fde582320e861e0a5ff9f3da7827d3f152f5c7e651042855da3f5507",
+        "bytes": 1905,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-fault-blockage-time-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-blockage-time-v1.receipt.json",
+        "sha256": "90f2d523735c73008f4a932da08f6f4d630fe1ff2b52c7116b176db9928e5715",
+        "bytes": 1492,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-blockage-time-v1.log",
+        "sha256": "5f75e137630d663223dc2c0c32b7e7e56e58126a41ec29cfa2408012a961916e",
+        "bytes": 1231,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-fault-gzip-integrity-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-gzip-integrity-v1.receipt.json",
+        "sha256": "3dd995cbed5fba7a2fe5cb8b0402ad303092facf806f282883275a98f5b87a67",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-gzip-integrity-v1.log",
+        "sha256": "9fa249efa186c8af2529f965fdf1dc71409cd060b39ba8f0b6523f8eaca694db",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "genuine-move-fault-original-integrity-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-original-integrity-v1.receipt.json",
+        "sha256": "29ba75be7a94b26730fc134fd05044769a9d8af30da52e1e4a78618b76572fbb",
+        "bytes": 1493,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-original-integrity-v1.log",
+        "sha256": "b199f2a6b4d825294394f6acbf560fa4a902cfd9f1f17d0a8a3cc6b7e5851f3b",
+        "bytes": 1511,
+        "mode": 384
+      },
+      "exitCode": 1
+    }
+  ],
+  "verification": {
+    "pass": 18,
+    "fail": 0,
+    "assertions": 361,
+    "files": 3,
+    "newCases": 10,
+    "genuineVariants": 2,
+    "runnerAndBorrowedPositiveCases": 4,
+    "nativeStateTimeMissingDriftCases": 6,
+    "compilerEntries": 296,
+    "lintFiles": 2,
+    "auditedSourceFiles": 6084,
+    "allExistingProductionSourceBytesExact": true,
+    "retainedFinalFixtures": 0
+  },
+  "historicalAdmission": {
+    "producer": "c8018843e6ff6827f7d97b67ff986cc717656578",
+    "initialLedgerEntries": 110,
+    "beforeCatalogueLedgerEntries": 116,
+    "finalLedgerEntries": 119,
+    "path": "ordinary110→116; actual report; E37 backup; private catalogue117 apply; ordinary118/119",
+    "bodyAndRecipeStringsUnchanged": true,
+    "headerRename": "Only physical project_id→work_package_id is aliased during complete history comparison.",
+    "fkViolations": 0
+  },
+  "clocks": {
+    "movingOriginal": 11,
+    "destinationReapplied": [1000, 1002],
+    "blockages": [-20, -10],
+    "contract": "Original set_progress carries only state; destination statement is said again at replay stamp. Original moving statement and blockage replacement instants remain exact."
+  },
+  "proofs": {
+    "state": {
+      "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-faults-v1.state.json",
+      "sha256": "d5580161d20b8853779ba92294c3431855299aa9facbb47b2aac2482a136a82b",
+      "bytes": 6427,
+      "mode": 384
+    },
+    "active": null,
+    "restored": true,
+    "total": 6,
+    "faults": [
+      {
+        "name": "snapshot",
+        "kind": "snapshot-admission",
+        "oracle": "refuses native state drift",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-snapshot-v1.receipt.json",
+          "sha256": "69be964bdc3b757515c5cbd64901ecf1e9c519e0eb38b2ff24489fe0569fa905",
+          "bytes": 1449,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-snapshot-v1.log",
+          "sha256": "05af47f11e86b7678dd14d99d0e68f26a5c1a1babfe0356eed52e7ee055f59b5",
+          "bytes": 1963,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-snapshot-v1.ram.json",
+          "sha256": "f6e5ce7803a0db6103003984e19208164eb375d47a672e4213b675cb174075aa",
+          "bytes": 345,
+          "mode": 384
+        },
+        "restored": true
+      },
+      {
+        "name": "progress-time",
+        "kind": "statement-time",
+        "oracle": "keeps moving time",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-progress-time-v1.receipt.json",
+          "sha256": "cf3f41652c10b27a9985da7c5ce850b30a177cf555974bd9c9b1248559869b68",
+          "bytes": 1458,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-progress-time-v1.log",
+          "sha256": "61a9d5ef28c01f1bd89e17ba32d76ad87e4bacce8caff214b22c9d9db9da5aa6",
+          "bytes": 2293,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-progress-time-v1.ram.json",
+          "sha256": "bda72410e69cdf350dedcb243e0d1f8994713d6c5fd84ed3112d2937099bec33",
+          "bytes": 350,
+          "mode": 384
+        },
+        "restored": true
+      },
+      {
+        "name": "clear-progress",
+        "kind": "required-clear",
+        "oracle": "keeps moving time",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-clear-progress-v1.receipt.json",
+          "sha256": "10d24a691c0d71427fac05b85eab57a973ce0ee91df299304aa1c15d9ad9eaec",
+          "bytes": 1460,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-clear-progress-v1.log",
+          "sha256": "d9a29c67fde582320e861e0a5ff9f3da7827d3f152f5c7e651042855da3f5507",
+          "bytes": 1905,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-clear-progress-v1.ram.json",
+          "sha256": "a867c460117ed025f0934ff6ffed4eb5d4d19a2bfd3c95cc2de1058081e3625f",
+          "bytes": 351,
+          "mode": 384
+        },
+        "restored": true
+      },
+      {
+        "name": "blockage-time",
+        "kind": "exact-blockage",
+        "oracle": "genuine restore-progress-blockage keeps moving time",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-blockage-time-v1.receipt.json",
+          "sha256": "90f2d523735c73008f4a932da08f6f4d630fe1ff2b52c7116b176db9928e5715",
+          "bytes": 1492,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-blockage-time-v1.log",
+          "sha256": "5f75e137630d663223dc2c0c32b7e7e56e58126a41ec29cfa2408012a961916e",
+          "bytes": 1231,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-blockage-time-v1.ram.json",
+          "sha256": "24aebcf2101f4b2dd75d31ae9d488e60cd637ae0d3d69c2c7e2897a0b7d0ba7a",
+          "bytes": 350,
+          "mode": 384
+        },
+        "restored": true
+      },
+      {
+        "name": "gzip-integrity",
+        "kind": "compressed-dependency",
+        "oracle": "genuine restore-progress keeps moving time",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-gzip-integrity-v1.receipt.json",
+          "sha256": "3dd995cbed5fba7a2fe5cb8b0402ad303092facf806f282883275a98f5b87a67",
+          "bytes": 1485,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-gzip-integrity-v1.log",
+          "sha256": "9fa249efa186c8af2529f965fdf1dc71409cd060b39ba8f0b6523f8eaca694db",
+          "bytes": 1443,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-gzip-integrity-v1.ram.json",
+          "sha256": "43a1599dec039216cc093032e163d2e50a694c517f68b077a5722de30ef36b2d",
+          "bytes": 351,
+          "mode": 384
+        },
+        "restored": true
+      },
+      {
+        "name": "original-integrity",
+        "kind": "original-dependency",
+        "oracle": "genuine restore-progress keeps moving time",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-original-integrity-v1.receipt.json",
+          "sha256": "29ba75be7a94b26730fc134fd05044769a9d8af30da52e1e4a78618b76572fbb",
+          "bytes": 1493,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-original-integrity-v1.log",
+          "sha256": "b199f2a6b4d825294394f6acbf560fa4a902cfd9f1f17d0a8a3cc6b7e5851f3b",
+          "bytes": 1511,
+          "mode": 384
+        },
+        "ram": {
+          "path": "/tmp/puni-combined-proposal-v1/control/genuine-move-fault-original-integrity-v1.ram.json",
+          "sha256": "03f8221af21711d3842d86857e04bf4a6ce471ceaa33ff4556c1a6c54ea50c1f",
+          "bytes": 355,
+          "mode": 384
+        },
+        "restored": true
+      }
+    ],
+    "qualification": "Four actual replay guard/dependency mutations and two independently pinned archive dependencies. Final healthy combined run follows restoration."
+  },
+  "intermediateFailures": {
+    "retained": true,
+    "description": "Initial history header-name comparison rejected the legitimate entity rename; ordinary point mutation after-control changed revisions; latest pre-final test array selection was misplaced. Final source fixes only these test controls, retaining all failed receipts."
+  },
+  "limitations": [
+    "Two genuine standalone variants and six native current drift controls are bounded evidence; all15 original historical guarantees remain open as an aggregate.",
+    "The separate171-file core census remains prior V92:2118pass13fail. No existing failing core case was changed or removed.",
+    "No current ordinary parent-point writer exception or new historical authoring capability.",
+    "Full SQLite Source/API/MCP/UI/product/build/secrets/migration/installed/exactSHAhost gates were not run in this slice.",
+    "Astra unavailable until recorded2026-11-22 10:09AM timezone unspecified; no retry/substitute/new agent.",
+    "No public commit/push/PR/merge/deploy/install/activation; original six workspace inventories, protected archive and shared dependencies must remain exact."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

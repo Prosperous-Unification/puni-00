@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { CommittedWorkPackageEvent } from '@wbs/core/ports/committed-fanout';
 import type { OptimizationInput } from '@wbs/core/ports/optimization-input';
 import { sliceKey } from '@wbs/domain';
 import { response, stage } from '@wbs/store-sqlite/connected-optimization.fixture';
@@ -23,7 +23,6 @@ import {
 import { openDatabase } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { readGeneration } from '../repository/optimization-generation';
@@ -38,6 +37,7 @@ import {
 import { eventLog, optimizationBoundaryCertificate, solverSlot } from '../repository/schema';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { createDequeueReservationOwner } from './optimization-dequeue-reservation';
 import { createInitialReservationOwner } from './optimization-initial-reservation';
 import { createOptimizationObservationOwner } from './optimization-observation';
@@ -66,11 +66,15 @@ function fixture(
   const directory = mkdtempSync(join(tmpdir(), 'connected-publication-'));
   directories.push(directory);
   const path = join(directory, 'store.db');
-  runMigrations(path, new URL('../../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(path);
   const sqlite = openDatabase(path);
+  sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
+  sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at) VALUES('publication-project','org','Publication',1)",
+  );
   sqlite.run("INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)");
   sqlite.run(
-    "INSERT INTO project(id,name,owner_id,created_at,optimization_enabled) VALUES('B','B','u',1,1)",
+    "INSERT INTO work_package(id,name,created_by,project_id,created_at,optimization_enabled) VALUES('B','B','u','publication-project',1,1)",
   );
   sqlite.close();
   const source = openSqliteSource({
@@ -86,7 +90,7 @@ function fixture(
         () => false,
       ),
   });
-  const delivered: CommittedProjectEvent[] = [];
+  const delivered: CommittedWorkPackageEvent[] = [];
   const delivery = { now: () => 10, deliverCommitted: () => Promise.resolve() };
   const repository = {
     ...createOptimizationRepository(
@@ -156,7 +160,7 @@ function fixture(
     ...overrides,
   });
   const admit = async () =>
-    coordinator.admitCaptured({ projectId: 'B', input: current, enabled: true });
+    coordinator.admitCaptured({ workPackageId: 'B', input: current, enabled: true });
   const questions = () => {
     if (current.kind !== 'connected') throw new Error('expected connected input');
     return {
@@ -238,7 +242,7 @@ it('Q1 to Q2 to Q1 admission and Retry read the retained certificate before gene
   expect(f.source.db.select().from(eventLog).all()).toEqual(before);
   expect(
     await f.coordinator.retry({
-      projectId: 'B',
+      workPackageId: 'B',
       objective: 'pri',
       inputHash: q1.pri.inputHash,
       input: { kind: 'connected', stage: stage(true) },
@@ -259,7 +263,7 @@ it('restart discards a stale queued connected question before admitting freshly 
     1,
   );
   enqueueSolverRequest(f.source.db, {
-    projectId: 'B',
+    workPackageId: 'B',
     contractVersion: q1.pri.contractVersion,
     generation,
     objective: 'pri',
@@ -283,7 +287,7 @@ it('restart checks retained terminal evidence before launching an enqueued entry
   const current = readGeneration(f.source.db, 'B', q1.pri.contractVersion);
   if (current === null) throw new Error('missing generation');
   enqueueSolverRequest(f.source.db, {
-    projectId: 'B',
+    workPackageId: 'B',
     contractVersion: q1.pri.contractVersion,
     generation: current.generation,
     objective: 'pri',
@@ -356,7 +360,7 @@ it('restart replaces an old-budget queued question with the installed exact ques
     1,
   );
   enqueueSolverRequest(f.source.db, {
-    projectId: 'B',
+    workPackageId: 'B',
     contractVersion: q1.pri.contractVersion,
     generation,
     objective: 'pri',
@@ -388,7 +392,7 @@ it('retry of a connected diagnostic rebuilds the connected request and terminal 
   f.respond('boundary-infeasible');
   expect(
     await f.coordinator.retry({
-      projectId: 'B',
+      workPackageId: 'B',
       objective: 'pri',
       inputHash: f.questions().pri.inputHash,
       input: { kind: 'connected', stage: stage(false) },
@@ -427,7 +431,7 @@ it('rechecks a competitor terminal committed between observation and initial res
 it('refuses admission when enablement was revoked after detached capture', async () => {
   const f = fixture();
   const sqlite = openDatabase(f.path);
-  sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='B'");
+  sqlite.run("UPDATE work_package SET optimization_enabled=0 WHERE id='B'");
   sqlite.close();
   await f.admit();
   await f.coordinator.drain();
@@ -459,7 +463,7 @@ it('restart launches an explicitly queued connected Retry after its older diagno
   const current = readGeneration(f.source.db, 'B', question.contractVersion);
   if (current === null) throw new Error('missing connected generation');
   enqueueSolverRequest(f.source.db, {
-    projectId: 'B',
+    workPackageId: 'B',
     contractVersion: question.contractVersion,
     generation: current.generation,
     objective: 'pri',
@@ -476,11 +480,11 @@ it('restart launches an explicitly queued connected Retry after its older diagno
   ).toBe('boundary-infeasible');
 });
 
-it('refuses a connected Retry whose target differs from the captured project', async () => {
+it('refuses a connected Retry whose target differs from the captured work package', async () => {
   const f = fixture();
   const rejected = await f.coordinator
     .retry({
-      projectId: 'other',
+      workPackageId: 'other',
       objective: 'pri',
       inputHash: f.questions().pri.inputHash,
       input: { kind: 'connected', stage: stage(true) },
@@ -496,20 +500,20 @@ it('refuses a connected Retry whose target differs from the captured project', a
 function scopedFixture() {
   const f = fixture(false);
   const sqlite = openDatabase(f.path);
-  sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
-  for (const projectId of ['A', 'C'])
-    sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES(?,?,'u',1)", [
-      projectId,
-      projectId,
-    ]);
-  for (const projectId of ['A', 'B', 'C']) {
-    sqlite.run("INSERT INTO project_organization(resource_id,organization_id) VALUES(?,'org')", [
-      projectId,
-    ]);
-    sqlite.run('INSERT INTO work_item(id,project_id,name,position) VALUES(?,?,?,1)', [
-      projectId.toLowerCase(),
-      projectId,
-      projectId,
+  for (const workPackageId of ['A', 'C'])
+    sqlite.run(
+      "INSERT INTO work_package(id,name,created_by,project_id,created_at) VALUES(?,?,'u','publication-project',1)",
+      [workPackageId, workPackageId],
+    );
+  for (const workPackageId of ['A', 'B', 'C']) {
+    sqlite.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,'org')",
+      [workPackageId],
+    );
+    sqlite.run('INSERT INTO work_item(id,work_package_id,name,position) VALUES(?,?,?,1)', [
+      workPackageId.toLowerCase(),
+      workPackageId,
+      workPackageId,
     ]);
   }
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
@@ -517,7 +521,7 @@ function scopedFixture() {
   seedDependencyAuthority(f.path);
   const authored = openDatabase(f.path);
   authored.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('ab','org','A','B','a','b','whole','whole','FS'),('bc','org','B','C','b','c','whole','whole','FS')",
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('ab','org','A','B','a','b','whole','whole','FS'),('bc','org','B','C','b','c','whole','whole','FS')",
   );
   authored.close();
   const previous = stage(false);
@@ -553,7 +557,7 @@ function changedQuestion(f: ReturnType<typeof scopedFixture>) {
     time: captureConnectedQuestion(captured, 'time', installed),
   };
   return {
-    projectId: 'B',
+    workPackageId: 'B',
     inputHash: questions.pri.inputHash,
     contractVersion: questions.pri.contractVersion,
     budgetMs: installed.budgetMs,
@@ -563,7 +567,7 @@ function changedQuestion(f: ReturnType<typeof scopedFixture>) {
 function rejectConnectedRecipient(f: ReturnType<typeof scopedFixture>) {
   const sqlite = openDatabase(f.path);
   sqlite.run(
-    "CREATE TRIGGER reject_connected_recipient BEFORE INSERT ON event_log WHEN NEW.subscription='project:C' AND json_extract(NEW.message,'$.type')='elsewhere_changed' BEGIN SELECT RAISE(ABORT,'connected recipient fault'); END",
+    "CREATE TRIGGER reject_connected_recipient BEFORE INSERT ON event_log WHEN NEW.subscription='work-package:C' AND json_extract(NEW.message,'$.type')='elsewhere_changed' BEGIN SELECT RAISE(ABORT,'connected recipient fault'); END",
   );
   sqlite.close();
 }
@@ -583,20 +587,22 @@ it('scoped connected selected publication records and delivers foreign component
     .all()
     .map((entry) => ({
       subscription: entry.subscription,
-      message: JSON.parse(entry.message) as { type: string; causeProjectId?: string },
+      message: JSON.parse(entry.message) as { type: string; causeWorkPackageId?: string },
     }));
   expect(
     events.filter(
       ({ subscription, message }) =>
-        subscription === 'project:C' &&
+        subscription === 'work-package:C' &&
         message.type === 'elsewhere_changed' &&
-        message.causeProjectId === 'B',
+        message.causeWorkPackageId === 'B',
     ),
   ).toHaveLength(2);
   expect(
     f.delivered.some(
-      ({ projectId, event }) =>
-        projectId === 'C' && event.type === 'elsewhere_changed' && event.causeProjectId === 'B',
+      ({ workPackageId, event }) =>
+        workPackageId === 'C' &&
+        event.type === 'elsewhere_changed' &&
+        event.causeWorkPackageId === 'B',
     ),
   ).toBe(true);
 });
@@ -608,8 +614,10 @@ it('scoped connected generation eviction invalidates foreign component members',
   const committed = await f.repository.observeForAdmission(changedQuestion(f), 20);
   expect(
     committed.envelopes.some(
-      ({ projectId, event }) =>
-        projectId === 'C' && event.type === 'elsewhere_changed' && event.causeProjectId === 'B',
+      ({ workPackageId, event }) =>
+        workPackageId === 'C' &&
+        event.type === 'elsewhere_changed' &&
+        event.causeWorkPackageId === 'B',
     ),
   ).toBe(true);
   expect(f.source.db.select().from(optimizedScheduleCache).all()).toHaveLength(0);
@@ -619,7 +627,7 @@ it('scoped connected generation eviction invalidates foreign component members',
       .from(eventLog)
       .all()
       .slice(before)
-      .filter((entry) => entry.subscription === 'project:C'),
+      .filter((entry) => entry.subscription === 'work-package:C'),
   ).toHaveLength(1);
 });
 it('scoped connected recipient insert fault rolls back selected outcome and both event sequences', async () => {

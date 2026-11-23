@@ -4,6 +4,7 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const endpoint of ['single', 'batch']) {
   describe(`move sparse preservation through ${endpoint} command`, () => {
@@ -16,26 +17,22 @@ for (const endpoint of ['single', 'batch']) {
         await h.register('outsider');
         h.organization('org');
         h.organization('foreign');
-        h.member('org', 'owner', 'member');
-        h.member('org', 'viewer', 'viewer');
-        h.member('foreign', 'outsider', 'member');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
+        h.member('org', 'viewer', 'viewer', ['org-viewer']);
+        h.member('foreign', 'outsider', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('foreign', 'outsider', ['organization.create_project']);
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/projects', {
-          name: 'Preserve sparse nodes',
-        });
-        expect(created.status).toBe(200);
-        const projectId = (created.body as { project: { id: string } }).project.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE project_id = ? ORDER BY position,id')
-          .all(projectId) as { id: string }[];
+        const workPackageId = await createFixturePackage(h, 'owner', 'Preserve sparse nodes');
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
-        if (first === undefined) throw new Error('project has no fixture steps');
+        if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(
-          "INSERT INTO work_item (id,project_id,name,position,revision,readiness,hold) VALUES ('parent',?,'Parent',1,0,'ready','on_hold')",
-          [projectId],
+          "INSERT INTO work_item (id,work_package_id,name,position,revision,readiness,hold) VALUES ('parent',?,'Parent',1,0,'ready','on_hold')",
+          [workPackageId],
         );
         h.sqlite.run(
           'INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,2,3)',
@@ -51,8 +48,8 @@ for (const endpoint of ['single', 'batch']) {
             ['parent', step.id],
           );
         h.sqlite.run(
-          "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('moving',?,'Moving',2,0),('unrelated',?,'Unrelated',3,0)",
-          [projectId, projectId],
+          "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('moving',?,'Moving',2,0),('unrelated',?,'Unrelated',3,0)",
+          [workPackageId, workPackageId],
         );
         h.sqlite.run(
           'INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,2)',
@@ -60,7 +57,7 @@ for (const endpoint of ['single', 'batch']) {
         );
         const tables = [
           'work_item',
-          'project',
+          'work_package',
           'step_parallel',
           'estimate',
           'actual',
@@ -88,19 +85,31 @@ for (const endpoint of ['single', 'batch']) {
         try {
           const commands = { commands: [{ kind: 'moveWorkItem', ...move }] };
           expect(
-            (await h.call('viewer', 'POST', `/api/projects/${projectId}/commands`, commands))
-              .status,
+            (
+              await h.call(
+                'viewer',
+                'POST',
+                `/api/work-packages/${workPackageId}/commands`,
+                commands,
+              )
+            ).status,
           ).toBe(403);
           expect(
-            (await h.call('outsider', 'POST', `/api/projects/${projectId}/commands`, commands))
-              .status,
+            (
+              await h.call(
+                'outsider',
+                'POST',
+                `/api/work-packages/${workPackageId}/commands`,
+                commands,
+              )
+            ).status,
           ).toBe(404);
           expect(
-            (await h.call('owner', 'POST', '/api/projects/missing/commands', commands)).status,
+            (await h.call('owner', 'POST', '/api/work-packages/missing/commands', commands)).status,
           ).toBe(404);
           expect(
             (
-              await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
+              await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
                 commands: [{ kind: 'moveWorkItem', ...move, parentId: 'missing' }],
               })
             ).status,
@@ -111,7 +120,7 @@ for (const endpoint of ['single', 'batch']) {
         const answer = await h.call(
           'owner',
           'POST',
-          `/api/projects/${projectId}/commands`,
+          `/api/work-packages/${workPackageId}/commands`,
           endpoint === 'batch'
             ? {
                 commands: [
@@ -136,13 +145,33 @@ for (const endpoint of ['single', 'batch']) {
         });
         expect(snapshot()).toEqual(before);
         h.sqlite.run("DELETE FROM step_parallel WHERE work_item_id = 'parent'");
-        expect(
-          (
-            await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, {
-              commands: [{ kind: 'moveWorkItem', ...move }],
-            })
-          ).status,
-        ).toBe(200);
+        const moveOnly = () =>
+          h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
+            commands: [{ kind: 'moveWorkItem', ...move }],
+          });
+        const protectedDestination = snapshot();
+        expect(await moveOnly()).toEqual({
+          status: 409,
+          body: {
+            error: 'step_nodes_in_use',
+            at: 0,
+            kind: 'moveWorkItem',
+            count: 1,
+            pairs: [
+              {
+                id: 'parent',
+                name: 'Parent',
+                stepId: first.id,
+                workPackageId,
+                facts: ['estimate', 'blockage'],
+              },
+            ],
+          },
+        });
+        expect(snapshot()).toEqual(protectedDestination);
+        h.sqlite.run("DELETE FROM estimate WHERE work_item_id = 'parent'");
+        h.sqlite.run("DELETE FROM step_blockage WHERE work_item_id = 'parent'");
+        expect(await moveOnly()).toMatchObject({ status: 200 });
       } finally {
         await h.closeComposed();
       }
@@ -158,16 +187,13 @@ for (const replay of ['undo', 'redo'] as const) {
         activateTestStepBlockages(h.sqlite.filename);
         await h.register('owner');
         h.organization('org');
-        h.member('org', 'owner', 'member');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
         h.bind('owner', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/projects', { name: 'Replay policy' });
-        expect(created.status).toBe(200);
-        const projectId = (created.body as { project: { id: string } }).project.id;
-        const step = h.sqlite
-          .query('SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1')
-          .get(projectId) as { id: string } | null;
-        if (step === null) throw new Error('fixture step absent');
+        const workPackageId = await createFixturePackage(h, 'owner', 'Replay policy');
+        const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+        if (step === undefined) throw new Error('fixture step absent');
         for (const [id, parentId, position] of [
           ['old-parent', null, 1],
           ['new-parent', null, 2],
@@ -175,8 +201,8 @@ for (const replay of ['undo', 'redo'] as const) {
           ['unrelated', null, 3],
         ] as const) {
           h.sqlite.run(
-            'INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES (?,?,?,?,?,0)',
-            [id, projectId, id, parentId, position],
+            'INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES (?,?,?,?,?,0)',
+            [id, workPackageId, id, parentId, position],
           );
         }
         const move = {
@@ -193,13 +219,16 @@ for (const replay of ['undo', 'redo'] as const) {
         // Replay applies the patch before the guarded move in either direction.
         const commands = replay === 'undo' ? [move, patch] : [patch, move];
         expect(
-          (await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, { commands }))
-            .status,
+          (
+            await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
+              commands,
+            })
+          ).status,
         ).toBe(200);
         if (replay === 'redo')
-          expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(
-            200,
-          );
+          expect(
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status,
+          ).toBe(200);
         const destination = replay === 'undo' ? 'old-parent' : 'new-parent';
         const owner = policy === 'unrelated' ? 'unrelated' : destination;
         const beforeRevision = h.sqlite
@@ -242,11 +271,13 @@ for (const replay of ['undo', 'redo'] as const) {
           tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
         const before = snapshot();
         expect(
-          h.sqlite.query('SELECT id FROM command_journal WHERE project_id = ?').all(projectId),
+          h.sqlite
+            .query('SELECT id FROM command_journal WHERE work_package_id = ?')
+            .all(workPackageId),
         ).toHaveLength(1);
         const journalBefore = h.sqlite
-          .query('SELECT * FROM command_journal WHERE project_id = ?')
-          .all(projectId);
+          .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+          .all(workPackageId);
         const appliedNames: string[] = [];
         // The original prototype method receives the active repository through apply below.
         // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -269,7 +300,7 @@ for (const replay of ['undo', 'redo'] as const) {
             : undefined;
         let answer: Awaited<ReturnType<typeof h.call>>;
         try {
-          answer = await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`);
+          answer = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`);
         } finally {
           patchRead.mockRestore();
           sparseRead?.mockRestore();
@@ -289,17 +320,21 @@ for (const replay of ['undo', 'redo'] as const) {
           expect(answer.status).toBe(500);
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT * FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toEqual(journalBefore);
         } else {
           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
           expect(snapshot()).toEqual(before);
           expect(
-            h.sqlite.query('SELECT id FROM command_journal WHERE project_id = ?').all(projectId),
+            h.sqlite
+              .query('SELECT id FROM command_journal WHERE work_package_id = ?')
+              .all(workPackageId),
           ).toHaveLength(0);
           // Existing stale-history policy discards the entry after rolling back the replay.
           expect(
-            (await h.call('owner', 'POST', `/api/projects/${projectId}/${replay}`)).status,
+            (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/${replay}`)).status,
           ).toBe(409);
         }
       } finally {

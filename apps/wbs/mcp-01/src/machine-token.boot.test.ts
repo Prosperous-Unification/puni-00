@@ -330,13 +330,13 @@ describe('client credentials', () => {
     expect(clientLookups).toBe(before);
   });
 
-  test('a key bound to a viewer gets wbs:read only', async () => {
+  test('a key bound to a viewer gets the fixed machine credential envelope', async () => {
     const { id, key } = await apiKey('vics-agent');
     const answer = await tokenRequest({ grant_type: 'client_credentials' }, basic(id, key));
-    expect(answer).toMatchObject({ status: 200, body: { scope: 'wbs:read' } });
+    expect(answer).toMatchObject({ status: 200, body: { scope: 'wbs:read wbs:write' } });
     expect(decodeJwt(String(answer.body['access_token']))).toMatchObject({
-      scope: 'wbs:read',
-      wbs_groups: ['dev:wbs:read'],
+      scope: 'wbs:read wbs:write',
+      wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
     });
   });
 

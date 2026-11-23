@@ -254,7 +254,7 @@ function firstDependencyRefusal(rows: DocumentRow[]): Refusal | null {
         throw new Error('dependsOn changed length during preparation');
       edges.push({
         id: `file-edge-${String(edges.length)}`,
-        projectId: 'file',
+        workPackageId: 'file',
         predecessorId,
         successorId: successor.id,
         path: `workItems[${String(successorAt)}].dependsOn[${String(predecessorAt)}]`,
@@ -277,7 +277,11 @@ function firstDependencyRefusal(rows: DocumentRow[]): Refusal | null {
   return null;
 }
 
-function validateDates(row: DocumentRow, at: number, projectStart: string | null): Refusal | null {
+function validateDates(
+  row: DocumentRow,
+  at: number,
+  workPackageStart: string | null,
+): Refusal | null {
   const dates = [
     ['startNoEarlierThan', row.startNoEarlierThan],
     ['deadline', row.deadline],
@@ -300,8 +304,8 @@ function validateDates(row: DocumentRow, at: number, projectStart: string | null
   if (isOrphanedNotBeforeReason(row.startNoEarlierThan, row.startNoEarlierThanReason))
     return refuses('invalid_body', `workItems[${String(at)}].startNoEarlierThanReason`);
   // Proof: bypassing this comparison made the mounted deadline-before-start test return 204.
-  if (projectStart !== null && row.deadline !== null && row.deadline < projectStart)
-    return refuses('deadline_before_project_start', `workItems[${String(at)}].deadline`);
+  if (workPackageStart !== null && row.deadline !== null && row.deadline < workPackageStart)
+    return refuses('deadline_before_work_package_start', `workItems[${String(at)}].deadline`);
   return null;
 }
 
@@ -309,7 +313,7 @@ function validateDates(row: DocumentRow, at: number, projectStart: string | null
  * Refuses every row carrying more than one distinct type (WBS 010.4.10), whatever
  * the document version: `path` is the first such row and `detail` lists the file
  * ids of all of them, so one round trip names every row to fix. A type conflict
- * already in a project is kept by copying; a file cannot create one.
+ * already in a work package is kept by copying; a file cannot create one.
  *
  * Proof: the call in prepareImport skipped and `refuses rows carrying several
  * types, naming every such row` received ok: true; the module test `refuses a
@@ -331,14 +335,18 @@ function multiTypeRowsRefusal(
   );
 }
 
+export type ImportStepInterpretation = 'document' | 'catalogue';
+
 /**
  * Validates and resolves one archival document completely before source admission.
  *
  * The input has already crossed {@link PlanDocumentImport}'s structural boundary,
  * but leaf step maps remain opaque there so derived parent aggregates can be
  * discarded without interpretation. This pass derives leafhood from `parentId`,
- * validates only leaf maps, checks hierarchy and dependencies against the complete
- * file graph, and names every remaining reference as a `…FileId`. The returned
+ * validates only leaf maps and checks hierarchy and dependency references. Explicit
+ * document interpretation additionally checks uniform file order; catalogue mode
+ * defers execution order and definition birth to the admitted current Source.
+ * Every remaining reference is named as a `…FileId`. The returned
  * value therefore cannot be mistaken for a store-ready object carrying database ids.
  *
  * Enabled scheduling is the only case that asks the installed scheduler. A disabled
@@ -347,13 +355,18 @@ function multiTypeRowsRefusal(
 export function prepareImport(
   supplied: PlanDocumentImport,
   scheduler: Pick<Scheduler, 'supports'>,
+  interpretation: ImportStepInterpretation,
 ): ImportPreparation {
+  const boundary: unknown = interpretation;
+  // Proof: omission admitted missing/unknown interpretation (catalogue-import-fault-mode-v1).
+  if (boundary !== 'document' && boundary !== 'catalogue')
+    throw new TypeError('import step interpretation is missing or unknown');
   const document = structuredClone(supplied);
-  const projectName = cleanName(document.settings.name);
-  // Proof: bypassing this check made the blank-project-name test accept whitespace.
-  if (projectName === null) return refuses('invalid_body', 'settings.name');
-  document.settings.name = projectName;
-  // Proof: bypassing this predicate made the invalid-project-start test accept 2026-02-31.
+  const workPackageName = cleanName(document.settings.name);
+  // Proof: bypassing this check made the blank-work-package-name test accept whitespace.
+  if (workPackageName === null) return refuses('invalid_body', 'settings.name');
+  document.settings.name = workPackageName;
+  // Proof: bypassing this predicate made the invalid-work-package-start test accept 2026-02-31.
   if (document.settings.startDate !== null && !isIsoDate(document.settings.startDate))
     return refuses('invalid_body', 'settings.startDate');
   // Proof: bypassing this parse made the invalid-PERT test accept three zero weights.
@@ -505,7 +518,7 @@ export function prepareImport(
       return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
     // Proof: with this guard bypassed, the same test prepared the reserved
     // `s1-qa` instead of refusing it (2026-09-27).
-    if (isReservedStepCode(step.code))
+    if (interpretation === 'document' && isReservedStepCode(step.code))
       return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
     // Proof: with this guard bypassed, the same test prepared a second step
     // coded `impl` instead of refusing it (2026-09-27).
@@ -618,7 +631,7 @@ export function prepareImport(
       if (!steps.byId.has(stepId)) throw new Error(`attempt step ${stepId} left the file`);
       const personFileId = executor === null ? null : personFileIdOf.get(cleanName(executor) ?? '');
       // Proof: a miss here defaulted to another file person made `refuses an
-      // attempt executor the directory does not name, creating no project`
+      // attempt executor the directory does not name, creating no work package`
       // answer 500 (`prepared attempt executor mapping disappeared`) for 400
       // `unknown_ref`; watched 2026-10-12.
       if (personFileId === undefined)
@@ -713,7 +726,7 @@ export function prepareImport(
         );
       const predecessor = relationship.predecessor;
       const key = JSON.stringify([
-        predecessor.projectId,
+        predecessor.workPackageId,
         predecessor.workItemId,
         predecessor.scope,
         'stepId' in predecessor ? predecessor.stepId : null,
@@ -726,7 +739,7 @@ export function prepareImport(
       relationshipKeys.add(key);
       const mapping = document.externalMappings.find(
         ({ source }) =>
-          source.projectId === predecessor.projectId &&
+          source.workPackageId === predecessor.workPackageId &&
           source.workItemId === predecessor.workItemId &&
           source.scope === predecessor.scope &&
           ('stepId' in source ? source.stepId : null) ===
@@ -737,12 +750,12 @@ export function prepareImport(
         (predecessor.scope === 'whole'
           ? {
               scope: 'whole' as const,
-              projectId: predecessor.projectId,
+              workPackageId: predecessor.workPackageId,
               workItemId: predecessor.workItemId,
             }
           : {
               scope: predecessor.scope,
-              projectId: predecessor.projectId,
+              workPackageId: predecessor.workPackageId,
               workItemId: predecessor.workItemId,
               stepId: predecessor.stepId,
             });
@@ -794,11 +807,12 @@ export function prepareImport(
   // in prepare-import.test.ts (2026-10-22).
   if (duplicatePath !== null)
     return refuses('invalid_typed_dependency', duplicatePath, 'duplicate');
-  if (typedDependencies.length > 0) {
+  if (interpretation === 'document' && typedDependencies.length > 0) {
     const cycle = findDependencyGraphCycle({
+      stepOrder: { kind: 'uniform' },
       rows: document.workItems.map(rowShape),
       // Proof (2026-09-28): restoring file-array order made the shuffled-step
-      // position-order cycle test import a project instead of refusing it.
+      // position-order cycle test import a work package instead of refusing it.
       steps: inStepOrder.map(({ id, allowancePercent, estimateUnit }) => {
         const checked = allowancePercentOf(allowancePercent);
         if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
@@ -809,7 +823,7 @@ export function prepareImport(
       ),
       legacy: dependencies.map(({ predecessorFileId, successorFileId }, at) => ({
         id: `file-edge-${String(at)}`,
-        projectId: 'file',
+        workPackageId: 'file',
         predecessorId: predecessorFileId,
         successorId: successorFileId,
       })),
@@ -817,7 +831,7 @@ export function prepareImport(
       reach: document.settings.depReach,
     });
     // Proof (2026-09-28): bypassing this refusal made the memory source admit
-    // a combined legacy/typed cycle and create a project (ok: true).
+    // a combined legacy/typed cycle and create a work package (ok: true).
     if (cycle !== null) return refuses('invalid_typed_dependency', 'typedDependencies', cycle.kind);
   }
   // A file of an earlier version codes none of its steps and one of version 3

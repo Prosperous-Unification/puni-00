@@ -6,10 +6,11 @@
  * lands in that window sits **inside** the batch's transaction and is rolled
  * back with it. ADR 0007 says every write waits; this is the object that makes
  * that true rather than intended, and every mutating store method asks it for a
- * turn before it writes. Reads never ask.
+ * turn before it writes. Plain borrowed reads never ask; a public read owner
+ * that retains a transaction across awaits shares the turn too.
  *
  * It is a port because the answer is the source's, not SQLite's: the key is
- * process-wide for a one-connection SQLite file, per project for a Postgres
+ * process-wide for a one-connection SQLite file, per work package for a Postgres
  * advisory lock, and nothing at all where every transaction has its own
  * connection (`docs/2026-09-05-ports-and-adapters-plan.md` §3.2, ADR 0015).
  *

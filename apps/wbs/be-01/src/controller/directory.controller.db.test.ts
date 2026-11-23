@@ -1,12 +1,22 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -28,13 +38,12 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
@@ -59,12 +68,14 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -75,29 +86,30 @@ import { testWrites } from '../testing/writes-fixture';
  * assignments behind a 409 `in_use` — and a fixture answering them would be a
  * second implementation of the rules under test.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-
 let dir: string;
 let app: ReturnType<typeof buildApp>;
 /** The raw handle, for the one claim that is about a column rather than a row. */
 let sqlite: ReturnType<typeof openDatabase>;
 let store: DirectoryRepository;
 let workItems: WorkItemRepository;
-let projects: ProjectRepository;
+let workPackages: WorkPackageRepository;
 let stepStore: StepRepository;
+let catalogue: StepCatalogueRepository;
 let token: string;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-directory-http-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
   const db = openDrizzle(path);
   sqlite = openDatabase(path);
 
-  projects = new ProjectRepository(db, OPEN);
+  workPackages = new WorkPackageRepository(db, OPEN);
   store = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   stepStore = new StepRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
 
   // One graph, used by the routes and by the batch alike: these stores hold no
   // turn (`OPEN`), so there is nothing here for a second graph to keep apart.
@@ -113,33 +125,33 @@ beforeEach(async () => {
     priorityBands: testPriorityBandService(),
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+    workPackages: new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: recordingBroadcaster(),
     }),
     steps: new StepService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       steps: stepStore,
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: new EstimateRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates: new EstimateRepository(db, OPEN),
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
@@ -162,7 +174,15 @@ beforeEach(async () => {
     }),
   };
   app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(path),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -172,7 +192,8 @@ beforeEach(async () => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -246,12 +267,12 @@ function command(step: Record<string, unknown>): Promise<{ status: number; body:
   return call('POST', '/api/directory/commands', { commands: [step] });
 }
 
-/** One plan batch of a single command, on the project it names. */
+/** One plan batch of a single command, on the work package it names. */
 function planCommand(
-  projectId: string,
+  workPackageId: string,
   step: Record<string, unknown>,
 ): Promise<{ status: number; body: unknown }> {
-  return call('POST', `/api/projects/${projectId}/commands`, { commands: [step] });
+  return call('POST', `/api/work-packages/${workPackageId}/commands`, { commands: [step] });
 }
 
 /** The id a single create answered with; throws on anything but an applied batch. */
@@ -306,7 +327,7 @@ describe('GET /api/teams', () => {
     // it reached it for as long as `listTeams` was a bare `select()`: drizzle
     // reads every column it knows about, so `service_team.size` travelled into
     // `/api/teams` without the string `serviceTeam.size` appearing anywhere for
-    // `verify.md`'s grep to find. `capacity-per-project` D4 keeps the column in
+    // `verify.md`'s grep to find. `capacity-per-work-package` D4 keeps the column in
     // the table for the release beside this one; **this release does not read
     // it**, and that claim is only checkable here.
     //
@@ -533,32 +554,44 @@ describe('createPerson into teams', () => {
 });
 
 describe('deletePerson and deleteTeam', () => {
-  /** A work item to point at the directory with, in a project this account owns. */
+  /** A work item to point at the directory with, in a work package this account owns. */
   async function planWithOneRow(): Promise<{
-    projectOf: string;
+    workPackageOf: string;
     workItemOf: string;
     stepOf: string;
   }> {
-    const { body } = await call('POST', '/api/projects', { name: 'Rollout' });
-    const { project } = body as { project: { id: string } };
+    const owner = sqlite
+      .query<{ id: string }, []>("SELECT id FROM users WHERE username='owner'")
+      .get();
+    if (owner === null) throw new Error('registered owner absent');
+    await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, {
+      at: testClock.now(),
+      by: owner.id,
+    });
+    const { status, body } = await call('POST', '/api/work-packages', {
+      name: 'Rollout',
+      projectId: PROJECT_ID,
+    });
+    expect(status).toBe(200);
+    const { workPackage } = body as { workPackage: { id: string } };
     const workItemOf = createdId(
-      await planCommand(project.id, {
+      await planCommand(workPackage.id, {
         kind: 'createWorkItem',
         parentId: null,
         afterId: null,
         name: 'Design',
       }),
     );
-    const steps = await stepStore.listByProject(project.id);
+    const steps = await stepStore.listByWorkPackage(workPackage.id);
     const dev = steps.find((each) => each.name === 'Dev');
-    if (dev === undefined) throw new Error('the seeded project had no Dev step');
-    return { projectOf: project.id, workItemOf, stepOf: dev.id };
+    if (dev === undefined) throw new Error('the seeded work package had no Dev step');
+    return { workPackageOf: workPackage.id, workItemOf, stepOf: dev.id };
   }
 
   it('answers 409 in_use carrying the usage, then 200 on the cascade', async () => {
     const kat = await addPerson('Kat', []);
-    const { projectOf, workItemOf, stepOf } = await planWithOneRow();
-    const assigned = await planCommand(projectOf, {
+    const { workPackageOf, workItemOf, stepOf } = await planWithOneRow();
+    const assigned = await planCommand(workPackageOf, {
       kind: 'setAssignee',
       workItemId: workItemOf,
       stepId: stepOf,
@@ -574,9 +607,9 @@ describe('deletePerson and deleteTeam', () => {
       at: 0,
       kind: 'deletePerson',
       usage: {
-        projects: [
+        workPackages: [
           {
-            id: projectOf,
+            id: workPackageOf,
             name: 'Rollout',
             workItems: [
               {
@@ -621,7 +654,7 @@ describe('deletePerson and deleteTeam', () => {
         at: 0,
         kind: 'deleteTeam',
         usage: {
-          projects: [],
+          workPackages: [],
           members: [{ id: kat, name: 'Kat' }],
           machineCredentials: 0,
         },
@@ -812,17 +845,21 @@ describe('the service commands', () => {
 
   it('answers 409 in_use naming the row that loses its label, then 200 on the cascade', async () => {
     const payments = await addService('Payments');
-    const { body } = await call('POST', '/api/projects', { name: 'Rollout' });
-    const { project } = body as { project: { id: string } };
+    const { status, body } = await call('POST', '/api/work-packages', {
+      name: 'Rollout',
+      projectId: PROJECT_ID,
+    });
+    expect(status).toBe(200);
+    const { workPackage } = body as { workPackage: { id: string } };
     const workItemOf = createdId(
-      await planCommand(project.id, {
+      await planCommand(workPackage.id, {
         kind: 'createWorkItem',
         parentId: null,
         afterId: null,
         name: 'Design',
       }),
     );
-    const labelled = await planCommand(project.id, {
+    const labelled = await planCommand(workPackage.id, {
       kind: 'patchWorkItem',
       workItemId: workItemOf,
       patch: { serviceIds: [payments] },
@@ -845,9 +882,9 @@ describe('the service commands', () => {
         at: 0,
         kind: 'deleteService',
         usage: {
-          projects: [
+          workPackages: [
             {
-              id: project.id,
+              id: workPackage.id,
               name: 'Rollout',
               workItems: [
                 {
@@ -873,7 +910,7 @@ describe('the service commands', () => {
     // The work item is **still there**, unlabelled — `ON DELETE SET NULL`, seen
     // from the route. A cascade that had taken the row with the label would
     // have deleted somebody's plan to tidy a picker.
-    const tree = await call('GET', `/api/projects/${project.id}/work-items`);
+    const tree = await call('GET', `/api/work-packages/${workPackage.id}/work-items`);
     const { workItems } = tree.body as { workItems: { id: string; serviceId: string | null }[] };
     expect(workItems).toMatchObject([{ id: workItemOf, serviceId: null }]);
   });

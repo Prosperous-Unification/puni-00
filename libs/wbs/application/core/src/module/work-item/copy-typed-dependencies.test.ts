@@ -4,8 +4,8 @@ import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
 import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-dependencies';
 
 const selection = {
-  sourceProjectId: 'source',
-  destinationProjectId: 'copy',
+  sourceWorkPackageId: 'source',
+  destinationWorkPackageId: 'copy',
   workItemIds: new Map([
     ['first', 'first-copy'],
     ['second', 'second-copy'],
@@ -17,9 +17,9 @@ const selection = {
 };
 const link = (predecessor: string, successor: string): StoredTypedDependency => ({
   id: `${predecessor}-${successor}`,
-  projectId: 'source',
-  predecessor: { scope: 'whole', projectId: 'source', workItemId: predecessor },
-  successor: { scope: 'whole', projectId: 'source', workItemId: successor },
+  workPackageId: 'source',
+  predecessor: { scope: 'whole', workPackageId: 'source', workItemId: predecessor },
+  successor: { scope: 'whole', workPackageId: 'source', workItemId: successor },
   type: 'FS',
 });
 
@@ -30,8 +30,8 @@ test('selects successor-owned prerequisites and leaves outgoing and unrelated li
   const unrelated = link('outside', 'other');
   const foreign = {
     ...link('first', 'second'),
-    projectId: 'remote',
-    successor: { scope: 'whole' as const, projectId: 'remote', workItemId: 'second' },
+    workPackageId: 'remote',
+    successor: { scope: 'whole' as const, workPackageId: 'remote', workItemId: 'second' },
   };
   expect(
     selectCopiedDependencies([internal, incoming, outgoing, unrelated, foreign], selection),
@@ -43,8 +43,8 @@ for (const scope of ['whole', 'node', 'descendant-step'] as const)
     test(`remaps exact internal ${scope} endpoints with ${type} and fresh identity`, () => {
       const endpoint = (workItemId: string, stepId: string) =>
         scope === 'whole'
-          ? { scope, projectId: 'source', workItemId }
-          : { scope, projectId: 'source', workItemId, stepId };
+          ? { scope, workPackageId: 'source', workItemId }
+          : { scope, workPackageId: 'source', workItemId, stepId };
       const source = {
         ...link('first', 'second'),
         type,
@@ -54,23 +54,23 @@ for (const scope of ['whole', 'node', 'descendant-step'] as const)
       const copied = remapCopiedDependency(source, selection, 'new-id');
       expect(copied).toEqual({
         id: 'new-id',
-        projectId: 'copy',
+        workPackageId: 'copy',
         type,
-        predecessor: { ...endpoint('first-copy', 'dev-copy'), projectId: 'copy' },
-        successor: { ...endpoint('second-copy', 'qa-copy'), projectId: 'copy' },
+        predecessor: { ...endpoint('first-copy', 'dev-copy'), workPackageId: 'copy' },
+        successor: { ...endpoint('second-copy', 'qa-copy'), workPackageId: 'copy' },
       });
       expect(source.id).toBe('first-second');
     });
 
 test('retains detached local outside and remote endpoints including scoped step identity', () => {
-  for (const projectId of ['source', 'remote']) {
+  for (const workPackageId of ['source', 'remote']) {
     const source = {
       ...link('outside', 'first'),
       predecessor: {
         scope: 'node' as const,
-        projectId,
-        workItemId: projectId === 'remote' ? 'first' : 'outside',
-        stepId: projectId === 'remote' ? 'dev' : 'remote-dev',
+        workPackageId,
+        workItemId: workPackageId === 'remote' ? 'first' : 'outside',
+        stepId: workPackageId === 'remote' ? 'dev' : 'remote-dev',
       },
     };
     const copied = remapCopiedDependency(source, selection, 'new');
@@ -84,11 +84,16 @@ test('preserves two ordered nodes on the same work item', () => {
     ...link('first', 'first'),
     predecessor: {
       scope: 'node' as const,
-      projectId: 'source',
+      workPackageId: 'source',
       workItemId: 'first',
       stepId: 'dev',
     },
-    successor: { scope: 'node' as const, projectId: 'source', workItemId: 'first', stepId: 'qa' },
+    successor: {
+      scope: 'node' as const,
+      workPackageId: 'source',
+      workItemId: 'first',
+      stepId: 'qa',
+    },
   };
   expect(remapCopiedDependency(source, selection, 'new')).toMatchObject({
     predecessor: { workItemId: 'first-copy', stepId: 'dev-copy' },
@@ -98,7 +103,7 @@ test('preserves two ordered nodes on the same work item', () => {
 
 test('throws for trusted ownership and missing required successor or step map entries', () => {
   expect(() =>
-    selectCopiedDependencies([{ ...link('first', 'second'), projectId: 'wrong' }], selection),
+    selectCopiedDependencies([{ ...link('first', 'second'), workPackageId: 'wrong' }], selection),
   ).toThrow('owner');
   expect(() => remapCopiedDependency(link('first', 'outside'), selection, 'new')).toThrow(
     'successor',
@@ -107,7 +112,7 @@ test('throws for trusted ownership and missing required successor or step map en
     ...link('first', 'second'),
     predecessor: {
       scope: 'node' as const,
-      projectId: 'source',
+      workPackageId: 'source',
       workItemId: 'first',
       stepId: 'absent',
     },

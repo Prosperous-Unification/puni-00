@@ -1,16 +1,18 @@
+import { seedLegacyProject } from '../testing/project-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
-import { StepService } from '@wbs/core/module/step/step.resource';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -24,20 +26,20 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
-import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
@@ -54,30 +56,30 @@ import { fastScheduler } from './optimizer-wiring';
  *
  * The **not-moving** assertions carry as much weight as the moving ones. A
  * counter that goes up on everything is a counter nobody can put a precondition
- * on: opening a project, respacing a sibling, or copying a branch would each
+ * on: opening a work package, respacing a sibling, or copying a branch would each
  * defeat a write that had nothing to do with them.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
 let workItems: WorkItemService;
-let projects: ProjectService;
-let stepService: StepService;
-let projectStore: ProjectRepository;
+let workPackages: WorkPackageService;
+let stepCatalogue: StepCatalogueRepository;
+let workPackageStore: WorkPackageRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
 let measureStore: StepMeasureRepository;
 let progressStore: StepProgressRepository;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let steps: Step[];
 
-/** The first step every project starts with, which the estimate cases write to. */
+/** The first step every work package starts with, which the estimate cases write to. */
 const dev = (): string => {
   const found = steps.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting steps');
+  if (found === undefined)
+    throw new Error('the work package was created without its starting steps');
   return found.id;
 };
 
@@ -93,10 +95,11 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-revision-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   const db = openDrizzle(path);
 
-  projectStore = new ProjectRepository(db, OPEN);
+  workPackageStore = new WorkPackageRepository(db, OPEN);
   workItemStore = new WorkItemRepository(db, OPEN);
   estimateStore = new EstimateRepository(db, OPEN);
   actualStore = new ActualRepository(db, OPEN);
@@ -116,33 +119,32 @@ beforeEach(async () => {
     wrote(),
   );
 
-  projects = new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
-    clock: testClock,
-    projects: projectStore,
-    broadcast: recordingBroadcaster(),
+  stepCatalogue = new StepCatalogueRepository(db, OPEN, 'owned');
+  await bindDevQaFixture(stepCatalogue, 'service-fixture-legacy', PARENT_PROJECT_ID, {
+    at: 1,
+    by: ownerId,
   });
-  stepService = new StepService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+
+  workPackages = new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
-    steps: new StepRepository(db, OPEN),
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: workItemStore,
       estimates: estimateStore,
       dependencies: dependencies,
       typedDependencies: new TypedDependencyRepository(db, OPEN),
     }),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: estimateStore,
     actuals: actualStore,
     measures: measureStore,
@@ -164,8 +166,10 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
-  projectId = created.project.id;
+  const created = expectCreated(
+    await workPackages.create('Rewire the shed', PARENT_PROJECT_ID, ownerId),
+  );
+  workPackageId = created.workPackage.id;
   steps = created.steps;
 });
 
@@ -180,41 +184,41 @@ async function revisionOf(id: string): Promise<number> {
   return found.revision;
 }
 
-async function projectRevision(): Promise<number> {
-  const found = await projectStore.findById(projectId);
-  if (found === null) throw new Error(`no project ${projectId}`);
+async function workPackageRevision(): Promise<number> {
+  const found = await workPackageStore.findById(workPackageId);
+  if (found === null) throw new Error(`no work package ${workPackageId}`);
   return found.revision;
 }
 
 /** Creates a root work item and answers its id, failing loudly on a refusal. */
 async function root(name: string, afterId: string | null = null): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
+  const outcome = await workItems.create(workPackageId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 async function child(parentId: string, name: string): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, { parentId, afterId: null, name });
+  const outcome = await workItems.create(workPackageId, ownerId, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 describe('what a create starts at', () => {
-  it('starts a project and a work item at 0', async () => {
+  it('starts a work package and a work item at 0', async () => {
     const strip = await root('Strip');
 
-    expect(await projectRevision()).toBe(0);
+    expect(await workPackageRevision()).toBe(0);
     expect(await revisionOf(strip)).toBe(0);
   });
 
-  it('creates a work item without moving the project or its siblings', async () => {
+  it('creates a work item without moving the work package or its siblings', async () => {
     const strip = await root('Strip');
 
     const cable = await root('Cable', strip);
 
     expect(await revisionOf(strip)).toBe(0);
     expect(await revisionOf(cable)).toBe(0);
-    expect(await projectRevision()).toBe(0);
+    expect(await workPackageRevision()).toBe(0);
   });
 
   /**
@@ -279,7 +283,7 @@ describe('what a work item write moves', () => {
    * Its `position` changed and so, quite possibly, did the number a reader sees
    * for it — but position is storage detail and the number is derived from the
    * whole tree. A revision that followed the derived number would move on every
-   * row of the project for one insertion, and a precondition on it would then
+   * row of the work package for one insertion, and a precondition on it would then
    * only ever pass for whoever wrote last.
    *
    * Asserted at the repository, because that is the layer that is handed the
@@ -313,7 +317,7 @@ describe('what a work item write moves', () => {
 
     const inserted: WorkItem = workItemRow({
       id: crypto.randomUUID(),
-      projectId,
+      workPackageId,
       position: 20,
       name: 'Survey',
     });
@@ -349,21 +353,21 @@ describe('what a work item write moves', () => {
 describe('what a freeze moves', () => {
   it('moves the rows it wrote a number onto, and leaves the ones already frozen', async () => {
     const strip = await root('Strip');
-    await workItems.freeze(projectId, ownerId);
+    await workItems.freeze(workPackageId, ownerId);
     const cable = await root('Cable', strip);
 
-    const outcome = await workItems.freeze(projectId, ownerId);
+    const outcome = await workItems.freeze(workPackageId, ownerId);
 
     expect(outcome.ok).toBe(true);
     // Frozen once. The second freeze writes only what was still deriving, which
-    // is what lets a project be frozen, planned into, and frozen again.
+    // is what lets a work package be frozen, planned into, and frozen again.
     expect(await revisionOf(strip)).toBe(1);
     expect(await revisionOf(cable)).toBe(1);
   });
 
   it('moves a work item returned to deriving', async () => {
     const strip = await root('Strip');
-    await workItems.freeze(projectId, ownerId);
+    await workItems.freeze(workPackageId, ownerId);
 
     const outcome = await workItems.unfreeze(strip, ownerId);
 
@@ -528,62 +532,88 @@ describe('what a duplicate does not move', () => {
   });
 });
 
-describe('what a project write moves', () => {
-  it('moves the project on each of its own fields', async () => {
-    await projects.update(projectId, ownerId, { name: 'Rewire the shed, properly' });
-    expect(await projectRevision()).toBe(1);
+describe('what a work package write moves', () => {
+  it('moves allowed legacy fields before restriction and leaves later writes unchanged', async () => {
+    await workPackages.update(workPackageId, ownerId, { name: 'Rewire the shed, properly' });
+    expect(await workPackageRevision()).toBe(1);
 
-    await projects.update(projectId, ownerId, { restricted: true });
-    expect(await projectRevision()).toBe(2);
+    await workPackages.update(workPackageId, ownerId, { estimateMethod: 'pessimistic' });
+    expect(await workPackageRevision()).toBe(2);
 
-    await projects.update(projectId, ownerId, { estimateMethod: 'pessimistic' });
-    expect(await projectRevision()).toBe(3);
+    await workPackages.update(workPackageId, ownerId, { startDate: '2026-08-10' });
+    expect(await workPackageRevision()).toBe(3);
 
-    await projects.update(projectId, ownerId, { startDate: '2026-08-10' });
-    expect(await projectRevision()).toBe(4);
+    await workPackages.update(workPackageId, ownerId, { restricted: true });
+    expect(await workPackageRevision()).toBe(4);
+    expect(
+      await workPackages.update(workPackageId, ownerId, { name: 'Blocked after restriction' }),
+    ).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await workPackageRevision()).toBe(4);
   });
 
   /**
-   * Navigation history, not a change to the plan. If opening a project moved
+   * Navigation history, not a change to the plan. If opening a work package moved
    * it, a second tab would defeat every conditional write anybody made.
    */
-  it('does not move the project when somebody opens it', async () => {
-    const opened = await projects.open(projectId, ownerId);
+  it('does not move the work package when somebody opens it', async () => {
+    const opened = await workPackages.open(workPackageId, ownerId);
 
     expect(opened).toBe(true);
-    expect(await projectRevision()).toBe(0);
+    expect(await workPackageRevision()).toBe(0);
   });
 
-  it('does not move the project when a work item under it changes', async () => {
+  it('does not move the work package when a work item under it changes', async () => {
     const strip = await root('Strip');
     await workItems.patch(strip, ownerId, { name: 'Strip out' });
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
 
-    expect(await projectRevision()).toBe(0);
+    expect(await workPackageRevision()).toBe(0);
   });
 
-  it('does not move a work item when the project it is in changes', async () => {
+  it('does not move a work item when the work package it is in changes', async () => {
     const strip = await root('Strip');
 
-    await projects.update(projectId, ownerId, { name: 'Renamed' });
+    await workPackages.update(workPackageId, ownerId, { name: 'Renamed' });
 
     expect(await revisionOf(strip)).toBe(0);
   });
 });
 
 describe('what a step write moves', () => {
-  it('moves the project on each step write, and no work item on an add or a rename', async () => {
+  it('moves the work package on each step write, and no work item on an add or a rename', async () => {
     const strip = await root('Strip');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const estimated = await revisionOf(strip);
 
-    const added = await stepService.add(projectId, ownerId, 'Design', 0);
-    if (!added.ok) throw new Error(`add refused: ${added.reason}`);
-    expect(await projectRevision()).toBe(1);
-
-    const renamed = await stepService.rename(projectId, added.value.id, ownerId, 'Drawing');
-    if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
-    expect(await projectRevision()).toBe(2);
+    const added = await stepCatalogue.defineAndBindStep(
+      'service-fixture-legacy',
+      {
+        id: 'design',
+        name: 'Design',
+        code: 'design',
+        position: 30,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'design-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position: 30,
+      },
+      wrote(),
+    );
+    expect(added).toMatchObject({ ok: true, workPackageIds: [workPackageId] });
+    expect(await workPackageRevision()).toBe(1);
+    const renamed = await stepCatalogue.patchStepDefinition(
+      'service-fixture-legacy',
+      'design',
+      { name: 'Drawing' },
+      wrote(),
+    );
+    expect(renamed).toMatchObject({ ok: true, workPackageIds: [workPackageId] });
+    expect(await workPackageRevision()).toBe(2);
 
     // A step arriving or being renamed writes nothing of any work item's: no
     // stored field of theirs moved and no satellite of theirs was written, so a
@@ -591,33 +621,47 @@ describe('what a step write moves', () => {
     expect(await revisionOf(strip)).toBe(estimated);
   });
 
-  it('moves the project and only the work items a removal emptied', async () => {
+  it('refuses unbinding an estimated step without moving revisions, then moves only the package after clearing the estimate', async () => {
     const strip = await root('Strip');
     const sand = await root('Sand');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const stripBefore = await revisionOf(strip);
     const sandBefore = await revisionOf(sand);
-    const projectBefore = await projectRevision();
+    const workPackageBefore = await workPackageRevision();
 
-    const removed = await stepService.remove(projectId, dev(), ownerId, true);
-    expect(removed).toEqual({ ok: true });
-
-    expect(await projectRevision()).toBe(projectBefore + 1);
-    expect(await revisionOf(strip)).toBe(stripBefore + 1);
-    // Held nothing of that step's, so nobody's reading of it changed.
+    const catalogue = await stepCatalogue.readCatalogue('service-fixture-legacy');
+    const binding = catalogue?.bindings.find((entry) => entry.stepId === dev());
+    if (binding === undefined) throw new Error('fixture Dev binding is missing');
+    const unbind = () =>
+      stepCatalogue.unbindStep(
+        'service-fixture-legacy',
+        binding.bindingId,
+        { dryRun: false },
+        wrote(),
+      );
+    expect(await unbind()).toMatchObject({ kind: 'step_nodes_in_use' });
+    expect(await workPackageRevision()).toBe(workPackageBefore);
+    expect(await revisionOf(strip)).toBe(stripBefore);
+    expect(await revisionOf(sand)).toBe(sandBefore);
+    expect(await workItems.clearEstimate(strip, ownerId, dev())).toMatchObject({ ok: true });
+    const cleared = await revisionOf(strip);
+    expect(cleared).toBe(stripBefore + 1);
+    expect(await unbind()).toMatchObject({ kind: 'unbound', workPackageIds: [workPackageId] });
+    expect(await workPackageRevision()).toBe(workPackageBefore + 1);
+    expect(await revisionOf(strip)).toBe(cleared);
     expect(await revisionOf(sand)).toBe(sandBefore);
   });
 });
 
 describe('what a reader is told', () => {
-  it('reports every work item’s revision and the project’s in one read', async () => {
+  it('reports every work item’s revision and the work package’s in one read', async () => {
     const strip = await root('Strip');
     await workItems.patch(strip, ownerId, { name: 'Strip out' });
-    await projects.update(projectId, ownerId, { name: 'Renamed' });
+    await workPackages.update(workPackageId, ownerId, { name: 'Renamed' });
 
-    const tree = await workItems.tree(projectId);
+    const tree = await workItems.tree(workPackageId);
 
-    expect(tree?.projectRevision).toBe(1);
+    expect(tree?.workPackageRevision).toBe(1);
     expect(tree?.workItems.map((row) => [row.id, row.revision])).toEqual([[strip, 1]]);
   });
 });

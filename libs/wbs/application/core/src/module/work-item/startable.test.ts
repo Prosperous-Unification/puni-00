@@ -1,13 +1,16 @@
-import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { WorkItem } from '../../ports/work-item-store';
 import { createLocalDependencyContext } from '../../service/dependency-context';
+import { bindFixtureSteps } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 
@@ -17,14 +20,15 @@ const PLATFORM = 'team-platform';
 const OPS = 'team-ops';
 
 /**
- * A project with its starting steps Dev and QA over the memory source, and the
+ * A work package with explicitly authored Dev and QA over the memory source, and the
  * writes the scenarios need: rows, labels, progress, links and claims.
  */
 async function seeded() {
-  const source = openMemorySource();
+  const fixture = openMemorySourceFixture();
+  const source = ownTestSource(fixture.source);
   const graph = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -33,19 +37,61 @@ async function seeded() {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = expectCreated(await graph.projects.create('Startable', OWNER));
-  const projectId = created.project.id;
-  // The memory source keeps a project's steps apart from the step table its progress reads.
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-      { at: 1, by: OWNER },
-    );
-  }
-  const stepIds = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: OWNER,
+  });
+  await bindFixtureSteps(
+    source,
+    'fixture-legacy-org',
+    [
+      {
+        definition: {
+          id: 'fixture-dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+      {
+        definition: {
+          id: 'fixture-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-qa-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
+        },
+      },
+    ],
+    { at: 1, by: OWNER },
+  );
+  const created = expectCreated(
+    await graph.workPackages.create('Startable', 'fixture-project', OWNER),
+  );
+  const workPackageId = created.workPackage.id;
+
+  const stepIds = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   const dev = stepIds.at(0);
   const qa = stepIds.at(1);
-  if (dev === undefined || qa === undefined) throw new Error('the project has no Dev and QA');
+  if (dev === undefined || qa === undefined) throw new Error('the work package has no Dev and QA');
   await source.stores.directory.addTeam({ id: PLATFORM, name: 'Platform' }, { at: 1, by: OWNER });
   await source.stores.directory.addTeam({ id: OPS, name: 'Ops' }, { at: 1, by: OWNER });
   for (const id of ['claire', 'claire-worker', 'codex-fleet', 'ada']) {
@@ -55,7 +101,7 @@ async function seeded() {
     });
   }
   const insert = async (row: Partial<WorkItem> & { id: string }, teamIds: string[] = []) => {
-    await source.stores.workItems.insert(workItemRow({ projectId, ...row }), [], {
+    await source.stores.workItems.insert(workItemRow({ workPackageId, ...row }), [], {
       at: 1,
       by: OWNER,
     });
@@ -78,12 +124,12 @@ async function seeded() {
     );
   const link = (predecessorId: string, successorId: string) =>
     source.stores.dependencies.add(
-      { id: `${predecessorId}->${successorId}`, projectId, predecessorId, successorId },
+      { id: `${predecessorId}->${successorId}`, workPackageId, predecessorId, successorId },
       { at: 1, by: OWNER },
     );
   const read = (teamId: string | null) =>
-    graph.workItems.startableWithin(projectId, LEGACY, teamId);
-  return { source, graph, projectId, dev, qa, insert, claim, link, read };
+    graph.workItems.startableWithin(workPackageId, LEGACY, teamId);
+  return { source, graph, workPackageId, dev, qa, insert, claim, link, read };
 }
 
 /** The read's answer, refusing the two refusals a scenario does not expect. */
@@ -163,11 +209,11 @@ describe('the startable read', () => {
   });
 
   it('leaves a ready leaf behind an unfinished held predecessor out', async () => {
-    const { graph, projectId, insert, link, read } = await seeded();
+    const { graph, workPackageId, insert, link, read } = await seeded();
     await insert({ id: 'held', position: 1, hold: 'blocked' });
     await insert({ id: 'waiting', position: 2, readiness: 'ready' });
     await link('held', 'waiting');
-    const tree = await graph.workItems.tree(projectId);
+    const tree = await graph.workItems.tree(workPackageId);
     if (tree === null || 'kind' in tree) throw new Error('the tree read did not answer');
     expect(tree.workItems.map(({ id, readiness, status }) => ({ id, readiness, status }))).toEqual([
       { id: 'held', readiness: null, status: 'blocked' },
@@ -364,7 +410,7 @@ describe('the startable read', () => {
     ]);
   });
 
-  it('refuses a team the directory does not hold, and an absent project', async () => {
+  it('refuses a team the directory does not hold, and an absent work package', async () => {
     const { graph, read } = await seeded();
     expect(await read('team-nobody')).toEqual({ kind: 'unknown_team' });
     expect(await graph.workItems.startableWithin('missing', LEGACY, null)).toBeNull();
@@ -379,7 +425,7 @@ const RAM = 'resource-ram';
  */
 async function withRam(capacity: number | null) {
   const seed = await seeded();
-  const { source, projectId } = seed;
+  const { source, workPackageId } = seed;
   const stamp = { at: 1, by: OWNER };
   const added = await source.stores.directory.addResource(
     { id: RAM, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
@@ -387,7 +433,7 @@ async function withRam(capacity: number | null) {
   );
   if (!added.ok) throw new Error('the resource was refused');
   if (capacity !== null)
-    expect(await source.stores.resourceCapacity.set(projectId, RAM, capacity, stamp)).toEqual({
+    expect(await source.stores.resourceCapacity.set(workPackageId, RAM, capacity, stamp)).toEqual({
       ok: true,
     });
   const demand = async (workItemId: string, units: number) => {
@@ -439,11 +485,11 @@ describe('resource fit in the startable read', () => {
         capacity: 8,
         occupied: 4,
         free: 4,
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
         directory: null,
       },
     ]);
-    expect(work.occupancyScope).toBe('project');
+    expect(work.occupancyScope).toBe('work_package');
     expect(
       work.leaves.map(({ workItemId, fits, stepIds }) => ({ workItemId, fits, stepIds })),
     ).toEqual([

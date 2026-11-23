@@ -18,7 +18,7 @@ const NOW = Date.UTC(2026, 8, 29);
 const offer = (id: string, email: string, fields: Record<string, unknown> = {}) => ({
   id,
   email,
-  role: 'member',
+  initialRoleId: null,
   expiresAt: NOW + 7 * DAY,
   revokedAt: null,
   consumedAt: null,
@@ -28,6 +28,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 /** Stubs the page's requests, answering every panel not under test with an empty list. */
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
+    'GET /api/organization/steps': [() => answer(200, { definitions: [], bindings: [] })],
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
     'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [] })],
     'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
@@ -189,7 +190,7 @@ describe('organization page', () => {
     expect(await screen.findByRole('heading', { name: 'Shared people' })).toBeDefined();
     expect(
       await screen.findByText(
-        'Sharing people across projects is not available in this release yet.',
+        'Sharing people across work packages is not available in this release yet.',
       ),
     ).toBeDefined();
   });
@@ -206,7 +207,16 @@ describe('organization page drawing', () => {
       'GET /api/organization/members': [
         () =>
           answer(200, {
-            members: [{ userId: 'u1', username: 'sam', email: null, role: 'admin', createdAt: 1 }],
+            members: [
+              {
+                userId: 'u1',
+                username: 'sam',
+                email: null,
+                effectiveRole: null,
+                grantCount: 0,
+                createdAt: 1,
+              },
+            ],
           }),
       ],
       'GET /api/organization/invitations': [
@@ -248,7 +258,9 @@ describe('organization page drawing', () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Remove sam' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Release acme.test' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     await screen.findByRole('button', { name: 'Confirm: share people' });
     const controls = [...document.querySelectorAll('main button, main input, main select')];
     expect(controls.length).toBeGreaterThan(12);
@@ -305,10 +317,10 @@ describe('organization invitations', () => {
     renderPage();
     const rows = await screen.findAllByRole('listitem');
     expect(rows.map((row) => row.textContent)).toEqual([
-      'pending@acme.testMemberPendingRevoke',
-      'expired@acme.testMemberExpired',
-      'revoked@acme.testMemberRevoked',
-      'accepted@acme.testMemberAccepted',
+      'pending@acme.testNo initial accessPendingRevoke',
+      'expired@acme.testNo initial accessExpired',
+      'revoked@acme.testNo initial accessRevoked',
+      'accepted@acme.testNo initial accessAccepted',
     ]);
   });
 
@@ -316,23 +328,31 @@ describe('organization invitations', () => {
     const sent = stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [] }),
-        () => answer(200, { invitations: [offer('a', 'ada@acme.test', { role: 'viewer' })] }),
+        () =>
+          answer(200, {
+            invitations: [offer('a', 'ada@acme.test', { initialRoleId: 'project-viewer' })],
+          }),
       ],
       'POST /api/organization/invitations': [
-        () => answer(201, { invitation: offer('a', 'ada@acme.test', { role: 'viewer' }) }),
+        () =>
+          answer(201, {
+            invitation: offer('a', 'ada@acme.test', { initialRoleId: 'project-viewer' }),
+          }),
       ],
     });
     renderPage();
     fireEvent.change(await screen.findByLabelText('Email address'), {
       target: { value: ' ada@acme.test ' },
     });
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'viewer' } });
+    fireEvent.change(screen.getByLabelText('Initial access'), {
+      target: { value: 'project-viewer' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
     expect(await screen.findByText('Invitation sent to ada@acme.test.')).toBeDefined();
-    expect(await screen.findByText('Viewer', { selector: 'span' })).toBeDefined();
+    expect(await screen.findByText('Work package viewer', { selector: 'span' })).toBeDefined();
     expect(sent.find((request) => request.route.startsWith('POST'))?.body).toEqual({
       email: 'ada@acme.test',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
   });
 

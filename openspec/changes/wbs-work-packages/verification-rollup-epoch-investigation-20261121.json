@@ -1,0 +1,322 @@
+{
+  "schema": "puni-rollup-epoch-investigation-v113",
+  "recordedAt": "2026-11-21T13:10:11.580Z",
+  "goalStatus": "active",
+  "classification": "progress",
+  "previousGoal": {
+    "path": "/tmp/puni-goal-continuation-20261121-v112.json",
+    "sha256": "7f5732829989840543974d0d88ab625a5c1bba40f3ce834bf478304d1263ea85",
+    "bytes": 15333,
+    "mode": 384
+  },
+  "previousState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/native-output-environment-final-state-v112.json",
+    "sha256": "4c43627482b64353edb61f62a6129404cc340dfe00eab682abeb4de4d0551622",
+    "bytes": 214395,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/epoch-performance-before-v113.json",
+    "sha256": "f4a6043085d5a42ee275ec1715c374ad12f9bbd6ae0483b8327de2b72b5e831a",
+    "bytes": 4745,
+    "mode": 384
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/native-output-source-audit-v112.json",
+    "sha256": "8d96783e1cb08771a4695746848e3b9cf0134052343c9e7aa35c1f4b8d2438be",
+    "bytes": 1706066,
+    "mode": 384
+  },
+  "sourceFilesRevalidated": 6139,
+  "curatedPinsRevalidated": 692,
+  "checks": [
+    {
+      "name": "rollup-cpu-profile-v113",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "--cpu-prof",
+          "--cpu-prof-md",
+          "--cpu-prof-name=rollup-v113.cpuprofile",
+          "--cpu-prof-dir=/tmp/puni-combined-proposal-v1/control",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/rollup-cpu-profile-v113.receipt.json",
+        "sha256": "c74ff8f3ce85a1fdad4631871db633f8f0c4861bac053c7f23ec541e142c9c89",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/rollup-cpu-profile-v113.log",
+        "sha256": "a6d7dd990007eec0ff56e0cc290e8ec2e27cac6e37c2a8b3427a437a9d9c221c",
+        "bytes": 971,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/rollup-cpu-profile-v113.validation.json",
+        "sha256": "cc53242f046d72c550c893055fea359a2aa3cc532b9a934daeccc8d62c4e5bd5",
+        "bytes": 478,
+        "mode": 384
+      }
+    },
+    {
+      "name": "epoch-snapshot-diagnostic-v113",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-v113.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-diagnostic-v113.receipt.json",
+        "sha256": "6b8ba0988c607b760124304a79c213f07bd1123f251967a74b12ffc370f868bd",
+        "bytes": 1319,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-diagnostic-v113.log",
+        "sha256": "dbf638497e6d293ca2b5e210c99d7e9221010d49a9327a8ac9720420298f99f4",
+        "bytes": 1300,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-diagnostic-v113.validation.json",
+        "sha256": "80f21aafded6c611d82f8e252d304dcb349f7b3ddceb1113c2ffc304487f2218",
+        "bytes": 493,
+        "mode": 384
+      }
+    },
+    {
+      "name": "epoch-rollup-profile-v113",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113.ts",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113.receipt.json",
+        "sha256": "1a331bcd3f61262466dd2b6f6811238b3107ce0a962189c5ecdc9d2db69eb214",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113.log",
+        "sha256": "f12926b9c0bb39e9167cdc03dfa25a92dfaabc679a2fd75ea00216e727f2249d",
+        "bytes": 1174,
+        "mode": 384
+      },
+      "validation": null
+    },
+    {
+      "name": "epoch-rollup-fingerprint-profile-v113",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113-v2.ts",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-fingerprint-profile-v113.receipt.json",
+        "sha256": "40a70e52e844f35580eba5f5abd840ab750d819519da72b15a9dddef76fdfec4",
+        "bytes": 1458,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-fingerprint-profile-v113.log",
+        "sha256": "c97a611cc3be7e3276b40fc7a4a608eaad288c8d6f9970a3623dd2d1ea2521a7",
+        "bytes": 649,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-fingerprint-profile-v113.validation.json",
+        "sha256": "4fea712a639015884bace200e97ef4a7ba0abb60ab22f975e690a33ce5a453d9",
+        "bytes": 506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "epoch-snapshot-temp-diagnostic-v113",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-v113-v2.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-temp-diagnostic-v113.receipt.json",
+        "sha256": "ea3660d2f021095e9e1ee8e8694e59e3508d429748a9c8e11a492b46cf29f341",
+        "bytes": 1332,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-temp-diagnostic-v113.log",
+        "sha256": "8260eb4e89ea982fc36a2a766a0c16866a12d456b34de1794b1fd0a32d9c183c",
+        "bytes": 1767,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-temp-diagnostic-v113.validation.json",
+        "sha256": "c8502ca20ed3a4befbc0746d231cb8149e63b830c78a66cc373017f2d0ed460c",
+        "bytes": 503,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "ordinary": {
+      "spaceMs": 18.6,
+      "coldMs": 1191.9,
+      "warmMs": 935.9,
+      "coldPresentations": 20,
+      "warmPresentations": 0
+    },
+    "privateInputMemo": {
+      "spaceMs": 22.1,
+      "coldMs": 1331.4,
+      "warmMs": 432.4,
+      "coldPresentations": 20,
+      "warmPresentations": 0
+    },
+    "privateInputMemoAndFingerprint": {
+      "spaceMs": 16.9,
+      "coldMs": 1143.3,
+      "warmMs": 326.4,
+      "coldPresentations": 20,
+      "warmPresentations": 0
+    },
+    "nativeSnapshotCases": {
+      "initialPass": 8,
+      "expandedPass": 11,
+      "expandedFail": 0
+    },
+    "workload": {
+      "workPackages": 30,
+      "rowsPerPackage": 300,
+      "chunk": 20,
+      "boundsMs": {
+        "space": 120,
+        "warm": 400
+      }
+    },
+    "cpuProfileArtifacts": [],
+    "productionRuntimeChanged": false,
+    "ordinaryPerformanceFixed": false
+  },
+  "primarySources": [
+    {
+      "title": "SQLite PRAGMA data_version",
+      "url": "https://www.sqlite.org/pragma.html#pragma_data_version"
+    },
+    {
+      "title": "SQLite total changes",
+      "url": "https://www.sqlite.org/c3ref/total_changes.html"
+    }
+  ],
+  "privateSources": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-v113.test.ts",
+      "sha256": "6a971ca73eaddedbf4f85e227fcedfa7e0d443d3b8d8cc96d0d3a9fc351a9411",
+      "bytes": 5617,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/epoch-snapshot-v113-v2.test.ts",
+      "sha256": "c1683493cb087d30c2e1171d92e90195ea65cb56b7d377d0155387d696e18005",
+      "bytes": 7599,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113.ts",
+      "sha256": "1a72db312ad07d4dbe836363afc030a15d3252f7c5d746876ef1dffba344bdd6",
+      "bytes": 2515,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/epoch-rollup-profile-v113-v2.ts",
+      "sha256": "ceef2fa99a7863590113744d7c99c20c74053b23783475719482332920da333f",
+      "bytes": 4322,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-epoch-profile-next-v113.ts",
+      "sha256": "ee1b9e378fc9332f1108327ee517a6d92aa462dc28bd41ccaa0e40ffe7b60458",
+      "bytes": 2959,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-epoch-negative-next-v113.ts",
+      "sha256": "da07e789168625c0d610cd1c65a6d1345cb17e1601b2345bbafb50ddffce70bd",
+      "bytes": 2433,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-epoch-evidence-v113.ts",
+      "sha256": "2badd3de33e6637859bce8de6bcec43b6334836e667ff2c16a7a6a12f8861e93",
+      "bytes": 16437,
+      "mode": 436
+    }
+  ],
+  "productionPlan": [
+    "Keep physical/native identity and validated snapshot evidence inside db.ts. Opaque identities confer no Database or loan capability. Comparing version numbers across owners is forbidden; a fresh loan proxy is not a stable physical identity.",
+    "Inspect registered readonly acquisition and an active owned transaction. Account for main data_version,main schema_version,TEMP schema_version,total_changes,and attachment changes,or visibly decline this optional optimization when its prerequisites do not hold. Unknown/malformed/expired evidence throws; do not default it.",
+    "Memoize detached current plan rows only inside the bound current-capture configuration with a bounded per-owner cache. Preserve fresh work-package/settings/organization/parent validation,authority,membership,graph admission,and live metadata on every observation. Keep historical readers and connected capture unchanged initially; do not skip configured capture-read seams.",
+    "Read installed optimization selection and liveness freshly,including clock-only expiry without a DB commit. Preserve deterministic schedule-input construction from the admitted current reads. Retain a fingerprint over all independent captured row evidence plus fresh work-package/settings evidence; never trust revisions or event sequences as complete invalidation.",
+    "Clone retained rows on insertion and read; retain no loan/query/native capability. Expire every actual lifetime before post-loan scheduling and presentation; preserve Source close/release behavior and typed hidden-endpoint refusal.",
+    "Test same-revision edits for every reached fact/directory/settings family,missing and malformed trusted rows,cross-organization references,connection replacement/concurrent loans,TEMP shadow/DDL/DML,attachments,clock-only optimized expiry,caller/request retention,clone isolation,configured seams and post-release behavior.",
+    "Observe targeted production-path failures when invalidation,TEMP evidence,fingerprint coverage,clone isolation or lifetime guards are removed. Then rerun relevant current-capture,space-rollup,Source,controller,types,lint and unchanged native performance checks; the private pass is not their substitute.",
+    "Obtain Astra tricky-place review when available and exact-SHA clean host gates before claiming closure or delivering the full original scope."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": [
+    "Production runtime/tests are byte-for-byte unchanged fromV112; the active ordinary warm performance requirement is still failing. This turn produces diagnostic evidence and a production implementation plan,not a shipped optimization.",
+    "The private input-cache profile fails432.4ms. Its wrapper requested0 but observed1; the immutable terminal native receipt is valid failure evidence and there is intentionally no success validation. No rerun overwrites it.",
+    "Adding a private retained input fingerprint passes the real fixture once at326.4ms. The preload bypasses the original full input reader on warm hits and replaces serialization only inside this private process. This is architecture feasibility evidence,not production or safety acceptance.",
+    "The experiment retains ordinary authority/membership/topology,optimization selection and metadata calls; its whole-read cache is still unsuitable for production because inherited settings must resolve freshly and configured read seams may not be skipped. The proposed production boundary separates those requirements.",
+    "All11 native diagnostic cases pass,including actual counterexamples: readonly main media permits TEMP views; main data_version/main schema_version/total_changes can remain identical while unqualified SELECT answers change. A TEMP shadow survives pooled release/reuse. Therefore the three-part prototype stamp is insufficient.",
+    "SQLite primary sources document connection-local data_version and own-change counting; tests above supply the actual installed-runtime snapshot,pool and TEMP observations. No claim about arbitrary SQLite versions,unobserved PRAGMAs,all attachments,threading or installed PUNI delivery follows.",
+    "CPU flags were accepted but emitted no named profile; no CPU attribution is derived from that run. Its unchanged ordinary failure is independently useful. Previous subprofiles are retained historical diagnostics only.",
+    "No new or changed production safety check exists this turn,so native counterexamples are not represented as R5 production omission proofs. No OpenSpec parent task is closed.",
+    "The9 original requirement strings remain verbatim. Full settings/catalogue/entity/API/UI/document17/18/history/fact-family/Source closure,installedPUNI/allaliases/exhaustiveBunclientinventory,fourNxclients,builds,secrets,migrations,formalAstra,exactSHAh2/h4gates and authorized delivery remain.",
+    "No public commit,push,PRupdate,merge,deploy,activation,hostgate,dependencyinstall,newagent or protectedPAX/history/default rewrite occurs."
+  ]
+}

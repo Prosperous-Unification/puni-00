@@ -28,7 +28,14 @@ import type {
   RecoveryResolveCall,
 } from './recovery-records';
 import type { StoreReply } from './run-store';
-import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
+import {
+  digestRuntimeRequest,
+  equalRuntimeScopes,
+  mapCurrentScope,
+  readReceiptScope,
+  readRuntimeRequest,
+  readStateScope,
+} from './runtime-codecs';
 import type { RuntimeAcceptance } from './runtime-records';
 import type { HistoryCatalog } from './validate-history';
 import type { Attempt4, WriteObligation } from './write-records';
@@ -335,7 +342,7 @@ export function planRecoveryFence(
       : original.operation.authority.generation;
   // Proof: T4F14 removing state correspondence admitted wrong state scope/ledger and CAS expectation. Exact restoration passed.
   if (
-    !equalRuntimeScopes(state.scope, original.scope) ||
+    !equalRuntimeScopes(readStateScope(state), original.scope) ||
     state.ledgerId !== snapshot.pin.ledgerId ||
     request.operation.expectedGeneration !== generation
   )
@@ -526,7 +533,7 @@ export function planRecoveryObservation(
     const receipt = input.reply.body.value;
     // Proof: T5O11 removing receipt identity checks admitted wrong scope, ledger, command and digest. Exact restoration passed.
     if (
-      !equalRuntimeScopes(receipt.scope, request.scope) ||
+      !equalRuntimeScopes(readReceiptScope(receipt), request.scope) ||
       receipt.ledgerId !== request.operation.expectedLedgerId ||
       receipt.commandId !== request.operation.commandId ||
       receipt.requestDigest !== fence.requestDigest
@@ -660,7 +667,7 @@ export function planRecoveryResolution(
     const receipt = decision.lookup.body.value;
     // Proof: T6C09 removing receipt identity admitted changed command/digest/scope/ledger. Restoration passed.
     if (
-      !equalRuntimeScopes(receipt.scope, request.scope) ||
+      !equalRuntimeScopes(readReceiptScope(receipt), request.scope) ||
       receipt.ledgerId !== snapshot.pin.ledgerId ||
       receipt.commandId !== original.commandId ||
       receipt.requestDigest !== original.requestDigest
@@ -863,7 +870,7 @@ function planWriteRecoveryResolution(
     // Proof: R01 removing receipt correspondence admitted substituted original command, claim and authority in both providers. Exact restoration passed.
     if (
       !matchesRuntimeReceipt(
-        request.scope,
+        mapCurrentScope(request.scope),
         request.operation,
         target.original.requestDigest,
         call.decision.lookup.body.value,

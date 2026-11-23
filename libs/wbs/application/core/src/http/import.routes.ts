@@ -1,17 +1,63 @@
-import { importProject } from '@wbs/contracts';
+import { importWorkPackage } from '@wbs/contracts';
 
 import { classifyPlanDocument } from '../module/plan-document/plan-document.resource';
 import type { ImportOutcome, ImportService } from '../module/plan-import/plan-import.feature';
 import type { OrganizationAccess } from '../ports/organization-access';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import { classifyParentBodyFailure } from './work-package-parent';
 
 type PlanImporter = Pick<ImportService, 'import'>;
-type ImportReply = HttpReply<typeof importProject>;
+type ImportReply = HttpReply<typeof importWorkPackage>;
 type ImportRefusalReply = Extract<ImportReply, { ok: false }>;
 
 function refusal(outcome: Extract<ImportOutcome, { code: string }>): ImportRefusalReply {
-  if (outcome.code === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+  if (outcome.code === 'unknown_step_codes')
+    return {
+      ok: false,
+      status: 422,
+      body: { error: 'unknown_step_codes', codes: [...outcome.codes] },
+    };
+  if (outcome.code === 'retired_step_codes')
+    return {
+      ok: false,
+      status: 422,
+      body: { error: 'retired_step_codes', codes: [...outcome.codes] },
+    };
+  if (outcome.code === 'import_settings_conflict')
+    return {
+      ok: false,
+      status: 409,
+      body: { error: 'import_settings_conflict', key: outcome.key },
+    };
+  if (outcome.code === 'unknown_step')
+    return {
+      ok: false,
+      status: 404,
+      body: { error: outcome.code, path: outcome.path, detail: outcome.detail },
+    };
+  if (outcome.code === 'step_not_resolved')
+    return {
+      ok: false,
+      status: 422,
+      body: { error: outcome.code, path: outcome.path, detail: outcome.detail },
+    };
+  if (outcome.code === 'type_conflict')
+    return {
+      ok: false,
+      status: 409,
+      body: { error: outcome.code, path: outcome.path, detail: outcome.detail },
+    };
+  if (outcome.code === 'not_found') return { ok: false, status: 404, body: { error: 'not_found' } };
+  if (outcome.code === 'forbidden')
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        error: 'forbidden',
+        ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+      },
+    };
   if (outcome.code === 'external_dependencies_inactive')
     return {
       ok: false,
@@ -60,7 +106,7 @@ function refusal(outcome: Extract<ImportOutcome, { code: string }>): ImportRefus
   };
 }
 
-async function classifyFailure(failure: RequestFailure): Promise<ImportRefusalReply> {
+function classifyFailure(failure: RequestFailure): ImportRefusalReply {
   if (failure.part !== 'body') {
     return {
       ok: false,
@@ -68,14 +114,7 @@ async function classifyFailure(failure: RequestFailure): Promise<ImportRefusalRe
       body: { error: 'invalid_body', path: failure.part, detail: null },
     };
   }
-  const classified = await classifyPlanDocument(failure.rejected);
-  return classified.ok
-    ? { ok: false, status: 400, body: { error: 'invalid_body', path: '', detail: null } }
-    : {
-        ok: false,
-        status: 400,
-        body: { error: classified.code, path: classified.path, detail: null },
-      };
+  return classifyParentBodyFailure(failure);
 }
 
 /** Binds the archival request classifier to the atomic import service. */
@@ -90,9 +129,9 @@ async function classifyFailure(failure: RequestFailure): Promise<ImportRefusalRe
 export function importRoutes(imports: PlanImporter, organizations: OrganizationAccess) {
   return [
     bind(
-      importProject,
-      async ({ body, principal }): Promise<HttpReply<typeof importProject>> => {
-        const classified = await classifyPlanDocument(body);
+      importWorkPackage,
+      async ({ body, principal }): Promise<HttpReply<typeof importWorkPackage>> => {
+        const classified = await classifyPlanDocument(body.document);
         if (!classified.ok)
           return {
             ok: false,
@@ -102,11 +141,16 @@ export function importRoutes(imports: PlanImporter, organizations: OrganizationA
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         // Proof: synthesizing an id/scopes-only principal failed exact binding/authentication/delegation preservation (import.routes.test.ts, 2026-10-22).
-        const outcome = await imports.import(classified.value, {
-          kind: 'human',
-          principal,
-          expectedAccess: resolved.access,
-        });
+        const outcome = await imports.import(
+          classified.value,
+          {
+            kind: 'human',
+            principal,
+            expectedAccess: resolved.access,
+          },
+          body.projectId,
+          { defineMissing: body.defineMissing ?? false },
+        );
         if (!outcome.ok) {
           if ('refusal' in outcome) return organizationRefusal(outcome);
           if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
@@ -116,7 +160,7 @@ export function importRoutes(imports: PlanImporter, organizations: OrganizationA
           ok: true,
           status: 201,
           body: {
-            projectId: outcome.projectId,
+            workPackageId: outcome.workPackageId,
             rows: outcome.rows,
             created: outcome.created,
             solutionRef: outcome.solutionRef,

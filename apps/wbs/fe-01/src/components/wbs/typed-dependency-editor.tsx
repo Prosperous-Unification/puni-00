@@ -70,9 +70,9 @@ export function endpointText(
     const captured = endpoint.captured;
     // Proof: bypassing this branch failed `preserves non-null captured descendant selector` on desktop and phone (2026-10-22).
     if (endpoint.scope === 'descendant-step')
-      return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`} · all descendant work items`;
+      return `${captured.qualifiedReference ?? `${captured.workPackageAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`} · all descendant work items`;
     // Proof: returning only a non-null reference failed `keeps captured node step name beside non-null address` on desktop and phone (2026-10-22).
-    return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`}`;
+    return `${captured.qualifiedReference ?? `${captured.workPackageAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`}`;
   }
   const row = rowOf(rows, endpoint.workItemId);
   if (endpoint.scope === 'whole') return row.number;
@@ -156,7 +156,7 @@ function dependencyTypeOf(type: string): TypedDependencyType {
   throw new Error(`Unknown dependency relationship ${type}`);
 }
 
-/** Scope choices in project step order; a parent expands each step across its leaves. */
+/** Scope choices in work package step order; a parent expands each step across its leaves. */
 export function endpointChoices(
   row: TreeRow,
   rows: readonly TreeRow[],
@@ -206,9 +206,9 @@ export interface DependencyEndpointEditor {
   unavailable: string;
 }
 
-/** Builds local scope choices from the actual hierarchy and this project's own step identities. */
+/** Builds local scope choices from the actual hierarchy and this work package's own step identities. */
 export function buildLocalDependencyEditor(
-  projectId: string,
+  workPackageId: string,
   row: TreeRow,
   rows: readonly TreeRow[],
   steps: readonly StepView[],
@@ -225,9 +225,9 @@ export function buildLocalDependencyEditor(
       const scope = parent ? `every leaf under ${row.number}` : row.number;
       const endpoint: ScopedDependencyEndpoint =
         step === null
-          ? { projectId, scope: 'whole', workItemId: row.id }
+          ? { workPackageId, scope: 'whole', workItemId: row.id }
           : {
-              projectId,
+              workPackageId,
               scope: parent ? 'descendant-step' : 'node',
               workItemId: row.id,
               stepId: step.id,
@@ -250,7 +250,7 @@ export function buildLocalDependencyEditor(
 
 /** Retains the persisted coordinate exactly, including scope across hierarchy refreshes. */
 export function buildPersistedSuccessorEditor(
-  projectId: string,
+  workPackageId: string,
   endpoint: ReadEndpoint,
   rows: readonly TreeRow[],
   steps: readonly StepView[],
@@ -259,20 +259,20 @@ export function buildPersistedSuccessorEditor(
   const row = rows.find((candidate) => candidate.id === coordinate.workItemId);
   let persisted: ScopedDependencyEndpoint;
   if (coordinate.scope === 'whole') {
-    persisted = { projectId, scope: 'whole', workItemId: coordinate.workItemId };
+    persisted = { workPackageId, scope: 'whole', workItemId: coordinate.workItemId };
   } else {
     // Proof: bypassing this guard failed the missing persisted local successor identity test (2026-10-23).
     if (coordinate.stepId === undefined)
       throw new Error('Missing persisted dependency step identity');
     persisted = {
-      projectId,
+      workPackageId,
       scope: coordinate.scope,
       workItemId: coordinate.workItemId,
       stepId: coordinate.stepId,
     };
   }
   const editor =
-    row === undefined ? undefined : buildLocalDependencyEditor(projectId, row, rows, steps);
+    row === undefined ? undefined : buildLocalDependencyEditor(workPackageId, row, rows, steps);
   return {
     heading: editor?.heading ?? coordinate.workItemId,
     // Proof: forcing Whole failed mounted exact node and descendant-step initialization on both surfaces (2026-10-23).
@@ -289,7 +289,7 @@ export function buildPersistedSuccessorEditor(
 
 /** Compatibility entry for existing local edit targets; the editor itself consumes independent models. */
 export function TypedDependencyEditor({
-  projectId,
+  workPackageId,
   predecessor,
   successor,
   rows,
@@ -301,7 +301,7 @@ export function TypedDependencyEditor({
   onSave,
   onRemove,
 }: {
-  projectId: string;
+  workPackageId: string;
   predecessor: TreeRow;
   successor: TreeRow;
   rows: readonly TreeRow[];
@@ -322,7 +322,7 @@ export function TypedDependencyEditor({
   return (
     <ScopedDependencyEditor
       predecessor={buildLocalDependencyEditor(
-        projectId,
+        workPackageId,
         predecessor,
         rows,
         steps,
@@ -330,7 +330,7 @@ export function TypedDependencyEditor({
         availablePredecessorStepIds,
       )}
       successor={buildLocalDependencyEditor(
-        projectId,
+        workPackageId,
         successor,
         rows,
         steps,
@@ -341,8 +341,8 @@ export function TypedDependencyEditor({
       onCancel={onCancel}
       onSave={(source, target, type) =>
         onSave(
-          serializeDependencyEndpoint(source, projectId),
-          serializeDependencyEndpoint(target, projectId),
+          serializeDependencyEndpoint(source, workPackageId),
+          serializeDependencyEndpoint(target, workPackageId),
           type,
         )
       }
@@ -351,7 +351,7 @@ export function TypedDependencyEditor({
   );
 }
 
-/** Each endpoint owns its identity, choices and unavailable reading; no cross-project row/step lookup occurs. */
+/** Each endpoint owns its identity, choices and unavailable reading; no cross-work-package row/step lookup occurs. */
 export function ScopedDependencyEditor({
   predecessor,
   successor,

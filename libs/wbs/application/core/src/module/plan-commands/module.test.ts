@@ -1,16 +1,20 @@
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
-import type { Broadcaster } from '../../ports/project-event';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { createLocalDependencyContext } from '../../service/dependency-context';
+import { createBoundFixturePackage } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanCommands } from './check';
@@ -18,26 +22,47 @@ import { createPlanCommandRunner } from './composition';
 import { PLAN_COMMANDS_LABEL } from './contract';
 import { planCommandsModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
 
 /**
- * One memory source holding one project, and the four requirements a command
+ * One memory source holding one work package, and the four requirements a command
  * batch needs. `handed` records every broadcaster the runner gives a batch's
  * graph, which is how the per-batch collector is observed from outside.
  */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
+  const fixture = openMemorySourceFixture(),
+    source = ownTestSource(fixture.source);
+  fixture.addOrganization('org-a', { legacy: false });
+  await source.stores.users.create(
+    { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+    { at: 1, by: OWNER },
+  );
+  fixture.setPackageCreationMembers('org-a', [OWNER]);
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'fixture-project',
+    organizationId: 'org-a',
+    name: 'Fixture project',
+    createdBy: OWNER,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
   });
+  await source.stores.workPackages.createInOrganization(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
+    [],
+    { at: 1, by: OWNER },
+    'org-a',
+    { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
+  );
   let next = 0;
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
       dependencyContext: createLocalDependencyContext(stores),
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock,
       broadcast,
       scheduler: fastScheduler,
@@ -63,12 +88,12 @@ async function seeded() {
 }
 
 const hostRequirements = () => {
-  const source = openMemorySource();
+  const source = ownTestSource(openMemorySource());
   const clock = clockOf({ now: () => 0, newId: () => 'unused' });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
       dependencyContext: createLocalDependencyContext(stores),
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock,
       broadcast,
       scheduler: fastScheduler,
@@ -120,14 +145,18 @@ describe('the Plan commands module', () => {
       const capture = {
         capture: () =>
           Promise.resolve({
-            observation: { mode, organizationId: 'org-a', projects: [] },
+            observation: { mode, organizationId: 'org-a', workPackages: [] },
             dependency:
               mode === 'isolated'
-                ? { organizationId: 'org-a', projects: new Map<string, string>(), connections: [] }
+                ? {
+                    organizationId: 'org-a',
+                    workPackages: new Map<string, string>(),
+                    connections: [],
+                  }
                 : null,
             localFacts: new Map<string, string>(),
           }),
-        authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
+        authorizeWorkPackageUpdate: () => Promise.resolve({ ok: true as const }),
         authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
       };
       const uow: typeof source.uow = {
@@ -137,11 +166,28 @@ describe('the Plan commands module', () => {
               ...scope,
               stores: {
                 ...scope.stores,
-                projects: new Proxy(scope.stores.projects, {
-                  get: (projects, key, receiver): unknown => {
-                    if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
+                accessDecisions: {
+                  packageTargetOf: (id, organizationId) =>
+                    scope.stores.settings.readTarget({ level: 'work_package', id }, organizationId),
+                  effectiveRoleAt: (principal, target) => {
+                    if (
+                      principal.id !== OWNER ||
+                      target.kind !== 'work_package' ||
+                      target.chain.organizationId !== 'org-a' ||
+                      target.chain.workPackageId !== WORK_PACKAGE
+                    )
+                      throw new Error('unexpected fanout fixture subject/scope');
+                    return Promise.resolve({
+                      permissions: new Set(['package.read', 'package.write'] as const),
+                      via: [],
+                    });
+                  },
+                  readablePackageIds: () => Promise.reject(new Error('unexpected grant listing')),
+                },
+                workPackages: new Proxy(scope.stores.workPackages, {
+                  get: (workPackages, key, receiver): unknown => {
                     if (key === 'findCrossReferences') return () => Promise.resolve([]);
-                    return Reflect.get(projects, key, receiver) as unknown;
+                    return Reflect.get(workPackages, key, receiver) as unknown;
                   },
                 }),
               },
@@ -152,10 +198,16 @@ describe('the Plan commands module', () => {
       const { commands } = installPlanCommands({ ...requirements, uow });
       expect(
         (
-          await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
-            kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-          })
+          await commands.runWithin(
+            WORK_PACKAGE,
+            { id: OWNER, username: OWNER, scopes: ['write'] },
+            [],
+            {
+              principal: { id: OWNER },
+              kind: 'scoped',
+              scope: { cap: null, organizationId: 'org-a', userId: OWNER },
+            },
+          )
         ).ok,
       ).toBe(true);
       const missingDelivery = createPlanCommandRunner({
@@ -164,10 +216,16 @@ describe('the Plan commands module', () => {
         committedFanout: undefined,
       });
       expect(
-        missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
-          kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-        }),
+        missingDelivery.runWithin(
+          WORK_PACKAGE,
+          { id: OWNER, username: OWNER, scopes: ['write'] },
+          [],
+          {
+            principal: { id: OWNER },
+            kind: 'scoped',
+            scope: { cap: null, organizationId: 'org-a', userId: OWNER },
+          },
+        ),
       ).rejects.toThrow('committed fan-out delivery is missing');
     },
   );
@@ -176,14 +234,14 @@ describe('the Plan commands module', () => {
     const { announcements, requirements } = await seeded();
     const { commands } = installPlanCommands(requirements);
 
-    const outcome = await commands.run(PROJECT, OWNER, [
+    const outcome = await commands.run(WORK_PACKAGE, OWNER, [
       { kind: 'createTeam', ref: 'team', name: 'Platform' },
       { kind: 'setCapacity', teamRef: 'team', size: 2 },
     ]);
 
     expect(outcome).toMatchObject({ ok: true });
     expect(announcements.published).toEqual([
-      { projectId: PROJECT, event: { type: 'capacity_changed' } },
+      { workPackageId: WORK_PACKAGE, event: { type: 'capacity_changed' } },
     ]);
   });
 
@@ -196,8 +254,8 @@ describe('the Plan commands module', () => {
     const { announcements, handed, requirements } = await seeded();
     const { commands } = installPlanCommands(requirements);
 
-    await commands.run(PROJECT, OWNER, []);
-    await commands.run(PROJECT, OWNER, []);
+    await commands.run(WORK_PACKAGE, OWNER, []);
+    await commands.run(WORK_PACKAGE, OWNER, []);
 
     expect(handed).toHaveLength(2);
     expect(handed[0]).not.toBe(handed[1]);
@@ -262,18 +320,38 @@ describe('the Plan commands module', () => {
 describe('a step allowance edit over the memory source', () => {
   /** Proof: see the allowance revisions line in the memory source's commit. */
   it('undoes an allowance edit committed in an earlier unit of work', async () => {
-    const source = openMemorySource();
-    await source.stores.projects.create(
-      projectRow({ id: PROJECT, ownerId: OWNER }),
+    const parentFixture = openMemorySourceFixture();
+    const source = ownTestSource(parentFixture.source);
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: null, createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: OWNER,
+    });
+    await createBoundFixturePackage(
+      source,
+      'fixture-legacy-org',
+      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
       [
         {
-          id: 'qa',
-          projectId: PROJECT,
-          name: 'QA',
-          position: 10,
-          code: 'qa',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
+          definition: {
+            id: 'qa',
+            name: 'QA',
+            code: 'qa',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'module-qa-binding',
+            scopeKind: 'project',
+            scopeId: 'fixture-project',
+            workItemTypeId: null,
+            position: 10,
+          },
         },
       ],
       { at: 1, by: OWNER },
@@ -282,7 +360,7 @@ describe('a step allowance edit over the memory source', () => {
     const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
         dependencyContext: createLocalDependencyContext(stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
@@ -296,13 +374,13 @@ describe('a step allowance edit over the memory source', () => {
       committedFanout: { now: () => 2, deliverCommitted: () => Promise.resolve() },
     });
 
-    const edited = await commands.run(PROJECT, OWNER, [
+    const edited = await commands.run(WORK_PACKAGE, OWNER, [
       { kind: 'setStepAllowance', stepId: 'qa', allowancePercent: 30 },
     ]);
     expect(edited.ok).toBe(true);
 
-    expect((await commands.undo(PROJECT, OWNER)).ok).toBe(true);
-    const steps = await source.stores.projects.stepsOf(PROJECT);
+    expect((await commands.undo(WORK_PACKAGE, OWNER)).ok).toBe(true);
+    const steps = await source.stores.workPackages.stepsOf(WORK_PACKAGE);
     expect(steps.map((step) => step.allowancePercent)).toEqual([0]);
   });
 });

@@ -1,14 +1,15 @@
 import type { EstimateMethod, EstimateRounding } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { projectRow } from '@wbs/store-memory/project-fixture';
-import { openMemorySource } from '@wbs/store-memory/source';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
-import { CREATOR_ADMISSION } from '../ports/edit-admission';
-import type { Project } from '../ports/project-store';
+import { LEGACY_EDIT_ADMISSION } from '../ports/edit-admission';
+import type { WorkPackage } from '../ports/work-package-store';
+import { createBoundFixturePackage } from '../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { createLocalDependencyContext } from './dependency-context';
@@ -29,25 +30,40 @@ async function seedPreparation(
   anchor: '2026-10-05' | null,
   held: boolean,
 ) {
-  const source = openMemorySource();
+  const { source } = await createLegacyWorkPackageFixture(
+    'owner',
+    'fixture-legacy-org',
+    'fixture-project',
+  );
   const { stores } = source;
-  const project: Project = projectRow({
-    id: 'project',
+  const workPackage: WorkPackage = workPackageRow({
+    id: 'work_package',
+    projectId: 'fixture-project',
     estimateMethod: method,
     estimateRounding: rounding,
     startDate: anchor,
   });
-  await stores.projects.create(
-    project,
+  await createBoundFixturePackage(
+    source,
+    'fixture-legacy-org',
+    workPackage,
     [
       {
-        id: 'build',
-        projectId: project.id,
-        name: 'Build',
-        position: 0,
-        code: 'build',
-        allowancePercent: 20,
-        estimateUnit: 'workdays',
+        definition: {
+          id: 'build',
+          name: 'Build',
+          code: 'build',
+          position: 0,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 20,
+        },
+        binding: {
+          bindingId: 'build:binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 0,
+        },
       },
     ],
     stamp,
@@ -60,20 +76,20 @@ async function seedPreparation(
   for (const row of [
     workItemRow({
       id: 'parent',
-      projectId: project.id,
+      workPackageId: workPackage.id,
       startNoEarlierThan: anchor === null ? null : '2026-10-07',
       deadline: anchor === null ? null : '2026-10-16',
     }),
     workItemRow({
       id: 'a',
-      projectId: project.id,
+      workPackageId: workPackage.id,
       parentId: 'parent',
       maxParallel: 3,
       hold: held ? 'on_hold' : null,
     }),
     workItemRow({
       id: 'b',
-      projectId: project.id,
+      workPackageId: workPackage.id,
       parentId: 'parent',
       position: 1,
       maxParallel: 1,
@@ -84,8 +100,10 @@ async function seedPreparation(
     'ok',
     true,
   );
-  expect(await stores.capacity.set(project.id, 'team', 2, stamp)).toEqual({ ok: true });
-  expect(await stores.resourceCapacity.set(project.id, 'resource', 2, stamp)).toEqual({ ok: true });
+  expect(await stores.capacity.set(workPackage.id, 'team', 2, stamp)).toEqual({ ok: true });
+  expect(await stores.resourceCapacity.set(workPackage.id, 'resource', 2, stamp)).toEqual({
+    ok: true,
+  });
   expect(await stores.demands.set('a', 'resource', 1, stamp)).toBe('written');
   for (const workItemId of ['a', 'b'])
     expect(
@@ -95,43 +113,43 @@ async function seedPreparation(
       ),
     ).toBe('written');
   await stores.dependencies.add(
-    { id: 'ab', projectId: project.id, predecessorId: 'a', successorId: 'b' },
+    { id: 'ab', workPackageId: workPackage.id, predecessorId: 'a', successorId: 'b' },
     stamp,
   );
-  return { source, project };
+  return { source, workPackage };
 }
 
 describe('shared live and captured preparation', () => {
   it.each(cases)(
     'preserves canonical bytes with $method/$rounding, anchor=$anchor, held=$held',
     async ({ method, rounding, anchor, held }) => {
-      const { source, project } = await seedPreparation(method, rounding, anchor, held);
+      const { source, workPackage } = await seedPreparation(method, rounding, anchor, held);
       try {
         const graph = servicesOver(source.stores, {
           dependencyContext: createLocalDependencyContext(source.stores),
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock: testClock,
           broadcast: recordingBroadcaster(),
           scheduler: fastScheduler,
         });
-        const live = await graph.workItems.scheduleInput(project.id);
-        const capture = await source.history.savedPlanCapture.readPlanInput(project.id);
+        const live = await graph.workItems.scheduleInput(workPackage.id);
+        const capture = await source.history.savedPlanCapture.readPlanInput(workPackage.id);
         if (live === null || capture === null)
-          throw new Error('seeded project preparation disappeared');
+          throw new Error('seeded work package preparation disappeared');
         const captured = prepareCapturedScheduleParts(capture);
         expect(canonicalScheduleInput(live)).toBe(canonicalScheduleInput(captured.input));
-        // This intentionally supplies only consumed settings: neither live projects
+        // This intentionally supplies only consumed settings: neither live work packages
         // nor the reusable preparation boundary require captured timezone metadata.
         const settings = {
-          estimateMethod: project.estimateMethod,
-          pertWeights: project.pertWeights,
-          estimateRounding: project.estimateRounding,
-          startDate: project.startDate,
-          depReach: project.depReach,
+          estimateMethod: workPackage.estimateMethod,
+          pertWeights: workPackage.pertWeights,
+          estimateRounding: workPackage.estimateRounding,
+          startDate: workPackage.startDate,
+          depReach: workPackage.depReach,
         };
         const direct = prepareScheduleParts(
           settings,
-          await source.stores.workItems.listByProject(project.id),
+          await source.stores.workItems.listByWorkPackage(workPackage.id),
           capture.estimates,
           capture.dependencies,
           capture.typedDependencies,
@@ -141,9 +159,13 @@ describe('shared live and captured preparation', () => {
           capture.demands,
           capture.resourceCapacities,
           capture.directoryCapacities,
+          {
+            kind: 'leaf',
+            byLeaf: new Map(capture.leafSteps.map((leaf) => [leaf.workItemId, leaf.stepIds])),
+          },
         );
         expect(canonicalScheduleInput(direct.input)).toBe(canonicalScheduleInput(live));
-        expect(direct.rule).toEqual({ method, rounding, pertWeights: project.pertWeights });
+        expect(direct.rule).toEqual({ method, rounding, pertWeights: workPackage.pertWeights });
         expect([...direct.hasChildren]).toEqual(['parent']);
         expect([...direct.assigneesOf]).toEqual([]);
         expect(

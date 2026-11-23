@@ -27,8 +27,9 @@ async function authority(now: number) {
         Promise.resolve({
           ok: true,
           access: {
+            principal: { id: 'u-ada' },
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'u-ada', role: 'member' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'u-ada', role: 'member' },
           },
         }),
     },

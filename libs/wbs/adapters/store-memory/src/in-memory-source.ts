@@ -1,145 +1,18 @@
-import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
-import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import type { TransactionalStores } from '@wbs/core';
 
-import { inMemoryActuals } from './actual-fixture';
-import { inMemoryAttempts } from './attempt-fixture';
-import { inMemoryUsers } from './auth-fixture';
-import { inMemoryBudgets } from './budget-fixture';
-import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
-import { inMemoryCapacity } from './capacity-fixture';
-import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
-import { inMemoryCommandJournal } from './command-journal-fixture';
-import { inMemoryDependencies } from './dependency-fixture';
-import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
-import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
-import { inMemoryPlanEvents } from './history-fixture';
-import { inMemoryMeasureEstimates, memoryMeasureEstimateTable } from './measure-estimate-fixture';
-import { inMemoryMeasures, memoryMeasureTable } from './measure-fixture';
-import { inMemoryWorkItems, memoryWorkItemTables } from './memory-work-item-fixture';
-import { inMemoryPriorityBands } from './priority-band-fixture';
-import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
-import { inMemoryProjects, memoryProjectTables } from './project-fixture';
-import { inMemoryEventLog } from './replay-fixture';
-import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
-import { inMemoryRuntimeCommands, memoryRuntimeTable } from './runtime-command';
-import { inMemoryStepBlockages } from './step-blockage-fixture';
-import { inMemorySteps } from './step-fixture';
-import { inMemoryStepParallels, memoryStepParallelTable } from './step-parallel-fixture';
-import { inMemorySubtrees } from './subtree-fixture';
-import { inMemoryTypedDependencies } from './typed-dependency-fixture';
+import { inertMemoryLateWriteSeam } from './late-write-seam';
+import { bindStores, MemoryState } from './memory-stores';
 
 /**
- * The in-memory source's transactional stores, wired as
- * {@link inMemoryServices} wires the ones a work-item service needs and
- * completed with the rest.
- *
- * One function rather than seventeen constructions per suite: what the source
- * is* has to be one thing, or a kit run against it is a kit run against
- * whatever that suite happened to assemble.
+ * Raw synchronous fixture stores over one explicit current state. They acquire
+ * no Source owner, public queue or close capability. Tests needing those
+ * guarantees must use openMemorySource and retain its actual close obligation.
+ * The shared state gives first-child writes genuine private staging rather than
+ * a missing-method fallback on the old non-atomic subtree fixture.
  */
 export function inMemoryStores(): TransactionalStores {
-  const users = inMemoryUsers();
-  const directoryTables = memoryDirectoryTables();
-  const directory = inMemoryDirectory(
-    (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
-    directoryTables,
-  );
-  const workItemTables = memoryWorkItemTables();
-  const workItems = inMemoryWorkItems(directory, workItemTables);
-  const estimateTable = memoryEstimateTable();
-  const parallelTable = memoryStepParallelTable();
+  // Historical independent fixture wiring before this shared-state delegation:
   // Proof: a separate parallel table let legacy fixture removal erase the step; both cascade tests failed, 2026-10-17.
-  const steps = inMemorySteps([], undefined, estimateTable, { table: parallelTable, workItems });
-  const estimates = inMemoryEstimates(workItems, estimateTable, steps);
-  const actuals = inMemoryActuals(workItems, undefined, steps);
-  const measureTable = memoryMeasureTable();
-  const measureEstimateTable = memoryMeasureEstimateTable();
-  const measures = inMemoryMeasures(
-    workItems,
-    measureTable,
-    steps,
-    undefined,
-    measureEstimateTable,
-  );
-  const measureEstimates = inMemoryMeasureEstimates(
-    workItems,
-    measureTable,
-    measureEstimateTable,
-    steps,
-  );
-  const progressTable = memoryProgressTable();
-  const progress = inMemoryProgress(workItems, progressTable, steps);
-  const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
-  const projectTables = memoryProjectTables();
-  const projects = inMemoryProjects(users, projectTables);
-  const dependencies = inMemoryDependencies([], undefined, workItems);
-  const demands = inMemoryDemands(directoryTables.resources, workItems);
-  return {
-    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    runtimeCommands: inMemoryRuntimeCommands(memoryRuntimeTable()),
-    users,
-    projects,
-    directory,
-    workItems,
-    estimates,
-    actuals,
-    measures,
-    measureEstimates,
-    budgets: inMemoryBudgets(workItems),
-    progress,
-    attempts,
-    stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),
-    claims: inMemoryClaims(
-      workItems,
-      progressTable,
-      memoryClaimTable(),
-      claimIdentityOf(directory),
-      (resourceId) => directoryTables.resources.resources.has(resourceId),
-      {
-        projects: projectTables,
-        workItems: workItemTables,
-        people: directoryTables.people,
-        // This legacy source owns no project in any organization.
-        projectOrganization: new Map(),
-        resourceOrganization: directoryTables.organizationOf,
-      },
-    ),
-    blockages: inMemoryStepBlockages(workItems, {
-      async findById(stepId) {
-        const step = await steps.findById(stepId);
-        if (step !== null) return step;
-        for (const project of await projects.list()) {
-          const seeded = (await projects.stepsOf(project.id)).find(
-            (candidate) => candidate.id === stepId,
-          );
-          if (seeded !== undefined) return seeded;
-        }
-        return null;
-      },
-    }),
-    dependencies,
-    typedDependencies: inMemoryTypedDependencies(),
-    capacity: inMemoryCapacity(),
-    resourceCapacity: inMemoryResourceCapacity(
-      directoryTables.resources,
-      async (projectId) => (await projects.findById(projectId)) !== null,
-    ),
-    demands,
-    priorityBands: inMemoryPriorityBands(),
-    calendarMarkers: inMemoryCalendarMarkers(),
-    steps,
-    planEvents: inMemoryPlanEvents(),
-    journal: inMemoryCommandJournal(),
-    eventLog: inMemoryEventLog(),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      measures,
-      progress,
-      dependencies,
-      directory,
-      demands,
-    }),
-  };
+  // The shared bindStores route requires its own current regression observations.
+  return bindStores(new MemoryState(), inertMemoryLateWriteSeam);
 }

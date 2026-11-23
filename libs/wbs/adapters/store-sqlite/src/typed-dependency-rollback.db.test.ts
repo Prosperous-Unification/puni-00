@@ -4,35 +4,49 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { restoreDatabase } from './backup';
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { typedDependency } from './schema';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { TypedDependencyRepository } from './typed-dependency';
 import {
   removeSavedTypedDependencies,
   restoreTypedDependencies,
   saveTypedDependencies,
 } from './typed-dependency-rollback';
+import { assertWindowBackup, createWindowBackup, type WindowBackupReport } from './window-backup';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 /** The migration below this one, where every rollback here stops. */
 const BASELINE = '20260927200000_freeze_organization_ownership';
+const BEFORE_RENAME = '20261103110000_add_initial_access_offers';
+let historical: string;
+let backup: WindowBackupReport;
 let directory: string;
 let path: string;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-typed-rollback-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  historical = copyRecoveryPrefix(directory, BEFORE_RENAME);
+  runMigrations(path, historical);
   const sqlite = openDatabase(path);
   try {
     sqlite.run(
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1),('q','Other','u',0,'pert',0,1)",
+      "INSERT INTO organization(id,name,created_at) VALUES ('org-p','P',1),('org-q','Q',1)",
+    );
+    sqlite.run(
+      "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1),('q','Other','u',0,'pert',0,1)",
+    );
+    sqlite.run(
+      "INSERT INTO project_organization(resource_id,organization_id) VALUES ('p','org-p'),('q','org-q')",
     );
     sqlite.run(
       "INSERT INTO step (id,project_id,name,code) VALUES ('s','p','Dev','dev'),('t','q','Dev','dev')",
@@ -40,16 +54,36 @@ beforeEach(() => {
     sqlite.run(
       "INSERT INTO work_item (id,project_id,position,name,revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0),('c','p',3,'C',0),('foreign','q',1,'Foreign',0)",
     );
-    sqlite.run(
-      "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type,created_at,updated_at,created_by) VALUES ('first','p','a','node','s','b','whole','FS',10,11,'u'),('second','p','b','whole',NULL,'c','whole','FS',20,NULL,NULL)",
-    );
   } finally {
     sqlite.close();
+  }
+  const window = {
+    sourcePath: path,
+    snapshotPath: join(directory, 'before-rename.db'),
+    reportPath: join(directory, 'before-rename.json'),
+    migrationsFolder: FOLDER,
+  };
+  const receipt = createWindowBackup(window);
+  backup = assertWindowBackup(window);
+  expect(backup).toEqual(receipt.report);
+  migrateToCurrent();
+  const current = openDatabase(path);
+  try {
+    current.run(
+      "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type,created_at,updated_at,created_by) VALUES ('first','p','a','node','s','b','whole','FS',10,11,'u'),('second','p','b','whole',NULL,'c','whole','FS',20,NULL,NULL)",
+    );
+  } finally {
+    current.close();
   }
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
+
+function migrateToCurrent(): void {
+  applyHistoricalCatalogueFixture(path, mkdtempSync(join(directory, 'forward-')), {});
+  runMigrations(path, FOLDER);
+}
 
 function withConnection<T>(run: (db: ReturnType<typeof openConnection>['db']) => T): T {
   const connection = openConnection(path);
@@ -77,7 +111,7 @@ describe('typed dependency rollback', () => {
       rows: [
         {
           id: 'first',
-          projectId: 'p',
+          workPackageId: 'p',
           predecessorWorkItemId: 'a',
           predecessorScope: 'node',
           predecessorStepId: 's',
@@ -91,7 +125,7 @@ describe('typed dependency rollback', () => {
         },
         {
           id: 'second',
-          projectId: 'p',
+          workPackageId: 'p',
           predecessorWorkItemId: 'b',
           predecessorScope: 'whole',
           predecessorStepId: null,
@@ -106,29 +140,42 @@ describe('typed dependency rollback', () => {
       ],
     });
     expect(withConnection((db) => removeSavedTypedDependencies(db, snapshot))).toBe(2);
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(
-      readMigrationFolders(FOLDER)
+    expect(rowCount()).toBe(0);
+    // The rename requires the verified pre-window snapshot before older down scripts can run.
+    const restored = restoreDatabase(backup.snapshotPath, path, 'pre-rename');
+    expect(restored.snapshot.sha256).toBe(backup.snapshotSha256);
+    expect(rollbackTo(path, historical, BASELINE)).toEqual(
+      readMigrationFolders(historical)
         .map(({ name }) => name)
         .filter((name) => name > BASELINE)
         .reverse(),
     );
-    runMigrations(path, FOLDER);
+    expect(
+      withConnection((db) =>
+        db.all("SELECT name FROM sqlite_master WHERE type='table' AND name='typed_dependency'"),
+      ),
+    ).toEqual([]);
+    runMigrations(path, historical);
+    migrateToCurrent();
+    expect(rowCount()).toBe(0);
     expect(withConnection((db) => restoreTypedDependencies(db, snapshot))).toBe(2);
     const connection = openConnection(path);
     try {
-      expect(await new TypedDependencyRepository(connection.db, OPEN).listByProject('p')).toEqual([
+      expect(
+        await new TypedDependencyRepository(connection.db, OPEN).listByWorkPackage('p'),
+      ).toEqual([
         {
           id: 'first',
-          projectId: 'p',
-          predecessor: { projectId: 'p', scope: 'node', workItemId: 'a', stepId: 's' },
-          successor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
+          workPackageId: 'p',
+          predecessor: { workPackageId: 'p', scope: 'node', workItemId: 'a', stepId: 's' },
+          successor: { workPackageId: 'p', scope: 'whole', workItemId: 'b' },
           type: 'FS',
         },
         {
           id: 'second',
-          projectId: 'p',
-          predecessor: { projectId: 'p', scope: 'whole', workItemId: 'b' },
-          successor: { projectId: 'p', scope: 'whole', workItemId: 'c' },
+          workPackageId: 'p',
+          predecessor: { workPackageId: 'p', scope: 'whole', workItemId: 'b' },
+          successor: { workPackageId: 'p', scope: 'whole', workItemId: 'c' },
           type: 'FS',
         },
       ]);
@@ -149,7 +196,7 @@ describe('typed dependency rollback', () => {
     const connection = openConnection(path);
     try {
       expect(
-        (await new TypedDependencyRepository(connection.db, OPEN).listByProject('p')).map(
+        (await new TypedDependencyRepository(connection.db, OPEN).listByWorkPackage('p')).map(
           ({ type }) => type,
         ),
       ).toEqual(['SS', 'FF']);
@@ -252,7 +299,7 @@ describe('typed dependency rollback', () => {
     const sqlite = openDatabase(path);
     try {
       sqlite.run(
-        "INSERT INTO work_item (id,project_id,parent_id,position,name,revision) VALUES ('child','p','a',1,'Child',0)",
+        "INSERT INTO work_item (id,work_package_id,parent_id,position,name,revision) VALUES ('child','p','a',1,'Child',0)",
       );
     } finally {
       sqlite.close();
@@ -263,13 +310,13 @@ describe('typed dependency rollback', () => {
     expect(rowCount()).toBe(0);
   });
 
-  it('refuses the whole restore when a row names another project', () => {
+  it('refuses the whole restore when a row names another work package', () => {
     const snapshot = saved();
     withConnection((db) => removeSavedTypedDependencies(db, snapshot));
     const rows = [{ ...snapshot.rows[0], predecessorWorkItemId: 'foreign' }, snapshot.rows[1]];
     expect(() =>
       withConnection((db) => restoreTypedDependencies(db, { ...snapshot, rows })),
-    ).toThrow('outside project');
+    ).toThrow('outside work package');
     expect(rowCount()).toBe(0);
   });
 

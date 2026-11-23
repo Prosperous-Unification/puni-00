@@ -1,16 +1,25 @@
-import { CREATOR_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { LEGACY_EDIT_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
+import { servicesOver } from '@wbs/core/compose';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import type { SubtreeStore } from '@wbs/core/ports/subtree-store';
+import type { Scope } from '@wbs/core/ports/unit-of-work';
+import { readCommand } from '@wbs/core/service/compensating';
+import type { DeleteSubtree, RestoreSubtree } from '@wbs/core/service/compensating-command';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import type { OptimizationVariantState } from '../module/optimization/optimized-schedule-reader';
 import { optimizerWiring } from '../service/optimizer-wiring';
-import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
@@ -22,7 +31,7 @@ import {
   refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
@@ -33,39 +42,69 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { createLegacyWorkPackageObservation } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
+const PROJECT_ID = 'http-fixture-parent';
+
+/** Actual preactivation Source with an explicit parent, authored bindings and fixture-owned directory rows; no standalone package writer supplies current birth. */
 function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
-  const users = inMemoryUsers();
-  const projectTables = memoryProjectTables();
-  const plan = inMemoryServices({ projects: inMemoryProjects(users, projectTables) });
-  const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
-  const directory = testDirectoryService(directoryStore);
+  const fixture = openMemorySourceFixture();
+  const source = ownTestSource(fixture.source);
+  const organizationId = 'http-fixture-legacy';
+  fixture.addOrganization(organizationId, { legacy: true });
+  fixture.seedPackageParent({
+    id: PROJECT_ID,
+    organizationId,
+    name: PROJECT_ID,
+    revision: 0,
+    createdAt: 1,
+    createdBy: null,
+    updatedAt: null,
+    spaceId: null,
+    spacePosition: null,
+  });
+  const users = source.stores.users;
+  const plan = createTestServices(source);
+  const {
+    workPackages: workPackageStore,
+    directory: directoryStore,
+    measures: measureStore,
+  } = plan.stores;
+  const directory = testDirectoryService({
+    ...directoryStore,
+    async addPerson(person, teamIds, stamp) {
+      const added = await directoryStore.addPerson(person, teamIds, stamp);
+      if (added.ok) fixture.ownPersonInOrganization(added.person.id, organizationId, []);
+      return added;
+    },
+  });
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
-  const projects = new ProjectService({
+  const workPackages = new WorkPackageService({
     dependencyContext: createLocalDependencyContext(plan.stores),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
     ...(optimized === undefined ? {} : { optimizerAvailable: () => true }),
   });
-  const steps = testStepService(projectStore);
+  const steps = testStepService(source.stores.workPackages, source.stores.steps);
   const calendarMarkers = testCalendarMarkerService();
   const workItems =
     optimized === undefined
       ? new WorkItemService({
           dependencyContext: createLocalDependencyContext(plan.stores),
           externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
@@ -74,7 +113,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
       : new WorkItemService({
           dependencyContext: createLocalDependencyContext(plan.stores),
           externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
@@ -92,12 +131,36 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     directory,
     capacity,
     priorityBands,
-    projects,
+    workPackages,
     steps,
     calendarMarkers,
   });
+  let firstChildBoundary: ((scope: Scope) => SubtreeStore) | undefined;
+  const runCounted = writes.uow.run.bind(writes.uow);
+  const buildCounted = writes.batch.bind(writes);
+  writes.uow.run = (act) =>
+    firstChildBoundary === undefined ? runCounted(act) : source.uow.run(act);
+  writes.batch = (scope, broadcast) => {
+    if (firstChildBoundary === undefined) return buildCounted(scope, broadcast);
+    const stores = { ...scope.stores, subtrees: firstChildBoundary(scope) };
+    return servicesOver(stores, {
+      admission: LEGACY_EDIT_ADMISSION,
+      dependencyContext: createLocalDependencyContext(stores),
+      clock: testClock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
+  };
+  /** Selects a test-owned boundary before the next batch enters the actual Source's borrowed writer. */
+  function setFirstChildBoundary(boundary: (scope: Scope) => SubtreeStore): void {
+    firstChildBoundary = boundary;
+  }
+  const history = testHistoryService();
   const app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -107,7 +170,8 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -121,11 +185,11 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     directory,
     capacity,
     priorityBands,
-    history: testHistoryService(),
+    history,
     stepParallels: testStepParallels(),
     calendarMarkers,
     auth: testAuthService(users),
-    projects,
+    workPackages,
     steps,
     workItems,
     savedPlans: testSavedPlanService(),
@@ -137,6 +201,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     migrationsApplied: true,
   });
 
+  let hasAuthoredSteps = false;
   async function register(username: string): Promise<string> {
     const res = await app.handle(
       new Request('http://localhost/api/auth/register', {
@@ -145,7 +210,40 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
-    return ((await res.json()) as { token: string }).token;
+    const token = ((await res.json()) as { token: string }).token;
+    if (!hasAuthoredSteps) {
+      const actor = await users.findByUsername(username);
+      if (actor === null) throw new Error('fixture step author is absent');
+      await bindFixtureSteps(
+        source,
+        organizationId,
+        (
+          [
+            ['dev', 'Dev', 10],
+            ['qa', 'QA', 20],
+          ] as const
+        ).map(([code, name, position]) => ({
+          definition: {
+            id: crypto.randomUUID(),
+            code,
+            name,
+            position,
+            defaultEstimateUnit: 'workdays' as const,
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: code + '-binding',
+            scopeKind: 'project' as const,
+            scopeId: PROJECT_ID,
+            workItemTypeId: null,
+            position,
+          },
+        })),
+        { at: 1, by: actor.id },
+      );
+      hasAuthoredSteps = true;
+    }
+    return token;
   }
 
   function send(
@@ -175,9 +273,11 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     journal: plan.stores.journal,
     users,
     workItems,
-    projects: projectStore,
-    projectTables,
+    workPackages: workPackageStore,
+    source,
+    fixture,
     writes,
+    setFirstChildBoundary,
   };
 }
 
@@ -196,27 +296,30 @@ async function setup(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     journal,
     users,
     workItems,
-    projects,
-    projectTables,
+    workPackages,
+    source,
+    fixture,
     writes,
+    setFirstChildBoundary,
   } = buildHarness(optimized);
   const token = await register('owner');
   const actor = await users.findByUsername('owner');
   if (actor === null) throw new Error('registered owner is missing');
-  const created = await send('/api/projects', token, {
+  const created = await send('/api/work-packages', token, {
     method: 'POST',
-    body: JSON.stringify({ name: 'Rewire the shed' }),
+    body: JSON.stringify({ projectId: PROJECT_ID, name: 'Rewire the shed' }),
   });
   const body = (await created.json()) as {
-    project: { id: string };
+    workPackage: { id: string };
     steps: { id: string; name: string }[];
   };
   // The seeded steps' real ids. Estimates and assignees are refused for a step
-  // the project does not hold, so a literal `step-dev` would be asserting
+  // the work package does not hold, so a literal `step-dev` would be asserting
   // against a write production answers 404 to.
   const devId = body.steps.find((each) => each.name === 'Dev')?.id;
   const qaId = body.steps.find((each) => each.name === 'QA')?.id;
-  if (devId === undefined || qaId === undefined) throw new Error('a project without its steps');
+  if (devId === undefined || qaId === undefined)
+    throw new Error('a work package without its steps');
   return {
     token,
     send,
@@ -224,11 +327,13 @@ async function setup(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     directoryStore,
     journal,
     workItems,
-    projects,
-    projectTables,
+    workPackages,
+    source,
+    fixture,
     writes,
+    setFirstChildBoundary,
     actorId: actor.id,
-    projectId: body.project.id,
+    workPackageId: body.workPackage.id,
     devId,
     qaId,
   };
@@ -241,10 +346,10 @@ async function setup(optimized?: OptimizedScheduleAdapter['readCaptured']) {
 function command(
   send: Send,
   token: string,
-  projectId: string,
+  workPackageId: string,
   step: Record<string, unknown>,
 ): Promise<Response> {
-  return send(`/api/projects/${projectId}/commands`, token, {
+  return send(`/api/work-packages/${workPackageId}/commands`, token, {
     method: 'POST',
     body: JSON.stringify({ commands: [step] }),
   });
@@ -278,11 +383,11 @@ async function mintedId(res: Response): Promise<string> {
 async function addWorkItem(
   send: Send,
   token: string,
-  projectId: string,
+  workPackageId: string,
   fields: { parentId: string | null; afterId?: string | null; name: string },
 ): Promise<string> {
   return mintedId(
-    await command(send, token, projectId, {
+    await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       parentId: fields.parentId,
       afterId: fields.afterId ?? null,
@@ -308,9 +413,9 @@ async function addToDirectory(
 async function firstRow(
   send: Send,
   token: string,
-  projectId: string,
+  workPackageId: string,
 ): Promise<Record<string, unknown>> {
-  const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
   const { workItems } = (await tree.json()) as { workItems: Record<string, unknown>[] };
   const first = workItems.at(0);
   if (first === undefined) throw new Error('an empty tree where a row was expected');
@@ -319,47 +424,82 @@ async function firstRow(
 
 describe('work item routes', () => {
   it('resolves canonical and alias references to the nodes in the work-item read', async () => {
-    const { token, send, projectId, projectTables } = await setup();
-    const seeded = projectTables.steps.get(projectId);
-    if (seeded === undefined) throw new Error('seeded project steps absent');
-    seeded.push({
-      id: crypto.randomUUID(),
-      projectId,
-      name: 'Review',
-      code: 'review',
-      position: 3000,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
+    const { token, send, workPackageId, source, actorId } = await setup();
+    await bindFixtureSteps(
+      source,
+      'http-fixture-legacy',
+      [
+        {
+          definition: {
+            id: crypto.randomUUID(),
+            code: 'review',
+            name: 'Review',
+            position: 30,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'review-binding',
+            scopeKind: 'project',
+            scopeId: PROJECT_ID,
+            workItemTypeId: null,
+            position: 30,
+          },
+        },
+      ],
+      { at: 1, by: actorId },
+    );
+    expect(
+      source.uow.run(async ({ stores }) => {
+        await stores.stepCatalogue.defineAndBindStep(
+          'http-fixture-legacy',
+          {
+            id: 'uncoded',
+            code: '',
+            name: 'Legacy',
+            position: 40,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          {
+            bindingId: 'uncoded-binding',
+            scopeKind: 'project',
+            scopeId: PROJECT_ID,
+            workItemTypeId: null,
+            position: 40,
+          },
+          { at: 1, by: actorId },
+        );
+        return { commit: true, value: undefined };
+      }),
+    ).rejects.toThrow('catalogue new step code is malformed or reserved');
+    const firstId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'First',
     });
-    const uncodedId = crypto.randomUUID();
-    seeded.push({
-      id: uncodedId,
-      projectId,
-      name: 'Legacy',
-      code: null,
-      position: 4000,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    });
-    const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    const parentId = await addWorkItem(send, token, projectId, {
+    const parentId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       afterId: firstId,
       name: 'Parent',
     });
-    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child one' });
-    const nestedId = await addWorkItem(send, token, projectId, {
+    const childId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Child one' });
+    const nestedId = await addWorkItem(send, token, workPackageId, {
       parentId,
       afterId: childId,
       name: 'Child two',
     });
-    const tree = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const tree = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       addressRevision: string;
       stepNodes: { id: string; workItemId: string; stepId: string; reference: string | null }[];
     };
     const resolve = async (reference: string) => {
       const query = new URLSearchParams({ reference, revision: tree.addressRevision });
-      const response = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+      const response = await send(
+        `/api/work-packages/${workPackageId}/step-references?${query}`,
+        token,
+      );
       return { status: response.status, body: (await response.json()) as unknown };
     };
     const dev = tree.stepNodes.find(
@@ -370,12 +510,7 @@ describe('work item routes', () => {
     );
     if (dev === undefined || review === undefined)
       throw new Error(`expected coded nodes absent: ${JSON.stringify(tree.stepNodes)}`);
-    expect(tree.stepNodes).toContainEqual({
-      id: `sn1.${firstId}.${uncodedId}`,
-      workItemId: firstId,
-      stepId: uncodedId,
-      reference: null,
-    });
+    expect(tree.stepNodes.every((node) => node.reference !== null)).toBe(true);
     expect(await resolve('010.dev')).toEqual({
       status: 200,
       body: {
@@ -419,29 +554,39 @@ describe('work item routes', () => {
   });
 
   it('refuses an old revision after a renumbering move and reports the current revision', async () => {
-    const { token, send, projectId } = await setup();
-    const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    const secondId = await addWorkItem(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const firstId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'First',
+    });
+    const secondId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       afterId: firstId,
       name: 'Second',
     });
-    const before = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const before = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       addressRevision: string;
     };
-    const moved = await command(send, token, projectId, {
+    const moved = await command(send, token, workPackageId, {
       kind: 'moveWorkItem',
       workItemId: firstId,
       parentId: null,
       afterId: secondId,
     });
     expect(moved.status).toBe(200);
-    const after = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const after = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       addressRevision: string;
     };
     expect(after.addressRevision).not.toBe(before.addressRevision);
     const query = new URLSearchParams({ reference: '010.dev', revision: before.addressRevision });
-    const response = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+    const response = await send(
+      `/api/work-packages/${workPackageId}/step-references?${query}`,
+      token,
+    );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: 'stale_address_revision',
@@ -451,7 +596,10 @@ describe('work item routes', () => {
       reference: 'nonsense',
       revision: before.addressRevision,
     });
-    const defective = await send(`/api/projects/${projectId}/step-references?${malformed}`, token);
+    const defective = await send(
+      `/api/work-packages/${workPackageId}/step-references?${malformed}`,
+      token,
+    );
     expect(defective.status).toBe(422);
     expect(await defective.json()).toEqual({
       error: 'unresolvable_reference',
@@ -459,20 +607,23 @@ describe('work item routes', () => {
     });
   });
 
-  it('answers the same not-found refusal as the work-item read for an unknown project', async () => {
+  it('answers the same not-found refusal as the work-item read for an unknown work package', async () => {
     const { token, send } = await setup();
     const query = new URLSearchParams({ reference: '010.dev', revision: 'ar1:missing' });
-    const response = await send(`/api/projects/missing/step-references?${query}`, token);
+    const response = await send(`/api/work-packages/missing/step-references?${query}`, token);
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: 'not_found' });
   });
 
   it('reads leaf step nodes and address revision without nodes on parents', async () => {
-    const { token, send, projectId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
-    const leafId = await addWorkItem(send, token, projectId, { parentId, name: 'Leaf' });
+    const { token, send, workPackageId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const leafId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Leaf' });
 
-    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    const response = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       addressRevision?: string;
@@ -480,7 +631,7 @@ describe('work item routes', () => {
       workItems: { id: string; number: string }[];
       steps: { id: string; code: string | null }[];
     };
-    expect(body.addressRevision).toMatch(/^ar1:[0-9a-f]{64}$/);
+    expect(body.addressRevision).toMatch(/^ar2:[0-9a-f]{64}$/);
     expect(body.stepNodes?.filter((node) => node.workItemId === parentId)).toEqual([]);
     const number = body.workItems.find((row) => row.id === leafId)?.number;
     if (number === undefined) throw new Error('leaf absent from the tree');
@@ -498,8 +649,11 @@ describe('work item routes', () => {
   });
 
   it('hands a first child every Dev fact and Ann, then restores the original node on undo', async () => {
-    const { token, send, projectId, devId, qaId, measures, journal, actorId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const { token, send, workPackageId, devId, qaId, measures, journal, actorId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
     const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
     for (const step of [
       {
@@ -519,10 +673,10 @@ describe('work item routes', () => {
       },
       { kind: 'setAssignee', workItemId: parentId, stepId: devId, personId },
     ])
-      expect((await command(send, token, projectId, step)).status).toBe(200);
+      expect((await command(send, token, workPackageId, step)).status).toBe(200);
 
     const read = async () =>
-      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      (await (await send(`/api/work-packages/${workPackageId}/work-items`, token)).json()) as {
         stepNodes: { id: string; workItemId: string; stepId: string }[];
         workItems: {
           id: string;
@@ -538,31 +692,44 @@ describe('work item routes', () => {
     )?.id;
     expect(originalNodeId).toBe(`sn1.${parentId}.${devId}`);
     if (originalNodeId === undefined) throw new Error('original Dev node absent');
-    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    const childId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Child' });
     const childNodeId = `sn1.${childId}.${devId}`;
-    const entry = (await journal.entriesFor({ projectId, userId: actorId, personId: null })).at(-1);
+    const entry = (await journal.entriesFor({ workPackageId, userId: actorId, personId: null })).at(
+      -1,
+    );
     expect(entry?.payload).toMatchObject({
       forward: {
-        do: 'batch',
-        steps: [
-          {
-            do: 'restore_subtree',
-            stepNodeMapping: [
-              { from: originalNodeId, to: childNodeId },
-              { from: `sn1.${parentId}.${qaId}`, to: `sn1.${childId}.${qaId}` },
-            ],
-            assignments: [{ workItemId: childId, stepId: devId, personId }],
+        do: 'transition_incident_nodes',
+        workPackageId,
+        fromWorkItemId: parentId,
+        toWorkItemId: childId,
+        receipts: [],
+        structural: {
+          do: 'transition_first_child',
+          direction: 'down',
+          record: {
+            version: 2,
+            child: { id: childId, parentId, workPackageId },
+            stepIds: [devId, qaId],
           },
-          { do: 'assign', workItemId: parentId, stepId: devId, personId: null },
-        ],
+        },
       },
     });
     expect(entry?.inverse).toMatchObject({
-      do: 'batch',
-      steps: [
-        { do: 'delete_subtree', rootId: childId },
-        { do: 'assign', workItemId: parentId, stepId: devId, personId },
-      ],
+      do: 'transition_incident_nodes',
+      workPackageId,
+      fromWorkItemId: childId,
+      toWorkItemId: parentId,
+      receipts: [],
+      structural: {
+        do: 'transition_first_child',
+        direction: 'up',
+        record: {
+          version: 2,
+          child: { id: childId, parentId, workPackageId },
+          stepIds: [devId, qaId],
+        },
+      },
     });
     const expectFacts = async (ownerId: string, nodeId: string) => {
       const tree = await read();
@@ -576,7 +743,7 @@ describe('work item routes', () => {
       expect(owner?.assignees[devId]).toBe(personId);
       expect(owner?.doesEveryStep).toBe(personId);
       expect(
-        (await measures.listByProject(projectId)).find(
+        (await measures.listByWorkPackage(workPackageId)).find(
           (measure) =>
             measure.workItemId === ownerId &&
             measure.stepId === devId &&
@@ -591,7 +758,7 @@ describe('work item routes', () => {
     ).toBeUndefined();
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'moveWorkItem',
           workItemId: childId,
           parentId,
@@ -603,27 +770,30 @@ describe('work item routes', () => {
       (await read()).stepNodes.find((node) => node.workItemId === childId && node.stepId === devId)
         ?.id,
     ).toBe(childNodeId);
-    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
-    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     expect((await read()).workItems.some((row) => row.id === childId)).toBe(false);
     await expectFacts(parentId, originalNodeId);
-    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/redo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     await expectFacts(childId, childNodeId);
   });
 
   it('keeps a moved leaf node ID and folds facts onto a parent after its last child is deleted', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    const second = await addWorkItem(send, token, projectId, { parentId: null, name: 'Second' });
-    const leaf = await addWorkItem(send, token, projectId, { parentId: first, name: 'Leaf' });
+    const { token, send, workPackageId, devId } = await setup();
+    const first = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'First' });
+    const second = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Second',
+    });
+    const leaf = await addWorkItem(send, token, workPackageId, { parentId: first, name: 'Leaf' });
     const nodes = async () =>
-      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      (await (await send(`/api/work-packages/${workPackageId}/work-items`, token)).json()) as {
         stepNodes: { id: string; workItemId: string; stepId: string }[];
         workItems: { id: string; estimates: Record<string, unknown> }[];
       };
@@ -632,7 +802,7 @@ describe('work item routes', () => {
     )?.id;
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'moveWorkItem',
           workItemId: leaf,
           parentId: second,
@@ -646,7 +816,7 @@ describe('work item routes', () => {
     ).toBe(nodeId);
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'setEstimate',
           workItemId: leaf,
           stepId: devId,
@@ -655,7 +825,8 @@ describe('work item routes', () => {
       ).status,
     ).toBe(200);
     expect(
-      (await command(send, token, projectId, { kind: 'deleteWorkItem', workItemId: leaf })).status,
+      (await command(send, token, workPackageId, { kind: 'deleteWorkItem', workItemId: leaf }))
+        .status,
     ).toBe(200);
     const folded = await nodes();
     expect(
@@ -668,83 +839,211 @@ describe('work item routes', () => {
     });
   });
 
-  it('replays an older create journal without assignment or mapping fields', async () => {
-    const { token, send, projectId, journal, actorId } = await setup();
-    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
-    const child = await addWorkItem(send, token, projectId, { parentId: parent, name: 'Child' });
-    const entry = (await journal.entriesFor({ projectId, userId: actorId, personId: null })).at(-1);
+  it('replays a modeled legacy create journal without a node mapping', async () => {
+    const { token, send, workPackageId, journal, actorId, source } = await setup();
+    const parent = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const child = await addWorkItem(send, token, workPackageId, {
+      parentId: parent,
+      name: 'Child',
+    });
+    const entry = (await journal.entriesFor({ workPackageId, userId: actorId, personId: null })).at(
+      -1,
+    );
     if (entry === undefined) throw new Error('create journal absent');
-    const forward = (entry.payload as { forward: Record<string, unknown> }).forward;
-    delete forward['stepNodeMapping'];
-    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
+    const childRow = await source.stores.workItems.findById(child);
+    if (childRow === null) throw new Error('modeled legacy create child is absent');
+    // Modeled published RestoreSubtree/DeleteSubtree recipes, not retained producer captures.
+    // RestoreSubtree requires assignments; only its stepNodeMapping is optional for older creates.
+    const forward = {
+      do: 'restore_subtree',
+      rows: [childRow],
+      rootPosition: childRow.position,
+      reparented: [],
+      estimates: [],
+      actuals: [],
+      progress: [],
+      measures: [],
+      assignments: [],
+      internalDependencies: [],
+      externalDependencies: [],
+      removedEstimates: [],
+      removedActuals: [],
+      removedProgress: [],
+      removedMeasures: [],
+    } satisfies RestoreSubtree;
+    const inverse = {
+      do: 'delete_subtree',
+      rootId: child,
+      expectedSubtree: [child],
+      remove: [child],
+      reparented: [],
+      setEstimates: [],
+      setActuals: [],
+      setProgress: [],
+      setMeasures: [],
+    } satisfies DeleteSubtree;
+    expect(Object.hasOwn(forward, 'stepNodeMapping')).toBe(false);
+    expect(forward.assignments).toEqual([]);
+    expect(readCommand(forward)).toEqual(forward);
+    expect(readCommand(inverse)).toEqual(inverse);
+    const modeledId = crypto.randomUUID();
+    const label = 'modeled legacy create';
+    await journal.append(
+      {
+        id: modeledId,
+        workPackageId,
+        userId: actorId,
+        personId: null,
+        kind: 'create',
+        payload: { label, forward },
+        inverse,
+        preconditions: entry.preconditions,
+        createdAt: testClock.now(),
+      },
+      {
+        id: crypto.randomUUID(),
+        workPackageId,
+        userId: actorId,
+        kind: 'create',
+        label,
+        workItemId: child,
+        stepId: null,
+        before: inverse,
+        after: forward,
+        createdAt: testClock.now(),
+      },
     );
-    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
-    const tree = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
+    expect(await source.stores.workItems.findById(child)).toBeNull();
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/redo`, token, { method: 'POST' })).status,
+    ).toBe(200);
+    const tree = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       stepNodes: { workItemId: string }[];
     };
     expect(tree.stepNodes.some((node) => node.workItemId === child)).toBe(true);
+    expect(await source.stores.workItems.findById(child)).toMatchObject({
+      id: child,
+      parentId: parent,
+      workPackageId,
+      name: 'Child',
+    });
+    const replayed = (
+      await journal.entriesFor({ workPackageId, userId: actorId, personId: null })
+    ).find(({ id }) => id === modeledId);
+    expect(replayed?.payload).toEqual({ label, forward });
   });
 
   it('reports a failed assignment hand-down instead of recording a successful create', async () => {
-    for (const failAt of ['child', 'parent'] as const) {
-      const { token, send, projectId, devId, directoryStore } = await setup();
-      const parentId = await addWorkItem(send, token, projectId, {
-        parentId: null,
-        name: 'Parent',
-      });
-      const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
-      expect(
-        (
-          await command(send, token, projectId, {
-            kind: 'setAssignee',
-            workItemId: parentId,
-            stepId: devId,
-            personId,
-          })
-        ).status,
-      ).toBe(200);
-      const assign = directoryStore.assign.bind(directoryStore);
-      directoryStore.assign = async (workItemId, stepId, assignedPersonId, stamp) =>
-        (failAt === 'child' && workItemId !== parentId && assignedPersonId !== null) ||
-        (failAt === 'parent' && workItemId === parentId && assignedPersonId === null)
-          ? { ok: false, reason: 'unknown_person' }
-          : assign(workItemId, stepId, assignedPersonId, stamp);
-      const created = await command(send, token, projectId, {
-        kind: 'createWorkItem',
-        parentId,
-        afterId: null,
-        name: 'Child',
-      });
-      expect(created.status).toBe(500);
-    }
+    const { token, send, workPackageId, devId, setFirstChildBoundary, journal, actorId } =
+      await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
+    expect(
+      (
+        await command(send, token, workPackageId, {
+          kind: 'setAssignee',
+          workItemId: parentId,
+          stepId: devId,
+          personId,
+        })
+      ).status,
+    ).toBe(200);
+    const stack = { workPackageId, userId: actorId, personId: null };
+    const beforeTree: unknown = await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json();
+    const beforeJournal = await journal.entriesFor(stack);
+    let isArmed = true;
+    let injected = 0;
+    let delegated = 0;
+    setFirstChildBoundary((scope) => {
+      const original = scope.stores.subtrees;
+      return {
+        ...original,
+        async writeFirstChild(...parameters: Parameters<typeof original.writeFirstChild>) {
+          const [write] = parameters;
+          if (write.kind !== 'fresh') throw new Error('fixture expects a fresh first child');
+          expect(write.child.parentId).toBe(parentId);
+          expect(await scope.stores.directory.assignmentsFor(parentId)).toEqual([
+            { workItemId: parentId, stepId: devId, personId },
+          ]);
+          if (isArmed) {
+            injected += 1;
+            throw new Error('injected atomic assignment hand-down failure');
+          }
+          delegated += 1;
+          return original.writeFirstChild(...parameters);
+        },
+      };
+    });
+    const created = await command(send, token, workPackageId, {
+      kind: 'createWorkItem',
+      parentId,
+      afterId: null,
+      name: 'Child',
+    });
+    expect(created.status).toBe(500);
+    expect(injected).toBe(1);
+    expect(delegated).toBe(0);
+    expect(
+      await (await send(`/api/work-packages/${workPackageId}/work-items`, token)).json(),
+    ).toEqual(beforeTree);
+    expect(await journal.entriesFor(stack)).toEqual(beforeJournal);
+    isArmed = false;
+    expect(
+      (
+        await command(send, token, workPackageId, {
+          kind: 'createWorkItem',
+          parentId,
+          afterId: null,
+          name: 'Child',
+        })
+      ).status,
+    ).toBe(200);
+    expect(injected).toBe(1);
+    expect(delegated).toBe(1);
+    expect(await journal.entriesFor(stack)).toHaveLength(beforeJournal.length + 1);
   });
 
   // Proof: with `describeAddressSpace` throwing on a shared number again, this
   // read failed on `Expected: 200, Received: 500` (`Error: dup` from
   // `readStepAddresses`); watched 2026-09-27 (Astra review of the read slice).
-  it('still reads a project where a moved frozen number is shown twice', async () => {
-    const { token, send, projectId } = await setup();
-    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    const second = await addWorkItem(send, token, projectId, {
+  it('still reads a work package where a moved frozen number is shown twice', async () => {
+    const { token, send, workPackageId } = await setup();
+    const first = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'First' });
+    const second = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       afterId: first,
       name: 'Second',
     });
-    const frozen = await addWorkItem(send, token, projectId, { parentId: first, name: 'Frozen' });
-    expect((await command(send, token, projectId, { kind: 'freezeProject' })).status).toBe(200);
-    const moved = await command(send, token, projectId, {
+    const frozen = await addWorkItem(send, token, workPackageId, {
+      parentId: first,
+      name: 'Frozen',
+    });
+    expect((await command(send, token, workPackageId, { kind: 'freezeWorkPackage' })).status).toBe(
+      200,
+    );
+    const moved = await command(send, token, workPackageId, {
       kind: 'moveWorkItem',
       workItemId: frozen,
       parentId: second,
       afterId: null,
     });
     expect(moved.status).toBe(200);
-    const sibling = await addWorkItem(send, token, projectId, { parentId: first, name: 'New' });
+    const sibling = await addWorkItem(send, token, workPackageId, { parentId: first, name: 'New' });
 
-    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    const response = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       workItems: { id: string; number: string }[];
@@ -759,7 +1058,10 @@ describe('work item routes', () => {
     if (shared === undefined || shared === null)
       throw new Error('the new sibling has no reference');
     const query = new URLSearchParams({ reference: shared, revision: body.addressRevision ?? '' });
-    const resolved = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+    const resolved = await send(
+      `/api/work-packages/${workPackageId}/step-references?${query}`,
+      token,
+    );
     expect(resolved.status).toBe(422);
     expect(await resolved.json()).toEqual({
       error: 'unresolvable_reference',
@@ -767,15 +1069,15 @@ describe('work item routes', () => {
     });
   });
 
-  it('refuses a directly stored optimized project when this runtime has no adapter', async () => {
-    const { projects, projectId, send, token } = await setup();
-    await projects.update(
-      projectId,
+  it('refuses a directly stored optimized work package when this runtime has no adapter', async () => {
+    const { workPackages, workPackageId, send, token } = await setup();
+    await workPackages.update(
+      workPackageId,
       { optimizationEnabled: true, scheduleEngine: 'optimized' },
       { at: 1, by: 'owner' },
     );
 
-    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    const response = await send(`/api/work-packages/${workPackageId}/work-items`, token);
 
     expect(response.status).toBe(409);
     expect(response.headers.get('content-type')).toContain('application/json');
@@ -835,9 +1137,9 @@ describe('work item routes', () => {
         schedules: { pri: served, time: served },
       };
     };
-    const { token, send, projectId } = await setup(optimized);
+    const { token, send, workPackageId } = await setup(optimized);
 
-    const empty = await send(`/api/projects/${projectId}/work-items`, token);
+    const empty = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect((await empty.json()) as unknown).toMatchObject({
       workItems: [],
       slices: [],
@@ -849,15 +1151,15 @@ describe('work item routes', () => {
       },
     });
 
-    const transient = await addWorkItem(send, token, projectId, {
+    const transient = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       name: 'Transient',
     });
-    await command(send, token, projectId, {
+    await command(send, token, workPackageId, {
       kind: 'deleteWorkItem',
       workItemId: transient,
     });
-    const emptyAgain = await send(`/api/projects/${projectId}/work-items`, token);
+    const emptyAgain = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect((await emptyAgain.json()) as unknown).toMatchObject({
       workItems: [],
       slices: [],
@@ -868,9 +1170,9 @@ describe('work item routes', () => {
       },
     });
 
-    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    await addWorkItem(send, token, projectId, { parentId: null, name: 'Second' });
-    const enabled = await send(`/api/projects/${projectId}`, token, {
+    const first = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'First' });
+    await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Second' });
+    const enabled = await send(`/api/work-packages/${workPackageId}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
     });
@@ -893,7 +1195,7 @@ describe('work item routes', () => {
     for (const state of states) {
       variants = state;
       serve = false;
-      const response = await send(`/api/projects/${projectId}/work-items`, token);
+      const response = await send(`/api/work-packages/${workPackageId}/work-items`, token);
       const body = (await response.json()) as {
         optimization: {
           displayed: string;
@@ -917,7 +1219,7 @@ describe('work item routes', () => {
     ] satisfies Variants[]) {
       variants = state;
       serve = true;
-      const response = await send(`/api/projects/${projectId}/work-items`, token);
+      const response = await send(`/api/work-packages/${workPackageId}/work-items`, token);
       const body = (await response.json()) as {
         optimization: {
           displayed: string;
@@ -953,15 +1255,15 @@ describe('work item routes', () => {
     // failing on `expect(received).toEqual(expected) · - 400 · + 404` — and
     // the whole store and unit tiers stayed green under that fault, which is
     // how an arm nobody asks about survives a rewrite. Observed 2026-09-02.
-    const { token, send, projectId, devId } = await setup();
+    const { token, send, workPackageId, devId } = await setup();
 
-    const unmintedRef = await command(send, token, projectId, {
+    const unmintedRef = await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       parentRef: 'nobody-minted-this',
       afterId: null,
       name: 'Orphan',
     });
-    const absentRow = await command(send, token, projectId, {
+    const absentRow = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: 'no-such-row',
       stepId: devId,
@@ -976,34 +1278,73 @@ describe('work item routes', () => {
     });
   });
 
-  it('refuses target work items from another project for estimate and patch commands', async () => {
-    const { token, send, projectId, writes } = await setup();
-    const created = await send('/api/projects', token, {
+  it('refuses target work items from another work package for estimate and patch commands', async () => {
+    const { token, send, workPackageId, writes, source, fixture, actorId } = await setup();
+    fixture.seedPackageParent({
+      id: 'foreign-parent',
+      organizationId: 'http-fixture-legacy',
+      name: 'Foreign parent',
+      revision: 0,
+      createdAt: 1,
+      createdBy: actorId,
+      updatedAt: null,
+      spaceId: null,
+      spacePosition: null,
+    });
+    await bindFixtureSteps(
+      source,
+      'http-fixture-legacy',
+      [
+        {
+          definition: {
+            id: crypto.randomUUID(),
+            code: 'foreign-dev',
+            name: 'Foreign Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'foreign-dev-binding',
+            scopeKind: 'project',
+            scopeId: 'foreign-parent',
+            workItemTypeId: null,
+            position: 10,
+          },
+        },
+      ],
+      { at: 1, by: actorId },
+    );
+    const created = await send('/api/work-packages', token, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Other plan' }),
+      body: JSON.stringify({ projectId: 'foreign-parent', name: 'Other plan' }),
     });
     const other = (await created.json()) as {
-      project: { id: string };
+      workPackage: { id: string };
       steps: { id: string; name: string }[];
     };
-    const otherStepId = other.steps.find(({ name }) => name === 'Dev')?.id;
-    if (otherStepId === undefined) throw new Error('other project has no Dev step');
-    const otherWorkItemId = await addWorkItem(send, token, other.project.id, {
+    const otherStepId = other.steps.find(({ name }) => name === 'Foreign Dev')?.id;
+    if (otherStepId === undefined) throw new Error('other work package has no Dev step');
+    const otherWorkItemId = await addWorkItem(send, token, other.workPackage.id, {
       parentId: null,
       name: 'Other row',
     });
-    const localWorkItemId = await addWorkItem(send, token, projectId, {
+    const localWorkItemId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       name: 'Local row',
     });
-    const foreignStep = await command(send, token, projectId, {
+    const foreignStep = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: localWorkItemId,
       stepId: otherStepId,
       days: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
-    expect(foreignStep.status).toBe(404);
-    expect(await foreignStep.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setEstimate' });
+    expect(foreignStep.status, await foreignStep.clone().text()).toBe(422);
+    expect(await foreignStep.json()).toEqual({
+      error: 'step_not_resolved',
+      at: 0,
+      kind: 'setEstimate',
+    });
     for (const commandBody of [
       {
         kind: 'setEstimate',
@@ -1018,11 +1359,11 @@ describe('work item routes', () => {
         days: { optimistic: 1, realistic: 2, pessimistic: 3 },
       },
     ]) {
-      const refusal = await command(send, token, projectId, commandBody);
+      const refusal = await command(send, token, workPackageId, commandBody);
       expect(refusal.status).toBe(404);
       expect(await refusal.json()).toEqual({ error: 'not_found', at: 0, kind: commandBody.kind });
     }
-    const rolledBack = await send(`/api/projects/${projectId}/commands`, token, {
+    const rolledBack = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -1040,13 +1381,13 @@ describe('work item routes', () => {
     expect(rolledBack.status).toBe(404);
     expect(await rolledBack.json()).toEqual({ error: 'not_found', at: 1, kind: 'patchWorkItem' });
     expect(writes.uow.calls.slice(-2)).toEqual(['begin', 'rollback']);
-    const otherRead = await send(`/api/projects/${other.project.id}/work-items`, token);
+    const otherRead = await send(`/api/work-packages/${other.workPackage.id}/work-items`, token);
     const otherTree = (await otherRead.json()) as {
       workItems: { id: string; name: string; estimates: Record<string, unknown> }[];
     };
     expect(otherTree.workItems.find(({ id }) => id === otherWorkItemId)?.name).toBe('Other row');
     expect(otherTree.workItems.find(({ id }) => id === otherWorkItemId)?.estimates).toEqual({});
-    const firstRead = await send(`/api/projects/${projectId}/work-items`, token);
+    const firstRead = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const firstTree = (await firstRead.json()) as {
       workItems: { estimates: Record<string, unknown> }[];
     };
@@ -1056,17 +1397,17 @@ describe('work item routes', () => {
   });
 
   it('writes step commands by the node ID returned in the work-item read and undoes one edit', async () => {
-    const { token, send, projectId, devId, measures } = await setup();
-    const workItemId = await addWorkItem(send, token, projectId, {
+    const { token, send, workPackageId, devId, measures } = await setup();
+    const workItemId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       name: 'Node row',
     });
-    const pairWorkItemId = await addWorkItem(send, token, projectId, {
+    const pairWorkItemId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       name: 'Pair row',
     });
     const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
-    const read = await send(`/api/projects/${projectId}/work-items`, token);
+    const read = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const tree = (await read.json()) as {
       stepNodes: { id: string; workItemId: string; stepId: string }[];
       workItems: {
@@ -1090,17 +1431,17 @@ describe('work item routes', () => {
       { kind: 'setAssignee', personId },
     ];
     for (const fields of cases) {
-      const reply = await command(send, token, projectId, { ...fields, stepNodeId });
+      const reply = await command(send, token, workPackageId, { ...fields, stepNodeId });
       expect(reply.status).toBe(200);
       expect(((await reply.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-      const paired = await command(send, token, projectId, {
+      const paired = await command(send, token, workPackageId, {
         ...fields,
         workItemId: pairWorkItemId,
         stepId: devId,
       });
       expect(paired.status).toBe(200);
     }
-    const after = await send(`/api/projects/${projectId}/work-items`, token);
+    const after = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const afterTree = (await after.json()) as typeof tree;
     const row = afterTree.workItems.find(({ id }) => id === workItemId);
     expect(row?.estimates).toEqual({});
@@ -1118,7 +1459,7 @@ describe('work item routes', () => {
       progress: pairRow?.progress,
       assignees: pairRow?.assignees,
     });
-    const recorded = await measures.listByProject(projectId);
+    const recorded = await measures.listByWorkPackage(workPackageId);
     const nodeMeasure = recorded.find(({ workItemId: id }) => id === workItemId);
     const pairMeasure = recorded.find(({ workItemId: id }) => id === pairWorkItemId);
     expect(nodeMeasure).toMatchObject({ stepId: devId, metric: 'token_actual', value: 5 });
@@ -1132,22 +1473,24 @@ describe('work item routes', () => {
       value: pairMeasure?.value,
     });
 
-    const set = await command(send, token, projectId, {
+    const set = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       stepNodeId,
       days: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
     expect(set.status).toBe(200);
-    const undone = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackageId}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(200);
-    const reverted = await send(`/api/projects/${projectId}/work-items`, token);
+    const reverted = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const revertedTree = (await reverted.json()) as typeof tree;
     expect(revertedTree.workItems.find(({ id }) => id === workItemId)?.estimates).toEqual({});
   });
 
   it('refuses conflicting and invalid node addresses with command context', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const workItemId = await addWorkItem(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const workItemId = await addWorkItem(send, token, workPackageId, {
       parentId: null,
       name: 'Node row',
     });
@@ -1161,7 +1504,7 @@ describe('work item routes', () => {
       [{ stepNodeId: 7 }, 'invalid_step_node_id'],
       [{ stepNodeId: stepNodeId.replace('sn1.', 'sn2.') }, 'unknown_step_node_encoding'],
     ] as const) {
-      const reply = await command(send, token, projectId, {
+      const reply = await command(send, token, workPackageId, {
         kind: 'setEstimate',
         ...address,
         days: { optimistic: 1, realistic: 2, pessimistic: 3 },
@@ -1169,7 +1512,7 @@ describe('work item routes', () => {
       expect(reply.status).toBe(400);
       expect(await reply.json()).toEqual({ error, at: 0, kind: 'setEstimate' });
     }
-    const read = await send(`/api/projects/${projectId}/work-items`, token);
+    const read = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const tree = (await read.json()) as {
       workItems: { id: string; estimates: Record<string, unknown> }[];
     };
@@ -1177,14 +1520,17 @@ describe('work item routes', () => {
   });
 
   it('keeps node service refusals and old-shape assignment', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
-    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    const { token, send, workPackageId, devId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const childId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Child' });
     for (const [stepNodeId, status, error] of [
       [`sn1.${parentId}.${devId}`, 409, 'rolled_up'],
       [`sn1.${childId}.${crypto.randomUUID()}`, 404, 'unknown_step'],
     ] as const) {
-      const refusal = await command(send, token, projectId, {
+      const refusal = await command(send, token, workPackageId, {
         kind: 'setEstimate',
         stepNodeId,
         days: { optimistic: 1, realistic: 2, pessimistic: 3 },
@@ -1192,7 +1538,7 @@ describe('work item routes', () => {
       expect(refusal.status).toBe(status);
       expect(await refusal.json()).toEqual({ error, at: 0, kind: 'setEstimate' });
     }
-    const oldShape = await command(send, token, projectId, {
+    const oldShape = await command(send, token, workPackageId, {
       kind: 'setAssignee',
       workItemId: childId,
       stepId: devId,
@@ -1203,9 +1549,12 @@ describe('work item routes', () => {
   });
 
   it('refuses parent and unknown-step node addresses for clears and assignment', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
-    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    const { token, send, workPackageId, devId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const childId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Child' });
     for (const [stepNodeId, status, error] of [
       [`sn1.${childId}.${crypto.randomUUID()}`, 404, 'unknown_step'],
       [`sn1.${parentId}.${devId}`, 409, 'rolled_up'],
@@ -1217,12 +1566,12 @@ describe('work item routes', () => {
         { kind: 'clearMeasure', metric: 'hours' },
         { kind: 'setAssignee', personId: null },
       ]) {
-        const refusal = await command(send, token, projectId, { ...fields, stepNodeId });
+        const refusal = await command(send, token, workPackageId, { ...fields, stepNodeId });
         expect(refusal.status).toBe(status);
         expect(await refusal.json()).toEqual({ error, at: 0, kind: fields.kind });
       }
     }
-    const legacy = await command(send, token, projectId, {
+    const legacy = await command(send, token, workPackageId, {
       kind: 'clearEstimate',
       workItemId: parentId,
       stepId: devId,
@@ -1231,8 +1580,8 @@ describe('work item routes', () => {
   });
 
   it('checks membership of a batch ref before an ignored literal work-item ID', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const reply = await send(`/api/projects/${projectId}/commands`, token, {
+    const { token, send, workPackageId, devId } = await setup();
+    const reply = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -1251,8 +1600,8 @@ describe('work item routes', () => {
   });
 
   it('applies a command batch, answering the id each ref became and the undo state', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const res = await send(`/api/projects/${projectId}/commands`, token, {
+    const { token, send, workPackageId, devId } = await setup();
+    const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -1283,7 +1632,7 @@ describe('work item routes', () => {
     expect(body.undoable).toBe(true);
     expect(body.redoable).toBe(false);
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const rows = (await tree.json()) as { workItems: { number: string; name: string }[] };
     expect(rows.workItems.map((w) => [w.number, w.name])).toEqual([
       ['010', 'Strip'],
@@ -1292,8 +1641,8 @@ describe('work item routes', () => {
   });
 
   it('has no payload field named roleId', async () => {
-    const { token, send, projectId, devId } = await setup();
-    await send(`/api/projects/${projectId}/commands`, token, {
+    const { token, send, workPackageId, devId } = await setup();
+    await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -1308,14 +1657,14 @@ describe('work item routes', () => {
       }),
     });
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const plan: unknown = await tree.json();
 
     /*
       Every key at every depth, because the wire is the contract and a single
       surviving `roleId` on one nested shape is the whole of what design D3
       refused to ship a compatibility layer for. The **values** are ids the
-      project generated, so only the names are read.
+      work package generated, so only the names are read.
 
       Proof: `scheduledSlices` in `work-item.service.ts` given the old spelling
       back — `.map(([id, placed]) => ({ id, roleId: placed.stepId, ...placed }))`.
@@ -1340,7 +1689,7 @@ describe('work item routes', () => {
         const here = at === '' ? key : `${at}.${key}`;
         if (/^(role|roles|roleId|roleIds)$/.test(key)) stale.push(here);
         // The estimate and actual records are keyed by a step's **id**, so
-        // their keys are the project's uuids and not names to be read. Their
+        // their keys are the work package's uuids and not names to be read. Their
         // values still are.
         walk(value, here);
       }
@@ -1354,8 +1703,9 @@ describe('work item routes', () => {
   });
 
   it('refuses a batch at the failing command, naming its index and kind, with nothing applied', async () => {
-    const { token, send, projectId, writes } = await setup();
-    const res = await send(`/api/projects/${projectId}/commands`, token, {
+    const { token, send, workPackageId, writes } = await setup();
+    const initialOwners = writes.uow.calls.length;
+    const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -1375,10 +1725,10 @@ describe('work item routes', () => {
     // what this layer can prove is that the route opened one unit of work and
     // refused it. That the rollback takes the create with it is
     // `plan-commands.test.ts`'s and the kit's, on real SQLite.
-    expect(writes.uow.calls).toEqual(['begin', 'rollback']);
+    expect(writes.uow.calls.slice(initialOwners)).toEqual(['begin', 'rollback']);
   });
 
-  it('applies a directory batch at its own route, no project in the path', async () => {
+  it('applies a directory batch at its own route, no work package in the path', async () => {
     const { token, send } = await setup();
     const res = await send('/api/directory/commands', token, {
       method: 'POST',
@@ -1405,9 +1755,9 @@ describe('work item routes', () => {
     // Proof: the per-kind dispatch replaced by the bare `kind` check, every
     // case below answered 200 or a service refusal instead. Watched,
     // 2026-08-29.
-    const { token, send, projectId, devId } = await setup();
+    const { token, send, workPackageId, devId } = await setup();
     const refused = async (step: Record<string, unknown>, error: string) => {
-      const res = await command(send, token, projectId, step);
+      const res = await command(send, token, workPackageId, step);
       expect(res.status, error).toBe(400);
       expect(await res.json(), error).toEqual({ error, at: 0, kind: step['kind'] });
     };
@@ -1439,12 +1789,12 @@ describe('work item routes', () => {
   it('refuses a batch that is not a list of known commands before applying any', async () => {
     // Proof: the cap dropped from the runner, the 201 case answered 200.
     // Watched, 2026-08-29.
-    const { token, send, projectId } = await setup();
-    const shape = await command(send, token, projectId, { kind: 'renameEverything' });
+    const { token, send, workPackageId } = await setup();
+    const shape = await command(send, token, workPackageId, { kind: 'renameEverything' });
     expect(shape.status).toBe(400);
     expect(await shape.json()).toEqual({ error: 'unknown_kind', at: 0 });
 
-    const derived = await command(send, token, projectId, {
+    const derived = await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       name: 'X',
       number: '010',
@@ -1456,7 +1806,7 @@ describe('work item routes', () => {
       kind: 'createWorkItem',
     });
 
-    const many = await send(`/api/projects/${projectId}/commands`, token, {
+    const many = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: Array.from({ length: 201 }, (_, n) => ({
@@ -1471,14 +1821,14 @@ describe('work item routes', () => {
       at: 200,
       kind: 'createWorkItem',
     });
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(((await tree.json()) as { workItems: unknown[] }).workItems).toEqual([]);
   });
 
   it('creates a work item and reads it back numbered', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const created = await command(send, token, projectId, {
+    const created = await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
@@ -1486,7 +1836,7 @@ describe('work item routes', () => {
     });
     expect(created.status).toBe(200);
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { number: string; name: string }[] };
     expect(body.workItems.map((w) => [w.number, w.name])).toEqual([['010', 'Strip']]);
   });
@@ -1496,9 +1846,9 @@ describe('work item routes', () => {
     // the tree because that is the read that happens after every change which
     // could move it — and it has to leave be-01 to be of any use, which is what
     // this asserts and the service tests cannot.
-    const { token, send, projectId, devId } = await setup();
-    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const second = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+    const { token, send, workPackageId, devId } = await setup();
+    const first = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const second = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
     // Through the directory route, because the assignment write reads the
     // person inside its own transaction and refuses an id the directory does
     // not hold.
@@ -1507,7 +1857,7 @@ describe('work item routes', () => {
       [first, 3],
       [second, 2],
     ] as const) {
-      const res = await send(`/api/projects/${projectId}/commands`, token, {
+      const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
         method: 'POST',
         body: JSON.stringify({
           commands: [
@@ -1524,7 +1874,7 @@ describe('work item routes', () => {
       expect(res.status).toBe(200);
     }
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       waitingForPerson: number;
       workItems: { name: string; schedule: { earliestStart: number } }[];
@@ -1550,8 +1900,8 @@ describe('work item routes', () => {
     // whichever slice the payload happened to list first.
     const sandsDev = held.find((one) => one.workItemId === second);
     expect(sandsDev?.resourcePredecessorId).toBe(
-      body.slices.find((one) => one.workItemId === first && one.boundBy === 'projectStart')?.id ??
-        null,
+      body.slices.find((one) => one.workItemId === first && one.boundBy === 'workPackageStart')
+        ?.id ?? null,
     );
     // In tree order, which is the reverse of the order they were added: each
     // was created with no `afterId` and therefore in front of the other.
@@ -1564,28 +1914,28 @@ describe('work item routes', () => {
   it('reports the sequence the tree was read at', async () => {
     // The client subscribes after this read, so without a sequence it has no
     // baseline to resume from and an edit landing between the two is lost.
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const fresh = await send(`/api/projects/${projectId}/work-items`, token);
+    const fresh = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(((await fresh.json()) as { seq: number }).seq).toBe(-1);
 
     // Two batches, not one batch of two: a batch is one broadcast, and the
     // sequence counts broadcasts.
-    await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+    await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
 
-    const after = await send(`/api/projects/${projectId}/work-items`, token);
+    const after = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(((await after.json()) as { seq: number }).seq).toBe(1);
   });
 
   it('refuses an earliest start that is not a calendar day', async () => {
     // The column is text, so a stored non-day would throw on every later read
-    // of the project. A 400 on one request is the cheap end of that.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    // of the work package. A 400 on one request is the cheap end of that.
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const bad of ['next tuesday', '2026-02-31', '06/08/2026', 7]) {
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'patchWorkItem',
         workItemId: id,
         patch: { startNoEarlierThan: bad },
@@ -1595,36 +1945,36 @@ describe('work item routes', () => {
   });
 
   it('takes an earliest start and gives it back, and clears it', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const set = await command(send, token, projectId, {
+    const set = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { startNoEarlierThan: '2026-08-12' },
     });
     expect(set.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({
       startNoEarlierThan: '2026-08-12',
     });
 
-    const cleared = await command(send, token, projectId, {
+    const cleared = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { startNoEarlierThan: null },
     });
     expect(cleared.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ startNoEarlierThan: null });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ startNoEarlierThan: null });
   });
 
   it('takes the words beside the date, and gives them back', async () => {
     // The sentence this whole change exists to make sayable: *"blocked until the
     // 12th, waiting on client sign-off"*, as one date and one reason and no new
     // state anywhere.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const set = await command(send, token, projectId, {
+    const set = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: {
@@ -1634,31 +1984,31 @@ describe('work item routes', () => {
     });
 
     expect(set.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({
       startNoEarlierThan: '2026-09-12',
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
   });
 
-  it("refuses a deadline before the project's first working day, naming the row and day zero", async () => {
+  it("refuses a deadline before the work package's first working day, naming the row and day zero", async () => {
     // 6.1's only deadline-specific rejection, through the route, because the
     // status is half the answer: **422 and not 400**, over the batch route's own
     // 400 default. The body parses, the row exists and the date is a real
-    // `IsoDate` — what is wrong is the value against this project, and a 400
+    // `IsoDate` — what is wrong is the value against this work package, and a 400
     // would send a client back to check its syntax.
     //
-    // Day zero is the **first workday on or after** the project start, not the
+    // Day zero is the **first workday on or after** the work package start, not the
     // start itself: 2026-03-01 is a Sunday, so a deadline on the Friday before
     // is refused against 2026-03-02.
-    const { token, send, projectId } = await setup();
-    const started = await send(`/api/projects/${projectId}`, token, {
+    const { token, send, workPackageId } = await setup();
+    const started = await send(`/api/work-packages/${workPackageId}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ startDate: '2026-03-01' }),
     });
     expect(started.status).toBe(200);
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const early = await command(send, token, projectId, {
+    const early = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: '2026-02-27' },
@@ -1666,57 +2016,57 @@ describe('work item routes', () => {
 
     expect(early.status).toBe(422);
     expect(await early.json()).toEqual({
-      error: 'deadline_before_project_start',
+      error: 'deadline_before_work_package_start',
       workItemId: id,
-      projectDayZero: '2026-03-02',
+      workPackageDayZero: '2026-03-02',
       at: 0,
       kind: 'patchWorkItem',
     });
-    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: null });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ deadline: null });
 
     // And day zero itself is taken, so the refusal is a boundary rather than a
     // ban: a check written with `<=` would refuse this too.
-    const onDayZero = await command(send, token, projectId, {
+    const onDayZero = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: '2026-03-02' },
     });
 
     expect(onDayZero.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: '2026-03-02' });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ deadline: '2026-03-02' });
 
     // **The date that separates the real rule from the one fe-01's JSDoc used to
     // describe, and the reason it is here rather than in a case of its own:**
     // neither assertion above can fail under the wrong rule. 2026-02-27 is
-    // earlier than the stored start date, so "before the project's start"
+    // earlier than the stored start date, so "before the work package's start"
     // refuses it too; 2026-03-02 is later, so that reading accepts it too. The
     // whole case was green under a sentence that named the *stored start date*
     // as the boundary.
     //
-    // The project's own start date is the one day the two readings answer
+    // The work package's own start date is the one day the two readings answer
     // differently. 2026-03-01 is not *earlier than* 2026-03-01, so the stored
     // start reading accepts it — while `previousWorkday('2026-03-01')` is Friday
     // 2026-02-27, before day zero Monday 2026-03-02, so the server refuses it.
     // Both ends roll, which is what `deadlineOffsetOf` says and what
-    // `projectDayZero` puts on the wire.
-    const onProjectStart = await command(send, token, projectId, {
+    // `workPackageDayZero` puts on the wire.
+    const onWorkPackageStart = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: '2026-03-01' },
     });
 
-    expect(onProjectStart.status).toBe(422);
-    expect(await onProjectStart.json()).toEqual({
-      error: 'deadline_before_project_start',
+    expect(onWorkPackageStart.status).toBe(422);
+    expect(await onWorkPackageStart.json()).toEqual({
+      error: 'deadline_before_work_package_start',
       workItemId: id,
-      projectDayZero: '2026-03-02',
+      workPackageDayZero: '2026-03-02',
       at: 0,
       kind: 'patchWorkItem',
     });
     // The refusal left the day zero deadline set two assertions ago alone: a
     // refused write changes nothing, which is the other half of "the value is
-    // wrong for this project" and not merely a status code.
-    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: '2026-03-02' });
+    // wrong for this work package" and not merely a status code.
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ deadline: '2026-03-02' });
   });
 
   it('refuses a deadline that is not a date, the way every other malformed field is refused', async () => {
@@ -1726,10 +2076,10 @@ describe('work item routes', () => {
     // batch route's own default is 400. Asserted rather than assumed, because
     // "the existing path" is the requirement and its status is whatever the
     // existing path already says. See `tasks.md` 6.1, corrected against this.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const malformed = await command(send, token, projectId, {
+    const malformed = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: 'the end of March' },
@@ -1741,39 +2091,41 @@ describe('work item routes', () => {
       at: 0,
       kind: 'patchWorkItem',
     });
-    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: null });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ deadline: null });
   });
 
-  it('lets a caller who may edit a work item set its deadline, and nobody else', async () => {
-    // 6.2: the authority is the existing work-item write authority and no new
-    // one is introduced. Both directions in one case, because only the pair
-    // proves it — the owner's 200 alone would pass against a route that checked
-    // nothing at all.
+  it('denies restricted legacy deadlines to creator and stranger', async () => {
+    // This legacy fixture uses LEGACY_EDIT_ADMISSION: creator metadata grants
+    // no restricted write authority. Both accounts must leave the deadline unset.
     const { register, send } = buildHarness();
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const created = await send('/api/projects', owner, {
+    const created = await send('/api/work-packages', owner, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Restricted' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Restricted' }),
     });
-    const { project } = (await created.json()) as { project: { id: string } };
-    const id = await addWorkItem(send, owner, project.id, { parentId: null, name: 'Strip' });
-    await send(`/api/projects/${project.id}`, owner, {
+    const { workPackage } = (await created.json()) as { workPackage: { id: string } };
+    const id = await addWorkItem(send, owner, workPackage.id, { parentId: null, name: 'Strip' });
+    await send(`/api/work-packages/${workPackage.id}`, owner, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
 
-    const mine = await command(send, owner, project.id, {
+    const mine = await command(send, owner, workPackage.id, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: '2026-03-31' },
     });
-    expect(mine.status).toBe(200);
+    expect(mine.status).toBe(403);
+    expect(await mine.json()).toEqual({
+      error: 'forbidden',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await firstRow(send, owner, workPackage.id)).toMatchObject({ deadline: null });
 
-    // The same request from an account the project is restricted against, which
-    // is the `forbidden` every other work-item write already answers. A deadline
-    // reaching the column here would be a new authority nobody granted.
-    const theirs = await command(send, stranger, project.id, {
+    // The stranger receives the same batch refusal and cannot set the deadline.
+    const theirs = await command(send, stranger, workPackage.id, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { deadline: '2026-04-30' },
@@ -1784,30 +2136,30 @@ describe('work item routes', () => {
       at: 0,
       kind: 'patchWorkItem',
     });
-    expect(await firstRow(send, owner, project.id)).toMatchObject({ deadline: '2026-03-31' });
+    expect(await firstRow(send, owner, workPackage.id)).toMatchObject({ deadline: null });
 
     // The half that bites, and the one an owner-only gate would fail: on an
-    // **unrestricted** project the existing authorization lets any signed-in
+    // **unrestricted** work package the existing authorization lets any signed-in
     // account edit a work item, so it must let that account set a deadline. The
     // 403 above alone would pass under a new owner-only rule; this will not.
-    const open = await send('/api/projects', owner, {
+    const open = await send('/api/work-packages', owner, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Open' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Open' }),
     });
-    const { project: openProject } = (await open.json()) as { project: { id: string } };
-    const openId = await addWorkItem(send, owner, openProject.id, {
+    const { workPackage: openWorkPackage } = (await open.json()) as { workPackage: { id: string } };
+    const openId = await addWorkItem(send, owner, openWorkPackage.id, {
       parentId: null,
       name: 'Strip',
     });
 
-    const byStranger = await command(send, stranger, openProject.id, {
+    const byStranger = await command(send, stranger, openWorkPackage.id, {
       kind: 'patchWorkItem',
       workItemId: openId,
       patch: { deadline: '2026-04-30' },
     });
 
     expect(byStranger.status).toBe(200);
-    expect(await firstRow(send, stranger, openProject.id)).toMatchObject({
+    expect(await firstRow(send, stranger, openWorkPackage.id)).toMatchObject({
       deadline: '2026-04-30',
     });
   });
@@ -1817,10 +2169,10 @@ describe('work item routes', () => {
     // the answer: 400 and not 409 — there is no state of the plan in which words
     // about a floor that is not there mean anything, so the request is malformed
     // rather than out of date.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     const orphan = await patch({ startNoEarlierThanReason: 'waiting on client sign-off' });
     expect(orphan.status).toBe(400);
@@ -1847,7 +2199,7 @@ describe('work item routes', () => {
 
     const cleared = await patch({ startNoEarlierThan: null, startNoEarlierThanReason: null });
     expect(cleared.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
     });
@@ -1857,10 +2209,10 @@ describe('work item routes', () => {
     // The boundary checks, which are the only ones there are: the column is
     // `text` and SQLite counts no characters, so a paragraph pasted here would
     // be stored whole and cover the chart it was meant to explain.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     await patch({ startNoEarlierThan: '2026-09-12' });
 
     for (const bad of [7, true, { text: 'waiting' }, ['waiting']]) {
@@ -1889,22 +2241,22 @@ describe('work item routes', () => {
     // The blank arrives on a row that has a date, so what is being tested is the
     // normalisation and not the pair rule: `''` becoming `null` is legal here
     // either way.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     await patch({ startNoEarlierThan: '2026-09-12' });
 
     const trimmed = await patch({ startNoEarlierThanReason: '  waiting on client sign-off  ' });
     expect(trimmed.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
 
     for (const blank of ['', '   ', '\n\t']) {
       const res = await patch({ startNoEarlierThanReason: blank });
       expect([res.status, JSON.stringify(blank)]).toEqual([200, JSON.stringify(blank)]);
-      expect(await firstRow(send, token, projectId)).toMatchObject({
+      expect(await firstRow(send, token, workPackageId)).toMatchObject({
         startNoEarlierThanReason: null,
       });
     }
@@ -1916,10 +2268,10 @@ describe('work item routes', () => {
     // nothing else in the system would ever question. Refused here, where the
     // request is still one request, rather than found later in a queue order
     // nobody can explain.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     await patch({ priority: 3 });
 
     // No `NaN` and no infinity here: JSON has no literal for either, and
@@ -1936,7 +2288,7 @@ describe('work item routes', () => {
 
     // Nothing was written by any of them: the work item still holds the priority it
     // had before the refusals.
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { priority: number | null }[] };
     expect(workItems[0]?.priority).toBe(3);
   });
@@ -1946,14 +2298,14 @@ describe('work item routes', () => {
     // whole of what the wire has to promise — the name is the reader's own words
     // and nothing derives, fetches or normalises it — plus the one thing the
     // shape cannot say, which is how long it may be.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     const refs = async (): Promise<
       { id: string; systemId: string; url: string; name: string }[]
     > => {
-      const row = await firstRow(send, token, projectId);
+      const row = await firstRow(send, token, workPackageId);
       return row['externalRefs'] as {
         id: string;
         systemId: string;
@@ -2076,22 +2428,22 @@ describe('work item routes', () => {
     // Dropping the parser arm makes the first write return 200 while the tree
     // remains empty. Dropping the cap makes the eleven-id request return 404
     // for an unknown member instead of refusing the malformed payload here.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const alpha = await addToDirectory(send, token, 'createTeam', 'Alpha');
     const beta = await addToDirectory(send, token, 'createTeam', 'Beta');
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     const set = await patch({ teamIds: [beta, alpha, beta] });
     expect(set.status).toBe(200);
-    let tree = await send(`/api/projects/${projectId}/work-items`, token);
+    let tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     let body = (await tree.json()) as { workItems: { teamIds: string[] }[] };
     expect(body.workItems[0]?.teamIds).toEqual([alpha, beta].sort());
 
     const cleared = await patch({ teamIds: [] });
     expect(cleared.status).toBe(200);
-    tree = await send(`/api/projects/${projectId}/work-items`, token);
+    tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     body = (await tree.json()) as { workItems: { teamIds: string[] }[] };
     expect(body.workItems[0]?.teamIds).toEqual([]);
 
@@ -2117,12 +2469,12 @@ describe('work item routes', () => {
   it('refuses mixed team arms before either can change the row', async () => {
     // Removing only the mutual-exclusion guard changes this exact 400 to a
     // 200 and lets request order decide which spelling wins.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const alpha = await addToDirectory(send, token, 'createTeam', 'Alpha');
     const beta = await addToDirectory(send, token, 'createTeam', 'Beta');
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     await patch({ serviceTeamId: alpha });
 
     const mixed = await patch({ teamIds: [beta], serviceTeamId: beta });
@@ -2132,22 +2484,22 @@ describe('work item routes', () => {
       at: 0,
       kind: 'patchWorkItem',
     });
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { teamIds: string[] }[] };
     expect(workItems[0]?.teamIds).toEqual([alpha]);
   });
 
   it('answers 404 for an unknown teamIds member and leaves the set alone', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const res = await command(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const res = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { teamIds: [crypto.randomUUID()] },
     });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'unknown_team', at: 0, kind: 'patchWorkItem' });
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { teamIds: string[] }[] };
     expect(workItems[0]?.teamIds).toEqual([]);
   });
@@ -2156,10 +2508,10 @@ describe('work item routes', () => {
     // The parse guard: a non-string is **400** — the body is malformed and no
     // plan anywhere would take it. The other half, an id the directory no longer
     // holds, is 404 and has its own test below.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     // A bare id is among them since task 10.2 and is the addition worth naming:
     // the field takes a **list**, so the string that used to be the only legal
@@ -2180,7 +2532,7 @@ describe('work item routes', () => {
     // Nothing was written by any of them, and the field is on the wire at all —
     // an assertion of `toBeNull` alone would pass just as well against a route
     // that has never heard of it.
-    const still = await send(`/api/projects/${projectId}/work-items`, token);
+    const still = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await still.json()) as { workItems: { serviceIds: string[] }[] };
     expect(workItems[0]).toHaveProperty('serviceIds', []);
 
@@ -2201,7 +2553,7 @@ describe('work item routes', () => {
     // the outgoing release's column, which this release no longer writes (task
     // 10.2). The tree is where the set lives, so the tree is what proves the
     // write.
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems: written } = (await tree.json()) as { workItems: { serviceIds: string[] }[] };
     expect(written[0]).toHaveProperty('serviceIds', [serviceId]);
   });
@@ -2214,10 +2566,10 @@ describe('work item routes', () => {
     // every patch naming a service came back 200. The refusal itself was already
     // proved over real SQLite in `undo.test.ts`; what was missing was the
     // **status** a client branches on, and this is it.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { serviceIds: [crypto.randomUUID()] },
@@ -2229,7 +2581,7 @@ describe('work item routes', () => {
     // 404 and **nothing written**: a refusal that had already emptied and
     // rewritten the join would leave the row delivering a service the directory
     // cannot name.
-    const still = await send(`/api/projects/${projectId}/work-items`, token);
+    const still = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await still.json()) as { workItems: { serviceIds: string[] }[] };
     expect(workItems[0]).toHaveProperty('serviceIds', []);
   });
@@ -2244,10 +2596,10 @@ describe('work item routes', () => {
     // Dany's reason, 2026-08-20 23:18: the point is to "flag where teams build
     // something they do not own". A plan that refuses to record it cannot flag
     // it, and a tool that refuses what happened is a tool people work around.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     const teamId = await addToDirectory(send, token, 'createTeam', 'Platform');
     const owns = await addToDirectory(send, token, 'createService', 'Auth');
@@ -2265,7 +2617,7 @@ describe('work item routes', () => {
      * of the rule written here.
      */
     const mismatchOf = async (workItemId: string): Promise<boolean> => {
-      const tree = await send(`/api/projects/${projectId}/work-items`, token);
+      const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
       const { workItems } = (await tree.json()) as {
         workItems: { id: string; teamIds: string[]; serviceIds: string[] }[];
       };
@@ -2300,7 +2652,7 @@ describe('work item routes', () => {
     // And the mismatch is real in what came back, not merely unrefused: the row
     // reads back carrying the service its team does not own, and the rule says
     // so over the stored pair.
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as {
       workItems: { id: string; teamIds: string[]; serviceIds: string[] }[];
     };
@@ -2314,7 +2666,7 @@ describe('work item routes', () => {
 
   // C2's landmine test — `puts a capacity floor on the wire, which nothing this
   // change ships can draw` — lived here, and its landmine is spent: C3 (#57)
-  // taught `floorWordsOf` the word, and `capacity-per-project` retired the
+  // taught `floorWordsOf` the word, and `capacity-per-work-package` retired the
   // `PATCH /api/teams/:id/size` it reached the floor through. Its successor is
   // `capacity-body.test.ts`'s `puts a capacity floor on the wire, which
   // fe-01 has been able to draw since C3`, over the route that replaced it.
@@ -2324,10 +2676,10 @@ describe('work item routes', () => {
     // `effort / width` and `width` is clamped from this number, so a stored 0
     // is a plan of `Infinity` dates with nothing on screen to say why — and
     // this validation is the whole of what stands between the two.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     await patch({ maxParallel: 3 });
 
     for (const bad of [0, -1, 1.5, '3', true, 1e20]) {
@@ -2344,13 +2696,13 @@ describe('work item routes', () => {
     // **This case cannot see the ceiling** — that is what `1001` below is for,
     // and writing only this one is how a range check that cannot fail has
     // shipped here before.
-    const infinite = await send(`/api/projects/${projectId}/commands`, token, {
+    const infinite = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: `{"commands":[{"kind":"patchWorkItem","workItemId":"${id}","patch":{"maxParallel":1e999}}]}`,
     });
     expect(infinite.status).toBe(400);
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { maxParallel: number }[] };
     expect(workItems[0]?.maxParallel).toBe(3);
   });
@@ -2360,10 +2712,10 @@ describe('work item routes', () => {
     // apart from the integer guard above because neither probe can see the
     // other's line: `1e999` is refused by `Number.isSafeInteger` whether or not
     // a ceiling exists, and `1001` passes the integer guard cleanly.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     const refused = await patch({ maxParallel: 1001 });
     expect(refused.status).toBe(400);
@@ -2378,20 +2730,20 @@ describe('work item routes', () => {
   });
 
   it('takes a parallelism and gives it back, resets it, and leaves it alone', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     const set = await patch({ maxParallel: 4 });
     expect(set.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ maxParallel: 4 });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ maxParallel: 4 });
 
     // A patch that names something else leaves it standing: absent is not the
     // same request as null.
     const renamed = await patch({ name: 'Strip out' });
     expect(renamed.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({
       name: 'Strip out',
       maxParallel: 4,
     });
@@ -2399,18 +2751,18 @@ describe('work item routes', () => {
     // `null` **resets** where a priority's clears: 1 and unset are one fact.
     const reset = await patch({ maxParallel: null });
     expect(reset.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ maxParallel: 1 });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ maxParallel: 1 });
   });
 
   it('refuses a parallelism on a row that has children', async () => {
     // A row with children has no slices of its own — `slicesOf` skips it — so a
     // number stored there decides nothing and would sit on screen looking as
     // though it did.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await addWorkItem(send, token, projectId, { parentId: id, name: 'Sand' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await addWorkItem(send, token, workPackageId, { parentId: id, name: 'Sand' });
 
-    const refused = await command(send, token, projectId, {
+    const refused = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { maxParallel: 3 },
@@ -2424,7 +2776,7 @@ describe('work item routes', () => {
     expect(await refused.json()).toEqual({ error: 'has_children', at: 0, kind: 'patchWorkItem' });
     // And nothing was written: a refusal that answered 400 having stored the
     // number anyway would be the worse half of the same bug.
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as {
       workItems: { id: string; maxParallel: number }[];
     };
@@ -2436,17 +2788,17 @@ describe('work item routes', () => {
     // the write was legal when it was made, and rewriting somebody's number
     // because a row moved beneath it would be this tool editing a field nobody
     // asked it to. The number stops deciding anything and C3's cell says so.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await command(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { maxParallel: 3 },
     });
 
-    await addWorkItem(send, token, projectId, { parentId: id, name: 'Sand' });
+    await addWorkItem(send, token, workPackageId, { parentId: id, name: 'Sand' });
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as {
       workItems: { id: string; maxParallel: number }[];
     };
@@ -2454,31 +2806,31 @@ describe('work item routes', () => {
   });
 
   it('takes a priority and gives it back, and clears it', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     const set = await patch({ priority: 42 });
     expect(set.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ priority: 42 });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ priority: 42 });
 
     // No ceiling: `1 to infinity` was the ask, and a number a planner picks is
     // not the system's to bound.
     const big = await patch({ priority: 1_000_000 });
     expect(big.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ priority: 1_000_000 });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ priority: 1_000_000 });
 
     const cleared = await patch({ priority: null });
     expect(cleared.status).toBe(200);
-    expect(await firstRow(send, token, projectId)).toMatchObject({ priority: null });
+    expect(await firstRow(send, token, workPackageId)).toMatchObject({ priority: null });
   });
 
   it('refuses a client that tries to choose the number', async () => {
     // Numbers are the system's to decide. Accepting one silently would let a
     // client write a label that the next derivation overwrites without warning.
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       parentId: null,
       afterId: null,
@@ -2487,16 +2839,19 @@ describe('work item routes', () => {
     });
 
     expect(res.status).toBe(400);
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(((await tree.json()) as { workItems: unknown[] }).workItems).toEqual([]);
   });
 
   it('refuses deleting a parent without a strategy', async () => {
-    const { token, send, projectId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await addWorkItem(send, token, projectId, { parentId, name: 'Sockets' });
+    const { token, send, workPackageId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Strip',
+    });
+    await addWorkItem(send, token, workPackageId, { parentId, name: 'Sockets' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'deleteWorkItem',
       workItemId: parentId,
     });
@@ -2507,22 +2862,22 @@ describe('work item routes', () => {
       at: 0,
       kind: 'deleteWorkItem',
     });
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(((await tree.json()) as { workItems: unknown[] }).workItems).toHaveLength(2);
   });
 
   it('renames through a patchWorkItem command', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: id,
       patch: { name: 'Strip the old wiring' },
     });
 
     expect(res.status).toBe(200);
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { name: string }[] };
     expect(body.workItems[0]?.name).toBe('Strip the old wiring');
   });
@@ -2531,10 +2886,10 @@ describe('work item routes', () => {
     // Called directly, so fe-01's copy of the schema is not in the path. This is
     // what proves the two tiers are independently guarded rather than be-01
     // trusting a client that shares its validation library.
-    const { token, send, projectId, devId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: id,
       stepId: devId,
@@ -2546,11 +2901,11 @@ describe('work item routes', () => {
   });
 
   it('refuses the first estimate beyond the solver horizon and keeps the plan readable', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const days = MAX_ESTIMATE_DAYS + 1;
 
-    const refused = await command(send, token, projectId, {
+    const refused = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: id,
       stepId: devId,
@@ -2559,7 +2914,7 @@ describe('work item routes', () => {
 
     expect(refused.status).toBe(422);
     expect(await refused.json()).toEqual({ error: 'invalid_estimate', at: 0, kind: 'setEstimate' });
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(tree.status).toBe(200);
     expect(
       ((await tree.json()) as { workItems: { estimates: Record<string, unknown> }[] }).workItems[0]
@@ -2568,22 +2923,25 @@ describe('work item routes', () => {
   });
 
   it('refuses a plan-level calendar overflow while preserving its legal control and recovery', async () => {
-    const { token, send, workItems, actorId, projectId, devId } = await setup();
-    const started = await send(`/api/projects/${projectId}`, token, {
+    const { token, send, workItems, actorId, workPackageId, devId } = await setup();
+    const started = await send(`/api/work-packages/${workPackageId}`, token, {
       method: 'PATCH',
       body: JSON.stringify({ startDate: '2026-01-05' }),
     });
     expect(started.status).toBe(200);
-    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
-    const second = await addWorkItem(send, token, projectId, { parentId: null, name: 'Second' });
-    const third = await addWorkItem(send, token, projectId, { parentId: null, name: 'Third' });
+    const first = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'First' });
+    const second = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Second',
+    });
+    const third = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Third' });
     for (const [workItemId, predecessorId] of [
       [second, first],
       [third, second],
     ]) {
       expect(
         (
-          await command(send, token, projectId, {
+          await command(send, token, workPackageId, {
             kind: 'addDependency',
             workItemId,
             predecessorId,
@@ -2594,7 +2952,7 @@ describe('work item routes', () => {
     const estimate = { optimistic: 30_000_000, realistic: 30_000_000, pessimistic: 30_000_000 };
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'setEstimate',
           workItemId: first,
           stepId: devId,
@@ -2604,7 +2962,7 @@ describe('work item routes', () => {
     ).toBe(200);
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'setEstimate',
           workItemId: second,
           stepId: devId,
@@ -2613,7 +2971,7 @@ describe('work item routes', () => {
       ).status,
     ).toBe(200);
 
-    const control = await send(`/api/projects/${projectId}/work-items`, token);
+    const control = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(control.status).toBe(200);
     const controlBody = (await control.json()) as {
       scheduleError: string | null;
@@ -2624,7 +2982,7 @@ describe('work item routes', () => {
 
     // Proof: removing the transaction's calendar-range preflight makes this
     // return 200 and leaves the following read in `calendar_range`.
-    const refused = await command(send, token, projectId, {
+    const refused = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: third,
       stepId: devId,
@@ -2635,33 +2993,36 @@ describe('work item routes', () => {
 
     // Seed the historical state through the service, which deliberately
     // bypasses the command transaction's new-plan guard. Its read is modeled,
-    // and clearing the estimate is the recovery path a stranded project needs.
+    // and clearing the estimate is the recovery path a stranded work package needs.
     expect((await workItems.setEstimate(third, actorId, devId, estimate)).ok).toBe(true);
-    const stranded = await send(`/api/projects/${projectId}/work-items`, token);
+    const stranded = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(stranded.status).toBe(200);
     expect(((await stranded.json()) as { scheduleError: string }).scheduleError).toBe(
       'calendar_range',
     );
     expect(
       (
-        await command(send, token, projectId, {
+        await command(send, token, workPackageId, {
           kind: 'clearEstimate',
           workItemId: third,
           stepId: devId,
         })
       ).status,
     ).toBe(200);
-    const recovered = await send(`/api/projects/${projectId}/work-items`, token);
+    const recovered = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     expect(recovered.status).toBe(200);
     expect(((await recovered.json()) as { scheduleError: string | null }).scheduleError).toBeNull();
   });
 
   it('accepts an ordered estimate and rolls it into the parent', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Strip',
+    });
+    const childId = await addWorkItem(send, token, workPackageId, { parentId, name: 'Sockets' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setEstimate',
       workItemId: childId,
       stepId: devId,
@@ -2669,7 +3030,7 @@ describe('work item routes', () => {
     });
 
     expect(res.status).toBe(200);
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { name: string; rolledUp: boolean; estimates: Record<string, unknown> }[];
     };
@@ -2683,8 +3044,8 @@ describe('work item routes', () => {
   });
 
   it('refuses an unauthenticated caller', async () => {
-    const { send, projectId } = await setup();
-    const res = await send(`/api/projects/${projectId}/work-items`, 'not-a-token');
+    const { send, workPackageId } = await setup();
+    const res = await send(`/api/work-packages/${workPackageId}/work-items`, 'not-a-token');
     expect(res.status).toBe(401);
   });
 });
@@ -2692,19 +3053,22 @@ describe('work item routes', () => {
 describe('clearing an estimate', () => {
   /** A leaf under a parent, with the parent's id, so a roll-up is observable. */
   async function parentAndTwoLeaves() {
-    const { token, send, projectId, devId, qaId } = await setup();
-    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId, name: 'Sockets' });
-    const boxes = await addWorkItem(send, token, projectId, { parentId, name: 'Back boxes' });
+    const { token, send, workPackageId, devId, qaId } = await setup();
+    const parentId = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Strip',
+    });
+    const sockets = await addWorkItem(send, token, workPackageId, { parentId, name: 'Sockets' });
+    const boxes = await addWorkItem(send, token, workPackageId, { parentId, name: 'Back boxes' });
     const estimate = (workItemId: string, stepId: string, days: Record<string, number>) =>
-      command(send, token, projectId, { kind: 'setEstimate', workItemId, stepId, days });
+      command(send, token, workPackageId, { kind: 'setEstimate', workItemId, stepId, days });
     const clear = (workItemId: string, stepId: string, as: string = token) =>
-      command(send, as, projectId, { kind: 'clearEstimate', workItemId, stepId });
-    return { token, send, projectId, parentId, sockets, boxes, devId, qaId, estimate, clear };
+      command(send, as, workPackageId, { kind: 'clearEstimate', workItemId, stepId });
+    return { token, send, workPackageId, parentId, sockets, boxes, devId, qaId, estimate, clear };
   }
 
-  const estimatesOf = async (send: Send, token: string, projectId: string, name: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const estimatesOf = async (send: Send, token: string, workPackageId: string, name: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { name: string; estimates: Record<string, unknown> }[];
     };
@@ -2715,19 +3079,21 @@ describe('clearing an estimate', () => {
     // The same guard every command carries. Without the assertion on the tree
     // afterwards this would pass against a route that answered 401 *after*
     // having already cleared the row.
-    const { token, send, projectId, sockets, devId, estimate, clear } = await parentAndTwoLeaves();
+    const { token, send, workPackageId, sockets, devId, estimate, clear } =
+      await parentAndTwoLeaves();
     await estimate(sockets, devId, { optimistic: 1, realistic: 2, pessimistic: 3 });
 
     const res = await clear(sockets, devId, 'not-a-token');
 
     expect(res.status).toBe(401);
-    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
+    expect(await estimatesOf(send, token, workPackageId, 'Sockets')).toEqual({
       [devId]: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
   });
 
   it('takes the trio out of the tree, and clearing it again is still a success', async () => {
-    const { token, send, projectId, sockets, devId, estimate, clear } = await parentAndTwoLeaves();
+    const { token, send, workPackageId, sockets, devId, estimate, clear } =
+      await parentAndTwoLeaves();
     await estimate(sockets, devId, { optimistic: 1, realistic: 2, pessimistic: 3 });
 
     const first = await clear(sockets, devId);
@@ -2736,11 +3102,11 @@ describe('clearing an estimate', () => {
     const again = await clear(sockets, devId);
 
     expect([first.status, again.status]).toEqual([200, 200]);
-    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({});
+    expect(await estimatesOf(send, token, workPackageId, 'Sockets')).toEqual({});
   });
 
   it('leaves the other step on the same work item alone', async () => {
-    const { token, send, projectId, sockets, devId, qaId, estimate, clear } =
+    const { token, send, workPackageId, sockets, devId, qaId, estimate, clear } =
       await parentAndTwoLeaves();
     for (const stepId of [devId, qaId]) {
       await estimate(sockets, stepId, { optimistic: 1, realistic: 2, pessimistic: 3 });
@@ -2748,7 +3114,7 @@ describe('clearing an estimate', () => {
 
     await clear(sockets, devId);
 
-    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
+    expect(await estimatesOf(send, token, workPackageId, 'Sockets')).toEqual({
       [qaId]: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
   });
@@ -2757,17 +3123,17 @@ describe('clearing an estimate', () => {
     // Nothing is stored on the parent — it is summed on read — so this is the
     // test that says the sum actually re-read. Two leaves, not one: a parent
     // whose only estimate vanished would also satisfy "the figure changed".
-    const { token, send, projectId, sockets, boxes, devId, estimate, clear } =
+    const { token, send, workPackageId, sockets, boxes, devId, estimate, clear } =
       await parentAndTwoLeaves();
     await estimate(sockets, devId, { optimistic: 1, realistic: 2, pessimistic: 3 });
     await estimate(boxes, devId, { optimistic: 10, realistic: 20, pessimistic: 30 });
-    expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
+    expect(await estimatesOf(send, token, workPackageId, 'Strip')).toEqual({
       [devId]: { optimistic: 11, realistic: 22, pessimistic: 33 },
     });
 
     await clear(sockets, devId);
 
-    expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
+    expect(await estimatesOf(send, token, workPackageId, 'Strip')).toEqual({
       [devId]: { optimistic: 10, realistic: 20, pessimistic: 30 },
     });
   });
@@ -2785,24 +3151,24 @@ describe('clearing an estimate', () => {
 });
 
 describe('duplicating a work item', () => {
-  const namesOf = async (send: Send, token: string, projectId: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const namesOf = async (send: Send, token: string, workPackageId: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     return ((await tree.json()) as { workItems: { id: string; name: string }[] }).workItems;
   };
 
   it('answers the id of the copy, and the next tree read holds it', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await addWorkItem(send, token, workPackageId, { parentId: strip, name: 'Sockets' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'duplicateWorkItem',
       workItemId: strip,
     });
 
     expect(res.status).toBe(200);
     const id = await mintedId(res);
-    const rows = await namesOf(send, token, projectId);
+    const rows = await namesOf(send, token, workPackageId);
     expect(rows.find((w) => w.id === id)?.name).toBe('Strip (copy)');
     expect(rows).toHaveLength(4);
   });
@@ -2810,24 +3176,24 @@ describe('duplicating a work item', () => {
   it('refuses an unauthenticated caller, and copies nothing', async () => {
     // The tree afterwards, not only the status: without it this would pass
     // against a route that answered 401 having already written the copy.
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, 'not-a-token', projectId, {
+    const res = await command(send, 'not-a-token', workPackageId, {
       kind: 'duplicateWorkItem',
       workItemId: strip,
     });
 
     expect(res.status).toBe(401);
-    expect(await namesOf(send, token, projectId)).toHaveLength(1);
+    expect(await namesOf(send, token, workPackageId)).toHaveLength(1);
   });
 
   it('answers this route’s own 404 for a work item that is not there', async () => {
     // The body, not the status alone: Elysia answers an unmatched route with a
     // 404 of its own, so a status-only assertion passes with the route deleted.
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'duplicateWorkItem',
       workItemId: crypto.randomUUID(),
     });
@@ -2836,65 +3202,65 @@ describe('duplicating a work item', () => {
     expect(await res.json()).toEqual({ error: 'not_found', at: 0, kind: 'duplicateWorkItem' });
   });
 
-  it('answers 403 to an account that may not edit a restricted project', async () => {
+  it('answers 403 to an account that may not edit a restricted work package', async () => {
     const { register, send } = buildHarness();
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const create = await send('/api/projects', owner, {
+    const create = await send('/api/work-packages', owner, {
       method: 'POST',
-      body: JSON.stringify({ name: 'Restricted' }),
+      body: JSON.stringify({ projectId: PROJECT_ID, name: 'Restricted' }),
     });
-    const { project } = (await create.json()) as { project: { id: string } };
-    const strip = await addWorkItem(send, owner, project.id, { parentId: null, name: 'Strip' });
-    await send(`/api/projects/${project.id}`, owner, {
+    const { workPackage } = (await create.json()) as { workPackage: { id: string } };
+    const strip = await addWorkItem(send, owner, workPackage.id, { parentId: null, name: 'Strip' });
+    await send(`/api/work-packages/${workPackage.id}`, owner, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
 
-    const res = await command(send, stranger, project.id, {
+    const res = await command(send, stranger, workPackage.id, {
       kind: 'duplicateWorkItem',
       workItemId: strip,
     });
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: 'forbidden', at: 0, kind: 'duplicateWorkItem' });
-    expect(await namesOf(send, owner, project.id)).toHaveLength(1);
+    expect(await namesOf(send, owner, workPackage.id)).toHaveLength(1);
   });
 });
 
 describe('dependency commands', () => {
-  const dependsOnOf = async (send: Send, token: string, projectId: string, id: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const dependsOnOf = async (send: Send, token: string, workPackageId: string, id: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { id: string; dependsOn: string[] }[] };
     return body.workItems.find((w) => w.id === id)?.dependsOn;
   };
 
   it('records a dependency and reports it with the tree', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: sand,
       predecessorId: strip,
     });
 
     expect(res.status).toBe(200);
-    expect(await dependsOnOf(send, token, projectId, sand)).toEqual([strip]);
+    expect(await dependsOnOf(send, token, workPackageId, sand)).toEqual([strip]);
   });
 
   it('answers 409 for a cycle and writes nothing', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
-    await command(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
+    await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: sand,
       predecessorId: strip,
     });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: strip,
       predecessorId: sand,
@@ -2902,15 +3268,18 @@ describe('dependency commands', () => {
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'addDependency' });
-    expect(await dependsOnOf(send, token, projectId, strip)).toEqual([]);
+    expect(await dependsOnOf(send, token, workPackageId, strip)).toEqual([]);
   });
 
   it('answers 409 for an edge onto an ancestor', async () => {
-    const { token, send, projectId } = await setup();
-    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Step' });
-    const childId = await addWorkItem(send, token, projectId, { parentId: parent, name: 'Task' });
+    const { token, send, workPackageId } = await setup();
+    const parent = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Step' });
+    const childId = await addWorkItem(send, token, workPackageId, {
+      parentId: parent,
+      name: 'Task',
+    });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: childId,
       predecessorId: parent,
@@ -2921,8 +3290,8 @@ describe('dependency commands', () => {
   });
 
   describe('a move that would break an existing dependency', () => {
-    const parentsOf = async (send: Send, token: string, projectId: string) => {
-      const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const parentsOf = async (send: Send, token: string, workPackageId: string) => {
+      const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
       const body = (await tree.json()) as { workItems: { id: string; parentId: string | null }[] };
       return body.workItems.map((w) => [w.id, w.parentId]);
     };
@@ -2930,17 +3299,20 @@ describe('dependency commands', () => {
     it('answers 409 ancestor for a move under its own predecessor and moves nothing', async () => {
       // Sent straight to the command route, as no drag would: the refusal has
       // to be be-01's, because a client that skips its own preview reaches here.
-      const { token, send, projectId } = await setup();
-      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
-      await command(send, token, projectId, {
+      const { token, send, workPackageId } = await setup();
+      const strip = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Strip',
+      });
+      const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
+      await command(send, token, workPackageId, {
         kind: 'addDependency',
         workItemId: sand,
         predecessorId: strip,
       });
-      const before = await parentsOf(send, token, projectId);
+      const before = await parentsOf(send, token, workPackageId);
 
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'moveWorkItem',
         workItemId: sand,
         parentId: strip,
@@ -2949,34 +3321,43 @@ describe('dependency commands', () => {
 
       expect(res.status).toBe(409);
       expect(await res.json()).toEqual({ error: 'ancestor', at: 0, kind: 'moveWorkItem' });
-      expect(await parentsOf(send, token, projectId)).toEqual(before);
+      expect(await parentsOf(send, token, workPackageId)).toEqual(before);
     });
 
     it('answers 409 cycle for a move whose expanded graph loops and moves nothing', async () => {
       // Rel waits for Sand, Sand for Strip, Strip for Paint. Under Rel, Paint
       // inherits Rel's wait for Sand, so Paint → Sand → Strip → Paint closes a
       // loop that no single edge closes on its own.
-      const { token, send, projectId } = await setup();
-      const release = await addWorkItem(send, token, projectId, { parentId: null, name: 'Rel' });
-      await addWorkItem(send, token, projectId, { parentId: release, name: 'Ship' });
-      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
-      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
+      const { token, send, workPackageId } = await setup();
+      const release = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Rel',
+      });
+      await addWorkItem(send, token, workPackageId, { parentId: release, name: 'Ship' });
+      const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
+      const strip = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Strip',
+      });
+      const paint = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Paint',
+      });
       for (const [workItemId, predecessorId] of [
         [release, sand],
         [sand, strip],
         [strip, paint],
       ]) {
-        const added = await command(send, token, projectId, {
+        const added = await command(send, token, workPackageId, {
           kind: 'addDependency',
           workItemId,
           predecessorId,
         });
         expect(added.status).toBe(200);
       }
-      const before = await parentsOf(send, token, projectId);
+      const before = await parentsOf(send, token, workPackageId);
 
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'moveWorkItem',
         workItemId: paint,
         parentId: release,
@@ -2985,21 +3366,27 @@ describe('dependency commands', () => {
 
       expect(res.status).toBe(409);
       expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'moveWorkItem' });
-      expect(await parentsOf(send, token, projectId)).toEqual(before);
+      expect(await parentsOf(send, token, workPackageId)).toEqual(before);
     });
 
     it('still moves a row whose dependencies stay valid', async () => {
-      const { token, send, projectId } = await setup();
-      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
-      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
-      await command(send, token, projectId, {
+      const { token, send, workPackageId } = await setup();
+      const strip = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Strip',
+      });
+      const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
+      const paint = await addWorkItem(send, token, workPackageId, {
+        parentId: null,
+        name: 'Paint',
+      });
+      await command(send, token, workPackageId, {
         kind: 'addDependency',
         workItemId: sand,
         predecessorId: strip,
       });
 
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'moveWorkItem',
         workItemId: sand,
         parentId: paint,
@@ -3013,10 +3400,10 @@ describe('dependency commands', () => {
   it('answers 400 when no predecessor is named', async () => {
     // Missing targets reach runner semantics; misspelled fields are now a
     // structural invalid_body refusal at the shared request boundary.
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: strip,
     });
@@ -3026,30 +3413,30 @@ describe('dependency commands', () => {
   });
 
   it('removes a dependency', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
-    await command(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sand = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Sand' });
+    await command(send, token, workPackageId, {
       kind: 'addDependency',
       workItemId: sand,
       predecessorId: strip,
     });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'removeDependency',
       workItemId: sand,
       predecessorId: strip,
     });
 
     expect(res.status).toBe(200);
-    expect(await dependsOnOf(send, token, projectId, sand)).toEqual([]);
+    expect(await dependsOnOf(send, token, workPackageId, sand)).toEqual([]);
   });
 
   it('reports a schedule with the tree', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { id: string; schedule: { earliestStart: number; estimated: boolean } }[];
     };
@@ -3062,8 +3449,8 @@ describe('dependency commands', () => {
 });
 
 describe('recording the days a step actually spent', () => {
-  const actualsOf = async (send: Send, token: string, projectId: string, name: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const actualsOf = async (send: Send, token: string, workPackageId: string, name: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { name: string; actuals: Record<string, number> }[];
     };
@@ -3071,11 +3458,14 @@ describe('recording the days a step actually spent', () => {
   };
 
   it('records the days and carries them on the tree, rolled into the parent', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sockets = await addWorkItem(send, token, workPackageId, {
+      parentId: strip,
+      name: 'Sockets',
+    });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setActual',
       workItemId: sockets,
       stepId: devId,
@@ -3084,21 +3474,21 @@ describe('recording the days a step actually spent', () => {
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    expect(await actualsOf(send, token, projectId, 'Sockets')).toEqual({ [devId]: 8 });
+    expect(await actualsOf(send, token, workPackageId, 'Sockets')).toEqual({ [devId]: 8 });
     // Summed on the parent, never stored there.
-    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 8 });
+    expect(await actualsOf(send, token, workPackageId, 'Strip')).toEqual({ [devId]: 8 });
   });
 
   it('refuses a body that is not a finite number of days, and one below zero', async () => {
     // `days: 0` is deliberately **not** here: recording zero is a person saying
     // the work took no days, and the command accepts it. Absence is
     // `clearActual`.
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const given of [{}, { days: '8' }, { days: -1 }, { days: null }]) {
       const label = JSON.stringify(given);
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'setActual',
         workItemId: strip,
         stepId: devId,
@@ -3108,22 +3498,25 @@ describe('recording the days a step actually spent', () => {
       expect(await res.json()).toEqual({ error: 'invalid_actual', at: 0, kind: 'setActual' });
     }
 
-    const zero = await command(send, token, projectId, {
+    const zero = await command(send, token, workPackageId, {
       kind: 'setActual',
       workItemId: strip,
       stepId: devId,
       days: 0,
     });
     expect(zero.status).toBe(200);
-    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 0 });
+    expect(await actualsOf(send, token, workPackageId, 'Strip')).toEqual({ [devId]: 0 });
   });
 
   it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sockets = await addWorkItem(send, token, workPackageId, {
+      parentId: strip,
+      name: 'Sockets',
+    });
 
-    const rolled = await command(send, token, projectId, {
+    const rolled = await command(send, token, workPackageId, {
       kind: 'setActual',
       workItemId: strip,
       stepId: devId,
@@ -3132,7 +3525,7 @@ describe('recording the days a step actually spent', () => {
     // On the **leaf**: the parent would answer `rolled_up` first, which is the
     // order `setEstimate` guards in, and a case that read 409 twice would say
     // nothing about the step check at all.
-    const unknown = await command(send, token, projectId, {
+    const unknown = await command(send, token, workPackageId, {
       kind: 'setActual',
       workItemId: sockets,
       stepId: crypto.randomUUID(),
@@ -3147,36 +3540,36 @@ describe('recording the days a step actually spent', () => {
   it('refuses an unauthenticated caller on both verbs, and leaves the figure alone', async () => {
     // Without the read afterwards this passes against a route that answers 401
     // *after* having already written or cleared the row.
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await command(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await command(send, token, workPackageId, {
       kind: 'setActual',
       workItemId: strip,
       stepId: devId,
       days: 8,
     });
 
-    const written = await command(send, 'not-a-token', projectId, {
+    const written = await command(send, 'not-a-token', workPackageId, {
       kind: 'setActual',
       workItemId: strip,
       stepId: devId,
       days: 99,
     });
-    const cleared = await command(send, 'not-a-token', projectId, {
+    const cleared = await command(send, 'not-a-token', workPackageId, {
       kind: 'clearActual',
       workItemId: strip,
       stepId: devId,
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
-    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 8 });
+    expect(await actualsOf(send, token, workPackageId, 'Strip')).toEqual({ [devId]: 8 });
   });
 
   it('clears back to absence, and clearing again is still a success', async () => {
-    const { token, send, projectId, devId, qaId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId, qaId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     for (const stepId of [devId, qaId]) {
-      await command(send, token, projectId, {
+      await command(send, token, workPackageId, {
         kind: 'setActual',
         workItemId: strip,
         stepId,
@@ -3184,12 +3577,12 @@ describe('recording the days a step actually spent', () => {
       });
     }
 
-    const first = await command(send, token, projectId, {
+    const first = await command(send, token, workPackageId, {
       kind: 'clearActual',
       workItemId: strip,
       stepId: devId,
     });
-    const again = await command(send, token, projectId, {
+    const again = await command(send, token, workPackageId, {
       kind: 'clearActual',
       workItemId: strip,
       stepId: devId,
@@ -3199,14 +3592,14 @@ describe('recording the days a step actually spent', () => {
     expect(((await first.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
     // The other step is untouched, and the cleared one is **absent** rather
     // than zero.
-    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [qaId]: 5 });
+    expect(await actualsOf(send, token, workPackageId, 'Strip')).toEqual({ [qaId]: 5 });
   });
 
   it('answers this route’s own 404 for a work item that is not there', async () => {
     // The body, not just the status: Elysia answers an unmatched route with a
     // 404 of its own, so a status-only assertion passes with the route deleted.
-    const { token, send, projectId, devId } = await setup();
-    const res = await command(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const res = await command(send, token, workPackageId, {
       kind: 'clearActual',
       workItemId: crypto.randomUUID(),
       stepId: devId,
@@ -3227,15 +3620,15 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     rows.map(({ workItemId, stepId, metric, value }) => ({ workItemId, stepId, metric, value }));
 
   it('records a figure in each unit against one pair, and clears one without touching the others', async () => {
-    const { token, send, measures, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, measures, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const [metric, value] of [
       ['token_estimate', 400_000],
       ['token_actual', 512_345],
       ['hours_actual', 6],
     ] as const) {
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'setMeasure',
         workItemId: strip,
         stepId: devId,
@@ -3249,13 +3642,13 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     // Three rows on one pair, each in its own unit — the whole point of the
     // metric on the command reaching the write, rather than one row overwritten
     // three times.
-    expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
-      { workItemId: strip, stepId: devId, metric: 'token_actual', value: 512_345 },
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: devId, metric: 'hours_actual', value: 6 },
+      { workItemId: strip, stepId: devId, metric: 'token_actual', value: 512_345 },
+      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
     ]);
 
-    const cleared = await command(send, token, projectId, {
+    const cleared = await command(send, token, workPackageId, {
       kind: 'clearMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3264,9 +3657,9 @@ describe('recording what a step’s work cost in tokens and hours', () => {
 
     expect(cleared.status).toBe(200);
     expect(((await cleared.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: devId, metric: 'hours_actual', value: 6 },
+      { workItemId: strip, stepId: devId, metric: 'token_estimate', value: 400_000 },
     ]);
   });
 
@@ -3274,12 +3667,12 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     // `value: 0` is deliberately not in the list: recording zero says the work
     // cost nothing in this unit, and the command accepts it. Absence is
     // `clearMeasure`.
-    const { token, send, measures, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, measures, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const given of [{}, { value: '400000' }, { value: -1 }, { value: null }, { tokens: 5 }]) {
       const label = JSON.stringify(given);
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'setMeasure',
         workItemId: strip,
         stepId: devId,
@@ -3289,9 +3682,9 @@ describe('recording what a step’s work cost in tokens and hours', () => {
       expect([label, res.status]).toEqual([label, 400]);
       expect(await res.json()).toEqual({ error: 'invalid_measure', at: 0, kind: 'setMeasure' });
     }
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
 
-    const zero = await command(send, token, projectId, {
+    const zero = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3299,7 +3692,7 @@ describe('recording what a step’s work cost in tokens and hours', () => {
       value: 0,
     });
     expect(zero.status).toBe(200);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: devId, metric: 'token_actual', value: 0 },
     ]);
   });
@@ -3310,17 +3703,17 @@ describe('recording what a step’s work cost in tokens and hours', () => {
   // answered 500 for `time` (the store threw on a key no organization
   // defines) instead of 409; watched 2026-10-23.
   it('answers 409 for a derived measure, the scheduling measure and a fraction of an integer one, storing nothing', async () => {
-    const { token, send, measures, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, measures, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const derived = await command(send, token, projectId, {
+    const derived = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
       metric: 'agent_minutes',
       value: 30,
     });
-    const fraction = await command(send, token, projectId, {
+    const fraction = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3328,7 +3721,7 @@ describe('recording what a step’s work cost in tokens and hours', () => {
       value: 1.5,
     });
 
-    const scheduling = await command(send, token, projectId, {
+    const scheduling = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3344,17 +3737,17 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
     expect(await derived.json()).toEqual({ error: 'derived_measure', at: 0, kind: 'setMeasure' });
     expect(await fraction.json()).toEqual({ error: 'scale_mismatch', at: 0, kind: 'setMeasure' });
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   // Proof: with the `scheduling_measure_estimate`/`three_point_forbidden`
   // arm removed from work-item.routes.ts, this case answered 500 for both;
   // watched 2026-10-23.
   it('answers 409 for a trio in time or hours and 400 for an unordered one, and reads a stored trio back with its expected measure', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const trio = (measure: string, estimate: Record<string, number>) =>
-      command(send, token, projectId, {
+      command(send, token, workPackageId, {
         kind: 'setMeasureEstimate',
         workItemId: strip,
         stepId: devId,
@@ -3384,7 +3777,9 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
 
     expect((await trio('tokens', TRIO)).status).toBe(200);
-    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const read = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       workItems: { id: string; measureEstimates?: unknown }[];
     };
     expect(read.workItems.find((row) => row.id === strip)?.measureEstimates).toEqual({
@@ -3396,9 +3791,12 @@ describe('recording what a step’s work cost in tokens and hours', () => {
   // removed from work-item-shapes.ts, this case answered 500 for both;
   // watched 2026-10-23.
   it('answers 409 for a budget in time and a rate card on tokens, 400 for a negative cap, and reads a budget back', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
-    const run = (body: Record<string, unknown>) => command(send, token, projectId, body);
+    const { token, send, workPackageId, devId } = await setup();
+    const parent = await addWorkItem(send, token, workPackageId, {
+      parentId: null,
+      name: 'Parent',
+    });
+    const run = (body: Record<string, unknown>) => command(send, token, workPackageId, body);
     const budget = (measure: string, cap: number) =>
       run({ kind: 'setBudget', workItemId: parent, measure, cap, policy: 'strict' });
 
@@ -3426,7 +3824,9 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     expect(await negative.json()).toEqual({ error: 'invalid_budget', at: 0, kind: 'setBudget' });
 
     expect((await budget('tokens', 1000)).status).toBe(200);
-    const read = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const read = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       workItems: { id: string; budgets?: unknown }[];
     };
     expect(read.workItems.find((row) => row.id === parent)?.budgets).toEqual({
@@ -3441,17 +3841,17 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     // `unknown_step`. The clear half matters on its own: a clear of a metric
     // that does not exist is not the idempotent clear of a row that is not
     // there.
-    const { token, send, measures, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, measures, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const written = await command(send, token, projectId, {
+    const written = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
       metric: 'tokens_estimate',
       value: 12_000,
     });
-    const cleared = await command(send, token, projectId, {
+    const cleared = await command(send, token, workPackageId, {
       kind: 'clearMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3461,15 +3861,18 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     expect([written.status, cleared.status]).toEqual([404, 404]);
     expect(await written.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'setMeasure' });
     expect(await cleared.json()).toEqual({ error: 'unknown_measure', at: 0, kind: 'clearMeasure' });
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sockets = await addWorkItem(send, token, workPackageId, {
+      parentId: strip,
+      name: 'Sockets',
+    });
 
-    const rolled = await command(send, token, projectId, {
+    const rolled = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3478,7 +3881,7 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
     // On the leaf, for the actuals' reason: the parent answers `rolled_up`
     // first, so a case that read 409 twice would say nothing about the step.
-    const unknown = await command(send, token, projectId, {
+    const unknown = await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: sockets,
       stepId: crypto.randomUUID(),
@@ -3494,9 +3897,9 @@ describe('recording what a step’s work cost in tokens and hours', () => {
   it('refuses an unauthenticated caller on both verbs, and leaves the figure alone', async () => {
     // Without the read afterwards this passes against a route that answers 401
     // *after* having written or cleared the row.
-    const { token, send, measures, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await command(send, token, projectId, {
+    const { token, send, measures, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await command(send, token, workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3504,14 +3907,14 @@ describe('recording what a step’s work cost in tokens and hours', () => {
       value: 512_345,
     });
 
-    const written = await command(send, 'not-a-token', projectId, {
+    const written = await command(send, 'not-a-token', workPackageId, {
       kind: 'setMeasure',
       workItemId: strip,
       stepId: devId,
       metric: 'token_actual',
       value: 1,
     });
-    const cleared = await command(send, 'not-a-token', projectId, {
+    const cleared = await command(send, 'not-a-token', workPackageId, {
       kind: 'clearMeasure',
       workItemId: strip,
       stepId: devId,
@@ -3519,7 +3922,7 @@ describe('recording what a step’s work cost in tokens and hours', () => {
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: devId, metric: 'token_actual', value: 512_345 },
     ]);
   });
@@ -3527,8 +3930,8 @@ describe('recording what a step’s work cost in tokens and hours', () => {
   it('answers this route’s own 404 for a work item that is not there', async () => {
     // The body, not just the status: Elysia answers an unmatched route with a
     // 404 of its own, so a status-only assertion passes with the route deleted.
-    const { token, send, projectId, devId } = await setup();
-    const res = await command(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const res = await command(send, token, workPackageId, {
       kind: 'clearMeasure',
       workItemId: crypto.randomUUID(),
       stepId: devId,
@@ -3541,8 +3944,8 @@ describe('recording what a step’s work cost in tokens and hours', () => {
 });
 
 describe('saying where a step’s work has got to', () => {
-  const rowOf = async (send: Send, token: string, projectId: string, name: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const rowOf = async (send: Send, token: string, workPackageId: string, name: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as {
       workItems: { name: string; progress: Record<string, string>; state: string }[];
     };
@@ -3550,11 +3953,14 @@ describe('saying where a step’s work has got to', () => {
   };
 
   it('states the step and carries it on the tree, folded into the parent', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sockets = await addWorkItem(send, token, workPackageId, {
+      parentId: strip,
+      name: 'Sockets',
+    });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setProgress',
       workItemId: sockets,
       stepId: devId,
@@ -3563,12 +3969,12 @@ describe('saying where a step’s work has got to', () => {
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    expect(await rowOf(send, token, projectId, 'Sockets')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Sockets')).toMatchObject({
       progress: { [devId]: 'done' },
       status: 'done',
     });
     // Folded on the parent, never stored there.
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: { [devId]: 'done' },
       status: 'done',
     });
@@ -3583,8 +3989,8 @@ describe('saying where a step’s work has got to', () => {
     // `parseProgress`, and this fails with 200 for `{"state":"not_started"}` —
     // a value written into a column whose `CHECK` would then refuse it, turning
     // a 400 into a 500; watched 2026-08-18.
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const given of [
       {},
@@ -3594,7 +4000,7 @@ describe('saying where a step’s work has got to', () => {
       { state: null },
     ]) {
       const label = JSON.stringify(given);
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'setProgress',
         workItemId: strip,
         stepId: devId,
@@ -3604,18 +4010,21 @@ describe('saying where a step’s work has got to', () => {
       expect(await res.json()).toEqual({ error: 'invalid_progress', at: 0, kind: 'setProgress' });
     }
 
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: {},
       status: 'unknown',
     });
   });
 
   it('refuses a row that has children with 409, and a step that is not there with 404', async () => {
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    const sockets = await addWorkItem(send, token, projectId, { parentId: strip, name: 'Sockets' });
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    const sockets = await addWorkItem(send, token, workPackageId, {
+      parentId: strip,
+      name: 'Sockets',
+    });
 
-    const rolled = await command(send, token, projectId, {
+    const rolled = await command(send, token, workPackageId, {
       kind: 'setProgress',
       workItemId: strip,
       stepId: devId,
@@ -3624,7 +4033,7 @@ describe('saying where a step’s work has got to', () => {
     // On the **leaf**, for the actuals' reason: the parent answers `rolled_up`
     // first, and a case that read 409 twice would say nothing about the step
     // check at all.
-    const unknown = await command(send, token, projectId, {
+    const unknown = await command(send, token, workPackageId, {
       kind: 'setProgress',
       workItemId: sockets,
       stepId: crypto.randomUUID(),
@@ -3639,38 +4048,38 @@ describe('saying where a step’s work has got to', () => {
   it('refuses an unauthenticated caller on both verbs, and leaves the statement alone', async () => {
     // Without the read afterwards this passes against a route that answers 401
     // *after* having already written or cleared the row.
-    const { token, send, projectId, devId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
-    await command(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
+    await command(send, token, workPackageId, {
       kind: 'setProgress',
       workItemId: strip,
       stepId: devId,
       state: 'done',
     });
 
-    const written = await command(send, 'not-a-token', projectId, {
+    const written = await command(send, 'not-a-token', workPackageId, {
       kind: 'setProgress',
       workItemId: strip,
       stepId: devId,
       state: 'in_progress',
     });
-    const cleared = await command(send, 'not-a-token', projectId, {
+    const cleared = await command(send, 'not-a-token', workPackageId, {
       kind: 'clearProgress',
       workItemId: strip,
       stepId: devId,
     });
 
     expect([written.status, cleared.status]).toEqual([401, 401]);
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: { [devId]: 'done' },
     });
   });
 
   it('clears back to absence, and clearing again is still a success', async () => {
-    const { token, send, projectId, devId, qaId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId, qaId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     for (const stepId of [devId, qaId]) {
-      await command(send, token, projectId, {
+      await command(send, token, workPackageId, {
         kind: 'setProgress',
         workItemId: strip,
         stepId,
@@ -3678,12 +4087,12 @@ describe('saying where a step’s work has got to', () => {
       });
     }
 
-    const first = await command(send, token, projectId, {
+    const first = await command(send, token, workPackageId, {
       kind: 'clearProgress',
       workItemId: strip,
       stepId: devId,
     });
-    const again = await command(send, token, projectId, {
+    const again = await command(send, token, workPackageId, {
       kind: 'clearProgress',
       workItemId: strip,
       stepId: devId,
@@ -3700,7 +4109,7 @@ describe('saying where a step’s work has got to', () => {
     // `done` is unanimous across the steps that *have* work. A Dev estimate on
     // the row makes the same clear read `in_progress`, which is the case in
     // `service/progress.test.ts`.
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: { [qaId]: 'done' },
       status: 'done',
     });
@@ -3709,8 +4118,8 @@ describe('saying where a step’s work has got to', () => {
   it('answers this route’s own 404 for a work item that is not there', async () => {
     // The body, not just the status: Elysia answers an unmatched route with a
     // 404 of its own, so a status-only assertion passes with the route deleted.
-    const { token, send, projectId, devId } = await setup();
-    const res = await command(send, token, projectId, {
+    const { token, send, workPackageId, devId } = await setup();
+    const res = await command(send, token, workPackageId, {
       kind: 'clearProgress',
       workItemId: crypto.randomUUID(),
       stepId: devId,
@@ -3746,9 +4155,9 @@ describe('saying where a step’s work has got to', () => {
  */
 describe('a JSON array body on the work-item routes', () => {
   it('is refused as the whole batch, at both command routes', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const plan = await send(`/api/projects/${projectId}/commands`, token, {
+    const plan = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify([]),
     });
@@ -3768,9 +4177,9 @@ describe('a JSON array body on the work-item routes', () => {
   });
 
   it('is refused as one command inside a batch', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
 
-    const res = await send(`/api/projects/${projectId}/commands`, token, {
+    const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({ commands: [[]] }),
     });
@@ -3783,14 +4192,14 @@ describe('a JSON array body on the work-item routes', () => {
   });
 
   it('is refused as a command’s nested patch, before any write is attempted', async () => {
-    const { token, send, projectId } = await setup();
-    const created = await command(send, token, projectId, {
+    const { token, send, workPackageId } = await setup();
+    const created = await command(send, token, workPackageId, {
       kind: 'createWorkItem',
       name: 'Array patch probe',
     });
     const workItemId = await mintedId(created);
 
-    const res = await send(`/api/projects/${projectId}/commands`, token, {
+    const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({ commands: [{ kind: 'patchWorkItem', workItemId, patch: [] }] }),
     });
@@ -3817,17 +4226,17 @@ describe('setting a row’s status as one act', () => {
     factStart: string | null;
     factEnd: string | null;
   }
-  const rowOf = async (send: Send, token: string, projectId: string, name: string) => {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  const rowOf = async (send: Send, token: string, workPackageId: string, name: string) => {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const body = (await tree.json()) as { workItems: Row[] };
     return body.workItems.find((w) => w.name === name);
   };
 
   it('marks a row done: every step, the status, and the fact end, in one command', async () => {
-    const { token, send, projectId, devId, qaId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId, devId, qaId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setStatus',
       workItemId: strip,
       status: 'done',
@@ -3836,7 +4245,7 @@ describe('setting a row’s status as one act', () => {
 
     expect(res.status).toBe(200);
     expect(((await res.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: { [devId]: 'done', [qaId]: 'done' },
       status: 'done',
       factStart: null,
@@ -3851,11 +4260,11 @@ describe('setting a row’s status as one act', () => {
     // Proof: `parseStatus` replaced by a cast, and `blocked_by_proxy` was
     // answered `invalid_body` without its `at` and `kind` — the command's own
     // refusal lost to a later shape check; watched 2026-09-29.
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
     for (const status of ['blocked_by_proxy', 'not_started', 'finished', 7, null]) {
-      const res = await command(send, token, projectId, {
+      const res = await command(send, token, workPackageId, {
         kind: 'setStatus',
         workItemId: strip,
         status,
@@ -3863,7 +4272,7 @@ describe('setting a row’s status as one act', () => {
       expect([status, res.status]).toEqual([status, 400]);
       expect(await res.json()).toEqual({ error: 'invalid_status', at: 0, kind: 'setStatus' });
     }
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       progress: {},
       status: 'unknown',
       factEnd: null,
@@ -3871,10 +4280,10 @@ describe('setting a row’s status as one act', () => {
   });
 
   it('refuses an on that is not a date', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const res = await command(send, token, projectId, {
+    const res = await command(send, token, workPackageId, {
       kind: 'setStatus',
       workItemId: strip,
       status: 'done',
@@ -3883,14 +4292,14 @@ describe('setting a row’s status as one act', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'on_must_be_a_date', at: 0, kind: 'setStatus' });
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({ status: 'unknown' });
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({ status: 'unknown' });
   });
 
   it('fills the fact start a mark names, and refuses one that is not a date', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const refused = await command(send, token, projectId, {
+    const refused = await command(send, token, workPackageId, {
       kind: 'setStatus',
       workItemId: strip,
       status: 'done',
@@ -3907,7 +4316,7 @@ describe('setting a row’s status as one act', () => {
       kind: 'setStatus',
     });
 
-    const marked = await command(send, token, projectId, {
+    const marked = await command(send, token, workPackageId, {
       kind: 'setStatus',
       workItemId: strip,
       status: 'done',
@@ -3915,7 +4324,7 @@ describe('setting a row’s status as one act', () => {
       factStart: '2026-09-08',
     });
     expect(marked.status).toBe(200);
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       status: 'done',
       factStart: '2026-09-08',
       factEnd: '2026-09-12',
@@ -3923,21 +4332,21 @@ describe('setting a row’s status as one act', () => {
   });
 
   it('writes the two facts through the ordinary patch and refuses a non-date', async () => {
-    const { token, send, projectId } = await setup();
-    const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const strip = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
 
-    const written = await command(send, token, projectId, {
+    const written = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: strip,
       patch: { factStart: '2026-09-08', factEnd: '2026-09-12' },
     });
     expect(written.status).toBe(200);
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       factStart: '2026-09-08',
       factEnd: '2026-09-12',
     });
 
-    const refused = await command(send, token, projectId, {
+    const refused = await command(send, token, workPackageId, {
       kind: 'patchWorkItem',
       workItemId: strip,
       patch: { factStart: 'yesterday' },
@@ -3948,7 +4357,7 @@ describe('setting a row’s status as one act', () => {
       at: 0,
       kind: 'patchWorkItem',
     });
-    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+    expect(await rowOf(send, token, workPackageId, 'Strip')).toMatchObject({
       factStart: '2026-09-08',
     });
   });
@@ -3959,19 +4368,19 @@ describe('a work item takes one type', () => {
     return mintedId(await directoryCommand(send, token, { kind: 'createWorkItemType', name }));
   }
 
-  async function typesOf(send: Send, token: string, projectId: string): Promise<string[][]> {
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+  async function typesOf(send: Send, token: string, workPackageId: string): Promise<string[][]> {
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const { workItems } = (await tree.json()) as { workItems: { typeIds: string[] }[] };
     return workItems.map((each) => each.typeIds);
   }
 
   it('refuses two typeIds or two typeRefs with work_item_takes_one_type and writes nothing', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const story = await typeNamed(send, token, 'Story');
     const spike = await typeNamed(send, token, 'Spike');
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
     expect((await patch({ typeIds: [story] })).status).toBe(200);
 
     const twoIds = await patch({ typeIds: [story, spike] });
@@ -3988,18 +4397,18 @@ describe('a work item takes one type', () => {
       at: 0,
       kind: 'patchWorkItem',
     });
-    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+    expect(await typesOf(send, token, workPackageId)).toEqual([[story]]);
   });
 
   it('refuses two types at the parser, before any command in the batch applies', async () => {
     // These in-memory stores have no rollback, so a rename before the refused
     // patch survives unless the parser refused the batch before running it.
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const story = await typeNamed(send, token, 'Story');
     const spike = await typeNamed(send, token, 'Spike');
     for (const patch of [{ typeIds: [story, spike] }, { typeRefs: ['a', 'b'] }]) {
-      const res = await send(`/api/projects/${projectId}/commands`, token, {
+      const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
         method: 'POST',
         body: JSON.stringify({
           commands: [
@@ -4012,28 +4421,28 @@ describe('a work item takes one type', () => {
         400,
         { error: 'work_item_takes_one_type', at: 1, kind: 'patchWorkItem' },
       ]);
-      expect((await firstRow(send, token, projectId))['name']).toBe('Strip');
+      expect((await firstRow(send, token, workPackageId))['name']).toBe('Strip');
     }
   });
 
   it('replaces with one, clears with none, and keeps the second of two successive patches', async () => {
-    const { token, send, projectId } = await setup();
-    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const { token, send, workPackageId } = await setup();
+    const id = await addWorkItem(send, token, workPackageId, { parentId: null, name: 'Strip' });
     const story = await typeNamed(send, token, 'Story');
     const spike = await typeNamed(send, token, 'Spike');
     const epic = await typeNamed(send, token, 'Epic');
     const patch = (fields: Record<string, unknown>) =>
-      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+      command(send, token, workPackageId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
 
     expect((await patch({ typeIds: [story] })).status).toBe(200);
-    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+    expect(await typesOf(send, token, workPackageId)).toEqual([[story]]);
     // A duplicate names one type, and the store deduplicates it.
     expect((await patch({ typeIds: [spike, spike] })).status).toBe(200);
-    expect(await typesOf(send, token, projectId)).toEqual([[spike]]);
+    expect(await typesOf(send, token, workPackageId)).toEqual([[spike]]);
     expect((await patch({ typeIds: [] })).status).toBe(200);
-    expect(await typesOf(send, token, projectId)).toEqual([[]]);
+    expect(await typesOf(send, token, workPackageId)).toEqual([[]]);
 
-    const batch = await send(`/api/projects/${projectId}/commands`, token, {
+    const batch = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [
@@ -4043,13 +4452,13 @@ describe('a work item takes one type', () => {
       }),
     });
     expect(batch.status).toBe(200);
-    expect(await typesOf(send, token, projectId)).toEqual([[epic]]);
+    expect(await typesOf(send, token, workPackageId)).toEqual([[epic]]);
   });
 
   it('refuses a batch whose third command binds two types, naming that command', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, workPackageId } = await setup();
     const story = await typeNamed(send, token, 'Story');
-    const res = await send(`/api/projects/${projectId}/commands`, token, {
+    const res = await send(`/api/work-packages/${workPackageId}/commands`, token, {
       method: 'POST',
       body: JSON.stringify({
         commands: [

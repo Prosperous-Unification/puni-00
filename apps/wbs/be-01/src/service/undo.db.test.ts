@@ -1,10 +1,11 @@
+import { rejects } from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -13,10 +14,11 @@ import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { seedCurrentProjectFixture } from '@wbs/store-sqlite/testing/current-project-fixture';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
@@ -26,14 +28,13 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
-import { ProjectRepository } from '../repository/project';
 import { commandJournal } from '../repository/schema';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -59,12 +60,13 @@ import { fastScheduler } from './optimizer-wiring';
  * edit is the failure two reviewers independently refused to ship, and every
  * `stale_undo` case below is one of the ways that was going to happen.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 
 let dir: string;
 let path: string;
+let fixtureCustody: { hasUnknownOwner: boolean };
 let workItems: WorkItemService;
-let projects: ProjectService;
+let workPackages: WorkPackageService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
@@ -73,15 +75,16 @@ let progressStore: StepProgressRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let strangerId: string;
 let steps: Step[];
 
-/** The first step every project starts with, which the estimate cases write to. */
+/** The fixture's explicitly authored Dev, captured by this package's birth owner. */
 const dev = (): string => {
   const found = steps.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting steps');
+  if (found === undefined)
+    throw new Error('the work package was created without its starting steps');
   return found.id;
 };
 
@@ -96,13 +99,42 @@ const OTHER_DAYS = { optimistic: 4, realistic: 5, pessimistic: 6 };
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
+  fixtureCustody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-undo-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  ownerId = crypto.randomUUID();
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'service-fixture-legacy',
+      projectId: PARENT_PROJECT_ID,
+      stamp: wrote(),
+      definitions: [
+        {
+          id: 'undo-dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 1,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          id: 'undo-qa',
+          code: 'qa',
+          name: 'QA',
+          position: 2,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    fixtureCustody,
+  );
   activateTestStepBlockages(path);
   const db = openDrizzle(path);
 
-  const projectStore = new ProjectRepository(db, OPEN);
+  const workPackageStore = new WorkPackageRepository(db, OPEN);
   workItemStore = new WorkItemRepository(db, OPEN);
   estimateStore = new EstimateRepository(db, OPEN);
   actualStore = new ActualRepository(db, OPEN);
@@ -113,12 +145,7 @@ beforeEach(async () => {
   journalStore = new CommandJournalRepository(db, OPEN);
 
   const users = new UserRepository(db, OPEN);
-  ownerId = crypto.randomUUID();
-  await users.create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    { at: 1, by: ownerId },
-  );
-  // Somebody else on the same plan. The project is not restricted, so they may
+  // Somebody else on the same plan. The work package is not restricted, so they may
   // edit it — which is the only reason any of the staleness cases below exist.
   strangerId = crypto.randomUUID();
   await users.create(
@@ -126,26 +153,26 @@ beforeEach(async () => {
     { at: 2, by: strangerId },
   );
 
-  projects = new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+  workPackages = new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: workItemStore,
       estimates: estimateStore,
       dependencies: dependencyStore,
       typedDependencies: new TypedDependencyRepository(db, OPEN),
     }),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: estimateStore,
     actuals: actualStore,
     measures: measureStore,
@@ -167,17 +194,32 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
-  projectId = created.project.id;
+  const created = expectCreated(
+    await workPackages.create('Rewire the shed', PARENT_PROJECT_ID, ownerId),
+  );
+  workPackageId = created.workPackage.id;
   steps = created.steps;
+  expect(
+    steps.map(({ id, code, estimateUnit, allowancePercent }) => ({
+      id,
+      code,
+      estimateUnit,
+      allowancePercent,
+    })),
+  ).toEqual([
+    { id: 'undo-dev', code: 'dev', estimateUnit: 'workdays', allowancePercent: 0 },
+    { id: 'undo-qa', code: 'qa', estimateUnit: 'workdays', allowancePercent: 0 },
+  ]);
 });
 
 afterEach(() => {
+  if (fixtureCustody.hasUnknownOwner)
+    throw new Error('undo fixture has unknown database custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
 async function root(name: string, afterId: string | null = null): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
+  const outcome = await workItems.create(workPackageId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -198,10 +240,10 @@ function installBlockageReplay(workItemId: string, blockedAt: number): void {
     };
     const inverse = { ...forward, expectedBlockedAt: blockedAt, replacementBlockedAt: null };
     external.run(
-      'INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
       [
         crypto.randomUUID(),
-        projectId,
+        workPackageId,
         ownerId,
         999,
         'replace_blockage',
@@ -243,11 +285,11 @@ describe('conditional step blockage replay from another SQLite connection', () =
         external.close();
       }
       // Proof: bypassing the named owner or step guard made its case return ok: true.
-      expect(await workItems.undo(projectId, ownerId)).toMatchObject({
+      expect(await workItems.undo(workPackageId, ownerId)).toMatchObject({
         ok: false,
         reason: 'stale_undo',
       });
-      expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+      expect(await blockage.listByWorkItems(workPackageId, [workItemId])).toEqual([
         { workItemId, stepId: dev(), blockedAt: 123 },
       ]);
     },
@@ -260,10 +302,10 @@ describe('conditional step blockage replay from another SQLite connection', () =
       'written',
     );
     installBlockageReplay(workItemId, 123);
-    expect((await workItems.undo(projectId, ownerId)).ok).toBe(true);
-    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([]);
-    expect((await workItems.redo(projectId, ownerId)).ok).toBe(true);
-    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+    expect((await workItems.undo(workPackageId, ownerId)).ok).toBe(true);
+    expect(await blockage.listByWorkItems(workPackageId, [workItemId])).toEqual([]);
+    expect((await workItems.redo(workPackageId, ownerId)).ok).toBe(true);
+    expect(await blockage.listByWorkItems(workPackageId, [workItemId])).toEqual([
       { workItemId, stepId: dev(), blockedAt: 123 },
     ]);
     const external = openDatabase(path);
@@ -305,10 +347,10 @@ try { db.run('UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? A
     );
     expect(await external.exited).toBe(0);
     expect((await workItemStore.findById(workItemId))?.revision).toBe(before?.revision);
-    const refusal = await workItems.undo(projectId, ownerId);
+    const refusal = await workItems.undo(workPackageId, ownerId);
     // Proof: bypassing the exact-fact comparison made this return ok: true despite the unchanged revision.
     expect(refusal).toMatchObject({ ok: false, reason: 'stale_undo' });
-    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+    expect(await blockage.listByWorkItems(workPackageId, [workItemId])).toEqual([
       { workItemId, stepId: dev(), blockedAt: 456 },
     ]);
   });
@@ -317,13 +359,13 @@ try { db.run('UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? A
 /**
  * A top-level row created with **no** priority — the explicit-null create.
  *
- * A plain {@link root} carries the project's middle rung since
+ * A plain {@link root} carries the work package's middle rung since
  * `priority-default-medium`, so "the first priority this row ever had" is a
  * state only this create can put a row in. Rows written before that change are
  * in it too, and are never backfilled out of it.
  */
 async function unranked(name: string): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, {
+  const outcome = await workItems.create(workPackageId, ownerId, {
     parentId: null,
     afterId: null,
     name,
@@ -339,19 +381,19 @@ async function child(
   name: string,
   afterId: string | null = null,
 ): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, { parentId, afterId, name });
+  const outcome = await workItems.create(workPackageId, ownerId, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 /**
- * Every row of the project, so a test can say what the tree looks like now.
+ * Every row of the work package, so a test can say what the tree looks like now.
  *
- * Typed as the **labelled** row since task 10.2: `listByProject` has always
+ * Typed as the **labelled** row since task 10.2: `listByWorkPackage` has always
  * returned the label sets beside the columns, and the service cases below read
  * `serviceIds` off it because the join is where that fact now lives.
  */
-const rows = (): Promise<LabelledWorkItem[]> => workItemStore.listByProject(projectId);
+const rows = (): Promise<LabelledWorkItem[]> => workItemStore.listByWorkPackage(workPackageId);
 
 const found = async (id: string): Promise<WorkItem | null> => workItemStore.findById(id);
 
@@ -363,19 +405,19 @@ const namesByPosition = async (parentId: string | null): Promise<string[]> =>
 
 const teamIdsOf = async (id: string): Promise<readonly string[]> => {
   const row = (await rows()).find((each) => each.id === id);
-  if (row === undefined) throw new Error(`${id} is not a row of this project`);
+  if (row === undefined) throw new Error(`${id} is not a row of this work package`);
   return row.teamIds;
 };
 
 const edges = async (): Promise<[string, string][]> =>
-  (await dependencyStore.listByProject(projectId)).map((edge) => [
+  (await dependencyStore.listByWorkPackage(workPackageId)).map((edge) => [
     edge.predecessorId,
     edge.successorId,
   ]);
 
 /** Undo, failing the test loudly rather than letting a refusal read as a pass. */
 async function undone(): Promise<UndoOutcome> {
-  return workItems.undo(projectId, ownerId);
+  return workItems.undo(workPackageId, ownerId);
 }
 
 function expectDone(outcome: UndoOutcome): string {
@@ -392,7 +434,7 @@ function expectStale(outcome: UndoOutcome): string {
 
 /** The entry an undo would reach next for `userId`, or null. */
 async function nextUndoable(userId = ownerId): Promise<JournalEntry | null> {
-  const stack = await journalStore.entriesFor({ projectId, userId, personId: null });
+  const stack = await journalStore.entriesFor({ workPackageId, userId, personId: null });
   return [...stack].reverse().find((each) => !each.undone) ?? null;
 }
 
@@ -561,7 +603,7 @@ describe('undoing each kind of change', () => {
 
     expect(expectDone(await undone())).toBe('estimate “Strip”');
 
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
@@ -572,7 +614,7 @@ describe('undoing each kind of change', () => {
 
     expect(expectDone(await undone())).toBe('estimate “Strip”');
 
-    expect(await estimateStore.listByProject(projectId)).toEqual([]);
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('puts a cleared estimate back', async () => {
@@ -582,7 +624,7 @@ describe('undoing each kind of change', () => {
 
     expect(expectDone(await undone())).toBe('clear the estimate on “Strip”');
 
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
@@ -668,21 +710,21 @@ describe('undoing each kind of change', () => {
     const strip = await root('Strip');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const sockets = await child(strip, 'Sockets');
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
 
     expect(expectDone(await undone())).toBe('add “Sockets”');
 
     expect(await found(sockets)).toBeNull();
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
   });
 
   it('refuses to undo a create that somebody has since built under', async () => {
     const strip = await root('Strip');
-    const outcome = await workItems.create(projectId, strangerId, {
+    const outcome = await workItems.create(workPackageId, strangerId, {
       parentId: strip,
       afterId: null,
       name: 'Sockets',
@@ -697,23 +739,31 @@ describe('undoing each kind of change', () => {
     expect(await found(strip)).not.toBeNull();
   });
 
-  it('refuses to undo a create once a second child sits under it, which no revision would say', async () => {
-    const strip = await root('Strip');
+  it('refuses to undo a branch creation once another child sits under it, which no revision would say', async () => {
+    const template = await root('Branch template');
+    await child(template, 'Existing child');
+    const created = await workItems.duplicate(template, ownerId);
+    if (!created.ok) throw new Error('branch fixture duplication refused: ' + created.reason);
+    const strip = created.value.id;
+    // The copied child already completed the first-child handoff. Sockets is
+    // an ordinary additional child whose removal leaves the parent intact.
     await child(strip, 'Sockets');
-    // Two more creates land on this account's own stack, so walk past them.
     const revisionBefore = (await found(strip))?.revision;
-    await workItems.create(projectId, strangerId, {
+    await workItems.create(workPackageId, strangerId, {
       parentId: strip,
       afterId: null,
       name: 'Switches',
     });
-    // The second child changed nothing about `strip` itself — this is the case
+    // The new child changed nothing about `strip` itself — this is the case
     // the subtree guard exists for.
     expect((await found(strip))?.revision).toBe(revisionBefore ?? -1);
 
-    // Undo the two creates this account made under it, newest first.
+    // Walk past this account's additional child, then reach branch creation.
     expect(expectDone(await undone())).toBe('add “Sockets”');
-    expectStale(await undone());
+    expect((await found(strip))?.revision).toBe(revisionBefore ?? -1);
+    expect(expectStale(await undone())).toBe(
+      'work has been added or removed under that row since then.',
+    );
     expect(await found(strip)).not.toBeNull();
   });
 
@@ -733,7 +783,7 @@ describe('undoing each kind of change', () => {
 
     expect(await namesByPosition(null)).toEqual(['Strip']);
     expect(await namesByPosition(strip)).toEqual(['Sockets', 'Switches']);
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
     expect(await directoryStore.assignmentsOf([switches])).toEqual([
@@ -769,7 +819,7 @@ describe('undoing each kind of change', () => {
     expect(await teamIdsOf(strip)).toEqual(stripTeams);
     expect(await teamIdsOf(sockets)).toEqual(socketTeams);
 
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('delete “Strip”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('delete “Strip”');
     expect(await rows()).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
@@ -875,10 +925,10 @@ describe('undoing each kind of change', () => {
     // replays the journalled `forward` patch and never reads `before`. Both
     // directions, because 6.3 names both — redo of a set restores the date,
     // redo of the clear restores `null`.
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('edit “Strip”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('edit “Strip”');
     expect((await rows()).at(0)?.deadline).toBe('2026-03-31');
 
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('edit “Strip”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('edit “Strip”');
     expect((await rows()).at(0)?.deadline).toBeNull();
   });
 
@@ -927,16 +977,16 @@ describe('undoing each kind of change', () => {
     await workItems.setActual(switches, ownerId, dev(), 3);
 
     expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
-    expect(await actualStore.listByProject(projectId)).toEqual([]);
+    expect(await actualStore.listByWorkPackage(workPackageId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
 
     // By work item rather than as a list, and the size asserted beside it.
-    // `listByProject` orders by `work_item_id` — a **UUID** across a project —
+    // `listByWorkPackage` orders by `work_item_id` — a **UUID** across a work package —
     // so a two-row list assertion here is a coin toss on which name sorts
     // first: it passed five times on h2puni and on CI at `db3e121`, and failed
     // on the doc-only commit after it. See verify.md.
-    const back = await actualStore.listByProject(projectId);
+    const back = await actualStore.listByWorkPackage(workPackageId);
     const byItem = new Map(back.map((each) => [each.workItemId, each.days]));
     expect(byItem.get(sockets)).toBe(8);
     expect(byItem.get(switches)).toBe(3);
@@ -964,16 +1014,16 @@ describe('undoing each kind of change', () => {
     await workItems.setProgress(switches, ownerId, dev(), 'in_progress');
 
     expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
-    expect(await progressStore.listByProject(projectId)).toEqual([]);
+    expect(await progressStore.listByWorkPackage(workPackageId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
 
     // By work item rather than as a list, and the size asserted beside it, for
-    // the reason the actual case above gives: `listByProject` orders by
-    // `work_item_id`, a UUID across a project, so a two-row list assertion is a
+    // the reason the actual case above gives: `listByWorkPackage` orders by
+    // `work_item_id`, a UUID across a work package, so a two-row list assertion is a
     // coin toss on which name sorts first. That mistake cost a CI cycle on #79
     // and it is not being made twice.
-    const back = await progressStore.listByProject(projectId);
+    const back = await progressStore.listByWorkPackage(workPackageId);
     const byItem = new Map(back.map((each) => [each.workItemId, each.state]));
     expect(byItem.get(sockets)).toBe('done');
     expect(byItem.get(switches)).toBe('in_progress');
@@ -997,7 +1047,7 @@ describe('undoing each kind of change', () => {
     await workItems.setMeasure(switches, ownerId, dev(), 'token_estimate', 12_000);
 
     expect((await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
-    expect(await measureStore.listByProject(projectId)).toEqual([]);
+    expect(await measureStore.listByWorkPackage(workPackageId)).toEqual([]);
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
 
@@ -1005,8 +1055,8 @@ describe('undoing each kind of change', () => {
     // beyond the cascade: two of these three rows share a work item and a step
     // and differ only in metric, so a restore that keyed by the pair puts one
     // row back and loses the other in silence. Ordering is not asserted, for
-    // the reason the actual case above gives — `listByProject` orders by a UUID.
-    const back = await measureStore.listByProject(projectId);
+    // the reason the actual case above gives — `listByWorkPackage` orders by a UUID.
+    const back = await measureStore.listByWorkPackage(workPackageId);
     const byKey = new Map(back.map((each) => [`${each.workItemId}/${each.metric}`, each.value]));
     expect(byKey.get(`${sockets}/token_actual`)).toBe(15_400);
     expect(byKey.get(`${sockets}/hours_actual`)).toBe(3);
@@ -1042,7 +1092,7 @@ describe('undoing each kind of change', () => {
 
     expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     expect(
-      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+      (await progressStore.listByWorkPackage(workPackageId)).map(({ workItemId, state }) => ({
         workItemId,
         state,
       })),
@@ -1051,7 +1101,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('delete “Sockets”');
 
     expect(
-      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+      (await progressStore.listByWorkPackage(workPackageId)).map(({ workItemId, state }) => ({
         workItemId,
         state,
       })),
@@ -1069,7 +1119,7 @@ describe('undoing each kind of change', () => {
 
     expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     expect(
-      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+      (await actualStore.listByWorkPackage(workPackageId)).map(({ workItemId, days }) => ({
         workItemId,
         days,
       })),
@@ -1078,7 +1128,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('delete “Sockets”');
 
     expect(
-      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+      (await actualStore.listByWorkPackage(workPackageId)).map(({ workItemId, days }) => ({
         workItemId,
         days,
       })),
@@ -1095,7 +1145,7 @@ describe('undoing each kind of change', () => {
 
     const sockets = await child(strip, 'Sockets');
     expect(
-      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+      (await actualStore.listByWorkPackage(workPackageId)).map(({ workItemId, days }) => ({
         workItemId,
         days,
       })),
@@ -1104,7 +1154,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('add “Sockets”');
 
     expect(
-      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+      (await actualStore.listByWorkPackage(workPackageId)).map(({ workItemId, days }) => ({
         workItemId,
         days,
       })),
@@ -1118,13 +1168,13 @@ describe('undoing each kind of change', () => {
 
     expect((await workItems.remove(sockets, ownerId, null, { kind: 'legacy' })).ok).toBe(true);
     // The parent has no children left, so it took the figures back.
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...DAYS },
     ]);
 
     expect(expectDone(await undone())).toBe('delete “Sockets”');
 
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: sockets, stepId: dev(), ...DAYS },
     ]);
   });
@@ -1150,7 +1200,7 @@ describe('undoing each kind of change', () => {
   it('unfreezes what a freeze pinned, and only that', async () => {
     const strip = await root('Strip');
     await workItems.unfreeze(strip, ownerId);
-    expect((await workItems.freeze(projectId, ownerId)).ok).toBe(true);
+    expect((await workItems.freeze(workPackageId, ownerId)).ok).toBe(true);
     expect((await found(strip))?.frozenNumber).toBe('010');
 
     expect(expectDone(await undone())).toBe('freeze the numbers');
@@ -1160,7 +1210,7 @@ describe('undoing each kind of change', () => {
 
   it('puts a frozen number back when the unfreeze is undone', async () => {
     const strip = await root('Strip');
-    await workItems.freeze(projectId, ownerId);
+    await workItems.freeze(workPackageId, ownerId);
     await workItems.unfreeze(strip, ownerId);
     expect((await found(strip))?.frozenNumber).toBeNull();
 
@@ -1202,7 +1252,7 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('duplicate “Strip”');
     expect(await found(copy.value.id)).toBeNull();
 
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('duplicate “Strip”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('duplicate “Strip”');
     expect(await teamIdsOf(copy.value.id)).toEqual(expected);
   });
 });
@@ -1218,7 +1268,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
     expect(expectDone(await undone())).toBe('assign “Strip”');
     await directoryStore.removePerson(alice, true, wrote(), { kind: 'every' });
 
-    const outcome = await workItems.redo(projectId, ownerId);
+    const outcome = await workItems.redo(workPackageId, ownerId);
 
     if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.value.done}`);
     expect(outcome.reason).toBe('stale_undo');
@@ -1285,7 +1335,7 @@ describe('an undo refuses when what it touched has moved', () => {
 
     expectStale(await undone());
 
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...OTHER_DAYS },
     ]);
   });
@@ -1298,11 +1348,13 @@ describe('an undo refuses when what it touched has moved', () => {
     expectStale(await undone());
 
     expect(
-      (await progressStore.listByProject(projectId)).map(({ workItemId, stepId, state }) => ({
-        workItemId,
-        stepId,
-        state,
-      })),
+      (await progressStore.listByWorkPackage(workPackageId)).map(
+        ({ workItemId, stepId, state }) => ({
+          workItemId,
+          stepId,
+          state,
+        }),
+      ),
     ).toEqual([{ workItemId: strip, stepId: dev(), state: 'in_progress' }]);
   });
 
@@ -1372,7 +1424,7 @@ describe('an undo refuses when what it touched has moved', () => {
     await workItemStore.insert(
       workItemRow({
         id: strip,
-        projectId,
+        workPackageId,
         position: 10,
         name: 'Something else entirely',
       }),
@@ -1405,7 +1457,7 @@ describe('an undo refuses when what it touched has moved', () => {
   it('refuses to undo a freeze once one of the rows it pinned has been unfrozen', async () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
-    expect((await workItems.freeze(projectId, ownerId)).ok).toBe(true);
+    expect((await workItems.freeze(workPackageId, ownerId)).ok).toBe(true);
     await workItems.unfreeze(cable, strangerId);
 
     expectStale(await undone());
@@ -1467,7 +1519,7 @@ describe('redo', () => {
     expect(expectDone(await undone())).toBe('rename “Strip out”');
     expect((await found(strip))?.name).toBe('Strip');
 
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('rename “Strip out”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('rename “Strip out”');
     expect((await found(strip))?.name).toBe('Strip out');
   });
 
@@ -1490,7 +1542,7 @@ describe('redo', () => {
 
     expectDone(await undone());
     expect((await found(strip))?.priority).toBe(5);
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect((await found(strip))?.priority).toBe(1);
 
     const fresh = await unranked('Fresh');
@@ -1498,7 +1550,7 @@ describe('redo', () => {
 
     expectDone(await undone());
     expect((await found(fresh))?.priority).toBeNull();
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect((await found(fresh))?.priority).toBe(3);
   });
 
@@ -1508,14 +1560,14 @@ describe('redo', () => {
     await workItems.patch(strip, ownerId, { name: 'Third' });
 
     expect(expectDone(await undone())).toBe('rename “Third”');
-    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('rename “Third”');
+    expect(expectDone(await workItems.redo(workPackageId, ownerId))).toBe('rename “Third”');
     expect((await found(strip))?.name).toBe('Third');
   });
 
   it('has nothing to redo until something has been undone', async () => {
     await root('Strip');
 
-    const outcome = await workItems.redo(projectId, ownerId);
+    const outcome = await workItems.redo(workPackageId, ownerId);
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) throw new Error('unreachable');
@@ -1527,15 +1579,15 @@ describe('redo', () => {
     await workItems.patch(strip, ownerId, { name: 'Strip out' });
     expect(expectDone(await undone())).toBe('rename “Strip out”');
     expect(
-      (await journalStore.stateOf({ projectId, userId: ownerId, personId: null })).redoable,
+      (await journalStore.stateOf({ workPackageId, userId: ownerId, personId: null })).redoable,
     ).toBe(true);
 
     await workItems.patch(strip, ownerId, { notes: 'a different thing entirely' });
 
     expect(
-      (await journalStore.stateOf({ projectId, userId: ownerId, personId: null })).redoable,
+      (await journalStore.stateOf({ workPackageId, userId: ownerId, personId: null })).redoable,
     ).toBe(false);
-    const outcome = await workItems.redo(projectId, ownerId);
+    const outcome = await workItems.redo(workPackageId, ownerId);
     expect(outcome.ok).toBe(false);
     expect((await found(strip))?.name).toBe('Strip');
   });
@@ -1547,7 +1599,7 @@ describe('redo', () => {
 
     await workItems.patch(strip, strangerId, { name: 'Theirs' });
 
-    expectStale(await workItems.redo(projectId, ownerId));
+    expectStale(await workItems.redo(workPackageId, ownerId));
     expect((await found(strip))?.name).toBe('Theirs');
   });
 });
@@ -1665,7 +1717,7 @@ describe('restoring the edges that left the branch', () => {
 });
 
 describe('who may undo', () => {
-  it('answers not_found for a project that is not there', async () => {
+  it('answers not_found for a work package that is not there', async () => {
     const outcome = await workItems.undo(crypto.randomUUID(), ownerId);
 
     expect(outcome.ok).toBe(false);
@@ -1673,12 +1725,12 @@ describe('who may undo', () => {
     expect(outcome.reason).toBe('not_found');
   });
 
-  it('refuses a stranger on a restricted project, undo being a write', async () => {
+  it('refuses a stranger on a restricted work package, undo being a write', async () => {
     const strip = await root('Strip');
     expect(strip).not.toBe('');
-    await projects.update(projectId, ownerId, { restricted: true });
+    await workPackages.update(workPackageId, ownerId, { restricted: true });
 
-    const outcome = await workItems.undo(projectId, strangerId);
+    const outcome = await workItems.undo(workPackageId, strangerId);
 
     expect(outcome.ok).toBe(false);
     if (outcome.ok) throw new Error('unreachable');
@@ -1710,8 +1762,8 @@ async function person(name: string): Promise<string> {
 }
 
 describe('what an undo leaves in the plan’s history', () => {
-  /** The project's history, read straight out of the table the route reads. */
-  const history = () => new PlanEventRepository(openDrizzle(path), OPEN).listFor(projectId, {});
+  /** The work package's history, read straight out of the table the route reads. */
+  const history = () => new PlanEventRepository(openDrizzle(path), OPEN).listFor(workPackageId, {});
 
   it('records the command, and records nothing at all for undoing it', async () => {
     // The one thing a reader of the history will be surprised by, asserted rather
@@ -1729,13 +1781,13 @@ describe('what an undo leaves in the plan’s history', () => {
     expect(set.ok).toBe(true);
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
 
-    const undone = await workItems.undo(projectId, ownerId);
+    const undone = await workItems.undo(workPackageId, ownerId);
     expect(undone.ok).toBe(true);
 
     // Two events still, and the estimate really is gone from the plan — so the
     // history says 1/2/3 was set while the plan says nothing is estimated.
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
-    expect(await estimateStore.listByProject(projectId)).toEqual([]);
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('keeps the event of a command whose journal entry a later write threw away', async () => {
@@ -1744,7 +1796,7 @@ describe('what an undo leaves in the plan’s history', () => {
     // the difference between the plan's history and one account's undo stack.
     const id = await root('Strip the roof');
     await workItems.setEstimate(id, ownerId, steps[0].id, DAYS);
-    await workItems.undo(projectId, ownerId);
+    await workItems.undo(workPackageId, ownerId);
     await workItems.setEstimate(id, ownerId, steps[0].id, OTHER_DAYS);
 
     expect((await allEntries()).map((each) => each.kind)).toEqual(['create', 'estimate']);
@@ -1776,7 +1828,7 @@ describe('a team set is undone whole, which a scalar habit would not do', () => 
     expectDone(await undone());
     expect([...(await teamsOn(id))].sort()).toEqual([backend, design].sort());
 
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect(await teamsOn(id)).toEqual([platform]);
   });
 });
@@ -1790,7 +1842,9 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
 
   /** The tags the plan read gives for one row, which is the only place they live. */
   async function tagsOn(id: string): Promise<readonly string[]> {
-    const row = (await workItemStore.listByProject(projectId)).find((each) => each.id === id);
+    const row = (await workItemStore.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === id,
+    );
     if (row === undefined) throw new Error(`no work item ${id}`);
     return row.tagIds;
   }
@@ -1802,7 +1856,9 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
 
   /** The types the plan read gives for one row, which is the only place they live. */
   async function typesOn(id: string): Promise<readonly string[]> {
-    const row = (await workItemStore.listByProject(projectId)).find((each) => each.id === id);
+    const row = (await workItemStore.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === id,
+    );
     if (row === undefined) throw new Error(`no work item ${id}`);
     return row.typeIds;
   }
@@ -1835,7 +1891,7 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     expectDone(await undone());
     expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
 
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect(await typesOn(id)).toEqual([bug]);
   });
 
@@ -1866,7 +1922,7 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     const spike = await typeNamed('Spike');
     await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
 
-    const tree = await workItems.tree(projectId);
+    const tree = await workItems.tree(workPackageId);
     if (tree === null || !('workItems' in tree)) throw new Error('the plan read answered no tree');
     const row = tree.workItems.find((each) => each.id === id);
     expect([...(row?.typeIds ?? [])].sort()).toEqual([bug, spike].sort());
@@ -1893,6 +1949,22 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
     expect((await workItems.remove(id, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     await directoryStore.removeWorkItemType(bug, true, wrote());
+
+    const before = await rows();
+    const entry = await nextUndoable();
+    if (entry === null) throw new Error('deleted-type undo entry is absent');
+    const unreadable = new Error('injected unreadable current type directory');
+    const read = spyOn(directoryStore, 'listWorkItemTypes').mockRejectedValue(unreadable);
+    try {
+      await rejects(
+        workItems.undo(workPackageId, ownerId),
+        (cause: unknown) => cause === unreadable,
+      );
+      expect(await rows()).toEqual(before);
+      expect(await nextUndoable()).toEqual(entry);
+    } finally {
+      read.mockRestore();
+    }
 
     expectDone(await undone());
     expect(await typesOn(id)).toEqual([spike]);
@@ -1994,7 +2066,7 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     expectDone(await undone());
     expect(await tagsOn(id)).toEqual([regulatory]);
 
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect(await tagsOn(id)).toEqual([techDebt]);
   });
 
@@ -2115,7 +2187,7 @@ describe('a service is undone as the set it became, the tag rule and no longer i
     expectDone(await undone());
     expect(await servicesOn(id)).toEqual([payments]);
 
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect(await servicesOn(id)).toEqual([billing]);
   });
 
@@ -2163,7 +2235,7 @@ describe('a service is undone as the set it became, the tag rule and no longer i
     // Redo has to narrow it back to the one. A journal that restored a set on
     // the way back and a member on the way forward would pass the assertion
     // above and still be wrong in the direction nobody watches.
-    expectDone(await workItems.redo(projectId, ownerId));
+    expectDone(await workItems.redo(workPackageId, ownerId));
     expect(await servicesOn(id)).toEqual([checkout]);
   });
 
@@ -2277,7 +2349,7 @@ describe('a tag decides no date, asserted rather than claimed', () => {
     // The plan is built so a scheduling input would be visible: a start date, a
     // dependency, and estimates on both sides of it. If a tag ever reached the
     // engine, the successor's dates are where it would show.
-    await projects.update(projectId, ownerId, { startDate: '2026-09-01' });
+    await workPackages.update(workPackageId, ownerId, { startDate: '2026-09-01' });
     const strip = await root('Strip the roof');
     const cable = await root('Cable it', strip);
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
@@ -2290,12 +2362,12 @@ describe('a tag decides no date, asserted rather than claimed', () => {
     );
     await workItems.patch(strip, ownerId, { tagIds: [regulatory.id] });
 
-    const before = await workItems.tree(projectId);
+    const before = await workItems.tree(workPackageId);
 
     const removed = await directoryStore.removeTag(regulatory.id, true, wrote());
     expect(removed.ok).toBe(true);
 
-    const after = await workItems.tree(projectId);
+    const after = await workItems.tree(workPackageId);
 
     // Non-vacuity first: the labelling really did go, so this is comparing two
     // plans that differ, rather than two reads of an unchanged one.
@@ -2337,7 +2409,9 @@ describe('secondary team removal invalidates undo', () => {
 describe('a ref list is undone whole, names and all', () => {
   /** The refs the plan read gives for one row, in the order they were stated. */
   async function refsOn(id: string): Promise<readonly { url: string; name: string }[]> {
-    const row = (await workItemStore.listByProject(projectId)).find((each) => each.id === id);
+    const row = (await workItemStore.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === id,
+    );
     if (row === undefined) throw new Error(`no work item ${id}`);
     return row.externalRefs.map((ref) => ({ url: ref.url, name: ref.name }));
   }

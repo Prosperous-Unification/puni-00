@@ -20,6 +20,7 @@ AWAITING_RECREATE="$STATE/awaiting-recreate"
 # sync.ts's STALE_BOOT_EXIT_CODE: the reset landed, the restart was spent, and
 # be-01 still runs another commit. poller.test.ts pins the two equal.
 STALE_BOOT_EXIT=76
+INITIAL_ACCESS_SHA256='__INITIAL_ACCESS_ADMISSION_SHA256__'
 
 # Prints be-01's bootCommit, the commit the running process booted with. Not
 # `commit`, which follows the checkout on every request and so proved a reset
@@ -154,10 +155,25 @@ poll_main() {
     git fetch -q origin main
   local_sha=$(git rev-parse HEAD)
   remote_sha=$(git rev-parse refs/remotes/origin/main)
-  last_proven=$(cat "$LAST_PROVEN" 2>/dev/null || true)
-  last_synced=$(cat "$LAST_SYNCED" 2>/dev/null || true)
-  awaiting_recreate=$(cat "$AWAITING_RECREATE" 2>/dev/null || true)
-  if [ -z "$last_synced" ]; then
+  if [[ ! "$INITIAL_ACCESS_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+    [ ! -f "$BIN/initial-access-admission.js" ] || [ -L "$BIN/initial-access-admission.js" ] ||
+    [ ! -r "$BIN/initial-access-admission.js" ] ||
+    [ "$(stat -Lc %a -- "$BIN/initial-access-admission.js")" != 644 ]; then
+    echo 'refusing: pinned installed initial-access admission unavailable; restage the poller generation' >&2
+    return 1
+  fi
+  initial_access_hash=$(sha256sum -- "$BIN/initial-access-admission.js")
+  if [ "${initial_access_hash%% *}" != "$INITIAL_ACCESS_SHA256" ]; then
+    echo 'refusing: installed initial-access admission differs from this poller generation' >&2
+    return 1
+  fi
+  if [ ! -x "$BUN" ] || [ "$("$BUN" --no-env-file --config=/dev/null --version)" != "$BUN_VERSION" ]; then
+    echo 'refusing: managed Bun differs from the installed poller generation' >&2
+    return 1
+  fi
+  initial_access=$("$BUN" --no-env-file --config=/dev/null "$BIN/initial-access-admission.js" "$SRC" "$local_sha" "$remote_sha" "$STATE")
+  read -r last_proven last_synced awaiting_recreate <<< "$initial_access"
+  if [ "$last_synced" = - ]; then
     synced_tmp="$LAST_SYNCED.tmp.$$"
     printf '%s\n' "$local_sha" > "$synced_tmp"
     mv "$synced_tmp" "$LAST_SYNCED"

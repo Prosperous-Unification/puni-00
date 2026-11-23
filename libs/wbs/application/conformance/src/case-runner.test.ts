@@ -7,13 +7,15 @@ import { offeredDeclaration, passingRegistrations } from './source-declaration.t
 
 describe('case execution', () => {
   it('a declared body is not a passed body', async () => {
-    const report = await runCases([{ family: 'projects', caseId: CASE_MANIFEST.projects[0] }]);
+    const report = await runCases([
+      { family: 'workPackages', caseId: CASE_MANIFEST.workPackages[0] },
+    ]);
 
     // Proof: marking a declaration with no body passed failed here on
     // `Expected status: "incomplete"; Received: "passed"`.
     expect(report.cases).toEqual([
       expect.objectContaining({
-        caseId: CASE_MANIFEST.projects[0],
+        caseId: CASE_MANIFEST.workPackages[0],
         status: 'incomplete',
         executed: false,
       }),
@@ -36,7 +38,9 @@ describe('case execution', () => {
     // expected `failed cases ... (setup: injected setup failure)`, received no throw.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('failed cases: projects: projects.create:steps (setup: injected setup failure)');
+    }).toThrow(
+      'failed cases: workPackages: workPackages.create:steps (setup: injected setup failure)',
+    );
   });
 
   it('an assertion rejection still cleans up and cannot certify', async () => {
@@ -66,15 +70,15 @@ describe('case execution', () => {
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow(
-      'failed cases: projects: projects.create:steps (assertion: injected assertion failure)',
+      'failed cases: workPackages: workPackages.create:steps (assertion: injected assertion failure)',
     );
   });
 
   it('a failed close cannot certify its case', async () => {
     let assertionRan = false;
     const registration: CaseRegistration = {
-      family: 'projects',
-      caseId: CASE_MANIFEST.projects[0],
+      family: 'workPackages',
+      caseId: CASE_MANIFEST.workPackages[0],
       openAndRun: () =>
         Promise.resolve({
           fixtureId: 'fixture:close-failure',
@@ -100,7 +104,9 @@ describe('case execution', () => {
         registrations,
         report,
       });
-    }).toThrow('failed cases: projects: projects.create:steps (cleanup: injected close failure)');
+    }).toThrow(
+      'failed cases: workPackages: workPackages.create:steps (cleanup: injected close failure)',
+    );
     const execution = report.cases[0];
     expect(execution.status).toBe('failed');
     if (execution.status !== 'failed') throw new Error('expected failed case evidence');
@@ -136,7 +142,7 @@ describe('case execution', () => {
     // expected `failed cases ... (assertion: undefined)`, received no throw.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('failed cases: projects: projects.create:steps (assertion: undefined)');
+    }).toThrow('failed cases: workPackages: workPackages.create:steps (assertion: undefined)');
   });
 
   it('an undefined assertion rejection is retained when cleanup also fails', async () => {
@@ -163,15 +169,15 @@ describe('case execution', () => {
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow(
-      'failed cases: projects: projects.create:steps (cleanup: undefined; cleanup failed: injected close failure)',
+      'failed cases: workPackages: workPackages.create:steps (cleanup: undefined; cleanup failed: injected close failure)',
     );
   });
 
   it('focused execution reports partial', async () => {
-    const first = CASE_MANIFEST.projects[0];
-    const second = CASE_MANIFEST.projects[1];
+    const first = CASE_MANIFEST.workPackages[0];
+    const second = CASE_MANIFEST.workPackages[1];
     const registrations: CaseRegistration[] = [first, second].map((caseId) => ({
-      family: 'projects',
+      family: 'workPackages',
       caseId,
       openAndRun: () =>
         Promise.resolve({

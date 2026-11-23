@@ -21,7 +21,7 @@ import {
  * before the constraint existed, or repaired by hand. So every enum kept in its
  * own scalar column is validated again on the way out, and an unknown value
  * throws naming the column and the value rather than being cast or defaulted.
- * That is the rule {@link file://./project.ts} `toProject` already applies to
+ * That is the rule {@link file://./work-package.ts} `toWorkPackage` already applies to
  * `estimate_method`, `dep_reach` and `estimate_rounding`; these functions are
  * the same rule for the optimizer's tables, and every repository read of those
  * tables goes through them.
@@ -48,14 +48,14 @@ export function isSolverObjective(value: string): value is SolverObjectiveName {
 }
 
 /**
- * One `'fast' | 'optimized'` column — today only `project.schedule_engine`
+ * One `'fast' | 'optimized'` column — today only `workPackage.schedule_engine`
  * (tasks.md 3b.8).
  *
- * It lives beside the optimizer-table validators rather than in `project.ts`
+ * It lives beside the optimizer-table validators rather than in `work-package.ts`
  * because the rule is the same one this file exists to state, and a second home
  * for "stored enum checked on the way out" is how the two drift. There is no
  * `isScheduleObjective` beside it, which tasks.md 3b.8 named before the rule
- * above was settled: `project.schedule_objective` stores the vocabulary
+ * above was settled: `workPackage.schedule_objective` stores the vocabulary
  * {@link isSolverObjective} already checks, so it is a fourth **column** on the
  * existing validator rather than a second validator over the same three
  * strings — the growth this file's header forbids.
@@ -85,7 +85,7 @@ export function isSolverSlotLifecycle(value: string): value is SolverSlotLifecyc
  * from the log line alone: which table, which column, and what was actually
  * stored.
  *
- * Exported for `project.ts`, whose two settings columns are refused with the
+ * Exported for `work-package.ts`, whose two settings columns are refused with the
  * same sentence rather than a second wording of it: an operator grepping a log
  * for `in the database:` should find every corrupted enum in this codebase, not
  * the subset that happens to live in an optimizer table.

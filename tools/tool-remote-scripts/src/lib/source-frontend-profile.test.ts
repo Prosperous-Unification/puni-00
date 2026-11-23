@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import type * as MaterializerModule from '../fixtures/source-frontend-profile';
-import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
+import { prepareRetainedSourceFrontendProfile } from '../fixtures/source-frontend-retained-inputs';
 import { artifact, configuration, git, modes, roots } from '../fixtures/source-startup';
 import { selectSourceFrontendProfile } from './source-frontend-profile';
 import {
@@ -98,7 +98,7 @@ const PAIRS = [
 let current: SourceStartupManifest;
 beforeAll(async () => {
   const prepared = await artifact();
-  await prepareSourceFrontendProfile(prepared.root);
+  await prepareRetainedSourceFrontendProfile(prepared.root);
   await modes(prepared.root);
   await git(prepared.root, 'add', '.');
   await git(
@@ -152,21 +152,45 @@ const HISTORICAL_PROJECT = {
   sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
 };
 
-test('current captured project and package/lock inputs select the unchanged wire profile', () => {
-  const input = current.entries.find(
-    (entry) => entry.root === 'source' && entry.path === PROJECT_PATH,
-  );
-  expect(input).toMatchObject({
-    kind: 'file',
-    size: 8218,
-    sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+const VITE_PATH = 'apps/wbs/fe-01/vite.config.ts';
+const ORIGINAL_VITE = {
+  bytes: 19302,
+  sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+};
+const SERIAL_PROJECT = {
+  bytes: 8218,
+  sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+};
+function serialLintEntries(useOriginalVite = true): SourceEntry[] {
+  return current.entries.map((entry) => {
+    if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+    const expected =
+      entry.path === PROJECT_PATH
+        ? SERIAL_PROJECT
+        : useOriginalVite && entry.path === VITE_PATH
+          ? ORIGINAL_VITE
+          : undefined;
+    return expected === undefined
+      ? entry
+      : { ...entry, size: expected.bytes, sha256: expected.sha256 };
   });
-  expect(selectSourceFrontendProfile(canonical(current))).toBe('wbs-source-frontend-wire-v1');
+}
+
+test('serial-lint project and registry package/lock select the retained wire profile', () => {
+  expect(selectSourceFrontendProfile(canonical({ ...current, entries: serialLintEntries() }))).toBe(
+    'wbs-source-frontend-wire-v1',
+  );
+});
+
+test('serial-lint project refuses the renamed Vite configuration even with registry package/lock', () => {
+  expect(() =>
+    selectSourceFrontendProfile(canonical({ ...current, entries: serialLintEntries(false) })),
+  ).toThrow('source frontend input profile unsupported');
 });
 
 for (const pair of PAIRS.slice(0, -1))
-  test(`current project refuses the complete older ${pair.epoch} package/lock pair`, () => {
-    const entries = current.entries.map((entry) => {
+  test(`serial-lint project refuses the complete older ${pair.epoch} package/lock pair`, () => {
+    const entries = serialLintEntries().map((entry) => {
       if (entry.root !== 'source' || entry.kind !== 'file') return entry;
       if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
       const expected = pair[entry.path];
@@ -186,6 +210,8 @@ for (const pair of PAIRS)
         ...current,
         entries: current.entries.map((entry) => {
           if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+          if (entry.path === VITE_PATH)
+            return { ...entry, size: ORIGINAL_VITE.bytes, sha256: ORIGINAL_VITE.sha256 };
           if (entry.path === PROJECT_PATH)
             return { ...entry, size: HISTORICAL_PROJECT.bytes, sha256: HISTORICAL_PROJECT.sha256 };
           if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
@@ -401,7 +427,7 @@ test.each(['package.json', 'bun.lock'] as const)(
   'actual committed same-length %s drift reaches selector refusal',
   async (path) => {
     const prepared = await artifact();
-    await prepareSourceFrontendProfile(prepared.root);
+    await prepareRetainedSourceFrontendProfile(prepared.root);
     const original = await readFile(join(prepared.root, path), 'utf8');
     // Both replacements preserve valid manifest syntax and change non-launch-relevant metadata.
     const changed =
@@ -449,7 +475,7 @@ test.each([
   async (epoch, fault) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-materializer-boundary-'));
     roots.push(root);
-    await prepareSourceFrontendProfile(root);
+    await prepareRetainedSourceFrontendProfile(root, fault === 'both' ? 'serial-lint' : 'renamed');
     if (fault === 'project') {
       const path = join(root, 'apps/wbs/fe-01/project.json');
       const original = await readFile(path, 'utf8');
@@ -542,7 +568,9 @@ function reconstructFourthInput(
 
 for (const path of ['package.json', 'bun.lock'] as const) {
   test(`registry S3 reconstruction reaches exact fourth ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const reconstructed = reconstructFourthInput(path, bytes);
     const expected = PAIRS.at(3);
     if (expected === undefined) throw new Error('fourth pair expectation absent');
@@ -552,7 +580,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     }).toEqual(expected[path]);
   });
   test(`registry S3 reconstruction refuses repairable unreviewed full ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const extra = 'UNREVIEWED_REGISTRY_INPUT\n';
     expect(() =>
       reconstructFourthInput(path, Buffer.concat([bytes, Buffer.from(extra)]), [
@@ -563,7 +593,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
   });
   for (const fault of ['absent', 'duplicate', 'empty'] as const)
     test(`registry S3 reconstruction refuses ${fault} hunk in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const first = REGISTRY_REMOVALS[path].at(0);
       if (first === undefined) throw new Error('literal registry hunk absent');
       const extra =
@@ -574,7 +606,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     });
   for (const fault of ['missing', 'changed'] as const)
     test(`registry S3 reconstruction refuses ${fault} fourth intermediate in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const hunks = REGISTRY_REMOVALS[path];
       const changed =
         fault === 'missing'

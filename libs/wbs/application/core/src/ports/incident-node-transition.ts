@@ -1,3 +1,4 @@
+import type { TypedWriteRefusal } from './dependency-context';
 import type { ScopedRevision } from './dependency-context';
 import type { IncidentReceipt } from './typed-dependency-store';
 import type { WriteStamp } from './write-stamp';
@@ -27,17 +28,19 @@ export type IncidentRetention =
   | { readonly kind: 'owner'; readonly refresh: (workItemIds: readonly string[]) => Promise<void> };
 
 export type IncidentTransitionOutcome<T> =
+  | TypedWriteRefusal
   | { readonly ok: true; readonly value: T; readonly evidence: IncidentTransitionEvidence }
   | {
       readonly ok: false;
       readonly reason: 'structure_refused';
-      readonly value: T;
+      /** The original callback payload after its existing false ok discriminant was observed. */
+      readonly value: T & { readonly ok: false };
       readonly evidence: IncidentTransitionEvidence;
     }
   | {
       readonly ok: false;
       readonly reason:
-        | 'project_deleting'
+        | 'work_package_deleting'
         | 'not_found'
         | 'forbidden'
         | 'unknown_step'
@@ -53,7 +56,7 @@ export type IncidentTransitionOutcome<T> =
  * The caller must abort its enclosing UoW for any refusal or throw. */
 export interface IncidentNodeTransition {
   run<T extends { readonly ok: boolean }>(
-    projectId: string,
+    workPackageId: string,
     actorId: string,
     request: IncidentNodeRequest,
     stamp: WriteStamp,

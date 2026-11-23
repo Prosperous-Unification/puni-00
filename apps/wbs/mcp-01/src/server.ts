@@ -43,13 +43,13 @@ export const SERVER_VERSION = '0.1.0';
  * on every read, so one patch can move dates the response never mentions.
  */
 const REREAD_AFTER_WRITE =
-  'Numbers, dates, floats and slices are derived from the tree and re-derived on every read, so this result is not the new state of the plan — one write can move dates it does not mention. Re-read the project’s work items afterwards.';
+  'Numbers, dates, floats and slices are derived from the tree and re-derived on every read, so this result is not the new state of the plan — one write can move dates it does not mention. Re-read the work package’s work items afterwards.';
 
 /**
  * Does the operation's own prose already say numbers are derived and re-read?
  *
  * Four of be-01's write operations do (the hand-written bodies on `POST
- * /api/projects/{id}/work-items`, `PATCH /api/work-items/{id}`, `POST
+ * /api/work-packages/{id}/work-items`, `PATCH /api/work-items/{id}`, `POST
  * /api/work-items/{id}/move` and `PUT …/progress/{stepId}`). Appending D9's
  * sentence to those would print the same warning twice in the same description,
  * in two different wordings — which reads as two different rules.

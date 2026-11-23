@@ -25,7 +25,7 @@ const captureSchema = z.object({
 export type MigrationSetCapture = z.infer<typeof captureSchema>;
 export type MigrationSetIdentity = Pick<MigrationSetCapture, 'target' | 'attempt' | 'candidate'>;
 
-function appliedRows(db: ReturnType<typeof openDatabase>): AppliedMigration[] {
+function appliedRows(db: Pick<ReturnType<typeof openDatabase>, 'query'>): AppliedMigration[] {
   const ledger = db
     .query<{ name: string }, []>(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'",
@@ -49,6 +49,30 @@ function appliedRows(db: ReturnType<typeof openDatabase>): AppliedMigration[] {
   return rows;
 }
 
+/** One applied migration's immutable name/hash identity. */
+export interface AppliedMigrationIdentity {
+  readonly name: string;
+  readonly hash: string;
+}
+
+/**
+ * Reads every applied identity on the caller's borrowed connection; opens/closes no owner.
+ * Missing/empty ledgers return an explicit empty set for the capture protocol. Window
+ * reports require a nonempty ledger and reject that set. Unknown names, changed hashes,
+ * duplicate identities and unreadable rows throw before any caller can publish evidence.
+ */
+export function readAppliedMigrationIdentities(
+  db: Pick<ReturnType<typeof openDatabase>, 'query'>,
+  candidate: ReadonlyMap<string, { readonly hash: string }>,
+): AppliedMigrationIdentity[] {
+  return appliedRows(db).map((row) => {
+    if (row.name === null) throw new Error('applied migration has no name');
+    if (candidate.get(row.name)?.hash !== row.hash)
+      throw new Error(`applied migration ${row.name} is absent or changed in candidate`);
+    return { name: row.name, hash: row.hash };
+  });
+}
+
 /** Capture the full applied set and the candidate's ordered migration scripts without writing SQLite. */
 export function captureAppliedMigrationSet(
   dbPath: string,
@@ -61,15 +85,7 @@ export function captureAppliedMigrationSet(
   // exit 0 and create absent.db instead of refusing capture.
   const connection = openReadOnlyDatabase(dbPath);
   try {
-    const rows = appliedRows(connection);
-    const applied = rows.map((row) => {
-      if (row.name === null) throw new Error('applied migration has no name');
-      const folder = byName.get(row.name);
-      if (folder?.hash !== row.hash) {
-        throw new Error(`applied migration ${row.name} is absent or changed in candidate`);
-      }
-      return { name: row.name, hash: row.hash };
-    });
+    const applied = readAppliedMigrationIdentities(connection, byName);
     const appliedNames = new Set(applied.map((entry) => entry.name));
     // Proof: adding a timestamp cutoff here made the advertised-protocol CLI test
     // omit both older candidate migrations after its newer captured baseline.

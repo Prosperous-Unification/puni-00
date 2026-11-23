@@ -2,10 +2,9 @@ import type { GrantOrigin } from '@wbs/domain';
 
 /**
  * Where a grant applies (`wbs-permissions` P1, P8). An organization scope is
- * the grant's own organization. A `project` scope names the project entity of
- * `wbs-work-packages` slice 2, which does not exist yet: until it does the
- * store refuses every project scope as `not_found`, because today's `project`
- * row is the work package and its id is a `kind: 'work_package'` scope.
+ * the grant's own organization. A `project` scope names an engagement project
+ * belonging to that organization. A work package remains a distinct
+ * `kind: 'work_package'` scope through its organization mapping.
  */
 export type GrantScope =
   | { readonly kind: 'organization' }
@@ -27,7 +26,7 @@ export type GrantSubject =
  * Who writes an access change: a member, whose id becomes the row's
  * `created_by`, or a host operator by CLI (`wbs-permissions` P21), who is no
  * WBS user, so the row's `created_by` stays empty and `login` is what the
- * audit row will name as `operator:<login>` once task 4.1 admits it.
+ * audit row names as `operator:<login>`.
  */
 export type AccessActor =
   | { readonly kind: 'user'; readonly userId: string }
@@ -37,6 +36,8 @@ export type AccessActor =
 export interface AccessAct {
   readonly actor: AccessActor;
   readonly at: number;
+  /** The required root event ID; variable cascade events get fresh owner-local IDs. */
+  readonly auditId: string;
 }
 
 /**
@@ -71,8 +72,7 @@ export interface AccessGrantRecord {
  * - `role_scope_mismatch`: the role's kind is broader than the scope's
  *   (`roleFitsScope` in `@wbs/domain`), as `org-admin` at a work package.
  * - `not_found`: the scope is absent or another organization's (a work
- *   package through `project_organization`), or a project scope (no project
- *   entity exists yet).
+ *   package through `work_package_organization`).
  * - `not_a_member`: a `user` subject holds no membership of the organization.
  * - `unknown_group`: a `group` subject is no access group of the organization.
  * - `unknown_credential`: a `machine_credential` subject is revoked, absent or
@@ -109,8 +109,9 @@ export interface AccessGroupRecord {
  * immediate transaction that reads what it checks, so two racing writes are
  * decided against the state each commits on. Who may write is the caller's:
  * P11's permission and escalation rule are the routes' (task 4.2), and the
- * operator CLI (task 1.5) calls with an `operator` actor. No audit row is
- * written yet: the audit table admits no `access_*` action before task 4.1.
+ * operator CLI calls with an `operator` actor. Every accepted mutation appends its
+ * required access audit evidence on that same connection before commit. Inputs are
+ * retained before the write turn; audit failure rolls the whole mutation back.
  *
  * @throws when trusted state is malformed (a stored kind outside its
  * vocabulary), and on every store failure.
@@ -132,8 +133,8 @@ export interface AccessGrants {
    * Deletes grant `grantId` of `organizationId`. `not_found` for an absent or
    * another organization's grant. `last_super_admin` when it is the last
    * direct `user` grant of the built-in `org-super-admin` at organization
-   * scope held by a current member (CP14), and nothing is deleted. `act` is
-   * what task 4.1's `access_revoked` audit row will name; unread until then.
+   * scope held by a current member (CP14), and nothing is deleted. The audit names
+   * this actor and operation origin, independently of the deleted grant's history.
    */
   revoke(
     organizationId: string,
@@ -154,7 +155,7 @@ export interface AccessGrants {
     group: { readonly id: string; readonly name: string },
     act: AccessAct,
   ): Promise<{ readonly kind: 'created'; readonly group: AccessGroupRecord } | 'name_taken'>;
-  /** Renames a group; renaming to its own name is accepted and changes nothing else. */
+  /** Renames a group; an accepted same-name rename also appends one renamed event. */
   renameGroup(
     organizationId: string,
     groupId: string,
@@ -163,7 +164,8 @@ export interface AccessGrants {
   ): Promise<'renamed' | 'unknown_group' | 'name_taken'>;
   /**
    * Deletes a group with every grant naming it and every member row, in one
-   * transaction. `act` is for task 4.1's audit row; unread until then.
+   * transaction. Audits each removed grant and group member with fresh event IDs,
+   * then the group deletion with act.auditId; all rows share the actual actor/time.
    */
   deleteGroup(
     organizationId: string,
@@ -172,6 +174,7 @@ export interface AccessGrants {
   ): Promise<
     | { readonly kind: 'deleted'; readonly grantsDeleted: number; readonly membersRemoved: number }
     | 'unknown_group'
+    | 'last_super_admin'
   >;
   /**
    * Adds a current member of the organization to a group: `not_a_member` for
@@ -185,12 +188,49 @@ export interface AccessGrants {
   ): Promise<'added' | 'unknown_group' | 'not_a_member' | 'already_in_group'>;
   /**
    * Removes a user from a group: `not_in_group` when they were not in it.
-   * `act` is for task 4.1's audit row; unread until then.
+   * An actual removal appends one audit row; a refusal appends none.
    */
   removeGroupMember(
     organizationId: string,
     groupId: string,
     userId: string,
     act: AccessAct,
-  ): Promise<'removed' | 'unknown_group' | 'not_in_group'>;
+  ): Promise<'removed' | 'unknown_group' | 'not_in_group' | 'last_super_admin'>;
+}
+
+/**
+ * Retains actual actor metadata before a queued access owner observes caller aliases.
+ * @throws before owner entry when required event/actor identity is missing or malformed.
+ */
+export function retainAccessAct(act: AccessAct): AccessAct {
+  // Proof: trusted-event-id: removing this boundary failed `refuses missing trusted access identity before its owner at event-id`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  if (typeof act.auditId !== 'string' || act.auditId === '')
+    throw new Error('access audit ID is missing');
+  // Proof: trusted-actor-kind: removing this boundary failed `refuses missing trusted access identity before its owner at actor-kind`;
+  // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+  const actorKinds: readonly string[] = ['user', 'operator'];
+  if (!actorKinds.includes(act.actor.kind)) throw new Error('access actor identity is malformed');
+  if (
+    // Proof: trusted-user-id: removing this boundary failed `refuses missing trusted access identity before its owner at user-id`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act.actor.kind === 'user' &&
+    (typeof act.actor.userId !== 'string' || act.actor.userId === '')
+  )
+    throw new Error('access actor identity is malformed');
+  if (
+    // Proof: trusted-operator-login: removing this boundary failed `refuses missing trusted access identity before its owner at operator-login`;
+    // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+    act.actor.kind === 'operator' &&
+    (typeof act.actor.login !== 'string' || act.actor.login === '')
+  )
+    throw new Error('access actor identity is malformed');
+  return {
+    actor:
+      act.actor.kind === 'user'
+        ? { kind: 'user', userId: act.actor.userId }
+        : { kind: 'operator', login: act.actor.login },
+    at: act.at,
+    auditId: act.auditId,
+  };
 }

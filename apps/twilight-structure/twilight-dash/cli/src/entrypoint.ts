@@ -1,4 +1,12 @@
-import { isReleaseCommand, readDashInvocation, UsageRefusal } from './cli-parser';
+import { createLaunch } from '@shared/bun-startup';
+
+import {
+  isGatedPayloadCommand,
+  isLockCommand,
+  isReleaseCommand,
+  readDashInvocation,
+  UsageRefusal,
+} from './cli-parser';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -22,7 +30,18 @@ try {
     process.stdout.write(text);
   });
   const command = invocation.kind === 'command' ? invocation.command : undefined;
-  if (command !== undefined && isReleaseCommand(command)) {
+  if (command !== undefined && isGatedPayloadCommand(command)) {
+    const { runGatedPayload } = await import('./ops/gated-payload');
+    process.exitCode = await runGatedPayload(command, {
+      callerDirectory: process.cwd(),
+      monotonic: monotonicClock(),
+    });
+  } else if (command !== undefined && isLockCommand(command)) {
+    const { runInstalledLock } = await import('./ops/lock');
+    process.exit(
+      await runInstalledLock(command, { callerDirectory: process.cwd(), environment: process.env }),
+    );
+  } else if (command !== undefined && isReleaseCommand(command)) {
     const { runOpsCommand } = await import('./ops/release');
     process.exitCode = await runOpsCommand(command, (text) => process.stdout.write(text));
   } else if (command?.command === 'mcp') {
@@ -44,16 +63,19 @@ try {
     await runPoolCommand(command, {
       send: (input, init) => fetch(input, init),
       write: (text) => process.stdout.write(text),
-      helper: [process.execPath, import.meta.path],
+      helper: createLaunch(process.execPath, import.meta.path),
       sleep: (milliseconds) => Bun.sleep(milliseconds),
       files: systemPoolFiles,
     });
   } else if (command !== undefined) {
     const { runDash, runFleetPlan } = await import('./cli');
-    await runDash(command, {
+    // Proof: dash-executable-status; `assigns the modeled native ops status only at the standalone executable` failed under the recorded source fault and passed after restoration.
+    process.exitCode = await runDash(command, {
       clock: wallClock(),
       monotonic: monotonicClock(),
       planEnrollment: runFleetPlan,
+      // Proof: an unprotected raw prefix failed the actual standalone executable control in helper-prefix.test.ts; restoration passed (2026-11-11).
+      helperPrefix: createLaunch(process.execPath, import.meta.path),
       stdout: process.stdout,
     });
   }

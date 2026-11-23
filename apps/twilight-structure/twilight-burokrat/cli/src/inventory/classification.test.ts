@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import type { ClassificationPolicy } from '../contracts/records';
+import { ClassificationPolicy } from '../contracts/records';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
 import type { ContentClassification } from './classify-entries';
 
@@ -1415,4 +1415,897 @@ describe('entry classification production CLI', () => {
     expect(invocation.exitCode, output(invocation)).toBe(1);
     expect(output(invocation)).toContain(`undeclared binary content at ${path}`);
   });
+});
+
+describe('shipped bin classification boundaries', () => {
+  const workspace = join(import.meta.dir, '../../../../../..');
+  // Proof: bin-classification-red-v336 observed all eighteen isolated path/policy cases
+  // refuse their original two-rule ambiguity. The six exact exclusions per policy made
+  // those cases and twelve refusal/neighbor controls pass in bin-classification-green-controls-v337.
+  const policyPaths = [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ] as const;
+  const reviewed = [
+    ['bin/assert-rename-window.ts', 'script'],
+    ['bin/dev-be-probe.ts', 'script'],
+    ['bin/dev-ports.ts', 'script'],
+    ['bin/dev.ts', 'script'],
+    ['bin/tool-wiki-lint.ts', 'script'],
+    ['bin/tsconfig.json', 'config'],
+  ] as const;
+
+  function readClassificationPolicy(path: string): object {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, path), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('shipped policy lacks its classification boundary: ' + path);
+    const selected = envelope.classificationPolicy;
+    if (selected === null || typeof selected !== 'object' || Array.isArray(selected))
+      throw new Error('shipped classification policy is malformed: ' + path);
+    return selected;
+  }
+
+  for (const policyPath of policyPaths) {
+    test.each(reviewed)(
+      'classifies reviewed %s as %s with ' + policyPath,
+      async (path, contentClass) => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(workspace, path)));
+        const revision = commitAll(repository);
+        const invocation = await classify(
+          repository,
+          revision,
+          writePolicy(repository, readClassificationPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: [
+            {
+              path,
+              mode: '100644',
+              blob: hash(repository, path),
+              classification: { kind: 'content', contentClass },
+            },
+          ],
+        });
+      },
+    );
+
+    test.each([
+      ['bin/unreviewed.ts', 2],
+      ['bin/unreviewed.json', 2],
+      ['unknown.zzz', 0],
+    ] as const)('refuses unreviewed %s with ' + policyPath, async (path, count) => {
+      const repository = createRepository();
+      write(repository, path, 'unreviewed ordinary text\n');
+      const revision = commitAll(repository);
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, readClassificationPolicy(policyPath)),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation)).toContain(
+        'ordinary content ' + path + ' matched ' + String(count) + ' classification rules',
+      );
+    });
+
+    test(
+      'preserves neighboring script, test, source and config classes with ' + policyPath,
+      async () => {
+        const repository = createRepository();
+        const controls = [
+          ['bin/dev.sh', 'script'],
+          ['bin/dev.test.sh', 'test'],
+          ['src/main.ts', 'source'],
+          ['src/tsconfig.json', 'config'],
+          ['binary/main.ts', 'source'],
+          ['bins/main.ts', 'source'],
+        ] as const;
+        for (const [path] of controls) write(repository, path, '{}\n');
+        const revision = commitAll(repository);
+        const invocation = await classify(
+          repository,
+          revision,
+          writePolicy(repository, readClassificationPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: controls
+            .map(([path, contentClass]) => ({
+              path,
+              mode: '100644',
+              blob: hash(repository, path),
+              classification: { kind: 'content', contentClass },
+            }))
+            .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path))),
+        });
+      },
+    );
+  }
+});
+
+describe.each(['progress', 'rename'] as const)(
+  'shipped historical Memory %s binary boundary',
+  (kind) => {
+    // Proof: memory-progress-real-red-v346 observed all three undeclared-archive refusals.
+    // memory-progress-green-controls-v346 then passed exact binary metadata, each owned
+    // declaration omission/restoration, same-byte unlisted sibling and ordinary-text refusals.
+    // Proof: memory-rename-real-red-v351 observed all three missing rename declarations.
+    // memory-both-green-controls-v352 passed both captures and all six policy/capture
+    // declaration omissions/restorations, unlisted siblings and ordinary-text refusals.
+    // This classifies retained bytes; archive integrity and replay remain consumer responsibilities.
+    const workspace = join(import.meta.dir, '../../../../../..');
+    const path =
+      'libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-' + kind + '.json.gz';
+    const classification = {
+      kind: 'content',
+      contentClass: 'binary',
+      format: 'application/gzip',
+      consumer: 'libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor Memory capture pinned by libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-history.json and openspec/changes/wbs-step-catalogue/verification-genuine-memory-history-20261121.json; repeating the retained producer at c8018843e6ff6827f7d97b67ff986cc717656578 creates a new capture.',
+      },
+    };
+
+    function readPolicy(policyPath: string): ClassificationPolicy {
+      const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+      if (
+        envelope === null ||
+        typeof envelope !== 'object' ||
+        !('classificationPolicy' in envelope)
+      )
+        throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+      return ClassificationPolicy.assert(envelope.classificationPolicy);
+    }
+
+    async function expectCapture(
+      repository: string,
+      revision: string,
+      policy: ClassificationPolicy,
+    ) {
+      const invocation = await classify(repository, revision, writePolicy(repository, policy));
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified: unknown = JSON.parse(standardOutput(invocation));
+      if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+        throw new Error('CLI classification lacks its entries');
+      expect(classified.entries).toEqual([
+        { path, mode: '100644', blob: hash(repository, path), classification },
+      ]);
+      return classified;
+    }
+
+    for (const policyPath of [
+      'docs/code-organization/rule-policy.json',
+      'docs/wiki-policy/policy.json',
+      'docs/wiki-policy/bootstrap-policy.json',
+    ]) {
+      test('classifies the retained ' + kind + ' capture with ' + policyPath, async () => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(workspace, path)));
+        await expectCapture(repository, commitAll(repository), readPolicy(policyPath));
+      });
+
+      test(
+        'refuses an absent declaration and restores the exact capture with ' + policyPath,
+        async () => {
+          const repository = createRepository();
+          write(repository, path, readFileSync(join(workspace, path)));
+          const revision = commitAll(repository);
+          const policy = readPolicy(policyPath);
+          const qualified = await expectCapture(repository, revision, policy);
+          const omitted = structuredClone(policy);
+          omitted.binaryDeclarations = omitted.binaryDeclarations.filter(
+            (entry) => entry.path !== path,
+          );
+          expect(omitted.binaryDeclarations.length).toBe(policy.binaryDeclarations.length - 1);
+          const refusal = await classify(repository, revision, writePolicy(repository, omitted));
+          expect(refusal.exitCode, output(refusal)).toBe(1);
+          expect(output(refusal)).toContain('undeclared binary content at ' + path);
+          expect(await expectCapture(repository, revision, policy)).toEqual(qualified);
+        },
+      );
+
+      test('refuses the same gzip bytes at an unlisted sibling with ' + policyPath, async () => {
+        const repository = createRepository();
+        const sibling =
+          'libs/wbs/adapters/store-memory/src/testing/fixtures/unlisted-' + kind + '.json.gz';
+        write(repository, sibling, readFileSync(join(workspace, path)));
+        const refusal = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(refusal.exitCode, output(refusal)).toBe(1);
+        expect(output(refusal)).toContain('undeclared binary content at ' + sibling);
+      });
+
+      test('refuses ordinary UTF-8 at the declared capture path with ' + policyPath, async () => {
+        const repository = createRepository();
+        write(repository, path, '{}\n');
+        const refusal = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(refusal.exitCode, output(refusal)).toBe(1);
+        expect(output(refusal)).toContain(
+          'declared binary ' + path + ' contains ordinary UTF-8 text',
+        );
+      });
+    }
+  },
+);
+
+describe('shipped current-PR historical SQLite archive boundaries', () => {
+  // Proof: current-pr-archives-real-red-v359 observed108 distinct named archive/policy
+  // undeclared-binary failures before their exact rows were appended. The v360 green
+  // controls passed108 literal metadata oracles and24 strict unlisted-byte/ordinary-text
+  // counterexamples (one representative per four manifest groups and three policies).
+  // Historical bytes stay unchanged; opaque classification grants no replay authority.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'libs/wbs/adapters/store-sqlite/src/testing/fixtures/';
+  const groups = {
+    delete: {
+      consumer: 'libs/wbs/adapters/store-sqlite/src/testing/legacy-delete-database.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete.json and openspec/changes/wbs-step-catalogue/verification-historical-parent-undo-20261120.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture.',
+      },
+    },
+    move: {
+      consumer: 'libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture.',
+      },
+    },
+    replay: {
+      consumer: 'libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture.',
+      },
+    },
+    parent: {
+      consumer: 'libs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical SQLite E37 backup after actual110\u2192116 migration, pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.json and openspec/changes/wbs-step-catalogue/verification-legacy-parent-admission-20261120.json; predecessor Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture.',
+      },
+    },
+  };
+  const archives = [
+    ['legacy-delete-leaf-only.sqlite.gz', 'delete'],
+    ['legacy-delete-parent-progress.sqlite.gz', 'delete'],
+    ['legacy-destination-redo-missing.control.json.gz', 'replay'],
+    ['legacy-destination-redo-missing.producer.json.gz', 'replay'],
+    ['legacy-destination-redo-missing.sqlite.gz', 'replay'],
+    ['legacy-destination-redo-state.control.json.gz', 'replay'],
+    ['legacy-destination-redo-state.producer.json.gz', 'replay'],
+    ['legacy-destination-redo-state.sqlite.gz', 'replay'],
+    ['legacy-destination-redo-time.control.json.gz', 'replay'],
+    ['legacy-destination-redo-time.producer.json.gz', 'replay'],
+    ['legacy-destination-redo-time.sqlite.gz', 'replay'],
+    ['legacy-handup-new-progress.control.json.gz', 'replay'],
+    ['legacy-handup-new-progress.producer.json.gz', 'replay'],
+    ['legacy-handup-new-progress.sqlite.gz', 'replay'],
+    ['legacy-parent-drift-extra.control.json.gz', 'replay'],
+    ['legacy-parent-drift-extra.producer.json.gz', 'replay'],
+    ['legacy-parent-drift-extra.sqlite.gz', 'replay'],
+    ['legacy-parent-drift-missing.control.json.gz', 'replay'],
+    ['legacy-parent-drift-missing.producer.json.gz', 'replay'],
+    ['legacy-parent-drift-missing.sqlite.gz', 'replay'],
+    ['legacy-parent-drift-state.control.json.gz', 'replay'],
+    ['legacy-parent-drift-state.producer.json.gz', 'replay'],
+    ['legacy-parent-drift-state.sqlite.gz', 'replay'],
+    ['legacy-parent-drift-time.control.json.gz', 'replay'],
+    ['legacy-parent-drift-time.producer.json.gz', 'replay'],
+    ['legacy-parent-drift-time.sqlite.gz', 'replay'],
+    ['legacy-parent-last-child.control.json.gz', 'replay'],
+    ['legacy-parent-last-child.producer.json.gz', 'replay'],
+    ['legacy-parent-last-child.sqlite.gz', 'replay'],
+    ['legacy-parent-progress.sqlite.gz', 'parent'],
+    ['legacy-restore-progress-blockage.control.json.gz', 'move'],
+    ['legacy-restore-progress-blockage.producer.json.gz', 'move'],
+    ['legacy-restore-progress-blockage.sqlite.gz', 'move'],
+    ['legacy-restore-progress.control.json.gz', 'move'],
+    ['legacy-restore-progress.producer.json.gz', 'move'],
+    ['legacy-restore-progress.sqlite.gz', 'move'],
+  ] as const;
+  const representatives = [
+    'legacy-delete-leaf-only.sqlite.gz',
+    'legacy-restore-progress.control.json.gz',
+    'legacy-parent-last-child.producer.json.gz',
+    'legacy-parent-progress.sqlite.gz',
+  ];
+
+  function readPolicy(policyPath: string): ClassificationPolicy {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+    return ClassificationPolicy.assert(envelope.classificationPolicy);
+  }
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(archives)(
+      'classifies reviewed PR archive %s with ' + policyPath,
+      async (filename, group) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode: '100644',
+            blob: hash(repository, path),
+            classification: {
+              kind: 'content',
+              contentClass: 'binary',
+              format: 'application/gzip',
+              ...groups[group],
+            },
+          },
+        ]);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses reviewed PR archive bytes at unlisted %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + 'unlisted-' + filename;
+        write(repository, path, readFileSync(join(workspace, fixtureRoot + filename)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain('undeclared binary content at ' + path);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses ordinary UTF-8 at reviewed PR archive %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, '{}\n');
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain(
+          'declared binary ' + path + ' contains ordinary UTF-8 text',
+        );
+      },
+    );
+  }
+});
+
+describe('shipped predecessor Memory archives', () => {
+  // Proof: removing the extra-qa wiki policy declaration made the classifier refuse its actual gzip.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'libs/wbs/adapters/store-memory/src/testing/fixtures/';
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(['extra-qa', 'mixed-progress-patch'])(
+      'classifies Memory laundering archive %s with ' + policyPath,
+      async (scenario) => {
+        const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+        if (
+          envelope === null ||
+          typeof envelope !== 'object' ||
+          !('classificationPolicy' in envelope)
+        )
+          throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+        const repository = createRepository();
+        const path = fixtureRoot + 'legacy-laundering-' + scenario + '.json.gz';
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, ClassificationPolicy.assert(envelope.classificationPolicy)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: [
+            {
+              path,
+              blob: hash(repository, path),
+              classification: {
+                kind: 'content',
+                contentClass: 'binary',
+                format: 'application/gzip',
+                consumer: 'libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts',
+                regenerationAuthority: { kind: 'external' },
+              },
+            },
+          ],
+        });
+      },
+    );
+  }
+});
+
+describe('shipped current-PR raw SQLite fixture boundaries', () => {
+  // Proof: current-pr-raw-fixtures-real-red-v368 observed all fifteen exact missing
+  // declarations. current-pr-raw-fixtures-green-controls-v369 passed fifteen exact
+  // metadata positives and eighteen same-byte unlisted/ordinary-text role controls.
+  // before117 names its retained historical consumer; no current replay authority is asserted.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'libs/wbs/adapters/store-sqlite/src/testing/fixtures/';
+  const groups = {
+    pre117: {
+      consumer:
+        'libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical pre-117 E37 snapshot pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/acquisition.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/before117.window.json; retained consumer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority.',
+      },
+    },
+    merged117: {
+      consumer:
+        'libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority.',
+      },
+    },
+    ordinary117: {
+      consumer:
+        'libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority.',
+      },
+    },
+  };
+  const databases = [
+    ['resource-use-117-merged/before117.db', 'pre117'],
+    ['resource-use-117-merged/merged-bound.db', 'merged117'],
+    ['resource-use-117/ambiguous-attempt.db', 'ordinary117'],
+    ['resource-use-117/bound-moved.db', 'ordinary117'],
+    ['resource-use-117/unassociated.db', 'ordinary117'],
+  ] as const;
+  const representatives = [
+    'resource-use-117-merged/before117.db',
+    'resource-use-117-merged/merged-bound.db',
+    'resource-use-117/unassociated.db',
+  ];
+
+  function readPolicy(policyPath: string): ClassificationPolicy {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+    return ClassificationPolicy.assert(envelope.classificationPolicy);
+  }
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(databases)(
+      'classifies reviewed raw SQLite %s with ' + policyPath,
+      async (filename, group) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode: '100644',
+            blob: hash(repository, path),
+            classification: {
+              kind: 'content',
+              contentClass: 'binary',
+              format: 'application/vnd.sqlite3',
+              ...groups[group],
+            },
+          },
+        ]);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses reviewed raw SQLite bytes at unlisted %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + 'unlisted-' + filename;
+        write(repository, path, readFileSync(join(workspace, fixtureRoot + filename)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain('undeclared binary content at ' + path);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses ordinary UTF-8 at reviewed raw SQLite %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, '{}\n');
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain(
+          'declared binary ' + path + ' contains ordinary UTF-8 text',
+        );
+      },
+    );
+  }
+});
+
+describe('shipped delivery fixture and fleet class boundaries', () => {
+  // Proof: openspec-fixture-collision-real-red-v378 observed all123 exact path/policy
+  // two-match refusals. openspec-fixture-collision-green-controls-v379 passed them as
+  // fixtures, retained unreviewed/nested refusals and preserved neighboring classes.
+  // Original duplicate recipes and capture bytes are read verbatim, never normalized.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'openspec/changes/wbs-work-packages/fixtures/';
+  const fixtures = [
+    'command-json-duplicates.json',
+    'command-json.json',
+    'legacy-comparison-captures.json',
+    'legacy-comparison-certificate-input10.txt',
+    'legacy-comparison-certificate-schedule2.txt',
+    'legacy-comparison-connected-input10.txt',
+    'legacy-comparison-local-input9.txt',
+    'legacy-comparison-local-schedule1.txt',
+    'legacy-comparison-ready-input10.txt',
+    'legacy-comparison-ready-schedule2.txt',
+    'legacy-connected-history-helper-capture.json',
+    'legacy-connected-history-helper10-2.txt',
+    'legacy-dash-runtime6.json',
+    'legacy-document-captures.json',
+    'legacy-document11-ordinary.txt',
+    'legacy-document12-connected.txt',
+    'legacy-input-captures.json',
+    'legacy-input10-connected.txt',
+    'legacy-input10-local.txt',
+    'legacy-input9-local.txt',
+    'legacy-resource-capture.json',
+    // Proof: all three policies without this exact exclusion refused the capture with two matches.
+    'legacy-resource-cleaned-capture.json',
+    'legacy-resource-database1.txt',
+    'legacy-resource-terminal-capture.json',
+    'legacy-resource-terminal1.txt',
+    'legacy-runtime-acceptance1.txt',
+    'legacy-runtime-captures.json',
+    'legacy-runtime-database-capture.json',
+    'legacy-runtime-database1.txt',
+    'legacy-schedule-captures.json',
+    'legacy-schedule1-elsewhere.txt',
+    'legacy-schedule1-first-writer.txt',
+    'legacy-schedule1-local.txt',
+    'legacy-schedule2-connected.txt',
+    'legacy-schedule2-questions.txt',
+    'legacy-shared-people-recovery1.json',
+    'legacy-shared-people-save1.json',
+    'outgoing-store.json',
+    'rename-before.json',
+    'rename-integrity.json',
+    'schema-exceptions.json',
+    'shared-people-save2.json',
+  ];
+
+  function readPolicy(policyPath: string): ClassificationPolicy {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+    return ClassificationPolicy.assert(envelope.classificationPolicy);
+  }
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(fixtures)(
+      'classifies reviewed OpenSpec fixture %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode: '100644',
+            blob: hash(repository, path),
+            classification: { kind: 'content', contentClass: 'fixture' },
+          },
+        ]);
+      },
+    );
+
+    test.each([
+      'openspec/changes/wbs-work-packages/fixtures/unreviewed.json',
+      'openspec/changes/wbs-work-packages/fixtures/nested/command-json-duplicates.json',
+    ])('refuses unreviewed OpenSpec fixture %s with ' + policyPath, async (path) => {
+      const repository = createRepository();
+      write(repository, path, '{}\n');
+      const invocation = await classify(
+        repository,
+        commitAll(repository),
+        writePolicy(repository, readPolicy(policyPath)),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation)).toContain(
+        'ordinary content ' + path + ' matched 2 classification rules',
+      );
+    });
+
+    // Proof: without the exact rows, all three classifiers matched zero rules for HuJSON
+    // and both the script and test rules for the controller exercise.
+    test.each([
+      ['infra/access/policy.hujson', 'config', '100644'],
+      ['infra/ansible/tests/controller-run.sh', 'test', '100755'],
+    ] as const)(
+      'classifies merged fleet %s as %s with ' + policyPath,
+      async (path, contentClass, mode) => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(workspace, path)));
+        chmodSync(join(repository, path), mode === '100755' ? 0o755 : 0o644);
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode,
+            blob: hash(repository, path),
+            classification: { kind: 'content', contentClass },
+          },
+        ]);
+      },
+    );
+
+    test.each([
+      ['openspec/changes/wbs-work-packages/proposal.md', 'openspec'],
+      ['libs/example/fixtures/command-json-duplicates.json', 'fixture'],
+    ] as const)('preserves ordinary %s as %s with ' + policyPath, async (path, contentClass) => {
+      const repository = createRepository();
+      write(repository, path, 'ordinary text\n');
+      const invocation = await classify(
+        repository,
+        commitAll(repository),
+        writePolicy(repository, readPolicy(policyPath)),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified: unknown = JSON.parse(standardOutput(invocation));
+      if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+        throw new Error('CLI classification lacks its entries');
+      expect(classified.entries).toEqual([
+        {
+          path,
+          mode: '100644',
+          blob: hash(repository, path),
+          classification: { kind: 'content', contentClass },
+        },
+      ]);
+    });
+  }
+});
+
+describe('shipped current-PR OpenSpec gzip fixture boundaries', () => {
+  // Proof: openspec-gzip-real-red-v384 observed all eighteen exact missing archive
+  // declarations. openspec-gzip-green-controls-v385 passed their exact metadata and
+  // thirty strict unlisted-byte/ordinary-text controls across five capture manifests.
+  // The unchanged predecessor snapshots confer no new current replay or host authority.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'openspec/changes/wbs-work-packages/fixtures/';
+  const groups = {
+    dash: {
+      consumer:
+        'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+    resource: {
+      consumer: 'apps/wbs/be-01/src/controller/resource-legacy-rename.controller.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+    cleanedResource: {
+      consumer: 'apps/wbs/be-01/src/controller/resource-legacy-rename.controller.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Outgoing runtime cleanup capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-cleaned-capture.json at source 1816f5848e11c40786f7919388f98abeb330ebeb. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+    terminal: {
+      consumer:
+        'apps/wbs/be-01/src/controller/resource-terminal-legacy-rename.controller.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-terminal-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+    runtime: {
+      consumer: 'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+    recovery: {
+      consumer: 'libs/wbs/adapters/store-sqlite/src/shared-people-recovery-rename.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-recovery1.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
+  };
+  const archives = [
+    ['legacy-dash-runtime6.sqlite.gz', 'dash'],
+    // Proof: all three policies without this declaration refused the exact archive as undeclared;
+    // the ordinary-text control also missed its required declared-binary refusal.
+    ['legacy-resource-cleaned1.sqlite.gz', 'cleanedResource'],
+    ['legacy-resource-database1.sqlite.gz', 'resource'],
+    ['legacy-resource-terminal1.sqlite.gz', 'terminal'],
+    ['legacy-runtime-database1.sqlite.gz', 'runtime'],
+    ['legacy-shared-people-completed1.sqlite.gz', 'recovery'],
+    ['legacy-shared-people-pending1.sqlite.gz', 'recovery'],
+  ] as const;
+  const representatives = [
+    'legacy-dash-runtime6.sqlite.gz',
+    'legacy-resource-cleaned1.sqlite.gz',
+    'legacy-resource-database1.sqlite.gz',
+    'legacy-resource-terminal1.sqlite.gz',
+    'legacy-runtime-database1.sqlite.gz',
+    'legacy-shared-people-completed1.sqlite.gz',
+  ];
+
+  function readPolicy(policyPath: string): ClassificationPolicy {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+    return ClassificationPolicy.assert(envelope.classificationPolicy);
+  }
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(archives)(
+      'classifies reviewed OpenSpec gzip %s with ' + policyPath,
+      async (filename, group) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode: '100644',
+            blob: hash(repository, path),
+            classification: {
+              kind: 'content',
+              contentClass: 'binary',
+              format: 'application/gzip',
+              ...groups[group],
+            },
+          },
+        ]);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses reviewed OpenSpec gzip bytes at unlisted %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + 'unlisted-' + filename;
+        write(repository, path, readFileSync(join(workspace, fixtureRoot + filename)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain('undeclared binary content at ' + path);
+      },
+    );
+
+    test.each(representatives)(
+      'refuses ordinary UTF-8 at reviewed OpenSpec gzip %s with ' + policyPath,
+      async (filename) => {
+        const repository = createRepository();
+        const path = fixtureRoot + filename;
+        write(repository, path, '{}\n');
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(1);
+        expect(output(invocation)).toContain(
+          'declared binary ' + path + ' contains ordinary UTF-8 text',
+        );
+      },
+    );
+  }
 });

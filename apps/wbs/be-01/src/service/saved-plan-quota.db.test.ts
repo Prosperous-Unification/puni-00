@@ -13,18 +13,18 @@ import { openConnection, refuseToWaitForWriteLock } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
-import { projectRow } from '../testing/project-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -33,8 +33,8 @@ const OPENED_AT = 1_756_000_123;
 /** Room enough that only the one limit under test can be the reason. */
 const ROOMY: SavedPlanQuota = {
   mostBytesPerBody: 8 * 1024 * 1024,
-  mostPlansPerProject: 100,
-  mostBytesPerProject: 64 * 1024 * 1024,
+  mostPlansPerWorkPackage: 100,
+  mostBytesPerWorkPackage: 64 * 1024 * 1024,
 };
 
 describe('SavedPlanService.save refuses each limit before writing anything', () => {
@@ -44,7 +44,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -67,32 +67,30 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-quota-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
+      wrote,
+    );
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -141,7 +139,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
 
   const save = (quota: SavedPlanQuota) =>
     service(quota).save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'once more',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -168,7 +166,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
   });
 
   it('refuses the plan over the count limit, naming it, leaving the held record alone', async () => {
-    const quota = { ...ROOMY, mostPlansPerProject: 1 };
+    const quota = { ...ROOMY, mostPlansPerWorkPackage: 1 };
     expect((await save(quota)).outcome).toBe('saved');
     const held = await bodies();
 
@@ -189,7 +187,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
   });
 
   it('admits only one of two concurrent saves for the last quota slot', async () => {
-    const quota = { ...ROOMY, mostPlansPerProject: 1 };
+    const quota = { ...ROOMY, mostPlansPerWorkPackage: 1 };
     const outcomes = await Promise.all([save(quota), save(quota)]);
 
     expect(outcomes.map((outcome) => outcome.outcome).sort()).toEqual(['saved', 'snapshot_busy']);
@@ -197,7 +195,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     expect(await headers()).toHaveLength(1);
   });
 
-  it('refuses the plan over the project byte total, naming it, leaving the held record alone', async () => {
+  it('refuses the plan over the work package byte total, naming it, leaving the held record alone', async () => {
     // The limit is set from what one save of *this* plan actually costs, so the
     // second save is over it by exactly its own size and the arithmetic below is
     // checkable rather than approximate. Both saves capture the same unchanged
@@ -209,22 +207,22 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     const oneSave = rows[0].inputBytes + (rows[0].scheduleBytes ?? 0);
     const held = await bodies();
 
-    const refused = await save({ ...ROOMY, mostBytesPerProject: oneSave });
+    const refused = await save({ ...ROOMY, mostBytesPerWorkPackage: oneSave });
 
     expect(refused.outcome).toBe('refused');
     if (refused.outcome !== 'refused') return;
-    expect(refused.refusal.limit).toBe('project_bytes');
+    expect(refused.refusal.limit).toBe('work_package_bytes');
     expect(refused.refusal.allowed).toBe(oneSave);
     // Held plus incoming, not incoming alone: a check against the current total
-    // by itself admits one body of any size onto a project one byte under.
+    // by itself admits one body of any size onto a work package one byte under.
     expect(refused.refusal.asked).toBe(oneSave * 2);
     expect((await headers()).length).toBe(1);
     expect(await bodies()).toEqual(held);
   });
 
-  it('names the count when a project is over both the count and the byte total', async () => {
+  it('names the count when a work package is over both the count and the byte total', async () => {
     // Both bounds reached at once is still one refusal, and the one worth
-    // naming is the count: it is the one the project is still over after
+    // naming is the count: it is the one the work package is still over after
     // deleting a single plan. Without this the order of the two checks is
     // unasserted and either order passes.
     const first = await save(ROOMY);
@@ -234,8 +232,8 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
 
     const refused = await save({
       ...ROOMY,
-      mostPlansPerProject: 1,
-      mostBytesPerProject: oneSave,
+      mostPlansPerWorkPackage: 1,
+      mostBytesPerWorkPackage: oneSave,
     });
 
     expect(refused.outcome).toBe('refused');
@@ -246,15 +244,15 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
   it('holds the write lock from the quota read through the saved row', async () => {
     const rivalEntered: boolean[] = [];
     class RacingSavedPlanRepository extends SavedPlanRepository {
-      override async holdingOf(db: Drizzle, projectId: string): Promise<SavedPlanHoldingRow> {
-        const holding = await super.holdingOf(db, projectId);
+      override async holdingOf(db: Drizzle, workPackageId: string): Promise<SavedPlanHoldingRow> {
+        const holding = await super.holdingOf(db, workPackageId);
         const rival = openConnection(path);
         try {
           refuseToWaitForWriteLock(rival.db);
           try {
             await rival.db.insert(savedPlan).values({
               id: 'sp-rival',
-              projectId,
+              workPackageId,
               name: 'Rival',
               createdBy: 'Grace',
               createdById: null,
@@ -281,8 +279,8 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     }
     const plans = new RacingSavedPlanRepository({ openConnection: () => openConnection(path) });
 
-    const saved = await service({ ...ROOMY, mostPlansPerProject: 1 }, plans).save({
-      projectId: 'p1',
+    const saved = await service({ ...ROOMY, mostPlansPerWorkPackage: 1 }, plans).save({
+      workPackageId: 'p1',
       name: 'Only slot',
       createdBy: 'Ada Lovelace',
       createdById: null,

@@ -1,11 +1,11 @@
 /**
- * One rung of a project's priority ladder: where it starts, what it is called,
+ * One rung of a work package's priority ladder: where it starts, what it is called,
  * and the number its name writes.
  *
  * A band is a **start value**, not a range. The band above it is what ends it,
  * and the top band ends nowhere — which is Dany's own shape, 2026-08-13:
  * _"1-20 are critical, 21-40 are high, 41-60 are medium, 61-80 are low,
- * 81-further is lowest"_. Storing `1..20` instead would let a project state a
+ * 81-further is lowest"_. Storing `1..20` instead would let a work package state a
  * gap (nothing holds 21) or an overlap (two labels hold 21), and a priority that
  * resolves to no label or to two is a number no face can draw.
  * `openspec/changes/priority-bands/design.md` D1.
@@ -36,17 +36,17 @@ export interface PriorityBand {
 }
 
 /**
- * The ladder every project starts with, transcribed from Dany's sentence of
+ * The ladder every work package starts with, transcribed from Dany's sentence of
  * 2026-08-13 rather than invented: _"by default critical sets to 10, high to 30,
  * medium to 50, low to 70, lowest to 90"_.
  *
  * It is a **constant, not a global setting**, and that distinction is what makes
- * reading it as the answer for a project holding no rows legitimate where
- * `capacity-per-project` D1 refused the same shape for a team's size. A global
+ * reading it as the answer for a work package holding no rows legitimate where
+ * `capacity-per-work-package` D1 refused the same shape for a team's size. A global
  * size was a number somebody typed on a screen, so a plan silently bounded by it
  * was bounded by a decision made elsewhere for another plan. This is the source
  * saying what a priority ladder is when nobody has said otherwise, it is the same
- * five for every project, and no screen can change it. design.md D2.
+ * five for every work package, and no screen can change it. design.md D2.
  */
 export const DEFAULT_PRIORITY_BANDS: readonly PriorityBand[] = [
   { startsAt: 1, label: 'Critical', defaultValue: 10 },
@@ -59,7 +59,7 @@ export const DEFAULT_PRIORITY_BANDS: readonly PriorityBand[] = [
 /**
  * How many bands a ladder has, and it is not configurable.
  *
- * Dany asked for the labels, the cuts and the defaults to be a project's own; he
+ * Dany asked for the labels, the cuts and the defaults to be a work package's own; he
  * did not ask to add a sixth rung or drop one, and refusing that is what keeps
  * this change to one table with a fixed shape. What it buys: a rank is a
  * position from 0 to 4 that every face can key a colour off, the write is one
@@ -74,7 +74,7 @@ export const PRIORITY_BAND_COUNT = DEFAULT_PRIORITY_BANDS.length;
  * one of the five.
  *
  * A **rank**, and that is the whole point. Not the constant `50`, because a
- * project may re-cut its ladder and a number has no meaning outside the ladder
+ * work package may re-cut its ladder and a number has no meaning outside the ladder
  * it is read against — a plan whose middle rung starts at 200 would have every
  * new row stamped into its *most* important band. And not the label `Medium`,
  * because a rung is renameable and `priority-band-style.ts` already refuses to

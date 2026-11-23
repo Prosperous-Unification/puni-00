@@ -1,30 +1,36 @@
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 import { installCalendarMarker } from './check';
 import { CALENDAR_MARKER_LABEL } from './contract';
 import { calendarMarkerModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
+const PROJECT_ID = 'module-fixture-parent';
 
-/** One memory source holding one project, and the requirements a marker write needs. */
+/** One memory source holding one work package, and the requirements a marker write needs. */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
-  });
+  const { source } = await createLegacyWorkPackageFixture(OWNER, 'module-legacy', PROJECT_ID);
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: PROJECT_ID }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   let next = 0;
   const broadcast = recordingBroadcaster();
   return {
     broadcast,
     requirements: {
-      projects: source.stores.projects,
+      workPackages: source.stores.workPackages,
       markers: source.stores.calendarMarkers,
       clock: clockOf({ now: () => 2, newId: () => `marker-${String(++next)}` }),
       broadcast,
@@ -35,7 +41,8 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.createProvider(() => source.stores.projects, {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    workPackageStore: DiBag.createProvider(() => source.stores.workPackages, {
       factoryReturnKind: 'sync-value',
     }),
     calendarMarkerStore: DiBag.createProvider(() => source.stores.calendarMarkers, {
@@ -63,7 +70,6 @@ const completeHost = () =>
       clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
         factoryReturnKind: 'sync-value',
       }),
-      recoveryAdmission: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -72,7 +78,7 @@ describe('the Calendar marker module', () => {
     const { broadcast, requirements } = await seeded();
     const { calendarMarkers } = installCalendarMarker(requirements);
 
-    const created = await calendarMarkers.create(PROJECT, OWNER, {
+    const created = await calendarMarkers.create(WORK_PACKAGE, OWNER, {
       date: '2026-09-30',
       name: 'Launch',
     });
@@ -81,7 +87,7 @@ describe('the Calendar marker module', () => {
       ok: true,
       value: {
         id: 'marker-1',
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         date: '2026-09-30',
         name: 'Launch',
         color: null,
@@ -89,7 +95,7 @@ describe('the Calendar marker module', () => {
       },
     });
     expect(broadcast.published).toEqual([
-      { projectId: PROJECT, event: { type: 'calendar_markers_changed' } },
+      { workPackageId: WORK_PACKAGE, event: { type: 'calendar_markers_changed' } },
     ]);
   });
 

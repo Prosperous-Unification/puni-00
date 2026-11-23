@@ -1,4 +1,5 @@
 import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 
 /** The smallest and largest bound a session policy accepts, in seconds. */
 export const SESSION_POLICY_BOUNDS = { least: 300, most: 2_592_000 } as const;
@@ -13,7 +14,7 @@ export interface SessionPolicy {
 }
 
 /**
- * Whether `policy` is one a super-admin may store: each bound null or an
+ * Whether `policy` is admissible: each bound null or an
  * integer within {@link SESSION_POLICY_BOUNDS}, and the reauthentication bound
  * no larger than the session bound when both are set. Both null clears.
  *
@@ -37,20 +38,20 @@ export function isAdmissibleSessionPolicy(policy: SessionPolicy): boolean {
 }
 
 /**
- * Session policies. Writes recheck activation and the actor's super-admin
- * role and write their audit row in one immediate transaction.
+ * Session policies. Writes recheck activation and the authenticated actor's
+ * current organization.manage_security grant and write their audit row in one immediate transaction.
  *
  * @throws when trusted state is missing, unreadable or malformed.
  */
 export interface SessionPolicies {
   read(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<SessionPolicy | null | 'inactive' | 'forbidden'>;
   /** Stores `policy`, or clears it when both bounds are null. */
   set(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     policy: SessionPolicy,
     act: AuditedAct,
   ): Promise<'set' | 'cleared' | 'unchanged' | 'inactive' | 'forbidden'>;

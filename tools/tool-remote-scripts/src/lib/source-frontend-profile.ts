@@ -1,7 +1,7 @@
 import type { SourceEntry, SourceStartupManifest } from './source-startup-manifest';
 
 export type SourceFrontendProfile = 'wbs-source-frontend-wire-v1';
-// These exact logical inputs select one response profile, not the complete producer closure.
+// These fourteen fixed inputs and one complete configuration pair select a response profile, not the complete producer closure.
 const INPUTS = {
   'apps/wbs/fe-01/index.html': {
     bytes: 2482,
@@ -10,10 +10,6 @@ const INPUTS = {
   'apps/wbs/fe-01/src/main.tsx': {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
-  },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
   },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
@@ -65,16 +61,45 @@ const INPUTS = {
   },
 };
 
-const PROJECT_PATH = 'apps/wbs/fe-01/project.json';
-const HISTORICAL_PROJECT = {
-  bytes: 8117,
-  sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
-};
+// Both selected files must belong to one complete member; recognized off-diagonals refuse.
+const CONFIGURATIONS = [
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8117,
+      sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19552,
+      sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8132,
+      sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
+    },
+  },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8218,
+      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+    },
+    // Proof: removing the epoch gate made the four serial-lint selector negatives admitted older complete package/lock epochs.
+    onlyEpoch: 'registry-s3-20261108',
+  },
+];
 
-const EPOCHS = [
+const PAIRS = [
   {
     epoch: 'before-ctt',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4885,
       sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
@@ -86,7 +111,6 @@ const EPOCHS = [
   },
   {
     epoch: 'ctt-0.12.0',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4930,
       sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
@@ -98,7 +122,6 @@ const EPOCHS = [
   },
   {
     epoch: 'fresh-main-20261104',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4992,
       sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
@@ -111,7 +134,6 @@ const EPOCHS = [
   // Proof: removing this fourth pair made the actual canonical-fixture selector consumer refuse; the same selected HTTP test passed after exact restoration (2026-11-05).
   {
     epoch: 'fresh-main-20261105-ctt-0.13.0',
-    project: HISTORICAL_PROJECT,
     'package.json': {
       bytes: 4992,
       sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
@@ -125,22 +147,6 @@ const EPOCHS = [
   // this proves valid-input entry necessity, not invalid-input admission.
   {
     epoch: 'registry-s3-20261108',
-    project: HISTORICAL_PROJECT,
-    'package.json': {
-      bytes: 5030,
-      sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
-    },
-    'bun.lock': {
-      bytes: 543082,
-      sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
-    },
-  },
-  {
-    epoch: 'registry-s3-20261108',
-    project: {
-      bytes: 8218,
-      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
-    },
     'package.json': {
       bytes: 5030,
       sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
@@ -190,7 +196,7 @@ function readFrontendInput(
   return namespace.get(resolved.join('/'));
 }
 
-/** Selects fifteen common size/hash inputs and one of six exact project/package/lock combinations from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
+/** Selects fourteen fixed size/hash inputs, one of eleven exact Vite, project, package and lock combinations from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
 export function selectSourceFrontendProfile(
   manifest: SourceStartupManifest,
 ): SourceFrontendProfile {
@@ -219,12 +225,19 @@ export function selectSourceFrontendProfile(
     );
   };
   if (
-    !EPOCHS.some(
+    !PAIRS.some(
       (pair) =>
-        // Proof: omitting the project check admitted the complete fourth package/lock pair with the current project.
-        matches(PROJECT_PATH, pair.project) &&
         matches('package.json', pair['package.json']) &&
-        matches('bun.lock', pair['bun.lock']),
+        matches('bun.lock', pair['bun.lock']) &&
+        CONFIGURATIONS.some(
+          (configuration) =>
+            (!('onlyEpoch' in configuration) || configuration.onlyEpoch === pair.epoch) &&
+            matches(
+              'apps/wbs/fe-01/vite.config.ts',
+              configuration['apps/wbs/fe-01/vite.config.ts'],
+            ) &&
+            matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+        ),
     )
   )
     refuse();

@@ -32,7 +32,7 @@ export function validatePlanTasks(
 
 /**
  * Checks already decoded documents for digest binding, plan identity, task count,
- * supported version pairing and unique task IDs, step IDs and step codes.
+ * exact document/task pairs6/7→1,8–11→2,12–16→3 and unique task IDs, step IDs and step codes.
  * Grants only consistency of these two documents.
  *
  * @throws when any consistency invariant fails.
@@ -62,7 +62,22 @@ export function checkPlanTaskConsistency(
   // in receipt-to-commands.test.ts (2026-10-14).
   // Proof: bypassing this guard accepted re-digested v9/schema1 through production
   // receipt conversion in receipt-to-commands.test.ts (2026-10-15).
-  if (tasks.schemaVersion !== (reference.planDocumentVersion >= 8 ? 2 : 1)) {
+  const schemaByDocument = {
+    6: 1,
+    7: 1,
+    8: 2,
+    9: 2,
+    10: 2,
+    11: 2,
+    12: 3,
+    13: 3,
+    14: 3,
+    15: 3,
+    16: 3,
+  } as const;
+  // Proof: F09 bypassed pairing: re-digested document12/schema2 and document14/schema2 returned
+  // reports instead of throwing (plan-tasks3.test.ts).
+  if (tasks.schemaVersion !== schemaByDocument[reference.planDocumentVersion]) {
     throw new Error('plan document and task schema pairing is unsupported');
   }
   // Proof: removing task uniqueness made the duplicate task IDs test exit 0 (plan-tasks.test.ts, 2026-10-13).

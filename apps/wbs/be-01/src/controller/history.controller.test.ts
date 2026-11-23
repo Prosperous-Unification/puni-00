@@ -1,8 +1,16 @@
+import { memoryUserTable } from '@wbs/store-memory/auth-fixture';
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
+import { memoryWorkPackageTables } from '@wbs/store-memory/work-package-fixture';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { createLegacyPackageContext } from '../testing/project-fixture';
+import { createLegacyWorkPackageObservation } from '../testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
-import type { PlanEvent, Project, ProjectStore } from '../repository';
+import type { PlanEvent, WorkPackage } from '../repository';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
@@ -25,22 +33,27 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import {
+  inMemoryWorkPackages,
+  testWorkPackageService,
+  workPackageRow,
+} from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
-const PROJECT = 'p1';
+const WORK_PACKAGE = 'p1';
 
 function event(id: string, over: Partial<PlanEvent> = {}): PlanEvent {
   return {
     id,
-    projectId: PROJECT,
+    workPackageId: WORK_PACKAGE,
     userId: 'owner',
     kind: 'estimate',
     label: `estimate ${id}`,
@@ -54,36 +67,53 @@ function event(id: string, over: Partial<PlanEvent> = {}): PlanEvent {
 }
 
 /**
- * `GET /api/projects/:id/history`.
+ * `GET /api/work-packages/:id/history`.
  *
  * The filter parsing is the whole of this route's own behaviour — the read is the
- * store's and the absent-project answer is the service's — so that is what these
+ * store's and the absent-work-package answer is the service's — so that is what these
  * cases are about, plus the two answers a client branches on.
  */
 describe('one plan’s history, over HTTP', () => {
   let app: ReturnType<typeof buildApp>;
-  let projects: ProjectStore;
+  let workPackages: ReturnType<typeof inMemoryWorkPackages>;
   let token: string;
 
   let events: ReturnType<typeof inMemoryPlanEvents>;
 
   beforeEach(async () => {
-    const users = inMemoryUsers();
+    const userTable = memoryUserTable();
+    const users = inMemoryUsers(userTable);
     const auth = testAuthService(users);
-    projects = inMemoryProjects(users);
-    const project: Project = projectRow({
-      id: PROJECT,
-      ownerId: 'owner',
+    const workPackageTables = memoryWorkPackageTables();
+    workPackages = inMemoryWorkPackages(
+      users,
+      workPackageTables,
+      createLegacyPackageContext(
+        userTable.byId,
+        workPackageTables,
+        'http-fixture-legacy',
+        PROJECT_ID,
+      ),
+    );
+    const workPackage: WorkPackage = workPackageRow({
+      id: WORK_PACKAGE,
+      projectId: PROJECT_ID,
     });
-    await projects.create(project, [], { at: 1, by: project.ownerId });
     events = inMemoryPlanEvents([
       event('set', { createdAt: 1_000 }),
       event('cleared', { kind: 'clear_estimate', createdAt: 2_000 }),
       event('renamed', { kind: 'patch', workItemId: 'w2', stepId: null, createdAt: 3_000 }),
       event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
+    const history = testHistoryService(workPackages, events);
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: createLegacyWorkPackageObservation(
+        testWorkPackageService(workPackages),
+        history,
+      ),
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -93,32 +123,33 @@ describe('one plan’s history, over HTTP', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
       auth,
-      projects: testProjectService(projects),
+      workPackages: testWorkPackageService(workPackages),
       steps: testStepService(),
-      workItems: testWorkItemService(),
+      workItems: testWorkItemService(openTestSource()),
       savedPlans: testSavedPlanService(),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
-      history: testHistoryService(projects, events),
+      history,
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
       admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(),
+      writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
       migrationsApplied: true,
     });
     // Registered through the route, so the account the token names is the one
-    // `userFromHeaders` resolves — the harness `project.controller.test.ts` uses,
+    // `userFromHeaders` resolves — the harness `work-package.controller.test.ts` uses,
     // and for its reason.
     const registered = await app.handle(
       new Request('http://localhost/api/auth/register', {
@@ -128,11 +159,14 @@ describe('one plan’s history, over HTTP', () => {
       }),
     );
     token = ((await registered.json()) as { token: string }).token;
+    const actor = await auth.authenticate(token);
+    if (actor === null) throw Error('fixture account is absent');
+    await workPackages.create(workPackage, [], { at: 1, by: actor.id });
   });
 
   async function get(query: string, withToken = token) {
     const response = await app.handle(
-      new Request(`http://localhost/api/projects/${PROJECT}/history${query}`, {
+      new Request(`http://localhost/api/work-packages/${WORK_PACKAGE}/history${query}`, {
         headers: withToken === '' ? {} : { authorization: `Bearer ${withToken}` },
       }),
     );
@@ -204,11 +238,11 @@ describe('one plan’s history, over HTTP', () => {
     expect(body.events).toEqual([]);
   });
 
-  it('refuses without a token, and 404s a project that is not there', async () => {
+  it('refuses without a token, and 404s a work package that is not there', async () => {
     expect((await get('', '')).status).toBe(401);
 
     const response = await app.handle(
-      new Request('http://localhost/api/projects/no-such-plan/history', {
+      new Request('http://localhost/api/work-packages/no-such-plan/history', {
         headers: { authorization: `Bearer ${token}` },
       }),
     );

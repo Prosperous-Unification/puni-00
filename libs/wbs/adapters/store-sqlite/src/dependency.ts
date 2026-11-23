@@ -22,7 +22,7 @@ export class DependencyRepository implements DependencyStore {
     private readonly gate: Gate,
   ) {}
 
-  async listByProject(projectId: string): Promise<StoredDependency[]> {
+  async listByWorkPackage(workPackageId: string): Promise<StoredDependency[]> {
     // Projected rather than `select()`, and every read that crosses this
     // boundary is: the audit columns are recorded, not published, so a bare
     // select would put three fields nobody asked for into the store's answer and
@@ -31,27 +31,30 @@ export class DependencyRepository implements DependencyStore {
     return this.db
       .select({
         id: dependency.id,
-        projectId: dependency.projectId,
+        workPackageId: dependency.workPackageId,
         predecessorId: dependency.predecessorId,
         successorId: dependency.successorId,
       })
       .from(dependency)
-      .where(eq(dependency.projectId, projectId));
+      .where(eq(dependency.workPackageId, workPackageId));
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredDependency[]> {
+  async listByWorkItems(
+    workPackageId: string,
+    ids: readonly string[],
+  ): Promise<StoredDependency[]> {
     if (ids.length === 0) return [];
     const rows = await this.db
       .select({
         id: dependency.id,
-        projectId: dependency.projectId,
+        workPackageId: dependency.workPackageId,
         predecessorId: dependency.predecessorId,
         successorId: dependency.successorId,
       })
       .from(dependency)
       .where(
         and(
-          eq(dependency.projectId, projectId),
+          eq(dependency.workPackageId, workPackageId),
           or(
             inArray(dependency.predecessorId, [...ids]),
             inArray(dependency.successorId, [...ids]),
@@ -63,16 +66,20 @@ export class DependencyRepository implements DependencyStore {
     ];
     if (endpointIds.length === 0) return [];
     const endpoints = await this.db
-      .select({ id: workItem.id, projectId: workItem.projectId })
+      .select({ id: workItem.id, workPackageId: workItem.workPackageId })
       .from(workItem)
       .where(inArray(workItem.id, endpointIds));
-    const endpointProjects = new Map(endpoints.map(({ id, projectId: owner }) => [id, owner]));
+    const endpointWorkPackages = new Map(
+      endpoints.map(({ id, workPackageId: owner }) => [id, owner]),
+    );
     for (const row of rows) {
       if (
-        endpointProjects.get(row.predecessorId) !== projectId ||
-        endpointProjects.get(row.successorId) !== projectId
+        endpointWorkPackages.get(row.predecessorId) !== workPackageId ||
+        endpointWorkPackages.get(row.successorId) !== workPackageId
       ) {
-        throw new Error(`dependency ${row.id} has an endpoint outside project ${projectId}`);
+        throw new Error(
+          `dependency ${row.id} has an endpoint outside work package ${workPackageId}`,
+        );
       }
     }
     return rows;

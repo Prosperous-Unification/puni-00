@@ -14,6 +14,8 @@ export interface PathsSubstitutionAttempt {
 }
 
 const inputSha256 = '569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39';
+/** The reviewed upstream identity is shared with the separate preparation-only compiler policy. */
+export { inputSha256 as compilerUpstreamIdentity };
 const outputSha256 = '47bffa39459dbbb0797606506c790af1420a983ed6bc1d3ca4945a64ee782559';
 const licenseSha256 = 'a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47';
 const noticeSuffix =

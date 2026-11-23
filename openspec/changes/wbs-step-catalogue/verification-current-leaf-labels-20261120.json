@@ -1,0 +1,480 @@
+{
+  "schema": "wbs-current-leaf-labels-v1",
+  "recordedAt": "2026-11-20T08:46:11.250Z",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-attempt-labels.controller.db.test.ts",
+      "sha256": "a8df46a99aa6f7f644b8f4996fac35ebff6d9065fd7cd294892bab9dea3fffa7",
+      "bytes": 9297,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "8569996b85a34408f9c633a2716c0f9685ea77c4e462f73c088f7bef346ef4a9",
+      "bytes": 577682,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "sha256": "661b04b1260b909ebbdbf73b5b5e060bc31f70db02215bf62982c8de6c3a4beb",
+      "bytes": 135278,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/shared-people-values.ts",
+      "sha256": "a5dee0076393dd5a7086e82ba993063c7b8742cd26d706b40e95ce5f584c63c8",
+      "bytes": 7932,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-endpoints.ts",
+      "sha256": "7b519a4b17822f51215d80e10b6f128c2ee231289ede35217ce3d4bb356ea04a",
+      "bytes": 7346,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+      "sha256": "599d84cede122e177b79ebbe14f65042a2d51849110918bcb1ba54f5d46be998",
+      "bytes": 5439,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-tree.test.ts",
+      "sha256": "ef53c70cc5e908f210303bed645ba29c0f888641bb767c75d006d6e6e27157e7",
+      "bytes": 42145,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-leaf-fixture.ts",
+      "sha256": "29eb814f4d8d8393b5b77aab7ab3a3ad477037ecb97ee362c1e02137e74e3168",
+      "bytes": 1354,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-plan-fixture.ts",
+      "sha256": "c12f5b352969e4415d9234c6e8cc27a1b2dcde80cc13fc28b47dea6f8be067a1",
+      "bytes": 4890,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-optimization-view.fixture.ts",
+      "sha256": "096c6083bde7b2a733a97e176add603df85ab246aac9e46a2d4908eba86e6206",
+      "bytes": 13443,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/connected-blockage.fixture.ts",
+      "sha256": "503025f4dbe33ec33a1beb140bec7caad8d4f08502e92cf9f2a30afc5c08c3e9",
+      "bytes": 3714,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+      "sha256": "86612478d9f60fde8b35659c76e28455732b071ed976d05577a86f276871bc03",
+      "bytes": 17315,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+      "sha256": "ef40f7815694c91d56ec9baabcb88d7d579242bfe423a869312401e39cd2096b",
+      "bytes": 17366,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-item-store.ts",
+      "sha256": "d040e3a7ecd67f31945291eb9a52f0b437318f65eb05def2205de1e170764201",
+      "bytes": 19848,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-item-values.ts",
+      "sha256": "042112e6129a877ece501cc5d120d8709d799812cbf34927979b65cca82ade08",
+      "bytes": 11646,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "Private labelNode reads actual current tree metadata for future attempt sentences. Own leaf order/count replace union ordering/padding; recorded event rows remain exact after binding reorder, end and removal.",
+    "Connected node labels use their own captured leaf IDs/order/count; missing lists, unresolved/package-only steps, zero-step nodes and parent-as-node endpoints refuse. Whole and descendant-step label behavior and package position display metadata remain.",
+    "TreeWorkItem now belongs to work-item-values.ts and is re-exported by the store port. LivePlanRead retains the value type without importing repository-owned declarations into closed features.",
+    "Detached historical projection fixtures author explicit uniform leaf sidecars. Nullable old codes remain untouched in PlanInputReads/catalogue metadata; synthetic sidecar codes provide only a current fixture shape, not Source or genuine predecessor evidence."
+  ],
+  "verification": {
+    "api": {
+      "phase": "current-leaf-labels-api-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-api-mcp-v1.receipt.json",
+        "sha256": "92d349fbe205100e43c4c1b041b42e5f86092b12872136e5be614df88129abce",
+        "bytes": 2579,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-api-mcp-v1.log",
+        "sha256": "117f25686701acdb7c458ab14e875ccc9a1913d1bf2c621663122ee04e00ffd0",
+        "bytes": 33180,
+        "mode": 384
+      },
+      "passed": 238,
+      "failed": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "seconds": 221.72,
+      "qualification": "The final runtime cohort includes the two actual isolated/shared HTTP label cases and seven connected endpoint unit cases. The later value-type extraction has identical Bun emissions for all three changed type modules."
+    },
+    "core": {
+      "phase": "current-core-source-only-v22",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v22.receipt.json",
+        "sha256": "65dd0ef477cb956a7ffadb65093ddcb6b5f78e99bab8624eb035a137b89a79e9",
+        "bytes": 14678,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v22.log",
+        "sha256": "09ba79d5b311d27071aa6606b29e7a7cb38af0066e5f027952908a9facdd5470",
+        "bytes": 262687,
+        "mode": 384
+      },
+      "passed": 2071,
+      "failed": 27,
+      "assertions": 9390,
+      "tests": 2098,
+      "files": 169,
+      "seconds": 80.83,
+      "same27NamedFailures": true,
+      "failures": [
+        "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "(fail) counting unit of work rejects unexpected store access and records rollback",
+        "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "(fail) refuses a typed node endpoint absent from the full tree",
+        "(fail) rejects a required work package read returning another work package identity",
+        "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "(fail) the Plan import module > admits a small document over the graph installPlanImport wires",
+        "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v22.json",
+        "sha256": "e76ac6e61b8e545bba420929837e5ba1e2d902e2f858f41d5b0a8f77d122b2df",
+        "bytes": 43551,
+        "mode": 384
+      }
+    },
+    "frontend": {
+      "phase": "current-leaf-labels-frontend-regression-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-frontend-regression-v1.receipt.json",
+        "sha256": "010830df87554eb6dc853bb8f35210a5ce81ec9414a598331a2a2efe5feeb77c",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-frontend-regression-v1.log",
+        "sha256": "f382baa235f946d8e8d9795947f58daed3a8018de3ddfa5f30d267e8f77e7ee9",
+        "bytes": 6893,
+        "mode": 384
+      },
+      "passed": 39,
+      "files": 2,
+      "seconds": 22.84,
+      "qualification": "Two actual affected jsdom/Vitest suites discovered through direct imports of the changed producer fixtures, private /tmp config/cache, Bun runtime. Type extraction is runtime-erased."
+    },
+    "focus": {
+      "phase": "current-leaf-labels-proof-control-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-proof-control-v1.receipt.json",
+        "sha256": "eeee47a7f0a24c6020397e897b38b917e95254bba943e792b92a6749c4515067",
+        "bytes": 1700,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-proof-control-v1.log",
+        "sha256": "edab27ddced3f66d18ba2b607ae30041cdd1eb266e47a987e7de5af31e9405d8",
+        "bytes": 10172,
+        "mode": 384
+      },
+      "passed": 98,
+      "failed": 0,
+      "assertions": 321,
+      "tests": 98,
+      "files": 5,
+      "seconds": 5.64,
+      "qualification": "98 detached/HTTP controls before private method rename and proof comments; final API/core/affected frontend cohorts follow."
+    },
+    "backendTypes": {
+      "phase": "current-leaf-labels-final-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-types-v2.receipt.json",
+        "sha256": "d3464a56af16abbe4b219a5b74fd167066859942987e5d6783f1e8690cc176f9",
+        "bytes": 1355,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "backendTypeConfig": {
+      "path": "/tmp/puni-current-leaf-labels-types-v1.json",
+      "sha256": "954b321c488edeb238a4bb0ff22f1920650ba95a5a4d55ec92ccaa00ad773d17",
+      "bytes": 3064,
+      "mode": 436
+    },
+    "backendTypeEntries": 23,
+    "frontendTypes": {
+      "phase": "current-leaf-labels-frontend-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-frontend-types-v2.receipt.json",
+        "sha256": "6aa158b71469b12d0abfa53dd83787286764d19e12281d97c450026bf04faa38",
+        "bytes": 1362,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-frontend-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "lint": {
+      "phase": "current-leaf-labels-final-lint-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-lint-v2.receipt.json",
+        "sha256": "64bcc002b9f765aa7517ff4e0a30e8c16765b6e9b4e50305fbe41825f888e782",
+        "bytes": 2439,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "codeFormat": {
+      "phase": "current-leaf-labels-final-format-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-format-v2.receipt.json",
+        "sha256": "872c957c206cf9ab0a490b65e7d5155b6fe0666cc5c4173b56ef4f30cc0d1d83",
+        "bytes": 2440,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-final-format-v2.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    "proofs": {
+      "phase": "current-leaf-labels-proofs-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-proofs-v2.receipt.json",
+        "sha256": "0d15b78a0e46a6a4365e7b84c6cf05a9dd1ef1ea75d25ed85cfa12e2803b870a",
+        "bytes": 1278,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-proofs-v2.log",
+        "sha256": "f3d0da8add63f3af6c8768f0e40f71bd960b1cc6a54bf02cada5dbb00147f335",
+        "bytes": 592,
+        "mode": 384
+      }
+    },
+    "audit": {
+      "phase": "current-leaf-labels-retirement-audit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-retirement-audit-v2.receipt.json",
+        "sha256": "2f71cb294876f082fbb7d5a46446dc2452127eb545801d6eb2e819545b27aec8",
+        "bytes": 1301,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-retirement-audit-v2.log",
+        "sha256": "48ca70ba26ff56fb6f845e9046242b269f84f7cdde7dcb7edb064ac610f35530",
+        "bytes": 275,
+        "mode": 384
+      }
+    }
+  },
+  "effects": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-effects-v2.json",
+    "sha256": "ebd37fc41ed63b6b074ef21dfeedc2fccbb8882f7f4b073e66f95eaf0ae8dfca",
+    "bytes": 13940,
+    "mode": 384
+  },
+  "runtimeEmissions": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-comment-emissions-v1.json",
+    "sha256": "3a34c44d71d771ca0af80a88a4c6667d22f06ef11da1f73a4e1938357d068c58",
+    "bytes": 253,
+    "mode": 384
+  },
+  "valueExtractionEmissions": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-value-extraction-emissions-v1.json",
+    "sha256": "891e4f1ad3814e9ecd20567bd796ef80177547edad178cab72c2c1e2b344b7c2",
+    "bytes": 229,
+    "mode": 384
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v11.json",
+    "sha256": "19b53c1f637b74e0bca1ed6d910003b3864d45d2fb9e6f74258468abbfde8202",
+    "bytes": 1855877,
+    "mode": 384
+  },
+  "archive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  },
+  "attempts": [
+    {
+      "phase": "current-attempt-labels-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-attempt-labels-red-v1.receipt.json",
+        "sha256": "9945eb00fc95fef9ac15ed9cee1a0ba590b4a4c95caded2ebc52b10cb26af09d",
+        "bytes": 1361,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-attempt-labels-red-v1.log",
+        "sha256": "483e37fc879cd96d08d7508bab03e6c76a6c6c2e83e08eb2896fe97a4b2797e7",
+        "bytes": 3204,
+        "mode": 384
+      },
+      "qualification": "Both actual HTTP modes recorded union s01 instead of own s2."
+    },
+    {
+      "phase": "current-connected-labels-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-connected-labels-red-v1.receipt.json",
+        "sha256": "a1c76512f7b349169ec89bad637e5e506bd7217b5e19bc7f80395065b92ad2d9",
+        "bytes": 1322,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-connected-labels-red-v1.log",
+        "sha256": "5f6f9e20420e62bf931874f078ce5717bc529934fbd6fb6c43fab1668ceaacf5",
+        "bytes": 6046,
+        "mode": 384
+      },
+      "qualification": "Five intended detached ordinal/refusal regressions failed; the original two cases passed."
+    },
+    {
+      "phase": "current-attempt-labels-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-attempt-labels-green-v1.receipt.json",
+        "sha256": "91466e058080948d59d1fb721058ce75cb750e130f431b1827dd9b8ac76bbc51",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-attempt-labels-green-v1.log",
+        "sha256": "27fa81b72cddb5751a48ebc7427a256924dd962e959c49c73c10c109a977a37a",
+        "bytes": 22074,
+        "mode": 384
+      },
+      "qualification": "The first combined check had two new fixture expectations treating a multi-command batch as separate events, plus three retained baseline history failures. HTTP commands were separated; product recording semantics were unchanged."
+    },
+    {
+      "phase": "current-leaf-labels-focus-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-focus-v1.receipt.json",
+        "sha256": "5a70f9c41e2bbe5645d92b5de3ba312317cec665214b1eba498bd33b56840004",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-focus-v1.log",
+        "sha256": "936ed5bae47de4c68b050ace2a46f641bc05cf9efd54e083ed202589578d350f",
+        "bytes": 2115,
+        "mode": 384
+      },
+      "qualification": "The old detached label fixture lacked a current leaf inventory. Explicit fixture sidecars were added without production fallback."
+    },
+    {
+      "phase": "current-leaf-labels-focus-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-focus-v2.receipt.json",
+        "sha256": "5da09b490f30447f566d6c8b30c42b416c0458cb19286f7845bda27f75c851e8",
+        "bytes": 1683,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-focus-v2.log",
+        "sha256": "6b85ddd5dfda1b4f0ab3aff483994672ecc54d721bc24a7c931d954959887d3a",
+        "bytes": 8794,
+        "mode": 384
+      },
+      "qualification": "Automated fixture wrapping misplaced nested map closings and caused four syntax/collection errors. Corrected before the healthy98-case control; this is setup failure, not product evidence."
+    },
+    {
+      "phase": "current-leaf-labels-http-connected-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-http-connected-v1.receipt.json",
+        "sha256": "86f5f3120df9151b7f650942feaecfabcc6d3bcd6a26bcad6f64110c79c4d54d",
+        "bytes": 1377,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-leaf-labels-http-connected-v1.log",
+        "sha256": "029d3c7c9b77a75a6ce2192cc9314479053e101a3cd100e436369c66b3f12001",
+        "bytes": 3176,
+        "mode": 384
+      },
+      "qualification": "Actual SQLite BEFORE trigger rejects the attempted retained-edge insertion with external_dependencies_inactive. Final tests retain this expected refusal and compare unchanged external rows, then verify actual own leaf step nodes. No activation is fabricated."
+    },
+    {
+      "phase": "current-core-source-only-v21",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v21.receipt.json",
+        "sha256": "72bc8d81afa49baffa6e690a7cad36b2db94acee0ccab12808c60d25616beea3",
+        "bytes": 14678,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v21.log",
+        "sha256": "1dfab589f8a116e0f15b1114bac803851354f0171269da7d11a27856c87f90f9",
+        "bytes": 264754,
+        "mode": 384
+      },
+      "passed": 2070,
+      "failed": 28,
+      "assertions": 9481,
+      "tests": 2098,
+      "files": 169,
+      "seconds": 88.23,
+      "qualification": "One additional closed-feature repository-value ownership failure. Moving the value declaration and retaining its re-export fixes this with unchanged audits; final core returns to the same27 named baseline failures."
+    }
+  ],
+  "remaining": [
+    "Activation-backed actual connected HTTP label verification remains required. The current fixture is legitimately inactive and refuses edge insertion; detached projector evidence plus actual Source leaf metadata is not that end-to-end certificate.",
+    "Full tree/fact/access owner capture and direct-service atomicity, per-leaf node readings/resources/slices, zero-step scheduling and the frontend fake API remain open.",
+    "SC9 document/saved-input versions and converters, SC24 import, all13 fact families, all15 genuine historical guarantees and complete settings/type/UI/browser scope remain open. Core still has27 named failures.",
+    "Migrate the older qualified HTTP and raw-owner109-case HTTP fixtures while preserving original guarantees; they were not run here.",
+    "All original entity dependencies and PUNI Optique1.3.6 aliases/Bun full client inventory/embedding/installed toolchain/exact-SHA host gates/integration/release remain active.",
+    "Astra remains unavailable until recorded Nov22,2026 10:09AM, timezone unspecified; no retry/spawn/substitute. Full browser E2E, host gates, installed CLI and release were not run."
+  ],
+  "qualification": "Bounded future-label and detached projector cutover; ten final faults restored, two post-comment production emissions and three type-extraction emissions match. Genuine event-row immutability is current receiver evidence, not all historical guarantees. No activation, frozen input rewrite, public commit/push/PR update/merge/deploy/install. Full goal remains active."
+}

@@ -24,7 +24,7 @@ const NOTHING_CREATED: PlanImportSummary['created'] = {
 };
 
 const summary = (overrides: Partial<PlanImportSummary> = {}): PlanImportSummary => ({
-  projectId: 'p3',
+  workPackageId: 'p3',
   rows: 19,
   created: NOTHING_CREATED,
   solutionRef: 'none',
@@ -73,7 +73,7 @@ describe('distinctImportName', () => {
 });
 
 describe('importSummarySentence', () => {
-  it('names the project and says nothing about an absent solution link', () => {
+  it('names the work package and says nothing about an absent solution link', () => {
     const sentence = importSummarySentence(summary(), 'Review fixture (imported 15 Oct)');
     expect(sentence).toBe('Imported “Review fixture (imported 15 Oct)” with 19 work items.');
     // Proof: the old sentence `Imported 19 work items. Created no directory
@@ -99,12 +99,75 @@ describe('importSummarySentence', () => {
       'Imported “Shed” with 19 work items. It keeps its solution link.',
     );
     expect(importSummarySentence(summary({ solutionRef: 'left-off' }), 'Shed')).toBe(
-      'Imported “Shed” with 19 work items. Its solution link was left off: another project already has it.',
+      'Imported “Shed” with 19 work items. Its solution link was left off: another work package already has it.',
     );
   });
 });
 
 describe('importRefusalSentence', () => {
+  it('lists unknown catalogue codes in file order and explains explicit opt-in', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({
+          error: 'unknown_step_codes',
+          codes: ['qa', 'research'],
+        }),
+      ),
+    ).toBe(
+      'Unknown step codes: qa, research. To create them, select “Define missing steps” and import again with project settings permission.',
+    );
+  });
+
+  it('distinguishes retired catalogue codes without suggesting reactivation', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({
+          error: 'retired_step_codes',
+          codes: ['legacy', 'qa'],
+        }),
+      ),
+    ).toBe(
+      'Retired step codes: legacy, qa. These codes cannot be reused. Update the file to use active steps before importing again.',
+    );
+  });
+
+  it('explains project settings permission for binding or defining imported steps', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({
+          error: 'forbidden',
+          permission: 'project.manage_settings',
+        }),
+      ),
+    ).toBe(
+      'Adding steps to this project requires project settings permission. Ask a project manager to prepare its steps before importing again.',
+    );
+  });
+
+  it('asks for a project when the import destination is missing', () => {
+    expect(importRefusalSentence(new PlanImportRefusalError({ error: 'project_required' }))).toBe(
+      'Choose a project before importing a plan.',
+    );
+  });
+
+  it('asks for another project when the import destination is unavailable', () => {
+    expect(importRefusalSentence(new PlanImportRefusalError({ error: 'not_found' }))).toBe(
+      'That project is no longer available. Choose another project before importing.',
+    );
+  });
+
+  it('words an invalid import envelope without claiming its file was malformed', () => {
+    expect(importRefusalSentence(new PlanImportRefusalError({ error: 'invalid_body' }))).toBe(
+      'The import request could not be read. Reload the page and try again.',
+    );
+  });
+
+  it('words the server invalid JSON refusal', () => {
+    expect(importRefusalSentence(new PlanImportRefusalError({ error: 'invalid_json' }))).toBe(
+      'This file is not JSON.',
+    );
+  });
+
   it('says a file that is not JSON is not JSON', () => {
     // Proof: the old `Plan JSON import failed (invalid_json).` failed this.
     // Observed 2026-10-15.
@@ -155,7 +218,7 @@ describe('importRefusalSentence', () => {
         new PlanImportRefusalError({ error: 'external_dependencies_inactive', detail: null }),
       ),
     ).toBe(
-      'This server does not accept dependencies between projects yet, so nothing was imported.',
+      'This server does not accept dependencies between work packages yet, so nothing was imported.',
     );
   });
 
@@ -167,7 +230,7 @@ describe('importRefusalSentence', () => {
       'unknown_ref',
       'cycle',
       'ancestor',
-      'deadline_before_project_start',
+      'deadline_before_work_package_start',
       'work_item_takes_one_type',
       'engine_unavailable',
       'source_refused',
@@ -219,7 +282,7 @@ describe('importRefusalSentence', () => {
         }),
       ),
     ).toBe(
-      'Organization limit: this plan would state 32 units of resource ram, which your other projects already state 48 of, past the cap of 64, so nothing was imported.',
+      'Organization limit: this plan would state 32 units of resource ram, which your other work packages already state 48 of, past the cap of 64, so nothing was imported.',
     );
   });
 
@@ -228,7 +291,7 @@ describe('importRefusalSentence', () => {
       'http_502',
       'request_failed',
       'something_new',
-      'imported_project_missing',
+      'imported_work_package_missing',
     ]) {
       const sentence = importRefusalSentence(new Error(message));
       expect(sentence, message).not.toMatch(INTERNAL);
@@ -245,9 +308,62 @@ it('explains abbreviation exhaustion without treating it as a broken export', ()
     importRefusalSentence(
       new PlanImportRefusalError({
         error: 'abbreviation_exhausted',
-        path: 'project',
+        path: 'work_package',
         detail: null,
       }),
     ),
   ).toContain('available abbreviation');
+});
+
+it('explains incompatible inherited budget factor without exposing settings values', () => {
+  const sentence = importRefusalSentence(
+    new PlanImportRefusalError({ error: 'import_settings_conflict', key: 'budgetFactor' }),
+  );
+  expect(sentence).toBe(
+    'This plan uses a different budget factor from the selected project. Choose a compatible project before importing.',
+  );
+  expect(sentence).not.toMatch(INTERNAL);
+  expect(sentence).not.toContain('budgetFactor');
+});
+
+it('bulk estimate import refusal explains an unavailable step without internal codes', () => {
+  const sentence = importRefusalSentence(
+    new PlanImportRefusalError({
+      error: 'unknown_step',
+      path: 'workItems[0].estimates[0]',
+      detail: null,
+    }),
+  );
+  expect(sentence).toBe(
+    'A step used by this plan is no longer available, so nothing was imported (workItems[0].estimates[0]).',
+  );
+  expect(sentence).not.toContain('unknown_step');
+});
+
+it('bulk estimate import refusal explains leaf applicability without internal codes', () => {
+  const sentence = importRefusalSentence(
+    new PlanImportRefusalError({
+      error: 'step_not_resolved',
+      path: 'workItems[0].estimates[0]',
+      detail: null,
+    }),
+  );
+  expect(sentence).toBe(
+    'An estimate uses a step that does not apply to its work item, so nothing was imported (workItems[0].estimates[0]).',
+  );
+  expect(sentence).not.toContain('step_not_resolved');
+});
+
+it('bulk estimate import refusal explains type conflict without internal codes', () => {
+  const sentence = importRefusalSentence(
+    new PlanImportRefusalError({
+      error: 'type_conflict',
+      path: 'workItems[0].estimates[0]',
+      detail: null,
+    }),
+  );
+  expect(sentence).toBe(
+    'This plan would leave a work item with conflicting types, so nothing was imported (workItems[0].estimates[0]).',
+  );
+  expect(sentence).not.toContain('type_conflict');
 });

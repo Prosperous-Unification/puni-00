@@ -1,0 +1,26 @@
+{
+  "name": "tool-test-performance-execution",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/test/performance-execution",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/test/performance-execution/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/tools/test/performance-execution"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/test/performance-execution" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/test/performance-execution/tsconfig.json"
+      }
+    }
+  }
+}

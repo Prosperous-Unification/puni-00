@@ -1,9 +1,8 @@
-import { expect, test } from '@playwright/test';
-
 import {
   IMPORT_WITH_AI_GUIDE_URL,
   IMPORT_WITH_AI_PROMPT,
 } from '../src/components/wbs/import-with-ai';
+import { expect, test } from './ordinary-test';
 import { openSeededPlan, seedPlan } from './plan-fixture';
 
 const RUN_TOKEN = String(Date.now());

@@ -14,16 +14,16 @@ test('each named answer reaches the key readers already have', () => {
 
   named.themeChoice(isChoice).write('dark');
   named.ganttDetail.write(true);
-  named.lastOpenedProject.write('p1');
-  named.projectSettingsSection('p9', isSection).write('teams');
+  named.lastOpenedWorkPackage.write('p1');
+  named.workPackageSettingsSection('p9', isSection).write('teams');
 
   // Names and bytes together, because both are compatibility facts: two of
   // these are bare text and eleven are JSON, and a reader has them now.
   expect(store.held()).toEqual({
     'wbs.theme': '"dark"',
     'wbs.ganttDetail': 'true',
-    'wbs.project': 'p1',
-    'wbs.projectSettingsSection.p9': 'teams',
+    'wbs.workPackage': 'p1',
+    'wbs.workPackageSettingsSection.p9': 'teams',
   });
 });
 
@@ -44,9 +44,9 @@ test('the chart detail refuses anything that is not a boolean', () => {
   expect(store.held()['wbs.ganttDetail']).toBeUndefined();
 });
 
-test('the last opened project holds the empty string rather than refusing it', () => {
-  const store = fakeBrowserStorage({ 'wbs.project': '' });
+test('the last opened work package holds the empty string rather than refusing it', () => {
+  const store = fakeBrowserStorage({ 'wbs.workPackage': '' });
   const named = createRememberedPreferences(createPreferences(store));
 
-  expect(named.lastOpenedProject.read()).toBe('');
+  expect(named.lastOpenedWorkPackage.read()).toBe('');
 });

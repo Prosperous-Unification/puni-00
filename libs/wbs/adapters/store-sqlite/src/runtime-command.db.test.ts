@@ -11,16 +11,18 @@ import {
 } from '@wbs/conformance/runtime-command-conformance';
 import { describe, expect, it } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 describe('SQLite runtime command persistence', () => {
   const open = () => {
     const directory = mkdtempSync(join(tmpdir(), 'runtime-command-'));
     const dbPath = join(directory, 'plan.db');
-    runMigrations(dbPath, migrations);
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     const source = openSqliteSource({
       dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath,
@@ -40,7 +42,10 @@ describe('SQLite runtime command persistence', () => {
 it('retains an exact claim acceptance and its attempt binding after closing and reopening SQLite', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-claim-reopen-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, migrations);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -93,7 +98,10 @@ it('retains an exact claim acceptance and its attempt binding after closing and 
 it('retains ordered write acceptance and exact bindings after reopening without changing ledger counts on reads', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-write-reopen-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, migrations);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,

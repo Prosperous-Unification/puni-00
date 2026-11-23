@@ -1,7 +1,7 @@
-import { expect, type Page, test } from '@playwright/test';
-
 import { paintedLeftEdge } from './control-edge';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { openWorkPackageActions } from './ordinary-context';
+import { expect, type Page, test } from './ordinary-test';
 
 /**
  * The outline button's edge, painted (UI review F-124): every `outline` control
@@ -49,14 +49,16 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.unroute('**/api/auth/me');
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-    await createProject(page, `Control edge ${scheme} ${String(Date.now())}`);
+    await createWorkPackage(page, `Control edge ${scheme} ${String(Date.now())}`);
     await page.mouse.move(2, 400);
-    for (const name of ['Rename project', 'Freeze #']) {
+    for (const name of ['Rename work package', 'Freeze #']) {
+      if (name === 'Rename work package') await openWorkPackageActions(page);
       const control = page.getByRole('button', { name, exact: true });
       await expect(control).toBeVisible();
       const edge = await paintedLeftEdge(page, control);
       expect(edge.outside, `${name}: outside`).toBeGreaterThanOrEqual(3);
       expect(edge.inside, `${name}: inside`).toBeGreaterThanOrEqual(3);
+      if (name === 'Rename work package') await page.keyboard.press('Escape');
     }
 
     // Every other control box on the bar draws the same edge (F-152, F-137): the
@@ -66,17 +68,19 @@ for (const scheme of ['light', 'dark'] as const) {
     // `1.44…` (dark), the `--input` hairline.
     const boxes = [
       ['Find', page.getByRole('textbox', { name: 'Find', exact: true })],
-      ['Project start date', page.getByLabel('Project start date')],
+      ['Work package start date', page.getByLabel('Work package start date')],
       ['Final estimate', page.getByLabel('Final estimate')],
       ...['Saved plans', 'Filters', 'Views', 'Columns', 'Export / Import'].map(
         (name) => [name, page.locator('summary', { hasText: name })] as const,
       ),
     ] as const;
     for (const [name, control] of boxes) {
+      if (name === 'Saved plans') await openWorkPackageActions(page);
       await expect(control).toBeVisible();
       const edge = await paintedLeftEdge(page, control);
       expect(edge.outside, `${name}: outside`).toBeGreaterThanOrEqual(3);
       expect(edge.inside, `${name}: inside`).toBeGreaterThanOrEqual(3);
+      if (name === 'Saved plans') await page.keyboard.press('Escape');
     }
   });
 }

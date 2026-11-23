@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { scheduleError } from './schedule-error-shape';
+import { resolvedStep } from './step-catalogue-shapes';
 import { stepShape } from './step-shapes';
 
 const scheduled = type({
@@ -25,13 +26,13 @@ const typedEndpoint = type({
   'stepNodeId?': 'string',
 });
 const connectedEndpoint = type({
-  // Proof: widening projectId to unknown made the mounted malformed captured
+  // Proof: widening workPackageId to unknown made the mounted malformed captured
   // navigation identity test answer 200 instead of 500 (2026-10-22).
-  endpoint: typedEndpoint.and({ projectId: 'string' }),
+  endpoint: typedEndpoint.and({ workPackageId: 'string' }),
   isLeaf: 'boolean',
   revision: 'number',
   name: 'string',
-  projectAbbreviation: 'string',
+  workPackageAbbreviation: 'string',
   workItemNumber: 'string',
   step: type({ id: 'string', name: 'string', code: 'string | null', position: 'number' }).or(
     'null',
@@ -77,8 +78,11 @@ export const moneyBasis = type({ currency: 'string', rateCardDigest: 'string' })
 export const mixedBases = type([moneyBasis.or('null'), moneyBasis.or('null')]);
 
 export const numberedWorkItem = type({
+  // Parents and older producers omit this field; current leaf readers always send a list.
+  // Proof: omitting this schema admitted malformed provenance in the nested tree response test.
+  'steps?': resolvedStep.array().readonly(),
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   parentId: 'string | null',
   position: 'number',
   name: 'string',
@@ -215,7 +219,7 @@ export const workItemSlice = scheduled.and({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'elsewhere' | 'capacity' | 'optimizer'",
+    "'workPackageStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'elsewhere' | 'capacity' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
@@ -223,8 +227,8 @@ export const workItemSlice = scheduled.and({
   // the start, with `capacityTeamId` null (`wbs-resources` R5). Additive: an
   // older be-01 never sends it.
   'capacityResource?': type({ resourceId: 'string', units: 'number' }),
-  // Present exactly when `boundBy` is `'elsewhere'` (`share-people-across-projects`).
-  'elsewhereHolder?': type({ projectId: 'string', workItemId: 'string' }),
+  // Present exactly when `boundBy` is `'elsewhere'` (`share-people-across-work-packages`).
+  'elsewhereHolder?': type({ workPackageId: 'string', workItemId: 'string' }),
   // Proof: widening lateBy admitted text,200 instead of500 in the mounted tree case.
   width: 'number',
   effort: 'number',
@@ -264,7 +268,7 @@ const optimizationBase = type({
   // read retains: the cue names Fast, PRI and Time together, every difference
   // is taken against the reference through the client's shared workday drift.
   // `fast` is local Fast for a local read and the exact retained pre-selection
-  // reference for a connected stage, never a newly scheduled unpinned project.
+  // reference for a connected stage, never a newly scheduled unpinned work package.
   finishDays: { fast: 'number', 'pri?': 'number', 'time?': 'number' },
   // One boolean per variant that has a finish above, server-side per tasks.md
   // 8.7: the order relation is the half of the comparison a client cannot
@@ -280,7 +284,7 @@ const connectedVariant = optimizationVariant.or({
   certificate: {
     kind: "'boundary-infeasible'",
     question: {
-      projectId: 'string',
+      workPackageId: 'string',
       inputHash: 'string',
       questionHash: 'string',
       objective: "'pri' | 'time'",
@@ -298,16 +302,16 @@ const connectedVariant = optimizationVariant.or({
 // producer/response/client fixture (2026-10-22).
 const connectedScope = type({
   kind: "'connected-stage'",
-  projectId: 'string',
+  workPackageId: 'string',
   originOrdinal: 'number',
   mode: "'isolated' | 'shared'",
   quantum: 'number',
   wireVersion: 'number',
   boundary: { format: "'wbs-connected-stage'", version: '1', canonical: 'string' },
   fixed: type({
-    projectId: 'string',
-    projectName: 'string',
-    projectAbbreviation: 'string',
+    workPackageId: 'string',
+    workPackageName: 'string',
+    workPackageAbbreviation: 'string',
     workItemId: 'string',
     workItemName: 'string',
     stepId: 'string | null',
@@ -333,8 +337,8 @@ const optimization = optimizationBase
   );
 
 /**
- * The complete project tree shared by reads and exports. Account-specific undo
- * flags are composed by the read endpoint, never required of a project export.
+ * The complete work package tree shared by reads and exports. Account-specific undo
+ * flags are composed by the read endpoint, never required of a work package export.
  * Wrap this raw declaration in responseSchema at the endpoint boundary so future
  * additive fields remain readable while every currently known field is checked.
  */
@@ -342,7 +346,7 @@ export const workItemTree = type({
   workItems: numberedWorkItem.array(),
   'connectedDependencies?': type({
     id: 'string',
-    projectId: 'string',
+    workPackageId: 'string',
     type: "'FS' | 'SS' | 'FF'",
     predecessor: connectedEndpoint,
     successor: connectedEndpoint,
@@ -365,12 +369,12 @@ export const workItemTree = type({
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
   // Both present exactly when the displayed schedule was placed around bookings
-  // in other projects (`share-people-across-projects`): the engine's count, and
+  // in other work packages (`share-people-across-work-packages`): the engine's count, and
   // one label per holder a slice's `elsewhereHolder` names.
   'waitingElsewhere?': 'number',
   'elsewhereHolders?': type({
-    projectId: 'string',
-    projectName: 'string',
+    workPackageId: 'string',
+    workPackageName: 'string',
     workItemId: 'string',
     number: 'string',
     name: 'string',
@@ -378,7 +382,7 @@ export const workItemTree = type({
   // Present exactly when a slice's `capacityResource` names a resource
   // (`wbs-resources` R5): one label per resource named.
   'resourceLabels?': type({ id: 'string', name: 'string', unitLabel: 'string' }).array(),
-  // Both present exactly when a work item of the project states a demand
+  // Both present exactly when a work item of the work package states a demand
   // (`wbs-resources` 1.5): each demand in work-item then resource-id order, and
   // one entry per resource a demand names, under the caller's directory names.
   // The tree read alone carries them; an export writes its own file-local lists.
@@ -398,13 +402,13 @@ export const workItemTree = type({
   pertWeights: triple,
   estimateRounding: "'exact' | 'floor' | 'round' | 'ceil'",
   depReach: "'whole-item' | 'anchor-slice'",
-  // Proof: making projectRevision optional admitted a missing producer field,200 instead of500 in the mounted tree case.
+  // Proof: making workPackageRevision optional admitted a missing producer field,200 instead of500 in the mounted tree case.
   startDate: 'string | null',
-  projectRevision: 'number',
+  workPackageRevision: 'number',
   // Proof: leaving this known response field unmodeled made the production-client
   // boundary test fail on `promise resolved … instead of rejecting` for `failed/unknown`.
   'optimization?': optimization,
 });
 
-/** The existing complete project-tree response, retained unchanged inside a plan document. */
+/** The existing complete work-package-tree response, retained unchanged inside a plan document. */
 export type WorkItemTree = (typeof workItemTree)['infer'];

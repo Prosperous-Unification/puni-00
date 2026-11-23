@@ -32,7 +32,7 @@ describe('solverSupervisorSpawner', () => {
     if (!built.ok) throw new Error('fixture request did not pass preflight');
     const request: ReservedSpawnRequest = {
       key: {
-        projectId: '11111111-1111-4111-8111-111111111111',
+        workPackageId: '11111111-1111-4111-8111-111111111111',
         inputHash: 'input-hash',
         contractVersion: '18+0.4.0',
         budgetMs: 60_000,
@@ -88,7 +88,7 @@ describe('solverSupervisorSpawner', () => {
     expect(captured).toEqual({
       unix: '/run/wbs-solver/supervisor.sock',
       callerId: 'aaaaaaaaaaaa',
-      projectId: request.key.projectId,
+      workPackageId: request.key.workPackageId,
       objective: 'pri',
       attemptToken: request.admission.attemptToken,
       childDeadlineAt: request.admission.childDeadlineAt,

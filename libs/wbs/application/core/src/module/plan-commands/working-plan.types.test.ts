@@ -3,7 +3,7 @@ import { createWorkingPlan } from './working-plan.resource';
 
 /** Compile-time witness that a plan-only scope is sufficient and remains accountless. */
 export function workingPlanOver(accountlessScope: Scope) {
-  return createWorkingPlan(accountlessScope, 'project');
+  return createWorkingPlan(accountlessScope, 'work_package');
 }
 
 // Proof: widening WorkingPlan.stores to the source's full store type made this

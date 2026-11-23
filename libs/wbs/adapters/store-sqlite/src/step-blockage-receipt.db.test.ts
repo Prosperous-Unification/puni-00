@@ -13,8 +13,8 @@ import {
   parseStepBlockageReceipt,
   type StepBlockageReceipt,
 } from './step-blockage-receipt';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const previous = '20261014140000_add_step_blockage_activation';
 const parallelMigration = '20261015110000_add_step_node_parallelism';
 /** Every migration newer than the receipt's, each reversed before its refusal. */
@@ -53,6 +53,8 @@ const newerMigrations = [
   '20261101100100_add_resource_directory_capacity',
   '20261101120000_add_host_job_projection',
   '20261102120000_add_access_grants',
+  '20261103110000_add_initial_access_offers',
+  '20261102130000_widen_organization_audit_access',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',
@@ -64,10 +66,12 @@ const receipt: StepBlockageReceipt = {
   activatedAt: 1792051200000,
 };
 let directory: string;
+let migrations: string;
 let path: string;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-blockage-receipt-'));
   path = join(directory, 'plan.db');
+  migrations = copyRecoveryPrefix(directory, '20261103110000_add_initial_access_offers');
   runMigrations(path, migrations);
 });
 afterEach(() => {

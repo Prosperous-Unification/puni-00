@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, type Locator, type Page, type Response, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  getWorkItems as getWorkItemsShape,
+} from '@wbs/contracts';
 
 import { calendarScale } from '../src/components/wbs/gantt-geometry';
 import { CHART_PAD_PX, DAY_PX, LABEL_COLUMN_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
@@ -11,7 +14,9 @@ import {
   pixelDifference,
   sameColumns,
 } from '../src/components/wbs/marker-rule-ink';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, type Response, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * The batch that carries one `kind` — what a write is since `plan-commands`:
@@ -20,14 +25,15 @@ import { createProject } from './create-project';
  * Registered before the gesture that sends it, as the note above says.
  */
 /**
- * The write a date box sends: the project start date is still its own
- * `PATCH /api/projects/{id}`, while a row's earliest start is a `patchWorkItem`
+ * The write a date box sends: the work package start date is still its own
+ * `PATCH /api/work-packages/{id}`, while a row's earliest start is a `patchWorkItem`
  * command — `setDate` serves both, so it waits for whichever leaves.
  */
 const savedDate = (page: Page): Promise<Response> =>
   page.waitForResponse((response) => {
     const request = response.request();
-    if (request.method() === 'PATCH' && /\/api\/projects\/[^/]+$/.test(response.url())) return true;
+    if (request.method() === 'PATCH' && /\/api\/work-packages\/[^/]+$/.test(response.url()))
+      return true;
     return (
       request.method() === 'POST' &&
       response.url().includes('/commands') &&
@@ -103,7 +109,7 @@ async function pickDay(box: Locator, day: string): Promise<void> {
 async function setDate(page: Page, label: string, day: string): Promise<void> {
   // A row's earliest-start cell is text at rest since `T2 compact-columns` and
   // mounts its editor only for the cell being edited, so it is opened first.
-  // The toolbar's project start date is always an editor and is left alone.
+  // The toolbar's work package start date is always an editor and is left alone.
   // A click rather than a `mousedown`: React flushes inside the mousedown
   // dispatch and the browser's own focus default then closes what it opened —
   // see `e2e/keyboard.spec.ts`.
@@ -268,12 +274,12 @@ async function seedPlan(
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 
   // First, because the Not before field is disabled without a day zero to
   // count from — and a chart of workday offsets has no axis dates to check.
-  await setDate(page, 'Project start date', PLAN_START);
+  await setDate(page, 'Work package start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030']) {
@@ -382,9 +388,9 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-  await setDate(page, 'Project start date', PLAN_START);
+  await setDate(page, 'Work package start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020']) {
@@ -439,9 +445,9 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-  await setDate(page, 'Project start date', PLAN_START);
+  await setDate(page, 'Work package start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030', '040']) {
@@ -702,7 +708,7 @@ async function scrollChartFullyRight(page: Page): Promise<number> {
  * plan a laptop typed is the plan a phone draws — and the assertion below is
  * what says the swap happened rather than assuming it.
  *
- * @throws When the project declares no viewport, which would leave nothing to
+ * @throws When the work package declares no viewport, which would leave nothing to
  * restore and quietly measure a phone claim at 1400px.
  */
 async function seedOnALaptop(
@@ -711,7 +717,7 @@ async function seedOnALaptop(
   options: { estimate?: string; extraRows?: number; costedExtras?: boolean } = {},
 ): Promise<void> {
   const phone = page.viewportSize();
-  if (phone === null) throw new Error('this project declares no viewport to seed away from');
+  if (phone === null) throw new Error('this work package declares no viewport to seed away from');
   await page.setViewportSize({ width: 1400, height: 900 });
   await seedPlan(page, account, options);
   await page.setViewportSize(phone);
@@ -850,7 +856,7 @@ test.describe('the chart, after the browser has scaled it', () => {
 
     // The bar the caret belongs to, found through the caret's own row and not
     // by counting: the first attempt at this took `bars.at(1)` on the reasoning
-    // that `010` is a parent and draws no bar, and a new project lists **two**
+    // that `010` is a parent and draws no bar, and a new work package lists **two**
     // steps — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
     // workday as the bar that was wanted. Every assertion below passed against
     // it, including with the caret put back on top of the real bar: a
@@ -912,7 +918,7 @@ test.describe('the chart, after the browser has scaled it', () => {
       'nothing of the arrow head is painted where its box says it is',
     ).toBe('itself');
     const viewport = page.viewportSize();
-    expect(viewport, 'this project declares no viewport').not.toBeNull();
+    expect(viewport, 'this work package declares no viewport').not.toBeNull();
     expect(head.top).toBeGreaterThanOrEqual(0);
     expect(head.bottom).toBeLessThanOrEqual(viewport?.height ?? 0);
 
@@ -1001,7 +1007,7 @@ test.describe('the chart, after the browser has scaled it', () => {
 
     // The predecessor's two assumed bars and the successor's costed one, each
     // found through the row it is on rather than by index — `bars.at(n)` is the
-    // shape R5 #16 was, and a project lists two steps so the indices are not
+    // shape R5 #16 was, and a work package lists two steps so the indices are not
     // the rows.
     const drawn = await page.evaluate(() => {
       const boxOf = (mark: Element) => {
@@ -1151,7 +1157,7 @@ test.describe('the chart, after the browser has scaled it', () => {
    *
    * jsdom can watch the state be read back on a remount; only a browser can say
    * that what a real click wrote is still there after the page has been thrown
-   * away and rebuilt from storage — the session, the remembered project and the
+   * away and rebuilt from storage — the session, the remembered work package and the
    * preference all read at boot.
    */
   test('opens with the detail on, and keeps the answer through a reload', async ({ page }) => {
@@ -1199,7 +1205,7 @@ test.describe('the chart, after the browser has scaled it', () => {
   /**
    * The bars a fresh plan draws at rest, and the ones one press brings back.
    *
-   * A new project lists two steps, and a leaf estimated for one of them draws a
+   * A new work package lists two steps, and a leaf estimated for one of them draws a
    * dashed bar for the other — two bars a row, half of them widths nobody gave,
    * beside the parent's own ghost. At rest that is five marks on a three-row
    * chart and the reader sees two; the detail switch is the one control that
@@ -1405,7 +1411,7 @@ test.describe('the chart under a plan being edited', () => {
     // Day zero as seeded: the axis starts on the plan's own start date.
     await expect(page.locator('[data-axis-day="0"]')).toHaveAttribute('data-axis-date', PLAN_START);
 
-    const starts = page.getByLabel('Project start date');
+    const starts = page.getByLabel('Work package start date');
     const saved = page.waitForResponse((response) => response.request().method() === 'PATCH');
     await pickDay(starts, '2026-09-07');
     await saved;
@@ -1692,7 +1698,7 @@ test.describe('the chart on a phone', () => {
     await page.locator('[data-gantt-day-scale]').selectOption('4');
     await expect(page.locator('[data-axis-day="0"]')).toHaveCSS('width', '4px');
 
-    // The scale survives a reload — remembered per project, which is what puts
+    // The scale survives a reload — remembered per work package, which is what puts
     // Reset layout on the sheet.
     await page.reload();
     await expect(page.getByRole('button', { name: 'Plan actions' })).toBeVisible();
@@ -1774,7 +1780,7 @@ const barSurface = (page: Page, number: string): Locator =>
 /**
  * The bar for one row **and one step**, found by the accessible name it carries.
  *
- * Never by its place in the list. A project is seeded with two steps, so every
+ * Never by its place in the list. A work package is seeded with two steps, so every
  * leaf draws two bars and `[data-gantt-bar].nth(1)` is the *first* row's QA
  * slice rather than the second row's Dev one — the sixteenth check's own fault,
  * met again while writing this file and caught only because the dates on the
@@ -2434,9 +2440,9 @@ async function dragTheEdge(page: Page, travel: number): Promise<Rect> {
 
 test.describe('the chart edge the reader drags', () => {
   /**
-   * Every `wbs.ganttHeight.*` value this page holds. The project's id is
+   * Every `wbs.ganttHeight.*` value this page holds. The work package's id is
    * be-01's and unknown to the test, so the keys are found by their prefix —
-   * one project per fresh account means at most one entry.
+   * one work package per fresh account means at most one entry.
    */
   const storedHeights = (page: Page): Promise<string[]> =>
     page.evaluate(() =>
@@ -2515,7 +2521,7 @@ test.describe('the chart edge the reader drags', () => {
     await seedPlan(page, nextAccount());
     await openTheChart(page);
 
-    // Far past anything the column can hold, and no further: this project's
+    // Far past anything the column can hold, and no further: this work package's
     // viewport is 900 tall, so a drag that ran off the top of it would be
     // measuring Chromium's willingness to dispatch a move at a negative `y`
     // rather than the clamp. The reported drag was 419px up in a column with
@@ -3351,9 +3357,9 @@ async function seedTwoStepChain(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-  await setDate(page, 'Project start date', PLAN_START);
+  await setDate(page, 'Work package start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020']) {
@@ -3377,58 +3383,73 @@ async function seedTwoStepChain(page: Page): Promise<void> {
   // step under either reach by design (`add-step-finish-start-dependencies`);
   // only a legacy link still follows `depReach`, and that is what this chain is
   // for.
-  await page.evaluate(async () => {
-    const projectId = localStorage.getItem('wbs.project');
-    if (projectId === null) throw new Error('no open project to link');
-    const read = await fetch(`/api/projects/${projectId}/work-items`);
-    if (!read.ok) throw new Error(`reading the plan failed: ${String(read.status)}`);
-    const tree = (await read.json()) as { workItems: { id: string; number: string }[] };
-    const idOf = (number: string): string => {
-      const row = tree.workItems.find((each) => each.number === number);
-      if (row === undefined) throw new Error(`no ${number} in the seeded plan`);
-      return row.id;
-    };
-    const write = await fetch(`/api/projects/${projectId}/commands`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        commands: [{ kind: 'addDependency', workItemId: idOf('020'), predecessorId: idOf('010') }],
-      }),
-    });
-    if (!write.ok) throw new Error(`linking 020 to 010 failed: ${String(write.status)}`);
-  });
+  await page.evaluate(
+    async ({ requestHeaders }) => {
+      const workPackageId = localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('no open work package to link');
+      const read = await fetch(`/api/work-packages/${workPackageId}/work-items`, {
+        headers: requestHeaders.getWorkItems,
+      });
+      if (!read.ok) throw new Error(`reading the plan failed: ${String(read.status)}`);
+      const tree = (await read.json()) as { workItems: { id: string; number: string }[] };
+      const idOf = (number: string): string => {
+        const row = tree.workItems.find((each) => each.number === number);
+        if (row === undefined) throw new Error(`no ${number} in the seeded plan`);
+        return row.id;
+      };
+      const write = await fetch(`/api/work-packages/${workPackageId}/commands`, {
+        method: 'POST',
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
+        body: JSON.stringify({
+          commands: [
+            { kind: 'addDependency', workItemId: idOf('020'), predecessorId: idOf('010') },
+          ],
+        }),
+      });
+      if (!write.ok) throw new Error(`linking 020 to 010 failed: ${String(write.status)}`);
+    },
+    {
+      requestHeaders: {
+        getWorkItems: createOrdinaryHeaders(getWorkItemsShape),
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+    },
+  );
   await page.reload();
   await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
 }
 
 /** Picks a reach in the Phases dialog and closes it again. */
 async function chooseTheReach(page: Page, option: string): Promise<void> {
-  // Two gestures since `project-config-modal`: the toolbar's one `Project
+  // Two gestures since `work-package-config-modal`: the toolbar's one `WorkPackage
   // settings` control, then its `Steps` tab (`Phases` until `steps-not-phases`).
   // The reach lives on that section because it is a statement about how the
   // steps above it chain.
-  await page.getByRole('button', { name: 'Project settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
+  await page.getByRole('button', { name: 'Work package settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Work package settings' })).toBeVisible();
   await page.getByRole('tab', { name: 'Steps' }).click();
   const saved = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' &&
-      /\/api\/projects\/[^/]+$/.test(response.url()) &&
+      /\/api\/work-packages\/[^/]+$/.test(response.url()) &&
       (response.request().postData() ?? '').includes('"depReach"'),
   );
   await page.getByRole('radio', { name: new RegExp(option) }).click();
   await saved;
   // The modal refuses a close while any section holds a write in flight
-  // (`project-config-modal` D3), and the reach's own re-read lands just after
+  // (`work-package-config-modal` D3), and the reach's own re-read lands just after
   // the PATCH awaited above. Press until the surface is gone rather than once.
   await expect(async () => {
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: 'Project settings' })).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Work package settings' })).toHaveCount(0);
   }).toPass();
 }
 
 test.describe('how far a dependency reaches, from the chart', () => {
-  test('the successor bar moves when the project changes its reach', async ({ page }) => {
+  test('the successor bar moves when the work package changes its reach', async ({ page }) => {
     // The change's headline in a browser: the same plan, the reach flipped, and
     // the successor's bar measured where the browser actually draws it.
     //
@@ -3806,7 +3827,7 @@ test.describe('the marker rule, measured in the columns it paints', () => {
     const where = await geometryOf(page);
     const strip = await page.screenshot({ clip: where.strip });
     const body = await page.screenshot({ clip: where.body });
-    // `toString('base64')` rather than `Buffer.equals`, which this project's
+    // `toString('base64')` rather than `Buffer.equals`, which this work package's
     // `Buffer` types will not accept another `Buffer` for — `hover-cards.spec.ts`
     // compares two clips the same way.
     return { strip: strip.toString('base64'), body: body.toString('base64') };
@@ -4124,7 +4145,7 @@ test.describe('a calendar marker, made and unmade in a browser', () => {
       const chart = line.closest('[data-gantt-chart]');
       if (chart === null) throw new Error('the rule is not inside a chart');
       // **Both sides rasterized before they are compared, and the string forms
-      // are kept only for the failure message.** This project's tokens are
+      // are kept only for the failure message.** This work package's tokens are
       // `oklch()` and the SVG `stroke` resolves to `rgb()`, so the two computed
       // values are in different syntaxes: comparing them as text would call
       // white and white different and the negative below could never fail.
@@ -4261,7 +4282,7 @@ test.describe('a dated axis cell says where the keyboard is', () => {
     const cell = page.locator(`[data-axis-day="${String(FOCUSED_OFFSET)}"]`);
     // Dated, and asserted rather than assumed: an undated cell is
     // `aria-disabled` and is a different slice's contract (6.4a), so a fixture
-    // that lost its project start date would test the wrong cell silently.
+    // that lost its work package start date would test the wrong cell silently.
     await expect(cell).toHaveAttribute('data-axis-date', /^\d{4}-\d{2}-\d{2}$/);
 
     // Read at rest **first**. The assertion below is a transition, and a
@@ -4445,7 +4466,7 @@ test.describe("a marker's rule against the bars, in pixels", () => {
     // `marksOverLight`, so an opaque bar covers it: the bar's own footprint is
     // the one place on the chart a correct renderer changes nothing at all.
     // Compared as text rather than through `Buffer.equals`, which this
-    // project's `Buffer` types will not accept another `Buffer` for.
+    // work package's `Buffer` types will not accept another `Buffer` for.
     expect(marked === bare, "the marker's rule shows through an opaque bar it passes under").toBe(
       true,
     );
@@ -4871,7 +4892,7 @@ test.describe("a marker chip's contrast, as the compositor drew it", () => {
    *
    * `dark-mode.spec.ts:302` drives the palette with `emulateMedia`, and this
    * app resolves the root's `dark` class off that preference. Set after
-   * `seedPlan` the sign-up and the project creation would paint light and only
+   * `seedPlan` the sign-up and the work package creation would paint light and only
    * the chart would repaint, which is a page these cases are not about.
    */
   test.describe('in dark', () => {

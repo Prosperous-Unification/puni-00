@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { type SchemaShape, validateSchema } from './schema-shape';
-import { applyProjectCommands, commandParserRefusal, commandResults } from './work-item-shapes';
+import { applyWorkPackageCommands, commandParserRefusal, commandResults } from './work-item-shapes';
 
 test('command replies reserve every known entity field across untagged variants', async () => {
   for (const entity of [
@@ -66,22 +66,22 @@ test('parser vocabulary is closed and preserves recognized command context', asy
 });
 
 test('deadline refusal requires both fields in its exact status declaration', async () => {
-  const refusal = applyProjectCommands.refusals.find((entry) => entry.status === 422);
+  const refusal = applyWorkPackageCommands.refusals.find((entry) => entry.status === 422);
   if (!refusal) throw new Error('Missing deadline declaration');
   const body = {
-    error: 'deadline_before_project_start',
+    error: 'deadline_before_work_package_start',
     at: 0,
     kind: 'patchWorkItem',
     workItemId: 'w',
-    projectDayZero: '2026-09-07',
+    workPackageDayZero: '2026-09-07',
   };
   expect((await validateSchema(refusal.schema, body)).issues).toBeUndefined();
-  const { projectDayZero, ...missing } = body;
+  const { workPackageDayZero, ...missing } = body;
   expect((await validateSchema(refusal.schema, missing)).issues).toBeDefined();
 });
 
 test('prerequisite refusal preserves indexed command context and resolved identities', async () => {
-  const refusals = applyProjectCommands.refusals.filter((entry) => entry.status === 409);
+  const refusals = applyWorkPackageCommands.refusals.filter((entry) => entry.status === 409);
   const body = {
     error: 'prerequisites_unmet',
     at: 1,
@@ -110,7 +110,7 @@ test('prerequisite refusal preserves indexed command context and resolved identi
 
 test('resources_exhausted declares every short resource, each with its numbers and holders', async () => {
   const conflicts: readonly { schema: SchemaShape<unknown> }[] =
-    applyProjectCommands.refusals.filter((entry) => entry.status === 409);
+    applyWorkPackageCommands.refusals.filter((entry) => entry.status === 409);
   /** Whether any 409 arm of the batch accepts `body`. */
   const declared = async (body: unknown): Promise<boolean> => {
     for (const { schema } of conflicts)

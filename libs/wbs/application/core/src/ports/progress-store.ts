@@ -24,12 +24,12 @@ export interface ProgressKey {
  * comes back from an undo reading "not started" over work somebody finished.
  */
 export interface StepProgressStore {
-  /** Every stated step on every work item in the project, in step order within each. */
-  listByProject(projectId: string): Promise<StoredProgress[]>;
-  /** Values for the requested work items in project and step order. */
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredProgress[]>;
+  /** Every stated step on every work item in the work package, in step order within each. */
+  listByWorkPackage(workPackageId: string): Promise<StoredProgress[]>;
+  /** Values for the requested work items in work package and step order. */
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredProgress[]>;
   /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
-  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
+  listPlacements(workPackageId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** States one work item's step, replacing whatever it said before. */
   set(progress: StoredProgress, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

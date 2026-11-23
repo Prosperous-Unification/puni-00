@@ -378,11 +378,24 @@ largest count sampled. A job with no such sample SHALL print no marker.
 A catalogue entry MAY declare `maxRuntimeMinutes`, a positive whole number. An entry without it
 SHALL have no runtime bound. When a payload of a bounded type has run longer than the bound at a
 sample, `ops job run` SHALL send SIGTERM to the payload's session. If the payload has not ended
-within the settle budget, it SHALL send SIGKILL. `ops job run` SHALL then exit 124 and record 124
-in the ledger and the run record. The run record SHALL keep the signal the payload ended with and
-the reason `exceeded maxRuntimeMinutes <n>: ended by the launcher`. The job SHALL settle and
-release its reservation and its shell lock hold as after any exit. A run record written without
-the field SHALL still be read.
+within the settle budget, it SHALL request SIGKILL of the original native payload child through
+the retained keeper's private FD3 control. Actual native termination and numeric correspondence
+SHALL qualify the raw FD4 payload status; a leader status or runtime policy SHALL NOT substitute
+for it. The keeper SHALL retire through the existing ACK and actual native join before scope
+leftovers are killed. On qualified completion without protocol failure, `ops job run` SHALL exit 124
+and record 124 in the ledger and the run record. The run record SHALL keep the actual payload
+signal and the reason `exceeded maxRuntimeMinutes <n>: ended by the launcher`. Unconfirmed private
+kill delivery SHALL refuse 70 and mark attribution incomplete, including when a qualified raw
+status allows the runtime 124 policy in the ledger. Actual session, container and tmp evidence
+SHALL independently authorize ordinary settlement and shell lock release. A run record written
+without the reason field SHALL still be read.
+
+The keeper SHALL accept at most one private kill after startup and before done. A first request
+after genuine native completion SHALL be a no-op retaining the actual status. Startup, duplicate
+and post-done kills SHALL refuse. Only a prefix of the exact kill word MAY cross the post-native
+exclusive FD3/FD4 observation; startup and EOF checks SHALL still refuse truncated or other words.
+Simultaneous kill-delivery and native-observation failures SHALL retain both original causes; a
+single failure SHALL keep its original cause identity.
 
 #### Scenario: A gate past its bound is ended
 
@@ -395,6 +408,35 @@ the field SHALL still be read.
 
 - **WHEN** the payload ignores SIGTERM and the settle budget passes
 - **THEN** the launcher sends SIGKILL, exits 124 and the run record names `SIGKILL`
+
+#### Scenario: A clean runtime-bound payload survives missing or failing systemctl
+
+- **WHEN** the original native payload ignores TERM and no descendant remains after its private
+  kill, while systemctl is absent or fails
+- **THEN** actual native/FD4 status qualifies SIGKILL, the caller returns 124 and the clean job
+  releases through ordinary settlement, with the failed MemoryHigh lift reported
+
+#### Scenario: A first private kill races with completed native status
+
+- **WHEN** a first kill, including a fragmented kill prefix spanning the private phase boundary,
+  arrives after actual payload exit 37
+- **THEN** no native kill is forwarded, raw 37 remains authoritative and ordinary ACK completes
+- **AND** a duplicate or post-done kill refuses, as does a truncated kill at EOF
+
+#### Scenario: Kill delivery fails after the actual native kill
+
+- **WHEN** actual private kill delivery kills the original payload and the write callback reports
+  failure, while raw 137, ACK and actual keeper join qualify
+- **THEN** the caller refuses 70 and attribution is incomplete, with actual raw SIGKILL and policy 124
+  retained separately and clean resources released only by ordinary evidence
+- **AND** a simultaneous native-observation error retains both original causes
+
+#### Scenario: Failed post-keeper scope kill leaves an actual escaped descendant charged
+
+- **WHEN** the owned payload ends at its bound but an actual escaped descendant holds its tmp
+  directory and the subsequent scope kill fails
+- **THEN** the keeper has already joined, the actual payload signal and policy 124 remain recorded,
+  and the descendant's failed kill is reported while its tmp charge remains blocked
 
 #### Scenario: An unbounded type runs on
 

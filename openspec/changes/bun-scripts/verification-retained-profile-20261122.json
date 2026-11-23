@@ -1,0 +1,144 @@
+{
+  "scope": "Historical selector/materializer test setup; no production profile, pin, capture or selector assertion changes.",
+  "before": "Two selected owners fail at frontend fixture inputs unsupported. After moving three profile setup sites to the existing authenticated retained materializer,170 tests pass and6 fail because reconstruction still reads the current workspace package.json.",
+  "changes": [
+    "Three profile setup calls and the no-Vite HTTP selection setup use the existing retained materializer.",
+    "Four reconstruction test readers consume the same retained root manifest assets. The exact existing fifth/fourth pair hash, unique literal hunk and reconstructed-intermediate checks remain unchanged.",
+    "Adversarial fixed-root tests still import the unchanged actual materializer after constructing their mixed input and assert refusal before destination creation."
+  ],
+  "current": {
+    "profile": {
+      "passed": 176,
+      "failed": 0,
+      "assertions": 600
+    },
+    "noViteHttpSelection": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "observations": [
+    {
+      "phase": "retained-profile-current-baseline-v139",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--timeout",
+          "30000",
+          "tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts",
+          "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+          "--test-name-pattern",
+          "registry S3 current frontend pair materializes and selects without Vite|actual committed same-length|materializer fixed-root boundary|registry-s3-20261108"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-current-baseline-v139.receipt.json",
+        "sha256": "e4a31398cfab0fa7654f699fc2b9e76aefdcea5f155498041827377cf1357fcf",
+        "bytes": 1633
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-current-baseline-v139.log",
+        "sha256": "e190c70f205e4008ea42fa5d888aac1fa2ffe5632bbc2e9f4fefb9236c15d7e6",
+        "bytes": 1700
+      }
+    },
+    {
+      "phase": "retained-profile-complete-v139",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--timeout",
+          "30000",
+          "tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-complete-v139.receipt.json",
+        "sha256": "a55f781d2b16b04cd1a9fa295d6a15d7fb5b0d3dd899c227bb8aaf9aa32a5dda",
+        "bytes": 1353
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-complete-v139.log",
+        "sha256": "c0640cbdee4fc39d9bf215d5e529a3e9fa15eb897b1812966b7ebb0baa96c340",
+        "bytes": 28633
+      }
+    },
+    {
+      "phase": "retained-profile-complete-v139b",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--timeout",
+          "30000",
+          "tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-complete-v139b.receipt.json",
+        "sha256": "e126bb82cdcccb033364797681ca36fec39c3b00ef9812f714b04cef4f473061",
+        "bytes": 1355
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-complete-v139b.log",
+        "sha256": "c9d2adab0bd6013444989e958959be97e8742158cf9fe7fbd8ba0d06cad1e0e2",
+        "bytes": 23959
+      }
+    },
+    {
+      "phase": "retained-profile-http-selection-v139",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--timeout",
+          "30000",
+          "tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+          "--test-name-pattern",
+          "registry S3 current frontend pair materializes and selects without Vite"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-http-selection-v139.receipt.json",
+        "sha256": "3a36200c6ae52cf8d64e21eb49d0588e3548aed222088312aae9a03d0d9abfb2",
+        "bytes": 1470
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-profile-http-selection-v139.log",
+        "sha256": "3f812155804c8ba6c1a6d0ac1114d4ae740abeb6cec7ccf84e1c10213e8d97aa",
+        "bytes": 273
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-remote-scripts/src/lib/source-frontend-profile.test.ts",
+      "sha256": "430dcd24cad139e52b1421e5728c192fcb809145943f7c474018845eebaf9869",
+      "bytes": 37145
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/tools/tool-remote-scripts/src/lib/source-frontend-http.test.ts",
+      "sha256": "8725565ccd4a2805cc77d6dcdcc9aa519abe0db27e452f9dbd10b43df8d0163b",
+      "bytes": 107478
+    }
+  ],
+  "limits": [
+    "This selects retained configuration/manifests, not a complete historical frontend source closure.",
+    "Actual Vite producer owners and other legacy frontend HTTP cases remain unverified by these runs.",
+    "No full remote-scripts, host gate, current frontend producer, Astra review or delivery claim."
+  ]
+}

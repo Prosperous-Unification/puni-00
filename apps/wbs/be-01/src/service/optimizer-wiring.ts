@@ -13,7 +13,7 @@ import { createScheduler } from '@wbs/runtime-portable';
  * write is gated on, **derived from one argument**.
  *
  * The two halves go to two different services — `read` to `WorkItemService`,
- * `available` to `ProjectService` — and this type exists so they cannot be
+ * `available` to `WorkPackageService` — and this type exists so they cannot be
  * given different answers.
  */
 export interface OptimizerWiring {
@@ -66,7 +66,7 @@ export const fastScheduler = createScheduler(fast, scheduleResolved);
  * settings panel says optimized, and every plan read silently serves Fast. Both
  * review seats reached that independently on PR 203.
  *
- * A free `optimizerAvailable: boolean` on `ProjectService` would have closed it
+ * A free `optimizerAvailable: boolean` on `WorkPackageService` would have closed it
  * only as long as nobody edited `services.ts` — the two arguments sit fourteen
  * lines apart there, and wiring the reader while forgetting the boolean (or the
  * reverse) restores the same lie with no test failing. Deriving the predicate

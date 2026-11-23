@@ -439,3 +439,264 @@ URL answered 404 SHALL render the existing not-found state without an access hin
 
 - **WHEN** a member with no grant opens the work package page of W by its URL
 - **THEN** the page renders the not-found state and no request reveals W's name
+
+### Requirement: Replay preserves original permission obligations
+
+New undoable recordings SHALL persist detached, versioned replay authorization metadata at the original operation, before contributing recordings are collapsed into one batch journal entry. Version 1 SHALL contain stable permission ids with addressed work-package anchors, or a budget-owner anchor that resolves the work package's current owning project (the current organization during the interim hierarchy). Both the previous and proposed endpoints of compound dependency writes SHALL contribute package.write obligations. Only recordings that actually contributed to the journal entry SHALL contribute obligations; submitted no-op and unjournalled commands SHALL contribute none.
+
+Scoped undo and redo SHALL require package.write plus every recorded obligation using the freshly admitted authenticated principal and current ownership, restriction, membership, credential cap and grants. A missing grant port or malformed present metadata, including an unknown policy version or malformed anchor, SHALL throw. An entry with absent authorization metadata SHALL answer 409 replay_provenance_unavailable before stale-entry discard, preserving journal bytes, cursor, history, audit and plan state. No permission SHALL be inferred from a compensation kind, label, entry count or legacy membership role.
+
+Undo, redo, cursor flips and revision restamping SHALL preserve the immutable authorization metadata. A future permission-policy version SHALL define explicit compatibility behavior before it is accepted; version 1 is not permission-policy forward compatibility.
+
+#### Scenario: Legacy replay is unavailable without changing history
+
+- **GIVEN** a scoped journal entry with absent authorization metadata, including an already stale entry
+- **WHEN** its actor requests undo or redo
+- **THEN** the server answers 409 replay_provenance_unavailable and preserves the entry, cursor and every side effect
+
+#### Scenario: Revoked budget permission refuses a mixed replay
+
+- **GIVEN** one contributing batch entry containing a budget write and an ordinary package write
+- **WHEN** the actor retains package.write but loses project.manage_budgets before undo
+- **THEN** undo is refused naming project.manage_budgets without journal, plan, audit or publication effects
+
+#### Scenario: No-op commands add no replay obligation
+
+- **GIVEN** a submitted settings operation that contributes no recording alongside an ordinary package write
+- **WHEN** a contributor undoes the resulting ordinary recording
+- **THEN** no manage_settings obligation is invented for the no-op command
+
+#### Scenario: Older history refusal remains a rendered frontend outcome
+
+- **WHEN** undo or redo returns replay_provenance_unavailable
+- **THEN** the plan writer reports that undo and redo are unavailable for the older history entry
+- **AND** it neither retries nor rereads or discards that entry
+
+### Requirement: Standalone directory creation retains one admitted owner
+
+A scoped standalone directory creation, including an add-person invocation, SHALL validate its external name and kind before opening an owner, retain a detached principal snapshot, and check organization.manage_directory on the current transaction's accessDecisions before capture or mutation. A name-idempotent creation SHALL require the same permission. Opaque root insertion, organization ownership mapping and initial person/team links SHALL settle in one owner, so a refused or failed creation leaves no root, ownership, link, event, audit or history rows. Permission refusal SHALL remain modeled and name organization.manage_directory; missing or unreadable trusted grant capability SHALL throw.
+
+The standalone named-add contract SHALL return a typed success or refusal, including name_required and forbidden. An invocation-local refusal carrier MAY cross a raw-store callback only after its owner rolls back and SHALL retain the whole typed refusal. Only that exact invocation's carrier SHALL be caught. Existing compound rename-plus-membership patches SHALL retain their deliberately separate raw commits: a refusal of a later owner does not roll back a prior committed rename.
+
+#### Scenario: Queued creation loses its grant
+
+- **GIVEN** an admitted account whose directory creation queues behind another writer
+- **WHEN** its manage_directory grant is revoked before its owner begins
+- **THEN** creation answers forbidden naming organization.manage_directory without capture, root, ownership, event, audit or history effects
+
+#### Scenario: Ownership insertion fails after opaque root insertion
+
+- **WHEN** ownership mapping fails in a scoped standalone creation
+- **THEN** its opaque root and every creation side effect roll back with the mapping
+
+### Requirement: Implicit typed relationship mutations retain both-endpoint authority
+
+The both-endpoint package.write requirement SHALL apply to the exact typed relationships an operation mutates, independently of command spelling. Incoming relationships selected for successor deletion, incoming relationships selected for duplication, and old/new node incident receipts selected for first-child transfer SHALL require current write at every affected package in the same writer before detach or mutation. A copied endpoint not yet persisted SHALL be authorized through its validated package anchor. Unchanged outgoing relationships SHALL not add a write obligation to duplication, and existing predecessor-deletion conflicts SHALL keep their precedence.
+
+The admitted dependency context SHALL expose an operation-specific write-authorization capability that closes over detached verified identity and current borrowed stores without exposing principal metadata. Generated legacy contexts SHALL install explicit no-scoped-obligation behavior; missing capability on a remote mutation SHALL throw, never imply permission. Checks SHALL inspect current selected rows in command order, including changes made by earlier commands in the batch. A permission refusal during replay SHALL preserve history and cursor rather than become stale_undo or discard the entry.
+
+#### Scenario: A copied incoming relationship requires the remote package write
+
+- **GIVEN** a successor has an incoming typed relationship from a readable remote package without package.write
+- **WHEN** the successor is duplicated or deleted
+- **THEN** the write refuses before any relation, row, journal or announcement changes
+- **AND** an unchanged outgoing relationship does not restrict duplication
+
+#### Scenario: A first-child transfer checks current incident endpoints before detaching
+
+- **GIVEN** a node has an outgoing remote incident and the caller lacks write at its remote package
+- **WHEN** creating the first child would transfer that incident
+- **THEN** the operation refuses before the first detach
+- **AND** a later command in the same batch checks the exact relationships selected after earlier commands have changed them
+
+### Requirement: Budget writes retain the addressed package boundary
+
+Budget writes and budget-owner replay requirements SHALL evaluate project.manage_budgets at both the work package's current budget owner and the addressed work package. The package evaluation SHALL enforce visibility and restricted inheritance without adding package.write to the budget command matrix. A visible minimal custom role containing package.read and project.manage_budgets SHALL suffice on an unrestricted work package. A budgets-only subject unable to read the addressed work package SHALL receive the same404 as an absent package.
+
+#### Scenario: Organization administration cannot silently mutate restricted budgets
+
+- **GIVEN** a restricted work package and an org-admin or org-super-admin grant with no effective project.manage_budgets permission at that package
+- **WHEN** the subject sets, clears, undoes or redoes a budget
+- **THEN** the write is refused without plan, journal, audit or publication effects
+
+The current InterimPackageChain has no engagement-project parent. Restricted budget positives requiring an explicit owning-project grant, and replay after a parent move, remain unavailable until #698 slice2 supplies that branch. This interim restriction SHALL NOT be bypassed by treating an organization grant as an explicit parent grant.
+
+### Requirement: Standalone removal authorizes before usage disclosure
+
+A scoped standalone directory removal SHALL include its permission check, ownership and usage preflights, capture and raw removal in one admitted owner. A subject lacking organization.manage_directory SHALL receive its named forbidden outcome before usage is read, including non-cascade removal of used entries. Service announcements SHALL be buffered until successful owner settlement; a late owner failure SHALL preserve directory, ownership, relationship, audit and history rows and publish nothing. Existing compound rename/membership operations retain their separately committed raw mutations.
+
+#### Scenario: A used directory entry is refused before usage is disclosed
+
+- **GIVEN** a visible owned tag, team or person is used by a project and the caller lacks organization.manage_directory
+- **WHEN** the caller requests standalone non-cascade removal
+- **THEN** the service answers forbidden naming organization.manage_directory before reading usage
+- **AND** no directory, ownership, event, audit or history state changes
+
+#### Scenario: A late removal failure publishes nothing
+
+- **GIVEN** an authorized standalone removal has staged its directory changes and affected-project announcements
+- **WHEN** a later capture or event write fails inside the owner
+- **THEN** every staged row rolls back and no announcement is delivered
+- **AND** a successful removal delivers its existing affected-project fanout only after the committed deletion is visible
+
+### Requirement: Every selected grant retains complete catalogue evidence
+
+Effective-role and readable-package statements SHALL retain every selected reaching grant even when its catalogue role is missing, and SHALL validate all selected role kind, restriction flag and full permission rows before projecting authority or package IDs. Another independently sufficient valid grant SHALL NOT hide corrupt selected state. Missing or malformed catalogue state SHALL throw; it SHALL NOT be treated as absent authority, a modeled grant denial or a successful write. Existing subject, organization, addressed-scope and P5 predicates SHALL remain unchanged.
+
+#### Scenario: An orphan catalogue row coexists with sufficient authority
+
+- **GIVEN** a current principal holds a valid sufficient grant and another selected grant whose catalogue role is missing
+- **WHEN** effective role, package listing or an admitted package mutation evaluates that principal
+- **THEN** the operation fails as unexpected trusted-state corruption, preserving mutation, audit, journal, event and publication state
+
+#### Scenario: A corrupt non-reader grant cannot disappear from listing validation
+
+- **GIVEN** valid package-read authority and a separate selected grant with malformed kind or permission state
+- **WHEN** readable package IDs are computed
+- **THEN** validation throws even when the corrupt grant would not itself admit a package
+
+### Requirement: Limits owners retain current grant and connection isolation
+
+The personal limits read SHALL require organization.read from the actual
+authenticated principal, apply the fixed credential cap and refuse delegation.
+It SHALL serialize its awaited grant check and usage snapshot with operator
+inspect/set/reset using the same required source Gate and connection owner.
+Operator inputs and audit provenance SHALL be retained before queuing, without
+requiring account membership. Borrowed cap gauges SHALL open no owner or gate.
+
+#### Scenario: An operator waits for an unsettled personal limits read
+
+- **WHEN** a personal read holds its transaction while awaiting current authority
+- **THEN** inspect/set/reset wait before entering that connection
+- **AND** a failed read rolls back and releases the next operator turn without losing its effect.
+
+#### Scenario: Legacy role does not authorize limits usage
+
+- **WHEN** a current super-admin has no effective organization.read grant
+- **THEN** HTTP403 names organization.read and contains no usage
+- **AND** a viewer with a minimal effective organization.read grant succeeds.
+
+### Requirement: Provider administration uses current grants while reporting retains infrastructure provenance
+
+Provider list/register/update/remove SHALL require current organization.manage_directory
+from the actual retained authenticated principal in the same source Gate/connection
+as effects and audit. Legacy membership labels SHALL grant no authority. A named
+HTTP403 SHALL carry organization.manage_directory without provider facts.
+Public provider readings SHALL keep their native snapshot in that same Gate and
+retain the selected resource IDs before queuing, without an additional permission
+check. Capacity reporting SHALL preserve its existing verified-machine admission,
+context-refusal ordering, mismatch, replay and latest-wins rules. It SHALL retain
+authentication and validated payload/targets before resolver awaits and exact
+request fields before the write turn. Its completion clock remains post-resolution
+and is read once; caller aliases SHALL NOT substitute reporter, target or outcome.
+
+#### Scenario: Legacy role does not administer a provider
+
+- **WHEN** a super-admin with no effective manage_directory grant uses an administration route
+- **THEN** it answers the named403 without writes or audits
+- **AND** a viewer with a minimal current grant succeeds.
+
+#### Scenario: A report cannot change its authenticated reporter while resolving organization context
+
+- **WHEN** a resolver-held caller alias changes machine person or replaces session/delegation authentication
+- **THEN** the report retains the originally verified reporter or the original not_an_agent_principal refusal
+- **AND** no substituted reporter or foreign resource receives the write.
+
+#### Scenario: A queued report retains its clock and nested outcome
+
+- **WHEN** caller aliases change organization/person/targets/time or measured/unreachable fields after invocation
+- **THEN** the original request is stored or refused with no effect on substituted targets
+- **AND** optional reservation absence and zero are preserved
+- **AND** advancing a caller alias cannot admit an originally future report.
+
+### Requirement: Pool administration retains current grants and partial cleanup denials
+
+Pool list/create/personsOf/rekey/revoke SHALL require current organization.manage_directory
+from the retained actual authenticated principal, fixed credential cap and current
+membership inside the same required source Gate and immediate connection owner as
+pool facts, key/grant effects and audit. Caller aliases SHALL NOT replace principal,
+draft, renewal, actor or stamp while queued. Routes SHALL retain principal and
+validated targets/intent before resolver awaits and preserve named HTTP403 refusals.
+
+#### Scenario: A role-only administrator has no pool authority
+
+- **WHEN** a stored super-admin without an effective directory grant administers pools
+- **THEN** it receives the named denial without pool facts or effects
+- **AND** a stored viewer with a minimal effective directory grant succeeds.
+
+#### Scenario: Cleanup authority is lost after committed pool revocation
+
+- **WHEN** pool revocation commits and its callback runs once, then directory batch admission or execution refuses a current grant
+- **THEN** the response is persons_not_removed409 with poolId, committed revokedCredentials, cause forbidden and that actual catalog permission
+- **AND** committed key/grant revocation and lifecycle audit remain committed without retry
+- **AND** people, claims, directory history and publication remain unchanged by the refused cleanup
+- **AND** existing unannotated partial causes and last_super_admin keep their modeled shapes.
+
+### Requirement: Rank and capacity-mode boundaries retain coherent authenticated evidence
+
+Direct scoped rank and capacity-mode resources SHALL reject incoherent actor,
+member and authenticated principal identity before grant or fact reads. They
+SHALL retain the actual scoped principal, including authentication, and the
+complete write caller before awaited dependencies. Routes SHALL retain scalar
+read identity/delegation and full write caller/validated targets before resolving
+organization context. Legacy access SHALL still return organization_required.
+
+Standalone writers SHALL retain the caller-owned stamp before queuing, resolve
+current CommandAccess before applying fresh identity invariants, and keep current
+manage_spaces or manage_capacity_mode authorization before no-op/order/mutation.
+Stale expected user/organization SHALL remain organization_context_changed;
+expectedAccess SHALL NOT supply current authority. Required borrowed capture,
+rank and grant ports SHALL NOT become optional when unused legacy role-authority
+markers are retired. Remaining capability lifetime guards and transaction/fanout
+ownership SHALL remain unchanged.
+
+#### Scenario: A mismatched principal has sufficient grants of its own
+
+- **GIVEN** both addressed accounts hold the needed current grant
+- **WHEN** a direct resource receives mismatched actor/member/principal evidence
+- **THEN** it throws before any grant/fact read, mutation or publication
+- **AND** no ordinary permission denial masks that trusted-state failure.
+
+#### Scenario: A retired role marker does not admit an unowned no-op
+
+- **WHEN** a rank move has valid current grants and real capture/rank stores but no retired role-authority slot
+- **THEN** it succeeds through the existing owner
+- **AND** absent capture/rank/grant ports or unreadable grants still throw before a self/no-op can mutate or publish.
+
+#### Scenario: Queued provenance and stale context remain distinct
+
+- **WHEN** caller aliases alter a retained write stamp after invocation
+- **THEN** the original actor and caller-supplied instant remain in stored rank/mode audit
+- **AND** a separately stale expected user or organization returns its modeled context conflict without mutation.
+
+### Requirement: Resource tracking preserves current authority and immutable protocol completion
+
+Live manual registration/events SHALL require package.write and list/history SHALL
+require package.read from the actual retained principal. Personal orphan access
+SHALL require nondelegated manage_directory over immutable same-organization use
+evidence; absent, foreign or denied orphan evidence SHALL remain identical404.
+Runtime personal binding/read SHALL require manage_directory. A fixed credential
+cap SHALL NOT be replaced by the issuing account's grants or compatibility role.
+
+All public operations SHALL retain coherent actor/scope/authentication and nested
+inputs before awaited resolution or queueing and keep current checks and effects
+on the existing same-Gate owner connection. Current credential revocation, source,
+pinned agent, organization, bound account/membership and consent context SHALL be
+rechecked; stale state SHALL refuse and malformed/unreadable trusted state SHALL
+throw. Source validity SHALL NOT add planning or grant dependencies to infrastructure.
+
+#### Scenario: A valid bound controller completes prior physical admission
+
+- **GIVEN** an immutable admission and a still-current exact bound credential
+- **WHEN** planning references disappear or package grants are revoked
+- **THEN** exact replay returns its original receipt and first provisional confirmation, requests, deleted cleanup and host-job protocol remain infrastructure-authorized
+- **AND** no mutable planning or grant lookup is introduced and newer cleanup/projection/history state is preserved
+- **AND** new live admission, new registration and actual live follow-up still require package.write.
+
+#### Scenario: An incompatible raw role scope coexists with sufficient grants
+
+- **GIVEN** a reaching role kind is recognized but cannot be held at its stored grant scope
+- **AND** another valid grant independently supplies the requested authority
+- **WHEN** a native permission read, listing, member summary or mounted write decodes the selected rows
+- **THEN** it throws trusted-state failure naming grant, role and both kinds before filtering or effects
+- **AND** valid project/package contributor roles at organization scope remain valid.

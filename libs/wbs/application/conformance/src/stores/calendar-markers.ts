@@ -9,12 +9,12 @@ const TIED_AT = 1_700_000_000_000;
 
 function marker(
   id: string,
-  projectId: string,
+  workPackageId: string,
   overrides: Partial<CalendarMarker> = {},
 ): CalendarMarker {
   return {
     id,
-    projectId,
+    workPackageId,
     date: MARKER_DATE,
     name: `Marker ${id}`,
     color: null,
@@ -23,7 +23,7 @@ function marker(
   };
 }
 
-/** Shared marker cases for stable ordering, literal dates and project-scoped writes. */
+/** Shared marker cases for stable ordering, literal dates and work-package-scoped writes. */
 export function calendarMarkerRegistrations(
   open: OpenCase<'calendarMarkers'>,
 ): readonly CaseRegistration[] {
@@ -33,17 +33,21 @@ export function calendarMarkerRegistrations(
       'calendarMarkers.listFor:total-order',
       open,
       async ({ port, readers, seed }) => {
-        const projectsBefore = structuredClone(
+        const workPackagesBefore = structuredClone(
           await Promise.all(
-            seed.projectIds.map((projectId) => readers.projects.findById(projectId)),
+            seed.workPackageIds.map((workPackageId) =>
+              readers.workPackages.findById(workPackageId),
+            ),
           ),
         );
-        expect(projectsBefore.map((project) => project?.id)).toEqual([...seed.projectIds]);
+        expect(workPackagesBefore.map((workPackage) => workPackage?.id)).toEqual([
+          ...seed.workPackageIds,
+        ]);
 
         const inserted = [
-          marker('marker-c', seed.projectIds[0]),
-          marker('marker-a', seed.projectIds[0]),
-          marker('marker-b', seed.projectIds[0]),
+          marker('marker-c', seed.workPackageIds[0]),
+          marker('marker-a', seed.workPackageIds[0]),
+          marker('marker-b', seed.workPackageIds[0]),
         ];
         const writes = [];
         for (const made of inserted) writes.push(await port.create(made));
@@ -62,94 +66,106 @@ export function calendarMarkerRegistrations(
 
         // Proof: both sources' missing-id faults returned insertion order
         // c/a/b; the final public read failed with marker-c before marker-a.
-        expect((await port.listFor(seed.projectIds[0])).map(({ id }) => id)).toEqual([
+        expect((await port.listFor(seed.workPackageIds[0])).map(({ id }) => id)).toEqual([
           'marker-a',
           'marker-b',
           'marker-c',
         ]);
-        expect(await port.listFor(seed.projectIds[1])).toEqual([]);
+        expect(await port.listFor(seed.workPackageIds[1])).toEqual([]);
         expect(
           await Promise.all(
-            seed.projectIds.map((projectId) => readers.projects.findById(projectId)),
+            seed.workPackageIds.map((workPackageId) =>
+              readers.workPackages.findById(workPackageId),
+            ),
           ),
-        ).toEqual(projectsBefore);
+        ).toEqual(workPackagesBefore);
       },
     ),
     storeCase(
       'calendarMarkers',
-      'calendarMarkers.write:project-scope',
+      'calendarMarkers.write:work-package-scope',
       open,
       async ({ port, readers, seed }) => {
-        const projectsBefore = structuredClone(
+        const workPackagesBefore = structuredClone(
           await Promise.all(
-            seed.projectIds.map((projectId) => readers.projects.findById(projectId)),
+            seed.workPackageIds.map((workPackageId) =>
+              readers.workPackages.findById(workPackageId),
+            ),
           ),
         );
-        expect(projectsBefore.map((project) => project?.id)).toEqual([...seed.projectIds]);
+        expect(workPackagesBefore.map((workPackage) => workPackage?.id)).toEqual([
+          ...seed.workPackageIds,
+        ]);
 
-        const projectMarker = marker('marker-owned-a', seed.projectIds[0], {
+        const workPackageMarker = marker('marker-owned-a', seed.workPackageIds[0], {
           name: 'Council inspection',
         });
-        const otherMarker = marker('marker-owned-b', seed.projectIds[1], {
+        const otherMarker = marker('marker-owned-b', seed.workPackageIds[1], {
           name: 'Scaffolding up',
         });
         // Proof: both sources' literal-date faults mutated an independent input
         // clone in place to 2026-09-11; this settled answer still failed against
         // the untouched 2026-09-10 expectation (Expected -1 / Received +1).
-        expect(await port.create(structuredClone(projectMarker))).toEqual({
+        expect(await port.create(structuredClone(workPackageMarker))).toEqual({
           ok: true,
-          marker: projectMarker,
+          marker: workPackageMarker,
         });
         expect(await port.create(structuredClone(otherMarker))).toEqual({
           ok: true,
           marker: otherMarker,
         });
 
-        const renamed = { ...projectMarker, name: 'Council inspection, rescheduled' };
-        expect(await port.rename(seed.projectIds[0], projectMarker.id, renamed.name)).toEqual({
+        const renamed = { ...workPackageMarker, name: 'Council inspection, rescheduled' };
+        expect(
+          await port.rename(seed.workPackageIds[0], workPackageMarker.id, renamed.name),
+        ).toEqual({
           ok: true,
           marker: renamed,
         });
         const colored = { ...renamed, color: '#0386a5' };
-        expect(await port.recolor(seed.projectIds[0], projectMarker.id, colored.color)).toEqual({
+        expect(
+          await port.recolor(seed.workPackageIds[0], workPackageMarker.id, colored.color),
+        ).toEqual({
           ok: true,
           marker: colored,
         });
-        expect(await port.recolor(seed.projectIds[0], projectMarker.id, null)).toEqual({
+        expect(await port.recolor(seed.workPackageIds[0], workPackageMarker.id, null)).toEqual({
           ok: true,
           marker: renamed,
         });
 
-        const wrongProject = {
-          rename: await port.rename(seed.projectIds[1], projectMarker.id, 'Mine now'),
-          recolor: await port.recolor(seed.projectIds[1], projectMarker.id, '#f70100'),
-          remove: await port.remove(seed.projectIds[1], projectMarker.id),
-          projectA: await port.listFor(seed.projectIds[0]),
-          projectB: await port.listFor(seed.projectIds[1]),
+        const wrongWorkPackage = {
+          rename: await port.rename(seed.workPackageIds[1], workPackageMarker.id, 'Mine now'),
+          recolor: await port.recolor(seed.workPackageIds[1], workPackageMarker.id, '#f70100'),
+          remove: await port.remove(seed.workPackageIds[1], workPackageMarker.id),
+          workPackageA: await port.listFor(seed.workPackageIds[0]),
+          workPackageB: await port.listFor(seed.workPackageIds[1]),
         };
-        // Proof: both sources' omitted-project faults routed B's rename through A;
+        // Proof: both sources' omitted-work-package faults routed B's rename through A;
         // this complete settled state received ok/Mine now instead of refusal/unchanged.
-        expect(wrongProject).toEqual({
+        expect(wrongWorkPackage).toEqual({
           rename: { ok: false, reason: 'not_found' },
           recolor: { ok: false, reason: 'not_found' },
           remove: { ok: false, reason: 'not_found' },
-          projectA: [renamed],
-          projectB: [otherMarker],
+          workPackageA: [renamed],
+          workPackageB: [otherMarker],
         });
 
-        expect(await port.remove(seed.projectIds[0], projectMarker.id)).toEqual({
+        expect(await port.remove(seed.workPackageIds[0], workPackageMarker.id)).toEqual({
           ok: true,
           marker: renamed,
         });
         expect({
-          projectA: await port.listFor(seed.projectIds[0]),
-          projectB: await port.listFor(seed.projectIds[1]),
-        }).toEqual({ projectA: [], projectB: [otherMarker] });
+          workPackageA: await port.listFor(seed.workPackageIds[0]),
+          workPackageB: await port.listFor(seed.workPackageIds[1]),
+        }).toEqual({ workPackageA: [], workPackageB: [otherMarker] });
         expect(
           await Promise.all(
-            seed.projectIds.map((projectId) => readers.projects.findById(projectId)),
+            seed.workPackageIds.map((workPackageId) =>
+              readers.workPackages.findById(workPackageId),
+            ),
           ),
-        ).toEqual(projectsBefore);
+        ).toEqual(workPackagesBefore);
       },
     ),
   ];

@@ -3,28 +3,30 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Connection } from './db';
 import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import type { SavedPlanWrite } from './saved-plan';
 import { SavedPlanRepository } from './saved-plan';
 import { savedPlan } from './schema';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { HOLDER_CASE_BUDGET_MS, WriteLockHolder } from './testing/write-lock-holder';
-import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+function readerDb(reader: Connection | undefined): Connection['db'] {
+  if (reader === undefined) throw new Error('saved-plan fixture reader was not acquired');
+  return reader.db;
+}
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /** A plausible header and one small body. The bytes are not the subject here. */
 const record = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Ada Lovelace',
   createdById: null,
@@ -36,47 +38,57 @@ const record = (id: string): SavedPlanWrite => ({
 describe('a save that meets a held write lock is refused, not queued behind it', () => {
   let dir: string;
   let path: string;
-  let reader: Connection;
+  let reader: Connection | undefined;
+  let custody: { hasUnknownOwner: boolean };
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-busy-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+        ],
+      },
+      custody,
     );
-    await new ProjectRepository(seed.db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    const seed = openConnection(path);
+    const created = await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+      [],
       wrote,
     );
     seed.close();
+    if (typeof created === 'string')
+      throw new Error('saved plan fixture package refused: ' + created);
     reader = openConnection(path);
   });
 
   afterEach(async () => {
     await WriteLockHolder.stopAll();
-    reader.close();
-    rmSync(dir, { recursive: true, force: true });
+    reader?.close();
+    reader = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true });
   });
 
   const plans = (): SavedPlanRepository =>
     new SavedPlanRepository({ openConnection: () => openConnection(path) });
 
   const headerIds = async (): Promise<string[]> =>
-    (await reader.db.select().from(savedPlan)).map((row) => row.id).sort();
+    (await readerDb(reader).select().from(savedPlan)).map((row) => row.id).sort();
 
   it(
     'refuses at once while the other process is still writing, and only that process commits',
@@ -95,7 +107,7 @@ describe('a save that meets a held write lock is refused, not queued behind it',
       // The whole point of `busy_timeout = 0`, told apart from a wait by outcome
       // rather than by a stopwatch. At the connection default this call waits;
       // the holder commits 2.5 s after `go`, inside that 5 s wait, and the
-      // waiting save then succeeds, having held every live edit in the project
+      // waiting save then succeeds, having held every live edit in the work package
       // behind it for the duration.
       // Proof: with refuseToWaitForWriteLock removed from SavedPlanRepository.write
       // this received `{ outcome: 'written' }`; watched 2026-09-29.

@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 /** Exact external test-only closure, never an addition to the production image. */
 export const COMPOSED_IMAGE_FIXTURES = [
-  'app-fixture.ts',
+  'app-composition-fixture.ts',
   'auth-fixture.ts',
   'calendar-marker-fixture.ts',
   'capacity-fixture.ts',
@@ -22,16 +22,17 @@ export const COMPOSED_IMAGE_FIXTURES = [
   'login-throttle-fixture.ts',
   'onboarding-fixture.ts',
   'organization-access-fixture.ts',
+  'plan-export-fixture.ts',
   'priority-band-fixture.ts',
-  'project-address-search-fixture.ts',
   'project-fixture.ts',
-  'project-rank-fixture.ts',
   'replay-fixture.ts',
   'saved-plan-fixture.ts',
   'solver-composed-image-client.ts',
   'space-fixture.ts',
   'step-fixture.ts',
-  'work-item-fixture.ts',
+  'work-package-address-search-fixture.ts',
+  'work-package-fixture.ts',
+  'work-package-rank-fixture.ts',
   'writes-fixture.ts',
 ] as const;
 

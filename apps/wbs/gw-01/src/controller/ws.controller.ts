@@ -30,7 +30,7 @@ export interface HandleWsMessageArgs {
   connectionId: string;
   clientId: string;
   reportUnexpectedBackendFailure: UnexpectedBackendFailureReporter;
-  /** This connection's project authorization; see {@link ConnectionAccess}. */
+  /** This connection's work package authorization; see {@link ConnectionAccess}. */
   access: Pick<ConnectionAccess, 'run' | 'admit' | 'hold' | 'release'>;
   forward: (m: unknown) => Promise<{ ack: boolean }>;
   resume: (points: Record<string, number>) => Promise<Record<string, ResumeStatus>>;
@@ -49,7 +49,7 @@ export interface HandleWsMessageArgs {
   /** The socket left `subscription`. */
   onUnsubscribed?: (subscription: string) => Promise<void> | void;
   /**
-   * The roster for **this** connection — its project's, not the gateway's — for
+   * The roster for **this** connection — its work package's, not the gateway's — for
    * a client that asks instead of waiting.
    */
   roster?: () => string[];
@@ -60,27 +60,37 @@ export interface HandleWsMessageArgs {
  *
  * Without this, `subscribe` registers whatever string it is handed. That was
  * harmless while presence was the only channel; once a subscription names a
- * project it becomes an open door onto internal channels, and a typo becomes a
+ * work package it becomes an open door onto internal channels, and a typo becomes a
  * socket that silently receives nothing forever rather than an error.
  *
- * This is the shape check; authorization of a `project:` name is
+ * This is the shape check; authorization of a `work-package:` name is
  * {@link ConnectionAccess.admit}, which asks be-01 about the socket's own
  * principal.
  */
-const PROJECT_SUBSCRIPTION = /^project:([0-9a-fA-F-]{36})$/;
+// Proof: ws-current-gateway-prefix injects regressing hyphen to camelCase loses actual current socket delivery (2 to0).
+// Test: work package events reach the sockets that asked for them delivers to every subscriber of that work package and nobody else
+// Proof: ws-forbidden-project injects admitting the historical prefix permits access/registration and forwards old resume points.
+// Test: refuses project subscribe before access hold registration or presence effects
+// Test: filters project resume before access while replaying only admitted current points
+// Test: real gateway refuses project subscribe and resume while current namespace remains readable
+// Proof: ws-forbidden-workPackage injects admitting the accidental camelCase prefix permits access/registration and forwards its resume points.
+// Test: refuses workPackage subscribe before access hold registration or presence effects
+// Test: filters workPackage resume before access while replaying only admitted current points
+// Test: real gateway refuses workPackage subscribe and resume while current namespace remains readable
+const WORK_PACKAGE_SUBSCRIPTION = /^work-package:([0-9a-fA-F-]{36})$/;
 
 /**
- * The project a subscription names, or null when it names none.
+ * The work package a subscription names, or null when it names none.
  *
- * The one place the `project:` prefix is taken apart, so presence scoping and
- * the shape check below cannot disagree about what counts as a project.
+ * The one place the `work-package:` prefix is taken apart, so presence scoping and
+ * the shape check below cannot disagree about what counts as a work package.
  */
-export function projectIdOf(subscription: string): string | null {
-  return PROJECT_SUBSCRIPTION.exec(subscription)?.[1] ?? null;
+export function workPackageIdOf(subscription: string): string | null {
+  return WORK_PACKAGE_SUBSCRIPTION.exec(subscription)?.[1] ?? null;
 }
 
 export function isKnownSubscription(subscription: string): boolean {
-  return subscription === 'presence' || projectIdOf(subscription) !== null;
+  return subscription === 'presence' || workPackageIdOf(subscription) !== null;
 }
 
 /** Validates the decoded client frame before any indexing, callback or dispatch. */
@@ -128,13 +138,13 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   if (msg.type === 'resume') {
     args.onReconnect?.();
     // A resume point is a replay request, and replay is a read: it never
-    // grants access on its own. A name that is not a project the principal
+    // grants access on its own. A name that is not a work package the principal
     // may read is refused here and never reaches be-01.
     const points: Record<string, number> = {};
     const refused: string[] = [];
     // Proof: forwarding `msg.resume_points` unfiltered made `refuses resume
-    // points for a project the socket may not read` in
-    // project-authorization.integration.test.ts replay the foreign event.
+    // points for a work package the socket may not read` in
+    // work-package-authorization.integration.test.ts replay the foreign event.
     const admissions = await admitAll(args.access, Object.keys(msg.resume_points));
     if (admissions === 'closed') return;
     for (const [subscription, seq] of Object.entries(msg.resume_points)) {
@@ -174,7 +184,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     // Queued replay is rechecked before delivery: access lost while be-01 was
     // reading the log must not be served from what it read.
     // Proof: skipping this recheck made `withholds replay when access is lost
-    // while be-01 reads it` in project-authorization.integration.test.ts
+    // while be-01 reads it` in work-package-authorization.integration.test.ts
     // deliver the queued event.
     const rechecked = await admitAll(args.access, Object.keys(result));
     if (rechecked === 'closed') return;
@@ -215,29 +225,29 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       return;
     }
     const subscription = msg.subscription;
-    const projectId = projectIdOf(subscription);
+    const workPackageId = workPackageIdOf(subscription);
     await args.access.run(async () => {
-      if (projectId !== null) {
-        // Proof: skipping this admission made `refuses a project the
-        // principal cannot read` in project-authorization.integration.test.ts
+      if (workPackageId !== null) {
+        // Proof: skipping this admission made `refuses a workPackage the
+        // principal cannot read` in work-package-authorization.integration.test.ts
         // deliver the foreign push and roster.
-        const admission = await args.access.admit(projectId);
+        const admission = await args.access.admit(workPackageId);
         if (admission === 'closed') return;
         if (admission === 'denied') {
-          // The same refusal as a malformed name: a foreign project is
+          // The same refusal as a malformed name: a foreign work package is
           // indistinguishable from one that does not exist.
           await args.socket.send(wsError('unknown_subscription', { subscription }));
           return;
         }
       }
-      // Proof: removing this guard restores a subscription in held project
+      // Proof: removing this guard restores a subscription in held work package
       // admission cannot restore subscription after connection cancellation.
       if (args.signal?.aborted === true) return;
-      if (projectId !== null) args.access.hold(subscription, projectId);
+      if (workPackageId !== null) args.access.hold(subscription, workPackageId);
       args.subs.subscribe(subscription, args.socket);
       // After the map accepted it, and never for a refused name: presence is
       // scoped by the subscription, so telling it about one the fan-out does not
-      // hold would put a socket in a roster for a project it receives nothing on.
+      // hold would put a socket in a roster for a work package it receives nothing on.
       await args.onSubscribed?.(subscription);
     });
     return;
@@ -252,7 +262,7 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
 }
 
 /**
- * Admits every named subscription at once. A name that is not a project is
+ * Admits every named subscription at once. A name that is not a work package is
  * `denied` without asking be-01; `closed` when any check closed the socket.
  */
 async function admitAll(
@@ -261,8 +271,11 @@ async function admitAll(
 ): Promise<Map<string, 'granted' | 'denied'> | 'closed'> {
   const verdicts = await Promise.all(
     subscriptions.map(async (subscription) => {
-      const projectId = projectIdOf(subscription);
-      return [subscription, projectId === null ? 'denied' : await access.admit(projectId)] as const;
+      const workPackageId = workPackageIdOf(subscription);
+      return [
+        subscription,
+        workPackageId === null ? 'denied' : await access.admit(workPackageId),
+      ] as const;
     }),
   );
   const admissions = new Map<string, 'granted' | 'denied'>();

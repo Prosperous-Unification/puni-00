@@ -253,7 +253,7 @@ describe('capacity — a team is a pool of slots', () => {
     expect(planned(found, 'through', DEV)).toMatchObject({
       earliestStart: 0,
       earliestFinish: 4,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
     });
     expect(found.waitingForCapacity).toBe(0);
   });
@@ -288,7 +288,7 @@ describe('capacity — a team is a pool of slots', () => {
     expect(planned(found, 'a', DEV)).toMatchObject({
       earliestStart: 0,
       earliestFinish: 2,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
     });
   });
 
@@ -429,11 +429,11 @@ describe('float — the blocking set is the whole set', () => {
     // **The headline regression test.** codex's counterexample, verbatim:
     // pool of 2, width-1 blocks A and B holding both slots and ending on days
     // 5 and 7, and a width-2 block X that therefore starts on day 7 and ends
-    // the project.
+    // the work package.
     //
     // With only B→X in the graph — the "one binding edge" this design
     // replaced — A appears free to slip for ever. It is not: A ending on day 8
-    // pushes X, and with it the project. A row reported as having slack it has
+    // pushes X, and with it the work package. A row reported as having slack it has
     // none of is a false green, and it is the class of fault that killed the
     // first leveling algorithm.
     //
@@ -479,7 +479,7 @@ describe('float — the blocking set is the whole set', () => {
       item('A'),
       item('B'),
       item('X'),
-      // An unpooled tail, so the project finish is past X and there is real
+      // An unpooled tail, so the work package finish is past X and there is real
       // slack in the plan for the claim to be about.
       item('tail'),
     ];
@@ -540,7 +540,7 @@ describe('float — the blocking set is the whole set', () => {
     expect(second.float).toBeGreaterThanOrEqual(0);
   });
 
-  it('paints a compressed chain that ends the project red, drift and all', () => {
+  it('paints a compressed chain that ends the work package red, drift and all', () => {
     // `critical-snap` composes untouched. Division by a width adds drift of
     // exactly the class the 1e-9 snap exists for, so this change makes the
     // snap more load-bearing and changes nothing about it.

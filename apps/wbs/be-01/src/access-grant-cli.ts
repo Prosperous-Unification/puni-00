@@ -146,7 +146,7 @@ function refuse(refusal: Refusal): void {
 }
 
 /**
- * The operating-system login P21's deferred audit row will name as
+ * The operating-system login P21's committed audit row names as
  * `operator:<login>`.
  *
  * @throws when the login is empty, so no change is attributed to nobody.
@@ -164,9 +164,7 @@ async function grantSuperAdmin(
   act: AccessAct,
 ): Promise<{ readonly grantId: string } | Refusal> {
   const { organizationId, userId } = command;
-  // TODO(wbs-permissions 4.1): write P21's `access_granted` audit row (origin
-  // operator, actor operator:<login>) in this write's transaction once
-  // `widen_organization_audit_access` admits the action.
+  // The grant repository appends operator audit evidence in its existing owner.
   const outcome = await grants.grant(
     organizationId,
     {
@@ -223,9 +221,7 @@ async function revokeSuperAdmin(
   // fail) in `access-grant-cli.db.test.ts`.
   const grant = held.find((candidate) => candidate.roleId === SUPER_ADMIN_ROLE);
   if (grant === undefined) return { refusal: 'not_granted', organizationId, userId };
-  // TODO(wbs-permissions 4.1): write P21's `access_revoked` audit row (origin
-  // operator, actor operator:<login>) in this write's transaction once
-  // `widen_organization_audit_access` admits the action.
+  // The revoke repository appends operator audit evidence in this same write.
   const outcome = await grants.revoke(organizationId, grant.id, act);
   if (typeof outcome !== 'string') return { grantId: outcome.grant.id };
   // Proof: 2026-11-08, the store's CP14 count (`revoke`, `access-grant.ts`)
@@ -257,7 +253,13 @@ else {
         // `OPEN`: this process is the only writer it coordinates, and each
         // write takes SQLite's own write lock (`BEGIN IMMEDIATE`).
         const grants = new AccessGrantRepository(connection.db, OPEN);
-        const act: AccessAct = { actor: { kind: 'operator', login }, at: Date.now() };
+        const act: AccessAct = {
+          actor: { kind: 'operator', login },
+          at: Date.now(),
+          // Proof: operator-required-event: removing this boundary failed `grants a current member with origin operator and no creator, and prints the count`;
+          // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+          auditId: crypto.randomUUID(),
+        };
         const outcome =
           command.kind === 'grant-super-admin'
             ? await grantSuperAdmin(grants, command, act)
@@ -273,7 +275,7 @@ else {
               roleId: SUPER_ADMIN_ROLE,
               origin: 'operator',
               actor: `operator:${login}`,
-              audit: 'deferred to wbs-permissions 4.1',
+              audit: 'recorded',
               superAdminCount: directSuperAdminCount(connection.db, command.organizationId, {
                 besides: null,
               }),

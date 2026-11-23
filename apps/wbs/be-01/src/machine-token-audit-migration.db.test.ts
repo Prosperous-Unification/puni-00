@@ -1,14 +1,15 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
 const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
 const JOURNAL_PERSON = '20261026120000_add_command_journal_person';
 /** 2026-10-26T09:00:00Z, a real-epoch instant: a small fake clock would hide a day bug. */
@@ -20,13 +21,17 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** A store migrated to the latest, with one organization. */
-function migratedStore(): { root: string; dbPath: string } {
+/** A seeded store through the machine-token rebuild for issuance checks or initial access for rollback. */
+function migratedStore(through: typeof INITIAL_ACCESS | typeof MACHINE_TOKENS = INITIAL_ACCESS): {
+  root: string;
+  dbPath: string;
+} {
   const root = mkdtempSync(join(tmpdir(), 'wbs-machine-token-audit-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   run(dbPath, ["INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"]);
   return { root, dbPath };
 }
@@ -81,7 +86,7 @@ async function rollBack(root: string, dbPath: string, to: string) {
  */
 describe(MACHINE_TOKENS, () => {
   it('admits both machine-token actions, and the outgoing release keeps writing', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(MACHINE_TOKENS);
     run(dbPath, [
       issued('a1', MORNING, 'cred-1', 'run-a'),
       overflow('a2', MORNING, 'cred-1'),
@@ -95,7 +100,7 @@ describe(MACHINE_TOKENS, () => {
   });
 
   it('keys an issuance by credential, UTC day and run, a missing run being one run', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(MACHINE_TOKENS);
     run(dbPath, [
       issued('a1', MORNING, 'cred-1', 'run-a'),
       issued('a2', MORNING, 'cred-1', 'run-b'),
@@ -121,7 +126,7 @@ describe(MACHINE_TOKENS, () => {
   });
 
   it('keeps one overflow row per credential and UTC day', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(MACHINE_TOKENS);
     run(dbPath, [
       overflow('a1', MORNING, 'cred-1'),
       overflow('a2', MORNING, 'cred-2'),
@@ -133,7 +138,7 @@ describe(MACHINE_TOKENS, () => {
   });
 
   it('still refuses an unknown action, and stays append-only', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(MACHINE_TOKENS);
     expect(() => {
       run(dbPath, [
         `INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('x', 'org-a', 'dany', 'machine_token_minted', 'machine_credential', 'c', '{}', 1)`,
@@ -154,7 +159,7 @@ describe(MACHINE_TOKENS, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261102120000_add_access_grants, 20261101120000_add_host_job_projection, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, ${MACHINE_TOKENS}\n`,
+      `rolled back: ${INITIAL_ACCESS}, 20261102130000_widen_organization_audit_access, 20261102120000_add_access_grants, 20261101120000_add_host_job_projection, 20261101100100_add_resource_directory_capacity, 20261101100000_widen_organization_audit_directory_capacity, 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, ${MACHINE_TOKENS}\n`,
     );
     expect(auditActions(dbPath)).toEqual(['compute_provider_registered']);
     expect(() => {

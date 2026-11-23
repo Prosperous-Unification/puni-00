@@ -22,7 +22,7 @@ export function createNotBeforeColumn({ live }: { live: PlanLive }) {
       // off the tree read like the date above it — a draft somebody is
       // half-way through typing is not yet a fact about the plan.
       const reason = row.original.startNoEarlierThanReason;
-      // Without a project start date there is no day zero to count from and
+      // Without a work package start date there is no day zero to count from and
       // be-01 ignores the constraint entirely. A rendered disabled state
       // rather than an editor that opens onto nothing: a date that saves
       // and does nothing is worse than a field that will not take one.
@@ -218,7 +218,7 @@ export function createNotBeforeColumn({ live }: { live: PlanLive }) {
               // `title` and both belong in it.
               data-fact={
                 noCalendar
-                  ? 'Set the project start date first — without one there are no dates to constrain.'
+                  ? 'Set the work package start date first — without one there are no dates to constrain.'
                   : [
                       day === null ? null : `${day}.`,
                       'This work item may not start before this day. Its dependencies can still push it later.',

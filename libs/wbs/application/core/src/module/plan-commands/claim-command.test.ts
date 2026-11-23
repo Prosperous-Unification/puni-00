@@ -1,16 +1,19 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import type { CredentialPin } from '../../ports/claim-store';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
+import { bindFixtureSteps } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -42,15 +45,15 @@ const BOUND: Identities = {
 };
 
 /**
- * A project with its starting steps Dev and QA; root `080` with leaves `080.25`
+ * A work package with explicitly authored Dev and QA; root `080` with leaves `080.25`
  * and `080.26`, and a free leaf `090`, all unrestricted so both accounts write.
  */
 async function seeded(identities: Identities = BOUND) {
   const fixture = openMemorySourceFixture();
-  const { source } = fixture;
+  const source = ownTestSource(fixture.source);
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -65,22 +68,62 @@ async function seeded(identities: Identities = BOUND) {
       { at: 1, by: id },
     );
   }
-  const created = expectCreated(await graph.projects.create('Claims', F));
-  const projectId = created.project.id;
-  // The project's starting steps, Dev then QA, stand for the spec's Impl and Review.
-  // The memory source keeps a project's steps apart from the step table its progress reads.
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-      { at: 1, by: F },
-    );
-  }
-  const steps = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  await bindFixtureSteps(
+    source,
+    'fixture-legacy-org',
+    [
+      {
+        definition: {
+          id: 'fixture-dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+      {
+        definition: {
+          id: 'fixture-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-qa-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
+        },
+      },
+    ],
+    { at: 1, by: F },
+  );
+  const created = expectCreated(await graph.workPackages.create('Claims', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  // Authored Dev and QA stand for the spec's Impl and Review.
+
+  const steps = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   const rows = [
-    workItemRow({ id: '080', projectId, parentId: null, position: 1 }),
-    workItemRow({ id: '080.25', projectId, parentId: '080', position: 1 }),
-    workItemRow({ id: '080.26', projectId, parentId: '080', position: 2 }),
-    workItemRow({ id: '090', projectId, parentId: null, position: 2 }),
+    workItemRow({ id: '080', workPackageId, parentId: null, position: 1 }),
+    workItemRow({ id: '080.25', workPackageId, parentId: '080', position: 1 }),
+    workItemRow({ id: '080.26', workPackageId, parentId: '080', position: 2 }),
+    workItemRow({ id: '090', workPackageId, parentId: null, position: 2 }),
   ];
   for (const row of rows) await source.stores.workItems.insert(row, [], { at: 1, by: F });
   for (const [id, name] of [
@@ -92,6 +135,7 @@ async function seeded(identities: Identities = BOUND) {
     ['nobody', 'nobody'],
   ]) {
     await source.stores.directory.addPerson({ id, name, kind: 'agent' }, [], { at: 1, by: F });
+    fixture.ownPersonInOrganization(id, 'fixture-legacy-org', [F, G]);
   }
   for (const [personId, accountId] of identities.bound) {
     const bound = await source.stores.directory.patchPerson(
@@ -113,13 +157,26 @@ async function seeded(identities: Identities = BOUND) {
         broadcast: announcements,
       }),
   });
-  const claims = () => source.stores.claims.listByProject(projectId);
-  const progress = () => source.stores.progress.listByProject(projectId);
+  const claims = () => source.stores.claims.listByWorkPackage(workPackageId);
+  const progress = () => source.stores.progress.listByWorkPackage(workPackageId);
   const revision = async (id: string) =>
-    (await source.stores.workItems.listByProject(projectId)).find((row) => row.id === id)?.revision;
+    (await source.stores.workItems.listByWorkPackage(workPackageId)).find((row) => row.id === id)
+      ?.revision;
   const entries = async (actor: string) =>
-    (await source.stores.journal.entriesFor({ projectId, userId: actor, personId: null })).length;
-  return { source, fixture, graph, runner, projectId, steps, claims, progress, revision, entries };
+    (await source.stores.journal.entriesFor({ workPackageId, userId: actor, personId: null }))
+      .length;
+  return {
+    source,
+    fixture,
+    graph,
+    runner,
+    workPackageId,
+    steps,
+    claims,
+    progress,
+    revision,
+    entries,
+  };
 }
 
 /** The id a batch's first applied command minted, for a `createWorkItem`. */
@@ -140,14 +197,14 @@ function claimIdsOf(applied: AppliedCommand | undefined): string[] {
 
 describe('claimWorkItem in a batch', () => {
   it('claims every step that is not done, states the unstated one, one journal entry', async () => {
-    const { source, runner, projectId, steps, claims, progress, revision, entries } =
+    const { source, runner, workPackageId, steps, claims, progress, revision, entries } =
       await seeded();
     const [impl, review] = steps;
     try {
       expect(steps).toHaveLength(2);
       // QA carries an estimate: a leaf whose only worked step is done reads done,
       // and a claim on it is refused item_done (the table's own fold).
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         {
           kind: 'setEstimate',
           workItemId: '080.25',
@@ -158,7 +215,7 @@ describe('claimWorkItem in a batch', () => {
       ]);
       const before = await entries(F);
       const revisionBefore = await revision('080.25');
-      const answer = await runner.run(projectId, F, [
+      const answer = await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '080.25', personId: 'claire-worker', runId: 'run-1' },
       ]);
       expect(answer).toMatchObject({ ok: true, results: [{ index: 0, alreadyHeld: false }] });
@@ -178,7 +235,7 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('answers alreadyHeld to the holder repeating it and adds no entry', async () => {
-    const { steps, source, runner, projectId, claims, entries } = await seeded();
+    const { steps, source, runner, workPackageId, claims, entries } = await seeded();
     const [impl] = steps;
     try {
       const claim = {
@@ -188,10 +245,10 @@ describe('claimWorkItem in a batch', () => {
         personId: 'claire',
         runId: 'r',
       };
-      await runner.run(projectId, F, [claim]);
+      await runner.run(workPackageId, F, [claim]);
       const held = await claims();
       const before = await entries(F);
-      expect(await runner.run(projectId, F, [claim])).toMatchObject({
+      expect(await runner.run(workPackageId, F, [claim])).toMatchObject({
         ok: true,
         results: [{ alreadyHeld: true, claimIds: held.map(({ id }) => id) }],
       });
@@ -203,23 +260,23 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('undo removes exactly the claims and the progress it stated; redo puts them back', async () => {
-    const { source, runner, projectId, steps, claims, progress } = await seeded();
+    const { source, runner, workPackageId, steps, claims, progress } = await seeded();
     const [, review] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
       const statedBefore = await progress();
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
       ]);
       const held = await claims();
       expect(held).toHaveLength(2);
       expect(await progress()).toHaveLength(2);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual([]);
       expect(await progress()).toEqual(statedBefore);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual(held);
     } finally {
       await source.close();
@@ -227,7 +284,7 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('claims and assigns in one entry; undo clears both the claim and the assignment', async () => {
-    const { source, runner, projectId, steps, claims, entries } = await seeded();
+    const { source, runner, workPackageId, steps, claims, entries } = await seeded();
     const [impl, review] = steps;
     const assignees = async () =>
       (await source.stores.directory.assignmentsFor('090'))
@@ -235,14 +292,14 @@ describe('claimWorkItem in a batch', () => {
         .toSorted(([left = ''], [right = '']) => left.localeCompare(right));
     try {
       // Review was already started; acquiring it continues that work.
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setAssignee', workItemId: '090', stepId: review, personId: 'stranger' },
       ]);
       const before = await entries(F);
-      const answer = await runner.run(projectId, F, [
+      const answer = await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
       ]);
       expect(answer).toMatchObject({
@@ -252,7 +309,7 @@ describe('claimWorkItem in a batch', () => {
       expect(await entries(F)).toBe(before + 1);
       // Repeated by the holder it writes nothing, so it assigns nothing either.
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
         ]),
       ).toMatchObject({ ok: true, results: [{ alreadyHeld: true, assignedStepIds: [] }] });
@@ -265,11 +322,11 @@ describe('claimWorkItem in a batch', () => {
           .map(({ stepId, personId }) => [stepId ?? '', personId])
           .toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
       ).toEqual(both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)));
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual([]);
       // The assignee the step had before the claim comes back, not an empty one.
       expect(await assignees()).toEqual([[review, 'stranger']]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toHaveLength(2);
       expect(await assignees()).toEqual(
         both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
@@ -280,18 +337,18 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('leaves assignments untouched when assign is false or absent', async () => {
-    const { source, runner, projectId, steps } = await seeded();
+    const { source, runner, workPackageId, steps } = await seeded();
     const [impl, review] = steps;
     try {
       // Review was already started; acquiring it continues that work.
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setAssignee', workItemId: '090', stepId: review, personId: 'stranger' },
       ]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           {
             kind: 'claimWorkItem',
             workItemId: '090',
@@ -317,10 +374,10 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('assigns nothing with a subtree claim, which claims no step', async () => {
-    const { source, runner, projectId } = await seeded();
+    const { source, runner, workPackageId } = await seeded();
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '080', personId: 'claire', assign: true },
         ]),
       ).toMatchObject({ ok: true, results: [{ assignedStepIds: [] }] });
@@ -332,14 +389,14 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('refuses a claim on a leaf whose only worked step is done: it reads done', async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: impl, state: 'done' },
       ]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
         ]),
       ).toMatchObject({ ok: false, reason: 'item_done' });
@@ -350,18 +407,18 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('refuses a redo of a claim once another holder took the step', async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
-      await runner.run(projectId, G, [
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+      await runner.run(workPackageId, G, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'stranger', steps: [impl] },
       ]);
       const held = await claims();
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await claims()).toEqual(held);
     } finally {
       await source.close();
@@ -369,11 +426,11 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('shows the batch the progress its claim stated', async () => {
-    const { steps, source, runner, projectId } = await seeded();
+    const { steps, source, runner, workPackageId } = await seeded();
     const [impl] = steps;
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', steps: [impl], personId: 'claire' },
           { kind: 'setStatus', workItemId: '090', status: 'ready' },
         ]),
@@ -384,18 +441,18 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('lets two agents hold two steps of one leaf', async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [impl, review] = steps;
     try {
       // Review was already started; acquiring it continues that work.
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire-worker', steps: [impl] },
       ]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           {
             kind: 'claimWorkItem',
             workItemId: '090',
@@ -414,10 +471,10 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('refuses a step another holder has, naming the holder, and writes nothing', async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [plan] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         {
           kind: 'claimWorkItem',
           workItemId: '090',
@@ -428,7 +485,7 @@ describe('claimWorkItem in a batch', () => {
       ]);
       const held = await claims();
       expect(
-        await runner.run(projectId, G, [
+        await runner.run(workPackageId, G, [
           { kind: 'claimWorkItem', workItemId: '090', personId: 'stranger', steps: [plan] },
         ]),
       ).toEqual({
@@ -449,14 +506,14 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('refuses a leaf reading blocked_by_proxy with that status', async () => {
-    const { source, runner, projectId, claims } = await seeded();
+    const { source, runner, workPackageId, claims } = await seeded();
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setStatus', workItemId: '080.26', status: 'blocked' },
         { kind: 'addDependency', workItemId: '090', predecessorId: '080.26' },
       ]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', personId: 'claire' },
         ]),
       ).toEqual({
@@ -475,10 +532,10 @@ describe('claimWorkItem in a batch', () => {
   // Proof: with decideClaim's bound-account check replaced by `false`, this case
   // failed through the command path; watched 2026-10-19.
   it('refuses a person nobody bound to a non-admin caller', async () => {
-    const { source, runner, projectId } = await seeded();
+    const { source, runner, workPackageId } = await seeded();
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', personId: 'nobody' },
         ]),
       ).toMatchObject({ ok: false, reason: 'person_not_bound' });
@@ -490,12 +547,12 @@ describe('claimWorkItem in a batch', () => {
   // Proof: with decideClaim's pin check replaced by `false`, this case failed
   // through the command path; watched 2026-10-19.
   it('refuses a pinned credential claiming as another agent', async () => {
-    const { steps, source, runner, projectId } = await seeded();
+    const { steps, source, runner, workPackageId } = await seeded();
     const [impl] = steps;
     try {
       const claimAs = (personId: string, credential: CredentialPin | null) =>
         runner.runWithin(
-          projectId,
+          workPackageId,
           {
             id: F,
             username: F,
@@ -530,7 +587,7 @@ describe('claimWorkItem in a batch', () => {
   // answered person_required; with it falling back to the actor id, the account
   // claim answered unknown_person; watched 2026-10-26.
   it('claims and releases as the acting agent person when none is named; an account must name one', async () => {
-    const { source, runner, projectId, claims, steps } = await seeded();
+    const { source, runner, workPackageId, claims, steps } = await seeded();
     try {
       const firstStep = steps.at(0);
       if (firstStep === undefined) throw new Error('claim fixture omitted its first workflow step');
@@ -545,7 +602,7 @@ describe('claimWorkItem in a batch', () => {
         },
       };
       const asAgent = (command: Parameters<typeof runner.run>[2][number]) =>
-        runner.runWithin(projectId, agent, [command], LEGACY_ACCESS);
+        runner.runWithin(workPackageId, agent, [command], LEGACY_ACCESS);
       expect(
         await asAgent({ kind: 'claimWorkItem', workItemId: '090', steps: [firstStep] }),
       ).toMatchObject({ ok: true });
@@ -555,7 +612,7 @@ describe('claimWorkItem in a batch', () => {
       });
       expect(await claims()).toEqual([]);
       for (const kind of ['claimWorkItem', 'releaseWorkItem'] as const) {
-        expect(await runner.run(projectId, F, [{ kind, workItemId: '090' }])).toMatchObject({
+        expect(await runner.run(workPackageId, F, [{ kind, workItemId: '090' }])).toMatchObject({
           ok: false,
           at: 0,
           kind,
@@ -571,7 +628,7 @@ describe('claimWorkItem in a batch', () => {
   // An organization-owned person binds only to a member (S3-2), and the claim
   // then reads that binding through the source's real directory.
   it('claims as an owned person bound to a member of its organization', async () => {
-    const { steps, source, fixture, runner, projectId } = await seeded();
+    const { steps, source, fixture, runner, workPackageId } = await seeded();
     const [impl] = steps;
     try {
       await source.stores.directory.addPerson({ id: 'owned', name: 'owned', kind: 'agent' }, [], {
@@ -583,7 +640,7 @@ describe('claimWorkItem in a batch', () => {
         await source.stores.directory.patchPerson('owned', { accountId: G }, { at: 2, by: F }),
       ).toEqual({ ok: false, reason: 'unknown_account' });
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', steps: [impl], personId: 'owned' },
         ]),
       ).toMatchObject({ ok: false, reason: 'person_not_bound' });
@@ -591,7 +648,7 @@ describe('claimWorkItem in a batch', () => {
         (await source.stores.directory.patchPerson('owned', { accountId: F }, { at: 2, by: F })).ok,
       ).toBe(true);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'claimWorkItem', workItemId: '090', steps: [impl], personId: 'owned' },
         ]),
       ).toMatchObject({ ok: true });
@@ -601,16 +658,16 @@ describe('claimWorkItem in a batch', () => {
   });
 
   it('chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger', async () => {
-    const { steps, source, runner, projectId, claims } = await seeded();
+    const { steps, source, runner, workPackageId, claims } = await seeded();
     const [impl] = steps;
     try {
-      const subtree = await runner.run(projectId, F, [
+      const subtree = await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '080', personId: 'claire' },
       ]);
       if (!subtree.ok) throw new Error('the subtree claim was refused');
       const [parentClaim] = claimIdsOf(subtree.results[0]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           {
             kind: 'claimWorkItem',
             workItemId: '080.25',
@@ -626,7 +683,7 @@ describe('claimWorkItem in a batch', () => {
         parentClaim,
       );
       expect(
-        await runner.run(projectId, G, [
+        await runner.run(workPackageId, G, [
           { kind: 'claimWorkItem', workItemId: '080.26', steps: [impl], personId: 'stranger' },
         ]),
       ).toMatchObject({
@@ -642,27 +699,27 @@ describe('claimWorkItem in a batch', () => {
 
 describe('a claimed leaf that gains its first child', () => {
   it("hands a claimed leaf's claims to its first child and back on undo", async () => {
-    const { source, graph, runner, projectId, steps, claims } = await seeded();
+    const { source, graph, runner, workPackageId, steps, claims } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
       const held = await claims();
       expect(held.map(({ workItemId, stepId }) => [workItemId, stepId])).toEqual([['090', impl]]);
       const child = mintedIdOf(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'createWorkItem', parentId: '090', afterId: null, name: 'Half' },
         ]),
       );
       expect(await claims()).toEqual(held.map((each) => ({ ...each, workItemId: child })));
-      const startable = await graph.workItems.startableWithin(projectId, LEGACY_ACCESS, null);
+      const startable = await graph.workItems.startableWithin(workPackageId, LEGACY_ACCESS, null);
       if (startable === null || 'kind' in startable) throw new Error('the read refused');
       expect(startable.claimed.map(({ workItemId, stepId }) => [workItemId, stepId])).toEqual([
         [child, impl],
       ]);
       expect(
-        await runner.run(projectId, G, [
+        await runner.run(workPackageId, G, [
           { kind: 'claimWorkItem', workItemId: child, personId: 'stranger', steps: [impl] },
         ]),
       ).toMatchObject({
@@ -671,12 +728,12 @@ describe('a claimed leaf that gains its first child', () => {
         detail: { holders: [{ claimId: held[0]?.id, personId: 'claire' }] },
       });
 
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual(held);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual(held.map((each) => ({ ...each, workItemId: child })));
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: child, personId: 'claire' },
         ]),
       ).toMatchObject({ ok: true });
@@ -687,19 +744,19 @@ describe('a claimed leaf that gains its first child', () => {
   });
 
   it('releases the handed-down claim on the child', async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
       const child = mintedIdOf(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'createWorkItem', parentId: '090', afterId: null, name: 'Half' },
         ]),
       );
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: child, personId: 'claire' },
         ]),
       ).toMatchObject({ ok: true });
@@ -709,15 +766,15 @@ describe('a claimed leaf that gains its first child', () => {
     }
   });
 
-  it('refuses a move under a claimed leaf, naming its holders, until they are released', async () => {
-    const { source, runner, projectId, steps, claims, revision, entries } = await seeded();
+  it('refuses a claimed destination until claims and retained progress are explicitly cleared', async () => {
+    const { source, runner, workPackageId, steps, claims, revision, entries } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
       const other = mintedIdOf(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'createWorkItem', parentId: null, afterId: '090', name: 'Other' },
         ]),
       );
@@ -730,7 +787,7 @@ describe('a claimed leaf that gains its first child', () => {
         parentId: '090',
         afterId: null,
       };
-      expect(await runner.run(projectId, F, [move])).toEqual({
+      expect(await runner.run(workPackageId, F, [move])).toEqual({
         ok: false,
         at: 0,
         kind: 'moveWorkItem',
@@ -743,32 +800,62 @@ describe('a claimed leaf that gains its first child', () => {
       expect({ leaf: await revision('090'), other: await revision(other) }).toEqual(before);
       expect(await entries(F)).toBe(journal);
       expect(
-        (await source.stores.workItems.listByProject(projectId)).find(({ id }) => id === other)
-          ?.parentId,
+        (await source.stores.workItems.listByWorkPackage(workPackageId)).find(
+          ({ id }) => id === other,
+        )?.parentId,
       ).toBeNull();
 
-      await runner.run(projectId, F, [
-        { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
-      ]);
-      expect(await runner.run(projectId, F, [move])).toMatchObject({ ok: true });
+      expect(
+        await runner.run(workPackageId, F, [
+          { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
+        ]),
+      ).toMatchObject({ ok: true });
+      const released = await entries(F);
+      const retained = await source.stores.progress.listByWorkPackage(workPackageId);
+      expect(await runner.run(workPackageId, F, [move])).toEqual({
+        ok: false,
+        at: 0,
+        kind: 'moveWorkItem',
+        reason: 'step_nodes_in_use',
+        detail: {
+          count: 1,
+          pairs: [
+            {
+              id: '090',
+              name: 'Rewire the shed',
+              workPackageId,
+              stepId: impl,
+              facts: ['progress'],
+            },
+          ],
+        },
+      });
+      expect(await entries(F)).toBe(released);
+      expect(await source.stores.progress.listByWorkPackage(workPackageId)).toEqual(retained);
+      expect(
+        await runner.run(workPackageId, F, [
+          { kind: 'clearProgress', workItemId: '090', stepId: impl },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(await runner.run(workPackageId, F, [move])).toMatchObject({ ok: true });
     } finally {
       await source.close();
     }
   });
 
   it('refuses an undo of a claim once another actor split the leaf', async () => {
-    const { source, runner, projectId, steps, claims, progress } = await seeded();
+    const { source, runner, workPackageId, steps, claims, progress } = await seeded();
     const [impl] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
-      await runner.run(projectId, G, [
+      await runner.run(workPackageId, G, [
         { kind: 'createWorkItem', parentId: '090', afterId: null, name: 'Half' },
       ]);
       const held = await claims();
       const stated = await progress();
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await claims()).toEqual(held);
       expect(await progress()).toEqual(stated);
     } finally {
@@ -776,28 +863,36 @@ describe('a claimed leaf that gains its first child', () => {
     }
   });
 
-  // The memory source keeps no revisions, so only the replay's own check stands
-  // between this undo and a claim it never wrote.
-  it("refuses an undo of a split once the child's claims changed", async () => {
-    const { source, runner, projectId, steps, claims } = await seeded();
+  it("transfers a peer's later claims through first-child undo and redo without replacing them", async () => {
+    const { source, runner, workPackageId, steps, claims } = await seeded();
     const [impl, review] = steps;
     try {
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
       ]);
       const child = mintedIdOf(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'createWorkItem', parentId: '090', afterId: null, name: 'Half' },
         ]),
       );
-      await runner.run(projectId, G, [
-        { kind: 'claimWorkItem', workItemId: child, personId: 'stranger', steps: [review] },
-      ]);
+      expect(
+        await runner.run(workPackageId, G, [
+          { kind: 'claimWorkItem', workItemId: child, personId: 'stranger', steps: [review] },
+        ]),
+      ).toMatchObject({ ok: true });
       const held = await claims();
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(held).toHaveLength(2);
+      expect(held.find(({ personId }) => personId === 'stranger')).toMatchObject({
+        workItemId: child,
+        stepId: review,
+      });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+      expect(await source.stores.workItems.findById(child)).toBeNull();
+      expect(await claims()).toEqual(held.map((claim) => ({ ...claim, workItemId: '090' })));
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual(held);
     } finally {
       await source.close();
@@ -807,20 +902,20 @@ describe('a claimed leaf that gains its first child', () => {
 
 describe('releaseWorkItem in a batch', () => {
   it('releases a half-done leaf and leaves its progress as it was', async () => {
-    const { source, runner, projectId, steps, claims, progress } = await seeded();
+    const { source, runner, workPackageId, steps, claims, progress } = await seeded();
     const [impl, review] = steps;
     try {
       // Review was already started; acquiring it continues that work.
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setProgress', workItemId: '090', stepId: review, state: 'in_progress' },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl, review] },
         { kind: 'setProgress', workItemId: '090', stepId: impl, state: 'done' },
       ]);
       const stated = await progress();
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
         ]),
       ).toMatchObject({ ok: true });
@@ -832,15 +927,15 @@ describe('releaseWorkItem in a batch', () => {
   });
 
   it('cascades a subtree release in one entry, and undo restores all three', async () => {
-    const { steps, source, runner, projectId, claims, entries } = await seeded();
+    const { steps, source, runner, workPackageId, claims, entries } = await seeded();
     const [impl] = steps;
     try {
-      const subtree = await runner.run(projectId, F, [
+      const subtree = await runner.run(workPackageId, F, [
         { kind: 'claimWorkItem', workItemId: '080', personId: 'claire' },
       ]);
       if (!subtree.ok) throw new Error('the subtree claim was refused');
       const [parentClaim] = claimIdsOf(subtree.results[0]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         {
           kind: 'claimWorkItem',
           workItemId: '080.25',
@@ -862,13 +957,13 @@ describe('releaseWorkItem in a batch', () => {
       );
       const before = await entries(F);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: '080', personId: 'claire' },
         ]),
       ).toMatchObject({ ok: true });
       expect(await claims()).toEqual([]);
       expect(await entries(F)).toBe(before + 1);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await claims()).toEqual(held);
     } finally {
       await source.close();
@@ -876,10 +971,10 @@ describe('releaseWorkItem in a batch', () => {
   });
 
   it('refuses releasing what the person does not hold', async () => {
-    const { source, runner, projectId } = await seeded();
+    const { source, runner, workPackageId } = await seeded();
     try {
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
         ]),
       ).toMatchObject({ ok: false, reason: 'not_claimed_by' });

@@ -19,13 +19,13 @@ import type { TypedDependency } from '../typed-dependency';
  *
  * ## What is deliberately outside it
  *
- * - **`project_access` and anything recording who last opened what.** Navigation
- *   history: whose screen a project was on is not part of the plan.
+ * - **`work_package_access` and anything recording who last opened what.** Navigation
+ *   history: whose screen a work package was on is not part of the plan.
  * - **The audit columns** — `created_at`, `updated_at`, `created_by` on the
  *   plan's own rows. They are about *editing*, not about the plan. (The saved
  *   plan's own `created_by` is a header column, captured by value; that is a
  *   fact about the save, not about the captured plan.)
- * - **`work_item.revision` and `project.revision`** (`schema.ts:215`). Write
+ * - **`work_item.revision` and `workPackage.revision`** (`schema.ts:215`). Write
  *   counters: two content-identical plans carrying different counters would
  *   diff as changed, which is exactly the false positive this feature must not
  *   produce.
@@ -43,9 +43,7 @@ import type { TypedDependency } from '../typed-dependency';
  * Types only. Nothing here reads anything.
  */
 export interface CanonicalPlanInput {
-  /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 9;
-  readonly project: CanonicalProject;
+  readonly workPackage: CanonicalWorkPackage;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
   /** Sorted by `id`. */
@@ -98,12 +96,12 @@ export interface CanonicalPlanInput {
   readonly externalSystems: readonly CanonicalNamedRow[];
 }
 
-/** The project's date-producing settings and its own metadata. */
-export interface CanonicalProject {
+/** The work package's date-producing settings and its own metadata. */
+export interface CanonicalWorkPackage {
   readonly id: string;
   readonly name: string;
   readonly restricted: boolean;
-  readonly ownerId: string | null;
+  readonly projectId: string;
   readonly solutionSlug: string | null;
   readonly solutionUrl: string | null;
   readonly estimateMethod: EstimateMethod;
@@ -114,15 +112,15 @@ export interface CanonicalProject {
   readonly pertWeightRealistic: number;
   readonly pertWeightPessimistic: number;
   /**
-   * The IANA zone the project reads instants as days in (`step-node-attempts`
+   * The IANA zone the work package reads instants as days in (`step-node-attempts`
    * D5): a setting, compared under `settings`, read by no engine. Version 5;
-   * an earlier body upgrades as `UTC`, the zone every project had before.
+   * an earlier body upgrades as `UTC`, the zone every work package had before.
    */
   readonly timezone: string;
   /**
    * What a derived budget multiplies the pessimistic point by
    * (`wbs-measure-budgets` D38): a setting, compared under `settings`, read by
-   * no engine. Schema 9; an earlier body upgrades as 1, every project's factor
+   * no engine. Schema 9; an earlier body upgrades as 1, every work package's factor
    * before budgets.
    */
   readonly budgetFactor: number;
@@ -222,7 +220,7 @@ export interface CanonicalStep {
   readonly position: number;
   /**
    * The step's estimate allowance when the plan was saved — history, never
-   * the live project's (`add-project-step-estimate-allowances`). A version-1
+   * the live work package's (`add-work-package-step-estimate-allowances`). A version-1
    * body predates allowances and is read at 0% by the `1` upgrade.
    */
   readonly allowancePercent: number;
@@ -379,7 +377,7 @@ export interface CanonicalCapacity {
  * reads, minus its refresh cursor, plus five that only a capture makes.
  */
 export interface PlanInputRows {
-  readonly project: CanonicalProject;
+  readonly workPackage: CanonicalWorkPackage;
   readonly workItems: readonly CanonicalWorkItem[];
   readonly steps: readonly CanonicalStep[];
   readonly stepValues: readonly CanonicalStepValue[];
@@ -407,8 +405,8 @@ export interface PlanInputRows {
   readonly externalSystems: readonly CanonicalNamedRow[];
 }
 
-/** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9 as const;
+/** Current stored format, emitted by canonicalisePlanInputV13 with explicit captured leaf history. */
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 13 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -455,23 +453,22 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
   const stepParallels = readStepParallels(values);
   assertStepBlockages(values);
   return {
-    schemaVersion: CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
-    project: {
-      id: values.project.id,
-      name: values.project.name,
-      restricted: values.project.restricted,
-      ownerId: values.project.ownerId,
-      solutionSlug: values.project.solutionSlug,
-      solutionUrl: values.project.solutionUrl,
-      estimateMethod: values.project.estimateMethod,
-      depReach: values.project.depReach,
-      estimateRounding: values.project.estimateRounding,
-      startDate: values.project.startDate,
-      pertWeightOptimistic: values.project.pertWeightOptimistic,
-      pertWeightRealistic: values.project.pertWeightRealistic,
-      pertWeightPessimistic: values.project.pertWeightPessimistic,
-      timezone: values.project.timezone,
-      budgetFactor: values.project.budgetFactor,
+    workPackage: {
+      id: values.workPackage.id,
+      name: values.workPackage.name,
+      restricted: values.workPackage.restricted,
+      projectId: values.workPackage.projectId,
+      solutionSlug: values.workPackage.solutionSlug,
+      solutionUrl: values.workPackage.solutionUrl,
+      estimateMethod: values.workPackage.estimateMethod,
+      depReach: values.workPackage.depReach,
+      estimateRounding: values.workPackage.estimateRounding,
+      startDate: values.workPackage.startDate,
+      pertWeightOptimistic: values.workPackage.pertWeightOptimistic,
+      pertWeightRealistic: values.workPackage.pertWeightRealistic,
+      pertWeightPessimistic: values.workPackage.pertWeightPessimistic,
+      timezone: values.workPackage.timezone,
+      budgetFactor: values.workPackage.budgetFactor,
     },
     workItems: sorted(
       values.workItems,

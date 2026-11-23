@@ -39,6 +39,67 @@ const exported: SqliteReport = {
 };
 
 describe('cutover-cli', () => {
+  it('names work packages when --known input is invalid', async () => {
+    const root = scratchSync('cutover-known-work-packages-');
+    roots.push(root);
+    const descriptor = join(root, 'descriptor.json');
+    writeFileSync(descriptor, fixtureDescriptorBytes);
+    const refusal = await main([
+      'export',
+      '--descriptor',
+      descriptor,
+      '--descriptor-sha256',
+      sha256Of(fixtureDescriptorBytes),
+      '--image',
+      fixtureOldBackend,
+      '--data',
+      root,
+      '--db',
+      'wbs.db',
+      '--out',
+      join(root, 'export'),
+      '--known',
+      '[]',
+    ]).then(
+      () => 'unexpected success',
+      (cause: unknown) => String(cause),
+    );
+    expect(refusal).toContain('--known must be a non-empty JSON array of work-package names');
+  });
+
+  it('accepts current work-package counts alongside retained arbitrary table keys', async () => {
+    const root = scratchSync('cutover-current-counts-');
+    roots.push(root);
+    const descriptor = join(root, 'descriptor.json');
+    const current: SqliteReport = {
+      ...exported,
+      counts: { work_package: 1, project: 7, retained_rows: 2 },
+    };
+    writeFileSync(descriptor, fixtureDescriptorBytes);
+    writeFileSync(join(root, 'export.json'), JSON.stringify(current));
+    writeFileSync(
+      join(root, 'restore.log'),
+      'PUNI_SQLITE_REPORT ' +
+        JSON.stringify({ ...current, path: '/data/wbs.sqlite', ownerUid: 10001 }),
+    );
+    const verified = await main([
+      'verify-restore',
+      '--descriptor',
+      descriptor,
+      '--descriptor-sha256',
+      sha256Of(fixtureDescriptorBytes),
+      '--old-image',
+      fixtureOldBackend,
+      '--image',
+      fixtureBackend,
+      '--export-report',
+      join(root, 'export.json'),
+      '--logs',
+      join(root, 'restore.log'),
+    ]);
+    expect(verified).toContain('restore matches the export');
+  });
+
   it('renders the fenced production site from the real template', async () => {
     const site = await main([
       'fenced-site',

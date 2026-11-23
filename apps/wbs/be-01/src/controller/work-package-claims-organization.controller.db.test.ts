@@ -1,0 +1,302 @@
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+
+import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
+
+/**
+ * The claims read (`GET /api/work-packages/:id/claims`, `wbs-claim-display` task
+ * 1.3) under organization isolation, over real SQLite and the production
+ * organization access; see {@link OrganizationHarness}. Rows and claims are
+ * seeded as SQL: the command tests cover the writes.
+ */
+let h: OrganizationHarness;
+let own: string;
+let foreign: string;
+// Step ids whose lexical order is the reverse of work package step order: both
+// stores answer claims by step id, so only the read's own order is right.
+const dev = 'step-z-dev';
+const qa = 'step-a-qa';
+
+beforeEach(async () => {
+  h = OrganizationHarness.openComposed();
+  for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
+  h.organization('org-a');
+  h.organization('org-b');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
+  h.bind('ada', 'org-a');
+  h.bind('vic', 'org-a');
+  h.bind('grace', 'org-b');
+  h.activate();
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
+  const { workPackage } = await readFixturePackage(h, 'ada', own);
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    for (const [id, name, position] of [
+      [dev, 'Build', 0],
+      [qa, 'Check', 1],
+    ] as const) {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id,
+          name,
+          code: id,
+          position,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: id + '-binding',
+          scopeKind: 'project',
+          scopeId: workPackage.projectId,
+          workItemTypeId: null,
+          position,
+        },
+        { at: 1, by: h.userId('ada') },
+      );
+      if (!bound.ok) throw new Error('claims fixture step binding refused: ' + bound.reason);
+    }
+    return { commit: true, value: undefined };
+  });
+  for (const [id, name] of [
+    ['pe-claire', 'Claire'],
+    ['pe-codex', 'codex-fleet'],
+  ] as const) {
+    h.sqlite.run('INSERT INTO person (id, name) VALUES (?, ?)', [id, `root-${id}`]);
+    h.sqlite.run(
+      'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+      [id, 'org-a', name],
+    );
+  }
+  for (const [id, parent, position, frozen, hold] of [
+    ['w-080', null, 0, '080', null],
+    ['w-080-1', 'w-080', 0, null, 'blocked'],
+    ['w-080-2', 'w-080', 1, null, null],
+  ] as const) {
+    h.sqlite.run(
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, frozen_number, hold) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, own, parent, position, `Item ${id}`, frozen, hold],
+    );
+  }
+  // Written out of tree order (the parent claim first, for its foreign key): the read orders them.
+  for (const [id, workItemId, stepId, personId, parent, at, expires, revoked] of [
+    ['c-subtree', 'w-080', null, 'pe-claire', null, 100, null, null],
+    ['c-qa', 'w-080-2', qa, 'pe-codex', 'c-subtree', 300, 900_000, null],
+    ['c-dev', 'w-080-2', dev, 'pe-codex', 'c-subtree', 200, 800_000, 500_000],
+    ['c-blocked', 'w-080-1', dev, 'pe-claire', null, 150, null, null],
+  ] as const) {
+    h.sqlite.run(
+      'INSERT INTO claim (id, work_item_id, step_id, person_id, run_id, parent_claim_id, created_at, created_by, lease_expires_at, lease_revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        workItemId,
+        stepId,
+        personId,
+        `run-${id}`,
+        parent,
+        at,
+        h.userId('ada'),
+        expires,
+        revoked,
+      ],
+    );
+  }
+});
+
+afterEach(async () => {
+  await h.closeComposed();
+});
+
+/**
+ * Ada's claims read with `change` applied after its admission and before its
+ * observation: the admission reads the work package's cross references last, so
+ * the change goes there, once.
+ */
+async function claimsAfterAdmission(
+  change: () => void,
+): Promise<{ status: number; body: unknown }> {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- the seam calls it with its own repository receiver.
+  const original = WorkPackageRepository.prototype.findCrossReferences;
+  let pending = true;
+  const seam = spyOn(WorkPackageRepository.prototype, 'findCrossReferences').mockImplementation(
+    async function (this: WorkPackageRepository, workPackageId, organizationId) {
+      const crossing = await original.call(this, workPackageId, organizationId);
+      if (pending) {
+        pending = false;
+        change();
+      }
+      return crossing;
+    },
+  );
+  try {
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/claims`);
+    expect(pending).toBe(false);
+    return answer;
+  } finally {
+    seam.mockRestore();
+  }
+}
+
+/** The answer with `readAt` checked to lie between `before` and now, then dropped. */
+function withoutReadAt(
+  answer: { status: number; body: unknown },
+  before: number,
+): { status: number; body: unknown } {
+  const { readAt, ...rest } = answer.body as { readAt: number };
+  expect(readAt).toBeGreaterThanOrEqual(before);
+  expect(readAt).toBeLessThanOrEqual(Date.now());
+  return { status: answer.status, body: rest };
+}
+
+describe('the claims read', () => {
+  it('lists every claim in tree and step order to a member and a viewer alike', async () => {
+    const before = Date.now();
+    const forMember = withoutReadAt(
+      await h.call('ada', 'GET', `/api/work-packages/${own}/claims`),
+      before,
+    );
+    const address = (id: string, index: number) => ({
+      workItemId: id,
+      number: `080.${String(index)}`,
+      numberIsFrozen: false,
+      name: `Item ${id}`,
+    });
+    const claire = { personId: 'pe-claire', name: 'Claire' };
+    const codex = { personId: 'pe-codex', name: 'codex-fleet' };
+    expect(forMember).toEqual({
+      status: 200,
+      body: {
+        claims: [
+          {
+            workItemId: 'w-080',
+            number: '080',
+            numberIsFrozen: true,
+            name: 'Item w-080',
+            stepId: null,
+            claimId: 'c-subtree',
+            holder: claire,
+            runId: 'run-c-subtree',
+            parentClaimId: null,
+            claimedAt: 100,
+            leaseExpiresAt: null,
+            leaseRevokedAt: null,
+          },
+          {
+            ...address('w-080-1', 1),
+            stepId: dev,
+            claimId: 'c-blocked',
+            holder: claire,
+            runId: 'run-c-blocked',
+            parentClaimId: null,
+            claimedAt: 150,
+            leaseExpiresAt: null,
+            leaseRevokedAt: null,
+          },
+          {
+            ...address('w-080-2', 2),
+            stepId: dev,
+            claimId: 'c-dev',
+            holder: codex,
+            runId: 'run-c-dev',
+            parentClaimId: 'c-subtree',
+            claimedAt: 200,
+            leaseExpiresAt: 800_000,
+            leaseRevokedAt: 500_000,
+          },
+          {
+            ...address('w-080-2', 2),
+            stepId: qa,
+            claimId: 'c-qa',
+            holder: codex,
+            runId: 'run-c-qa',
+            parentClaimId: 'c-subtree',
+            claimedAt: 300,
+            leaseExpiresAt: 900_000,
+            leaseRevokedAt: null,
+          },
+        ],
+      },
+    });
+    expect(
+      withoutReadAt(await h.call('vic', 'GET', `/api/work-packages/${own}/claims`), before),
+    ).toEqual(forMember);
+  });
+
+  it('answers an unclaimed work package with an empty list', async () => {
+    const before = Date.now();
+    const answer = await h.call('grace', 'GET', `/api/work-packages/${foreign}/claims`);
+    expect(withoutReadAt(answer, before)).toEqual({ status: 200, body: { claims: [] } });
+  });
+
+  it('refuses a stranger exactly as the tree read does', async () => {
+    for (const tail of ['work-items', 'claims']) {
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
+      expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
+      const stranger = await h.call('grace', 'GET', `/api/work-packages/${own}/${tail}`);
+      expect({ tail, ...stranger }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
+      const absent = await h.call('ada', 'GET', `/api/work-packages/no-such-work-package/${tail}`);
+      expect({ tail, ...absent }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
+      expect(await h.call('nell', 'GET', `/api/work-packages/${own}/${tail}`)).toEqual({
+        status: 403,
+        body: { error: 'no_active_organization' },
+      });
+    }
+  });
+
+  it('refuses a removed member alike with the tree read', async () => {
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('vic')]);
+    const tree = await h.call('vic', 'GET', `/api/work-packages/${own}/work-items`);
+    expect(tree).toEqual({ status: 403, body: { error: 'not_a_member' } });
+    expect(await h.call('vic', 'GET', `/api/work-packages/${own}/claims`)).toEqual(tree);
+  });
+
+  it('refuses a member removed between admission and the observation, as the tree read does', async () => {
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
+    });
+    expect(answer).toEqual({ status: 403, body: { error: 'not_a_member' } });
+  });
+
+  it('refuses an activation marker reset between admission and the observation', async () => {
+    // The marker is permanent by trigger; the fault drops the trigger, as the
+    // tree read's own reset-marker case does.
+    h.sqlite.run('DROP TRIGGER organization_activation_no_revert');
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run(
+        "UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL",
+      );
+    });
+    expect(answer).toEqual({ status: 403, body: { error: 'no_active_organization' } });
+  });
+
+  it('answers a work package moved out of the organization after admission as not found', async () => {
+    // Ownership is frozen by trigger; the fault drops it to move the work package.
+    h.sqlite.run('DROP TRIGGER work_package_organization_frozen_update');
+    const answer = await claimsAfterAdmission(() => {
+      h.sqlite.run(
+        'UPDATE work_package_organization SET organization_id = ? WHERE resource_id = ?',
+        ['org-b', own],
+      );
+    });
+    expect(answer).toEqual({ status: 404, body: { error: 'not_found' } });
+  });
+
+  it('answers while the tree read is refused engine_unavailable', async () => {
+    h.sqlite.run(
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [own],
+    );
+    expect(await h.call('ada', 'GET', `/api/work-packages/${own}/work-items`)).toEqual({
+      status: 409,
+      body: { error: 'engine_unavailable', engine: 'optimized' },
+    });
+    const answer = await h.call('ada', 'GET', `/api/work-packages/${own}/claims`);
+    expect(answer.status).toBe(200);
+    expect((answer.body as { claims: { claimId: string }[] }).claims.map((c) => c.claimId)).toEqual(
+      ['c-subtree', 'c-blocked', 'c-dev', 'c-qa'],
+    );
+  });
+});

@@ -9,14 +9,14 @@ export const ORGANIZATION_LIMIT_BOUNDS = { least: 0, most: 1_000_000 } as const;
 export interface OrganizationLimitValues {
   readonly maxAgentPersons: number;
   readonly maxConcurrentClaims: number;
-  /** Caps each directory statement and its project ceilings, or their sum when the directory is unstated. */
+  /** Caps each directory statement and its work package ceilings, or their sum when the directory is unstated. */
   readonly maxCapacityUnitsPerResource: number;
 }
 
 /** Where an organization's effective caps came from: its own row, or the deployment default. */
 export type OrganizationLimitsSource = 'default' | 'organization';
 
-/** A stated directory capacity or the sum of one resource’s project capacities. */
+/** A stated directory capacity or the sum of one resource’s work package capacities. */
 export interface ResourceCapacityUsage {
   readonly resourceId: string;
   readonly name: string;
@@ -29,7 +29,7 @@ export interface ResourceCapacityUsage {
  * What an organization holds against each cap (L5): its persons of kind
  * `agent`, its bound claims (distinct work item, person and run triples holding
  * at least one claim row) and, per resource with at least one stated
- * capacity, its directory capacity when stated or its project capacities summed,
+ * capacity, its directory capacity when stated or its work package capacities summed,
  * in resource-id order.
  */
 export interface OrganizationLimitUsage {
@@ -88,9 +88,9 @@ export function refuseLimit(request: LimitCrossed): LimitCrossed | null {
 }
 
 /**
- * A capacity statement past its organization's cap. For a project ask,
- * `declared` counts other projects when the directory is unstated. A directory
- * ask counts only itself; its clear instead exposes the full project sum as
+ * A capacity statement past its organization's cap. For a work package ask,
+ * `declared` counts other work packages when the directory is unstated. A directory
+ * ask counts only itself; its clear instead exposes the full work package sum as
  * `declared` with 0 asked.
  */
 export interface CapacityLimitCrossed {
@@ -101,10 +101,10 @@ export interface CapacityLimitCrossed {
 }
 
 /**
- * Whether a project raising its statement of `resourceId` from `held` units
+ * Whether a work package raising its statement of `resourceId` from `held` units
  * (0 when unstated) to `asked` crosses the organization's cap: {@link refuseLimit}
- * over `declared + asked`, `declared` being every other project's units, so
- * the project's own statement is replaced rather than counted twice. A
+ * over `declared + asked`, `declared` being every other work package's units, so
+ * the work package's own statement is replaced rather than counted twice. A
  * statement that does not raise (`asked <= held`: restating, lowering, a 0
  * where nothing was stated) is never refused, even above a lowered cap (L11).
  *
@@ -116,7 +116,7 @@ export interface CapacityLimitCrossed {
  * property failed in organization-limits.test.ts (11 pass, 2 fail), and
  * `applies lowering and restating under a cap lowered below them` with one
  * more in capacity-limit.controller.db.test.ts (10 pass, 2 fail); with `held`
- * added to `declared`, `replaces the project’s own units rather than counting
+ * added to `declared`, `replaces the workPackage’s own units rather than counting
  * them twice` and the property failed (11 pass, 2 fail).
  */
 export function refuseCapacityStatement(request: {
@@ -140,13 +140,13 @@ export function refuseCapacityStatement(request: {
 export interface DirectoryCapacityLimit {
   readonly cap: number;
   readonly before: number | null;
-  readonly projectUnits: number;
+  readonly workPackageUnits: number;
 }
 
 /** Predicts the directory write against the same reading used for an applied transition. */
 export function refuseDirectoryCapacity(
   resourceId: string,
-  { cap, before, projectUnits }: DirectoryCapacityLimit,
+  { cap, before, workPackageUnits }: DirectoryCapacityLimit,
   units: number | null,
   confirm: boolean,
 ): CapacityLimitCrossed | null {
@@ -155,7 +155,7 @@ export function refuseDirectoryCapacity(
   if (units !== null) return units > cap ? { resourceId, cap, declared: 0, asked: units } : null;
   // Proof: bypassing confirmation let the staged 96-unit batch clear a stated
   // zero. Treating absence as a transition incorrectly refused an already absent clear.
-  return before !== null && projectUnits > cap && !confirm
-    ? { resourceId, cap, declared: projectUnits, asked: 0 }
+  return before !== null && workPackageUnits > cap && !confirm
+    ? { resourceId, cap, declared: workPackageUnits, asked: 0 }
     : null;
 }

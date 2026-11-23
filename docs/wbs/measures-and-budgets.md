@@ -28,7 +28,7 @@ and the decisions (D1–D72) in its
 - **Budgets are rows.** `setBudget` caps one measure on one work item, strict or advisory, with
   an optional spend hold per running attempt; a parent's budget bounds its subtree. Where none is
   stated and the subtree is estimated, a derived advisory budget is the pessimistic points times
-  the project's budget factor (`PATCH /api/projects/:id`, `budgetFactor`). Only three-point
+  the work package's budget factor (`PATCH /api/work-packages/:id`, `budgetFactor`). Only three-point
   trios derive one: a legacy single-point token estimate does not (design D68), and a step node
   that spends without a trio of its own leaves the subtree with no derived budget.
 - **The start is admitted in the write.** `startAttempt` refuses `409 budget_exhausted`
@@ -38,31 +38,34 @@ and the decisions (D1–D72) in its
   decided inside the start's own write, so two coordinators racing for the last room cannot
   both start (design D69). Advisory and derived budgets never refuse, a claim is never refused
   for a budget (it starts no attempt), and WBS never refuses a fact past a budget.
-- **Headroom is for display and ranking.** `GET /api/projects/:id/budget-headroom` answers, per
+- **Headroom is for display and ranking.** `GET /api/work-packages/:id/budget-headroom` answers, per
   startable or claimed step and measure, the tightest strict and advisory budgets with what is
   spent, held and remaining; the write decides.
 
 ## Export, import and saved plans
 
-- Ordinary plans export as plan document **version 11**; connected plans use **version 12**,
+- Ordinary plans export as plan document **version 13**; connected plans use **version 14**,
   retaining the same measure content beside their captured dependency history: the budget factor, the definitions its
   figures name, the facts and trios with their basis, and the budgets, each list empty when there
   are none (design D71, superseding D63's version-10 fallback).
-- Importing version 11 matches each definition by key and never remaps: a held definition of
+- Importing current versions 13/14 or retained versions 11/12 matches each definition by key and never remaps: a held definition of
   another shape refuses the import, writing nothing, and a missing one is defined, which only an
   admin's import may do (design D70); an unpriced money fact or trio is refused
   `400 invalid_body` with the commands' refusal code `rate_card_required` as its detail; older
   versions import onto the seeded definitions. The rule and its refusal are
   [design D65](../../openspec/changes/wbs-measure-budgets/design.md).
 - Under legacy access (before activation) the organization an import matches and defines in
-  is the legacy organization, which owns the imported project, so a plan's own export
+  is the legacy organization, which owns the imported work package, so a plan's own export
   re-imports; only with no legacy organization does the import match the seeded four and
   refuse any other definition `unknown_measure` (design D65).
-- Twilight Navigator, Burokrat and Dash read ordinary version 11 (design D71);
-  Navigator refuses connected version 12.
-- Saved plans capture trios, budgets, bases and the factor (ordinary plan input schema 9;
-  dependency-aware input schema 10 also captures history), so compare names a change in any
-  of them (design D66).
+- Twilight Navigator admits retained ordinary version 11 and connected version 12, plus
+  current ordinary version 13 and connected version 14. Burokrat and Dash validate the
+  corresponding task and receipt schemas. Earlier retained output formats keep their
+  original schemas and bytes.
+- Saved plans capture trios, budgets, bases and the factor in current plan input schema 11,
+  including local or connected dependency history. Retained input schemas 9/10 are verified
+  before read-time projection; their stored bytes and hashes remain unchanged. Comparison
+  names a change in any of these values (design D66).
 
 ## Operating it
 

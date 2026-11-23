@@ -1,10 +1,11 @@
 import type {
   ClaimReceipt,
   RuntimeCommandRequest,
-  RuntimeReceipt,
+  RuntimeReceipt2,
   RuntimeReply,
   WriteReceipt,
 } from '@wbs/contracts';
+import { encodeRuntimeRequestAtVersion } from '@wbs/contracts';
 
 import type { Digest } from '../../ports/runtime';
 import type { AppliedCommand } from './plan-commands.feature';
@@ -31,8 +32,8 @@ export async function readRuntimeBasis(
     {
       ledgerId,
       organizationId: admitted.scope.organizationId,
-      projectId: admitted.scope.projectId,
-      projectRevision: observation.projectRevision,
+      workPackageId: admitted.scope.workPackageId,
+      workPackageRevision: observation.workPackageRevision,
       workItems: observation.workItems,
     },
     digest,
@@ -54,7 +55,16 @@ export async function prepareRuntimeCommand(
   if (retained !== null) {
     await verifyRuntimeAcceptance(retained, ledger.ledgerId, digest);
     // Proof: P4-08/P5-26 omitted byte equality; altered claim/write retries received historical success.
-    if (retained.canonicalRequest !== canonicalRequest)
+    // Proof: runtime-mutation-changed-identity-refusal omitted retained claim/write byte equality; changed retries returned old successes; 'mounted migrated runtime1 changed claim conflicts without rewriting original identity'; 'mounted migrated runtime1 changed write conflicts without rewriting original identity' failed and restored GREEN.
+    // Proof: dash-native-changed-mutation-identity: omitting exact retained mutation request-byte equality.
+    // 'native original1 changed claim requires exact identity conflict after cold deletion' failed; exact restoration passed.
+    // 'native original1 changed write requires exact identity conflict after cold deletion' failed; exact restoration passed.
+    // Claim and write are independently selected. First mutant assertions are success versus refusal; restored cases check409/body/no-effects.
+    if (
+      retained.canonicalRequest !==
+      // Proof: runtime-mutation-retry-retained-format encoded valid legacy claim/write retries as current2; 'mounted migrated runtime1 claim replay and lookup return original receipt without effects'; 'mounted migrated runtime1 write replay and lookup return original receipt without effects' failed and restored GREEN.
+      encodeRuntimeRequestAtVersion(retained.schemaVersion, admitted.scope, request)
+    )
       return { ok: false, reason: 'runtime_command_conflict' };
     const receipt = retained.receipt;
     if (receipt.acceptance.kind === 'authority')
@@ -79,17 +89,18 @@ export async function prepareRuntimeCommand(
 }
 /** Inserts the exact immutable receipt in the borrowed transaction after all mutations. */
 export async function retainRuntimeReceipt<
-  T extends Exclude<RuntimeReceipt['acceptance'], { kind: 'authority' }>,
+  T extends Exclude<RuntimeReceipt2['acceptance'], { kind: 'authority' }>,
 >(
   admitted: RuntimeAdmission,
   request: RuntimeCommandRequest,
   digest: Digest,
   prepared: { ledgerId: string; canonicalRequest: string },
   acceptance: T,
-): Promise<RuntimeReceipt & { acceptance: T }> {
+): Promise<RuntimeReceipt2 & { acceptance: T }> {
   const requestDigest = await digest.sha256(prepared.canonicalRequest);
   const receipt = {
-    schemaVersion: 1 as const,
+    // Proof: runtime-mutation-current-emission emitted receipt1; the shared test reached claim first and the current-only insertion boundary refused it; 'mounted current claim and write persist only runtime2 then replay without new rows' failed and restored GREEN.
+    schemaVersion: 2 as const,
     ledgerId: prepared.ledgerId,
     scope: admitted.scope,
     commandId: request.commandId,
@@ -99,7 +110,7 @@ export async function retainRuntimeReceipt<
   };
   // Proof: P4-23/P5-28 omitted the actual INSERT; staged claim/write receipt-fault tests resolved instead of rolling back.
   await admitted.commands.insertAcceptance({
-    schemaVersion: 1,
+    schemaVersion: 2,
     commandId: request.commandId,
     canonicalRequest: prepared.canonicalRequest,
     requestDigest,

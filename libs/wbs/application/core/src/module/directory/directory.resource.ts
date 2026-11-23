@@ -1,10 +1,8 @@
 import {
   cleanName,
   type LimitCrossed,
-  mayBindAccountInOrganization,
-  mayRemoveResourceInOrganization,
-  mayStateDirectoryCapacityInOrganization,
   type OrganizationScope,
+  type Permission,
   PERSON_KINDS,
   type PersonKind,
   refuseDirectoryCapacity,
@@ -12,6 +10,7 @@ import {
   type ResourceKind,
 } from '@wbs/domain';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type { Clock } from '../../ports/clock';
 import type { DirectoryOutcome } from '../../ports/directory-outcome';
 import type {
@@ -20,7 +19,6 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
-  MachineCredentialReach,
   NamedCatalog,
   Person,
   PersonPatch,
@@ -31,7 +29,7 @@ import type {
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
-  TouchedProjects,
+  TouchedWorkPackages,
 } from '../../ports/directory-store';
 import type {
   DirectoryWriteAddress,
@@ -39,9 +37,10 @@ import type {
 } from '../../ports/fanout-capture-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
-import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import type { WriteStamp } from '../../ports/write-stamp';
+import { type Authorization, authorize } from '../../service/authorize';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
@@ -61,12 +60,18 @@ export type { MeasureInput, MeasureOutcome, MeasureRefusalReason } from './measu
 const OPAQUE_NAME_ATTEMPTS = 3;
 
 export interface DirectoryServiceOptions {
+  readonly accessDecisions?: AccessDecisions;
   directory: DirectoryStore;
   /** Explicit per-invocation access for public standalone writes; borrowed graphs omit it. */
   standaloneWrite?: <T>(
     address: DirectoryWriteAddress,
-    refuse: (reason: Extract<DirectoryWriteResolution, { ok: false }>['reason']) => T,
-    act: (borrowed: DirectoryService) => Promise<T>,
+    actorId: string,
+    refuse: (
+      refusal:
+        | Extract<DirectoryWriteResolution, { ok: false }>
+        | Extract<Authorization, { reason: 'forbidden' }>,
+    ) => T,
+    act: (borrowed: DirectoryService, access: ResourceAccess) => Promise<T>,
     accepted: (value: T) => boolean,
   ) => Promise<T>;
   /**
@@ -129,7 +134,11 @@ export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
  */
 export type RemoveDirectoryOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'forbidden' }
+  | {
+      ok: false;
+      reason: 'not_found' | 'forbidden' | 'last_super_admin';
+      readonly permission?: Permission;
+    }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
@@ -147,7 +156,7 @@ export type PersonPatchOutcome =
  */
 export type RemoveResourceOutcome =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'forbidden' }
+  | { ok: false; reason: 'not_found' | 'forbidden'; readonly permission?: Permission }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage; counts: ResourceUsageCounts };
 
 /** What a resource create names; the kind is fixed here and never patched. */
@@ -164,7 +173,7 @@ export interface ResourceInput {
  * The three dimensions had the same three method bodies each, nine in all, and
  * the copies agreed: clean the name, refuse a blank one, mint an id, ask the
  * store, turn `taken` into a refusal carrying the name, announce to the
- * projects the store named. A fourth dimension is where that agreement stops
+ * work packages the store named. A fourth dimension is where that agreement stops
  * being a fact about the code and becomes something somebody has to keep true
  * in nine places — the argument `directory-page.tsx`'s `writesFor` table
  * already settled on the other tier.
@@ -195,18 +204,18 @@ interface NamedVocabulary<T> {
 
 /** What a rename of a named vocabulary answered, whatever it calls the row. */
 type NamedRenamed<T> =
-  | { ok: true; projectIds: readonly string[]; entity: T }
+  | { ok: true; workPackageIds: readonly string[]; entity: T }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 /**
  * The global directory of teams and people.
  *
  * Global on purpose, and it is the decision worth arguing with: the same teams
- * and the same people work across projects, and a list per project would be
+ * and the same people work across work packages, and a list per work package would be
  * the same names typed again with typos between them. The cost is that anyone
  * on this deployment can see every team and person anyone has ever added — a
  * directory, not a secret. Dany asked for exactly this ("the list is global
- * for all projects, anyone can add one").
+ * for all work packages, anyone can add one").
  *
  * Adding is idempotent by name so the "type it if it is not in the list"
  * picker cannot make two `Platform`s, and neither can two people typing it at
@@ -215,11 +224,15 @@ type NamedRenamed<T> =
  * the recorded author of `Platform` is whoever first typed it, not the second
  * person whose picker resolved to it.
  *
- * Every write here takes an `actorId` even though **none of them is gated by
- * it**: the directory is open to every authenticated account, by decision above,
- * and the actor is carried for the record rather than for permission. Who added
+ * The deployment-wide methods preserve that pre-activation behavior. Scoped
+ * writes require current organization.manage_directory grants; standalone raw
+ * mutations own the grant check, capture and write in one admitted transaction.
+ * Scoped agent visibility is limited to own agents without that permission. Who added
  * `Platform` is exactly the question the audit columns exist to answer, and the
  * directory is the case Dany asked for by name — see ADR 0012.
+ *
+ * Proof: retired-helper-machineCredentialReachOf; reintroduced the retired callable.
+ * 'does not expose the retired server role helper machineCredentialReachOf' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export class DirectoryService {
   private readonly clock: Clock;
@@ -235,6 +248,7 @@ export class DirectoryService {
     this.clock = opts.clock;
     this.measures = new MeasureDefinitions({
       directory: opts.directory,
+      accessDecisions: opts.accessDecisions,
       clock: opts.clock,
       standalone: opts.standaloneWrite !== undefined,
     });
@@ -278,7 +292,7 @@ export class DirectoryService {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
     }
-    await this.announce(written.projectIds);
+    await this.announce(written.workPackageIds);
     return { ok: true, value: written.entity };
   }
 
@@ -290,7 +304,7 @@ export class DirectoryService {
    * inside the store's own transaction, which is why a labelling written
    * between the two refuses rather than being deleted.
    *
-   * The refusal turns on the projects alone for all three of these dimensions:
+   * The refusal turns on the work packages alone for all three of these dimensions:
    * nobody belongs to a tag, a type or a service, so there are no members to
    * count — and for a service the teams that *own* it are deliberately not
    * counted either (design.md D7).
@@ -303,14 +317,14 @@ export class DirectoryService {
   ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = vocabulary.usageIn(await vocabulary.usageOf(id), id);
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.workPackages.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
     const removed = await vocabulary.remove(id, cascade, this.clock.stampFor(actorId));
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: vocabulary.usageIn(removed.usage, id) };
     }
-    await this.announce(removed.removal.projectIds);
+    await this.announce(removed.removal.workPackageIds);
     return { ok: true };
   }
 
@@ -365,7 +379,20 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryCatalogRows[C]> {
     if (access.kind === 'scoped') {
-      return this.opts.directory.listInOrganization(catalog, access.scope.organizationId);
+      const scoped: { [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]> } = {
+        people: () => this.listVisiblePeople(access),
+        teams: () => this.opts.directory.listInOrganization('teams', access.scope.organizationId),
+        services: () =>
+          this.opts.directory.listInOrganization('services', access.scope.organizationId),
+        tags: () => this.opts.directory.listInOrganization('tags', access.scope.organizationId),
+        workItemTypes: () =>
+          this.opts.directory.listInOrganization('workItemTypes', access.scope.organizationId),
+        externalSystems: () =>
+          this.opts.directory.listInOrganization('externalSystems', access.scope.organizationId),
+        resources: () =>
+          this.opts.directory.listInOrganization('resources', access.scope.organizationId),
+      };
+      return scoped[catalog]();
     }
     const legacy: { [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]> } = {
       people: () => this.listPeople(),
@@ -377,6 +404,32 @@ export class DirectoryService {
       resources: () => this.listResources(),
     };
     return legacy[catalog]();
+  }
+
+  private async listVisiblePeople(
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  ): Promise<PersonWithTeams[]> {
+    const people = await this.opts.directory.listInOrganization(
+      'people',
+      access.scope.organizationId,
+    );
+    if (await this.mayManageDirectory(access)) return people;
+    return people.filter(
+      (person) => person.kind !== 'agent' || person.accountId === access.principal.id,
+    );
+  }
+
+  private async mayManageDirectory(access: ResourceAccess): Promise<boolean> {
+    if (access.kind === 'legacy') return true;
+    // Proof: directory-shared-grant fault failed 'borrowed directory resource removal|borrowed directory directory capacity|shows only own directory agents' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    return (
+      await authorize(
+        this.opts.accessDecisions,
+        access.principal,
+        { kind: 'organization', organizationId: access.scope.organizationId },
+        'organization.manage_directory',
+      )
+    ).ok;
   }
 
   /** Every resource in the global directory, by name. */
@@ -434,7 +487,7 @@ export class DirectoryService {
       const id = this.clock.newId();
       const added = await this.opts.directory.addResource({ id, name: id, ...fields }, stamp);
       if (!added.ok) continue;
-      await this.opts.directory.mapInOrganization('resources', id, organizationId, clean);
+      await this.opts.directory.mapInOrganization('resources', id, organizationId, clean, stamp);
       return { ok: true, value: { id, name: clean, ...fields } };
     }
     throw new Error(`no free opaque resource name after ${String(OPAQUE_NAME_ATTEMPTS)} ids`);
@@ -442,7 +495,7 @@ export class DirectoryService {
 
   /**
    * Renames a resource, changes its unit label or sets its provider reference
-   * through the caller's access, announcing to every project whose demands or
+   * through the caller's access, announcing to every work package whose demands or
    * capacities name it. Under scoped access only the organization's own
    * resource is found, and the name moves in the organization alone.
    *
@@ -472,7 +525,7 @@ export class DirectoryService {
           stamp,
         );
         if (!referenced.ok) return { ok: false, reason: referenced.reason };
-        await this.announce(referenced.projectIds);
+        await this.announce(referenced.workPackageIds);
         if (clean === undefined && patch.unitLabel === undefined) {
           const unchanged = (await this.opts.directory.listResources()).find(
             (each) => each.id === resourceId,
@@ -494,7 +547,7 @@ export class DirectoryService {
         return written.reason === 'taken' && clean !== undefined
           ? { ok: false, reason: 'taken', name: clean }
           : { ok: false, reason: 'not_found' };
-      await this.announce(written.projectIds);
+      await this.announce(written.workPackageIds);
       return { ok: true, value: written.resource };
     }
     const { scope } = access;
@@ -509,8 +562,8 @@ export class DirectoryService {
         stamp,
       );
       if (!referenced.ok) return { ok: false, reason: referenced.reason };
-      await this.refuseForeignProjects(referenced.projectIds, scope);
-      await this.announce(referenced.projectIds);
+      await this.refuseForeignWorkPackages(referenced.workPackageIds, scope);
+      await this.announce(referenced.workPackageIds);
     }
     if (clean !== undefined) {
       const renamed = await this.renameLocal('resources', resourceId, clean, actorId, scope);
@@ -523,8 +576,8 @@ export class DirectoryService {
         stamp,
       );
       if (!written.ok) return { ok: false, reason: 'not_found' };
-      await this.refuseForeignProjects(written.projectIds, scope);
-      await this.announce(written.projectIds);
+      await this.refuseForeignWorkPackages(written.workPackageIds, scope);
+      await this.announce(written.workPackageIds);
     }
     const resource = await this.ownEntry('resources', resourceId, scope);
     if (resource === undefined) throw new Error(`resource "${resourceId}" vanished mid-patch`);
@@ -538,7 +591,7 @@ export class DirectoryService {
    * same transaction. Under scoped access only an admin or a super-admin may
    * remove one (`forbidden` otherwise, before the resource is looked up, so the
    * refusal says nothing of what exists), a foreign resource is `not_found` and
-   * a foreign project naming it fails closed. Legacy access carries no role,
+   * a foreign work package naming it fails closed. Legacy access carries no role,
    * and every legacy caller already writes the whole directory, so it may.
    *
    * The unconfirmed read is only a fast path; the store's own count inside its
@@ -566,7 +619,9 @@ export class DirectoryService {
       // (compute-provider.controller.db.test.ts) answered the agent 200; moved
       // after the `ownEntry` lookup, the member's foreign and absent ids answered
       // 404 not_found; watched 2026-10-25.
-      if (!mayRemoveResourceInOrganization(scope.role)) return { ok: false, reason: 'forbidden' };
+      // Proof: dropping permission failed the actual borrowed resource-removal denial, 2026-11-09.
+      if (!(await this.mayManageDirectory(access)))
+        return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
       if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
         return { ok: false, reason: 'not_found' };
       await this.refuseForeignReach('resources', resourceId, scope);
@@ -588,21 +643,21 @@ export class DirectoryService {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', ...(await shown(removed.usage)) };
     }
-    if (scope !== null) await this.refuseForeignProjects(removed.removal.projectIds, scope);
-    await this.announce(removed.removal.projectIds);
+    if (scope !== null) await this.refuseForeignWorkPackages(removed.removal.workPackageIds, scope);
+    await this.announce(removed.removal.workPackageIds);
     return { ok: true };
   }
 
   /**
    * States (`units`) or clears (`null`) a resource's **Directory capacity**
    * (`wbs-shared-occupancy` S1, S11), the one function both command
-   * routes take. Under scoped access only an admin or a super-admin may
-   * (`forbidden` otherwise, before the resource is looked up, as a removal is
-   * refused); every agent arrives as at most a member. A foreign or absent
+   * routes take. Scoped access requires current organization.manage_directory
+   * grants before the resource lookup. The fixed machine/consent cap excludes
+   * that permission. A foreign or absent
    * resource is `not_found`; legacy access, and a resource no organization
    * owns, is `organization_required`. The write
    * appends one `directory_capacity_changed` audit row and enters no journal;
-   * it then announces `directory_changed` to every project that demands or
+   * it then announces `directory_changed` to every work package that demands or
    * states the resource (S7).
    *
    * Confirmation allows clearing a directory statement that exposes an above-cap
@@ -610,14 +665,10 @@ export class DirectoryService {
    *
    * @throws when an admitted write has no scoped limit gauge.
    *
-   * Proof, each watched 2026-10-25: with the role check skipped, `refuses a
-   * member and a viewer on either route`, the agent key case and the MCP
-   * consent case (directory-capacity.controller.db.test.ts) failed (8 pass,
-   * 3 fail); with the stored role answered in place of `organizationRoleOf`'s
-   * in `SqliteOrganizationAccess`, the agent key, consent and preview cases
-   * failed; with the announce skipped, `announces directory_changed to every
-   * project that states or demands the resource`
-   * (directory-capacity.test.ts) found none.
+   * Historical role-check proofs were superseded by the current grant/cap
+   * checks below. Proof: skipping announcement made 'announces directory_changed
+   * to every work package that states or demands the resource' (directory-capacity.test.ts)
+   * find none, watched 2026-10-25.
    */
   async setDirectoryCapacityWithin(
     resourceId: string,
@@ -634,8 +685,9 @@ export class DirectoryService {
     // (directory-capacity.test.ts) failed (3 pass, 1 fail); watched 2026-10-25.
     if (access.kind === 'legacy') return { ok: false, reason: 'organization_required' };
     const { scope } = access;
-    if (!mayStateDirectoryCapacityInOrganization(scope.role))
-      return { ok: false, reason: 'forbidden' };
+    // Proof: dropping permission failed the actual borrowed directory-capacity denial, 2026-11-09.
+    if (!(await this.mayManageDirectory(access)))
+      return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
     if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
       return { ok: false, reason: 'not_found' };
     const gauge = this.opts.organizationLimits;
@@ -650,10 +702,10 @@ export class DirectoryService {
       auditId: this.clock.newId(),
     });
     if (!written.ok) return { ok: false, reason: written.reason };
-    await this.refuseForeignProjects(written.projectIds, scope);
+    await this.refuseForeignWorkPackages(written.workPackageIds, scope);
     // Proof: suppressing this event kept the mounted isolated roll-up's warm
     // cache on its old end date after stating a binding directory capacity.
-    await this.announce(written.projectIds);
+    await this.announce(written.workPackageIds);
     return { ok: true, value: null };
   }
 
@@ -675,9 +727,9 @@ export class DirectoryService {
     const clean = cleanName(name);
     if (clean === null) return null;
     // No size, because a team no longer has one: a new team is unstated on
-    // every plan, and how many of them are at work at once is said per project
+    // every plan, and how many of them are at work at once is said per work package
     // afterwards. The retired column is left at its default `NULL` by the
-    // insert, which is what `capacity-per-project` D4 leaves it as.
+    // insert, which is what `capacity-per-work-package` D4 leaves it as.
     return this.opts.directory.addTeam(
       { id: this.clock.newId(), name: clean },
       this.clock.stampFor(actorId),
@@ -696,7 +748,7 @@ export class DirectoryService {
    * on the wire to notice it by.
    *
    * **Only a rename is announced.** Editing the ownership map changes no row any
-   * project renders: the map labels no work item, is not inherited, and the
+   * work package renders: the map labels no work item, is not inherited, and the
    * scheduler never reads it (spec — "editing it SHALL move no date in any
    * plan"). An event here would send every open plan to reread a tree that is
    * exactly as it was, and would make "the map moves no date" a claim about
@@ -735,7 +787,7 @@ export class DirectoryService {
         reason: written.reason === 'unknown_service' ? 'unknown_service' : 'not_found',
       };
     }
-    if (clean !== undefined) await this.announce(written.projectIds);
+    if (clean !== undefined) await this.announce(written.workPackageIds);
     return { ok: true, value: written.team };
   }
 
@@ -764,7 +816,7 @@ export class DirectoryService {
    *
    * `removeTeam`'s shape with **one clause fewer**: there are no members to
    * count, because nobody belongs to a tag. So the refusal turns on the
-   * projects alone, and a tag nothing carries is removed on the first press.
+   * work packages alone, and a tag nothing carries is removed on the first press.
    *
    * The unconfirmed read is still only a fast path. What decides is the count
    * inside the store's own transaction, which is why a labelling written
@@ -981,7 +1033,7 @@ export class DirectoryService {
         reason: written.reason === 'unknown_team' ? 'unknown_team' : 'not_found',
       };
     }
-    // Only a rename is announced. A membership edit changes no row any project
+    // Only a rename is announced. A membership edit changes no row any work package
     // renders — the assumed assignee is derived from assignments, not from who
     // belongs to which team — so an event would send every open plan to reread
     // a tree that is exactly as it was.
@@ -991,7 +1043,7 @@ export class DirectoryService {
     // that edits it (7.1), and both read the directory rather than a plan. The
     // day a badge appears beside an assignee in the tree, this becomes a rename
     // and gets announced with one.
-    if (clean !== undefined) await this.announce(written.projectIds);
+    if (clean !== undefined) await this.announce(written.workPackageIds);
     return { ok: true, value: written.person };
   }
 
@@ -1025,7 +1077,7 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.workPackages.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
     // Legacy access exists only before activation, when no machine
     // credential can have been created, so it reaches none.
@@ -1036,7 +1088,11 @@ export class DirectoryService {
       { kind: 'none' },
     );
     if (!removed.ok) {
-      if (removed.reason === 'not_found' || removed.reason === 'forbidden')
+      if (
+        removed.reason === 'not_found' ||
+        removed.reason === 'forbidden' ||
+        removed.reason === 'last_super_admin'
+      )
         return { ok: false, reason: removed.reason };
       // The transaction's own usage, not the fast path's: it is the only one
       // that was still true at the moment the deletes would have run.
@@ -1046,7 +1102,7 @@ export class DirectoryService {
         usage: directoryUsageOfPerson(removed.usage, personId),
       };
     }
-    await this.announce(removed.removal.projectIds);
+    await this.announce(removed.removal.workPackageIds);
     return { ok: true };
   }
 
@@ -1072,7 +1128,7 @@ export class DirectoryService {
   ): Promise<RemoveDirectoryOutcome> {
     if (!cascade) {
       const seen = directoryUsageOfTeam(await this.opts.directory.usageOfTeam(teamId), teamId);
-      if (seen.projects.length > 0 || seen.members.length > 0) {
+      if (seen.workPackages.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
@@ -1087,7 +1143,7 @@ export class DirectoryService {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTeam(removed.usage, teamId) };
     }
-    await this.announce(removed.removal.projectIds);
+    await this.announce(removed.removal.workPackageIds);
     return { ok: true };
   }
 
@@ -1109,15 +1165,16 @@ export class DirectoryService {
     actorId: string,
     name: string,
     access: ResourceAccess,
-  ): Promise<{ id: string; name: string } | null> {
+  ): Promise<DirectoryOutcome<{ id: string; name: string }>> {
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<{ id: string; name: string }>>(
         { kind: 'add', catalog, access },
-        (reason) => {
-          throw new Error(`standalone directory add unexpectedly refused: ${reason}`);
-        },
-        (borrowed) => borrowed.addWithin(catalog, actorId, name, access),
-        (value) => value !== null,
+        actorId,
+        (refusal) => refusal,
+        (borrowed, freshAccess) => borrowed.addWithin(catalog, actorId, name, freshAccess),
+        (value) => value.ok,
       );
     if (access.kind === 'legacy') {
       const legacy = {
@@ -1127,15 +1184,16 @@ export class DirectoryService {
         teams: () => this.addTeam(actorId, name),
         externalSystems: () => this.addExternalSystem(actorId, name),
       };
-      return legacy[catalog]();
+      const value = await legacy[catalog]();
+      if (value === null) throw new Error('validated legacy directory name became invalid');
+      return { ok: true, value };
     }
-    const clean = cleanName(name);
-    if (clean === null) return null;
     const organizationId = access.scope.organizationId;
     const existing = (await this.opts.directory.listInOrganization(catalog, organizationId)).find(
       (entry) => entry.name === clean,
     );
-    if (existing !== undefined) return { id: existing.id, name: existing.name };
+    if (existing !== undefined)
+      return { ok: true, value: { id: existing.id, name: existing.name } };
     const stamp = this.clock.stampFor(actorId);
     const roots = {
       tags: (row: { id: string; name: string }) => this.opts.directory.addTag(row, stamp),
@@ -1147,8 +1205,8 @@ export class DirectoryService {
         this.opts.directory.addExternalSystem(row, stamp),
     };
     const id = await this.addOpaqueRoot((row) => roots[catalog](row));
-    await this.opts.directory.mapInOrganization(catalog, id, organizationId, clean);
-    return { id, name: clean };
+    await this.opts.directory.mapInOrganization(catalog, id, organizationId, clean, stamp);
+    return { ok: true, value: { id, name: clean } };
   }
 
   /**
@@ -1187,10 +1245,11 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<{ id: string; name: string }>> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<{ id: string; name: string }>>(
         { kind: 'rename', catalog, resourceId: id, access },
-        (reason) => ({ ok: false, reason }),
-        (borrowed) => borrowed.renameWithin(catalog, id, actorId, name, access),
+        actorId,
+        (refusal) => refusal,
+        (borrowed, freshAccess) => borrowed.renameWithin(catalog, id, actorId, name, freshAccess),
         (value) => value.ok,
       );
     if (access.kind === 'legacy') {
@@ -1233,13 +1292,13 @@ export class DirectoryService {
         ? { ok: false, reason: 'taken', name: clean }
         : { ok: false, reason: 'not_found' };
     }
-    await this.announce(written.projectIds);
+    await this.announce(written.workPackageIds);
     return { ok: true };
   }
 
   /**
    * Refuses to touch an entry anything outside the organization reaches: a
-   * foreign project's row, assignment or capacity, or a foreign person's,
+   * foreign work package's row, assignment or capacity, or a foreign person's,
    * team's or service's link. Every scoped write of an existing entry checks
    * it first, since renaming, relinking or removing the entry would otherwise
    * change what the other organization sees.
@@ -1319,10 +1378,11 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<TeamWithServices>> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<TeamWithServices>>(
         { kind: 'patch-team', teamId, serviceIds: patch.serviceIds, access },
-        (reason) => ({ ok: false, reason }),
-        (borrowed) => borrowed.patchTeamWithin(teamId, actorId, patch, access),
+        actorId,
+        (refusal) => refusal,
+        (borrowed, freshAccess) => borrowed.patchTeamWithin(teamId, actorId, patch, freshAccess),
         (value) => value.ok,
       );
     if (access.kind === 'legacy') return this.patchTeam(teamId, actorId, patch);
@@ -1434,16 +1494,18 @@ export class DirectoryService {
     // nothing` (agent-person-limit.controller.db.test.ts) answered 500 from the
     // person table's CHECK constraint instead of 400; watched 2026-10-23.
     if (kind !== undefined && !holdsKind(kind)) return { ok: false, reason: 'invalid_kind' };
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<DirectoryOutcome<Person>>(
         { kind: 'add-person', teamIds, access },
-        (reason) => ({ ok: false, reason }),
-        (borrowed) => borrowed.addPersonWithin(actorId, name, teamIds, access, kind),
+        actorId,
+        (refusal) => refusal,
+        (borrowed, freshAccess) =>
+          borrowed.addPersonWithin(actorId, name, teamIds, freshAccess, kind),
         (value) => value.ok,
       );
     if (access.kind === 'legacy') return this.addPerson(actorId, name, teamIds, kind);
-    const clean = cleanName(name);
-    if (clean === null) return { ok: false, reason: 'name_required' };
     const { scope } = access;
     // Proof: skipping this check made `refuses a foreign service or team link
     // exactly as an absent one` in
@@ -1504,7 +1566,7 @@ export class DirectoryService {
       return added.person;
     });
     if (addedKind === undefined) throw new Error(`person "${id}" was added without a kind`);
-    await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean);
+    await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean, stamp);
     if (teamIds.length > 0) {
       const joined = await this.opts.directory.patchPerson(id, { teamIds }, stamp);
       // A team can disappear between service preflight and this later raw owner.
@@ -1526,9 +1588,8 @@ export class DirectoryService {
    * the organization, and the answer carries the local name.
    *
    * `accountId` binds the person to the account that may act as them, or
-   * unbinds them with null (`wbs-team-claims` D5). Only an admin or a
-   * super-admin of the active organization may send it; anyone else is
-   * `forbidden` before anything is read. The store refuses an account that is
+   * unbinds them with null (`wbs-team-claims` D5). Current
+   * organization.manage_directory permission is required before lookup. The store refuses an account that is
    * not a member of the person's organization as `unknown_account`.
    */
   async patchPersonWithin(
@@ -1538,10 +1599,12 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<PersonPatchOutcome> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<PersonPatchOutcome>(
         { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
-        (reason) => ({ ok: false, reason }),
-        (borrowed) => borrowed.patchPersonWithin(personId, actorId, patch, access),
+        actorId,
+        (refusal) => refusal,
+        (borrowed, freshAccess) =>
+          borrowed.patchPersonWithin(personId, actorId, patch, freshAccess),
         (value) => value.ok,
       );
     if (access.kind === 'legacy') return this.patchPerson(personId, actorId, patch);
@@ -1550,8 +1613,16 @@ export class DirectoryService {
     // Proof: skipping this made `refuses a member binding a person to an
     // account` in `person-account.controller.db.test.ts` answer 200 with the
     // binding written (watched 2026-10-19).
-    if (patch.accountId !== undefined && !mayBindAccountInOrganization(scope.role)) {
-      return { ok: false, reason: 'forbidden' };
+    if (patch.accountId !== undefined) {
+      // Proof: dropping permission failed standalone account-binding denial, 2026-11-09.
+      const authority = await authorize(
+        this.opts.accessDecisions,
+        access.principal,
+        { kind: 'organization', organizationId: scope.organizationId },
+        'organization.manage_directory',
+      );
+      // Proof: binding-grant fault failed 'actual borrowed account binding' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      if (!authority.ok) return authority;
     }
     if (patch.kind !== undefined && !holdsKind(patch.kind)) {
       return { ok: false, reason: 'invalid_kind' };
@@ -1609,7 +1680,7 @@ export class DirectoryService {
             ok: false,
             reason: 'in_use',
             usage: {
-              projects: [],
+              workPackages: [],
               members: [],
               machineCredentials: written.machineCredentials,
             },
@@ -1626,11 +1697,11 @@ export class DirectoryService {
   /**
    * Removes an entry through the caller's access. Under scoped access a
    * foreign entry is `not_found` exactly as an absent one, the usage a refusal
-   * shows carries organization-local names, and a project outside the
+   * shows carries organization-local names, and a work package outside the
    * organization naming the entry fails closed before anything is removed or
    * shown.
    *
-   * @throws when a foreign project names the entry: corrupt trusted state.
+   * @throws when a foreign work package names the entry: corrupt trusted state.
    */
   async removeWithin(
     catalog: Exclude<NamedCatalog, 'resources'>,
@@ -1640,21 +1711,33 @@ export class DirectoryService {
     access: ResourceAccess,
   ): Promise<RemoveDirectoryOutcome> {
     if (this.opts.standaloneWrite !== undefined)
-      return this.opts.standaloneWrite(
+      return this.opts.standaloneWrite<RemoveDirectoryOutcome>(
         { kind: 'remove', catalog, resourceId: id, access },
-        () => ({ ok: false, reason: 'not_found' }),
-        (borrowed) => borrowed.removeWithin(catalog, id, actorId, cascade, access),
+        actorId,
+        // Proof: converting the invocation refusal to not_found failed standalone removal after queued revocation, 2026-11-09.
+        (refusal) => {
+          if (refusal.reason === 'forbidden') return refusal;
+          if (refusal.reason === 'not_found') return { ok: false, reason: 'not_found' };
+          // Proof: removal-invalid-refusal fault failed 'impossible standalone removal link refusal' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+          throw new Error('standalone removal received an invalid link refusal');
+        },
+        (borrowed, freshAccess) =>
+          borrowed.removeWithin(catalog, id, actorId, cascade, freshAccess),
         (value) => value.ok,
       );
     const removals = {
       people: {
         usageOf: (entry: string) => this.opts.directory.usageOfPerson(entry),
-        remove: (entry: string, stamp: WriteStamp) =>
+        remove: async (entry: string, stamp: WriteStamp) =>
           this.opts.directory.removePerson(
             entry,
             cascade,
             stamp,
-            access.kind === 'legacy' ? { kind: 'none' } : machineCredentialReachOf(access.scope),
+            access.kind === 'legacy' || access.scope.delegated === true
+              ? { kind: 'none' }
+              : (await this.mayManageDirectory(access))
+                ? { kind: 'every' }
+                : { kind: 'own', accountId: access.principal.id },
           ),
         usageIn: directoryUsageOfPerson,
         legacy: () => this.removePerson(id, actorId, cascade),
@@ -1698,7 +1781,7 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0) {
+      if (seen.workPackages.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
@@ -1706,29 +1789,30 @@ export class DirectoryService {
     if (!removed.ok) {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       if (removed.reason === 'forbidden') return { ok: false, reason: 'forbidden' };
+      if (removed.reason === 'last_super_admin') return { ok: false, reason: 'last_super_admin' };
       return { ok: false, reason: 'in_use', usage: await shown(removed.usage) };
     }
     // Proof: skipping this check made `fails closed on a directory entry a
-    // foreign project names` in
+    // foreign work package names` in
     // `directory-command-organization.controller.db.test.ts` answer 200 to the
     // cascade, untagging B's row; watched 2026-09-27.
-    await this.refuseForeignProjects(removed.removal.projectIds, scope);
-    await this.announce(removed.removal.projectIds);
+    await this.refuseForeignWorkPackages(removed.removal.workPackageIds, scope);
+    await this.announce(removed.removal.workPackageIds);
     return { ok: true };
   }
 
   /**
-   * Usage rows as the organization sees them: every project its own, every
+   * Usage rows as the organization sees them: every work package its own, every
    * person under the organization-local name.
    *
-   * @throws when a project or person in them is not the organization's.
+   * @throws when a work package or person in them is not the organization's.
    */
   private async localUsage(
     rows: DirectoryUsageRows,
     scope: OrganizationScope,
   ): Promise<DirectoryUsageRows> {
-    await this.refuseForeignProjects(
-      rows.projects.map((each) => each.id),
+    await this.refuseForeignWorkPackages(
+      rows.workPackages.map((each) => each.id),
       scope,
     );
     const names = new Map(
@@ -1754,32 +1838,35 @@ export class DirectoryService {
 
   /**
    * Proof: skipping this check in {@link localUsage} made `fails closed on a
-   * directory entry a foreign project names` in
+   * directory entry a foreign workPackage names` in
    * `directory-command-organization.controller.db.test.ts` answer 409 with
-   * B's project in the usage instead of 500; watched 2026-09-27.
+   * B's work package in the usage instead of 500; watched 2026-09-27.
    *
-   * @throws when any of `projectIds` is not the organization's.
+   * @throws when any of `workPackageIds` is not the organization's.
    */
-  private async refuseForeignProjects(
-    projectIds: readonly string[],
+  private async refuseForeignWorkPackages(
+    workPackageIds: readonly string[],
     scope: OrganizationScope,
   ): Promise<void> {
-    const outside = await this.opts.directory.projectsOutside(projectIds, scope.organizationId);
+    const outside = await this.opts.directory.workPackagesOutside(
+      workPackageIds,
+      scope.organizationId,
+    );
     if (outside.length > 0) {
       throw new Error(
-        `a directory entry of organization "${scope.organizationId}" is named by a foreign project`,
+        `a directory entry of organization "${scope.organizationId}" is named by a foreign work package`,
       );
     }
   }
 
   /**
-   * Tells every project the write touched, **after** its transaction has
+   * Tells every work package the write touched, **after** its transaction has
    * committed.
    *
-   * One event per project rather than one global one, because a project's
+   * One event per work package rather than one global one, because a work package's
    * sequence is what a reconnecting client resumes from: an event outside every
    * sequence has nowhere to be replayed from and no client would ever see it
-   * twice. A write touching no project announces nothing — there is nothing
+   * twice. A write touching no work package announces nothing — there is nothing
    * anywhere to reread.
    *
    * After the commit, and that is the whole of it: an event published first
@@ -1794,7 +1881,7 @@ export class DirectoryService {
    * (ADR 0007), so every publish here *was* nested inside it — as a savepoint, so
    * a command refused at step nine rolled back the recorded events for pushes
    * that had already left. And this loop ran inside the process-wide write lock,
-   * one push per project in sequence, each retried for about a minute by
+   * one push per work package in sequence, each retried for about a minute by
    * `PushClient` before it gives up.
    *
    * Inside a batch the broadcaster injected here is that batch's
@@ -1806,9 +1893,9 @@ export class DirectoryService {
    * after the write, never before it` fails — the directory read from inside
    * `publish` still held `Kat`; watched 2026-08-09.
    */
-  private async announce(projectIds: TouchedProjects): Promise<void> {
-    for (const projectId of projectIds) {
-      await this.opts.broadcast.publish(projectId, { type: 'directory_changed' });
+  private async announce(workPackageIds: TouchedWorkPackages): Promise<void> {
+    for (const workPackageId of workPackageIds) {
+      await this.opts.broadcast.publish(workPackageId, { type: 'directory_changed' });
     }
   }
 }
@@ -1821,17 +1908,4 @@ function isResourceInUse(rows: ResourceUsageRows): boolean {
     rows.occupancies > 0 ||
     rows.directoryCapacity !== null
   );
-}
-
-/**
- * The machine credentials a person removal through `scope` may revoke
- * (`wbs-machine-credentials` A24): none through a delegation or a machine
- * credential, every person's for an admin or super-admin, and for anyone else
- * only a person bound to their own account. The store applies it inside the
- * removal's transaction.
- */
-export function machineCredentialReachOf(scope: OrganizationScope): MachineCredentialReach {
-  if (scope.delegated === true) return { kind: 'none' };
-  if (scope.role === 'admin' || scope.role === 'super_admin') return { kind: 'every' };
-  return { kind: 'own', accountId: scope.userId };
 }

@@ -1,32 +1,37 @@
 import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { NO_ADMISSION } from '../../ports/edit-admission';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 import { installStep } from './check';
 import { STEP_LABEL } from './contract';
 import { stepModule } from './module';
 
-const PROJECT = 'project-1';
+const WORK_PACKAGE = 'work-package-1';
 const OWNER = 'owner';
+const PROJECT_ID = 'module-fixture-parent';
 
-/** One memory source holding one project, and the requirements a step write needs. */
+/** One memory source holding one work package, and the requirements a step write needs. */
 async function seeded() {
-  const source = openMemorySource();
-  await source.stores.projects.create(projectRow({ id: PROJECT, ownerId: OWNER }), [], {
-    at: 1,
-    by: OWNER,
-  });
+  const { source } = await createLegacyWorkPackageFixture(OWNER, 'module-legacy', PROJECT_ID);
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: PROJECT_ID }),
+    [],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   let next = 0;
   const broadcast = recordingBroadcaster();
   return {
     broadcast,
     requirements: {
-      projects: source.stores.projects,
+      workPackages: source.stores.workPackages,
       steps: source.stores.steps,
       clock: clockOf({ now: () => 2, newId: () => `step-${String(++next)}` }),
       broadcast,
@@ -38,7 +43,8 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
-    projectStore: DiBag.createProvider(() => source.stores.projects, {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    workPackageStore: DiBag.createProvider(() => source.stores.workPackages, {
       factoryReturnKind: 'sync-value',
     }),
     stepStore: DiBag.createProvider(() => source.stores.steps, { factoryReturnKind: 'sync-value' }),
@@ -69,7 +75,6 @@ const completeHost = () =>
       clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
         factoryReturnKind: 'sync-value',
       }),
-      recoveryAdmission: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 
@@ -78,12 +83,16 @@ describe('the Step module', () => {
     const { broadcast, requirements } = await seeded();
     const { steps } = installStep(requirements);
 
-    const added = await steps.add(PROJECT, OWNER, ' Review ', 0);
+    const added = await steps.add(WORK_PACKAGE, OWNER, ' Review ', 0);
     if (!added.ok) throw new Error(`the step was refused: ${added.reason}`);
 
-    expect(added.value).toMatchObject({ id: 'step-1', projectId: PROJECT, name: 'Review' });
+    expect(added.value).toMatchObject({
+      id: 'step-1',
+      workPackageId: WORK_PACKAGE,
+      name: 'Review',
+    });
     expect(broadcast.published).toEqual([
-      { projectId: PROJECT, event: { type: 'step_added', step: added.value } },
+      { workPackageId: WORK_PACKAGE, event: { type: 'step_added', step: added.value } },
     ]);
   });
 
@@ -145,7 +154,8 @@ describe('the Step module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([stepModule])
       .withServices({
-        projectStore: DiBag.createProvider(() => source.stores.projects, {
+        accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+        workPackageStore: DiBag.createProvider(() => source.stores.workPackages, {
           factoryReturnKind: 'sync-value',
         }),
         stepStore: DiBag.createProvider(() => source.stores.steps, {
@@ -155,9 +165,6 @@ describe('the Step module', () => {
           factoryReturnKind: 'sync-value',
         }),
         broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
-          factoryReturnKind: 'sync-value',
-        }),
-        recoveryAdmission: DiBag.createProvider(() => NO_ADMISSION, {
           factoryReturnKind: 'sync-value',
         }),
       }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };

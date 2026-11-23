@@ -2,7 +2,7 @@
  * A calendar day, as `YYYY-MM-DD`. No time, no zone.
  *
  * A plan says "this starts on the 12th", never "at 09:00 UTC". Carrying a time
- * would mean carrying a timezone, and a project read in Kyiv and in London
+ * would mean carrying a timezone, and a work package read in Kyiv and in London
  * would then disagree about which day a work item starts on.
  */
 export type IsoDate = string;
@@ -51,7 +51,7 @@ const asIso = (at: Date): IsoDate => at.toISOString().slice(0, 10);
  *
  * Weekends only. Public holidays are deliberately absent: they differ by
  * country, by company and by year, and guessing them would put dates in a plan
- * that nobody can account for. A project that needs them needs a calendar it
+ * that nobody can account for. A work package that needs them needs a calendar it
  * owns, which is a decision rather than a default.
  */
 export function isWeekend(date: IsoDate): boolean {
@@ -362,12 +362,12 @@ function dateOfWorkdayIndex(index: number): Date {
 }
 
 /**
- * A date's place on one axis of workdays shared by every project: Mondays sit
+ * A date's place on one axis of workdays shared by every work package: Mondays sit
  * on multiples of five, and a weekend reads as the Monday after it, exactly as
  * {@link addWorkdays} moves a start date off one.
  *
- * What lets the bookings of two projects with different start dates be
- * compared: each project's offsets are relative to its own day zero, and this
+ * What lets the bookings of two work packages with different start dates be
+ * compared: each work package's offsets are relative to its own day zero, and this
  * is that day zero's ordinal. The same arithmetic as {@link workdayIndexOf},
  * with a floored week so dates before 1970 are exact too; a person's load
  * cannot be allowed to disagree with itself across the epoch.
@@ -438,17 +438,18 @@ export function workdaysBetween(from: IsoDate, to: IsoDate): number {
  * that it lands before the axis begins.
  *
  * The variant exists because there is no number that can say
- * "before the project starts". Offset `0` is the plan's **first** working day,
+ * "before the work package starts". Offset `0` is the plan's **first** working day,
  * so returning it for a deadline the user typed in the past would silently
  * replace their input with the strictest constraint the model can express —
  * and every downstream reader would take it for a date somebody chose. A caller
  * has to name the case to read past it.
  */
 export type DeadlineOffset =
-  { readonly kind: 'offset'; readonly offset: number } | { readonly kind: 'before-project-start' };
+  | { readonly kind: 'offset'; readonly offset: number }
+  | { readonly kind: 'before-work-package-start' };
 
 /**
- * Which workday offset a `deadline` falls on, counted from `projectStart` the
+ * Which workday offset a `deadline` falls on, counted from `workPackageStart` the
  * way {@link addWorkdays} counts — so `deadlineOffsetOf(s, addWorkdays(s, k))`
  * is offset `k` for every workday `s` and every `k`, which is the property
  * `workday.property.test.ts` asserts.
@@ -459,10 +460,10 @@ export type DeadlineOffset =
  *   deadline is Friday's offset, not the following Monday's. `workdaysBetween`
  *   rolls both ends forward, so substituting it here quietly grants two extra
  *   calendar days on every weekend deadline.
- * - **Day zero is `nextWorkday(projectStart)`**, not `projectStart` itself,
- *   because that is the day `addWorkdays(projectStart, 0)` names and the whole
+ * - **Day zero is `nextWorkday(workPackageStart)`**, not `workPackageStart` itself,
+ *   because that is the day `addWorkdays(workPackageStart, 0)` names and the whole
  *   axis is built on it. A rolled deadline strictly before that day is
- *   `before-project-start` and not offset `0`; `workdaysBetween` clamps it to
+ *   `before-work-package-start` and not offset `0`; `workdaysBetween` clamps it to
  *   `0` instead, which is the second half of the same substitution fault.
  *
  * Both halves of that fault are watched together in `workday.test.ts` (W3): a
@@ -472,17 +473,17 @@ export type DeadlineOffset =
  *
  * @throws Whatever {@link toUtc} throws when either date is not a calendar date.
  */
-export function deadlineOffsetOf(projectStart: IsoDate, deadline: IsoDate): DeadlineOffset {
-  const dayZero = toUtc(nextWorkday(projectStart));
+export function deadlineOffsetOf(workPackageStart: IsoDate, deadline: IsoDate): DeadlineOffset {
+  const dayZero = toUtc(nextWorkday(workPackageStart));
   const at = toUtc(previousWorkday(deadline));
-  if (at.getTime() < dayZero.getTime()) return { kind: 'before-project-start' };
+  if (at.getTime() < dayZero.getTime()) return { kind: 'before-work-package-start' };
   return { kind: 'offset', offset: workdayIndexOf(at) - workdayIndexOf(dayZero) };
 }
 
 /**
  * Whether a value is a zone this runtime can read instants in: one of
  * `Intl.supportedValuesOf('timeZone')`, or the literal `UTC` that list may leave
- * out. Validated once at the boundary that stores a **project timezone**; the
+ * out. Validated once at the boundary that stores a **work package timezone**; the
  * list is the runtime's, so `GET /api/timezones` serves the same one and a
  * select built from it cannot offer a zone this refuses.
  */
@@ -547,7 +548,7 @@ export function isoDateOfInstantIn(zone: string, epochMs: number): IsoDate {
 
 /**
  * The calendar day an instant falls on, in UTC: {@link isoDateOfInstantIn} for
- * the `UTC` zone, kept because a project that never set a zone reads every
+ * the `UTC` zone, kept because a work package that never set a zone reads every
  * instant there and every existing fill stays byte-identical.
  *
  * Throws on a stamp that is not a finite instant, which is R5's answer to a

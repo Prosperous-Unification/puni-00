@@ -1,0 +1,634 @@
+{
+  "schema": "puni-space-project-rollup-http-verification-v106",
+  "recordedAt": "2026-11-21T09:20:41.618Z",
+  "goalStatus": "active",
+  "status": "partial-integration-performance-and-scheduling-open",
+  "previous": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-final-state-v1.json",
+    "sha256": "03d18f0129157fe7a196a4116bcb8c84451dc16ce30f5e2dbd0d0bdf9c9e2da4",
+    "bytes": 240306,
+    "mode": 384
+  },
+  "before": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-http-before-v1.json",
+      "sha256": "f5e35d8051a615c43b84875ce95894c7667261be7e871ec33e296e20a539f5ed",
+      "bytes": 6878496,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-http-before-extra-v1.json",
+      "sha256": "36680b3d3daf5dc898173aea72719f9a53ae559d3ac45a5d8a85de198a0c60e9",
+      "bytes": 283,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/space-project-rollup-http-cache-before-v1.json",
+      "sha256": "d6595cbb39ad164e6cac5f3cc513c193aa3b28508360cd3b89151a015522bdbc",
+      "bytes": 12760,
+      "mode": 384
+    }
+  ],
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v50.json",
+    "sha256": "da549ee461e0c89384c7f693e438098c23fe8f737762655ae2ea03baf9b69b24",
+    "bytes": 1895655,
+    "mode": 384
+  },
+  "guardBridge": {
+    "archive": {
+      "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-cache-guard-v1.txt",
+      "sha256": "1c26600d70050c47952fd466fca5638fc28dccd5d631ee7a125c2d5eed410759",
+      "bytes": 7188,
+      "mode": 384
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+      "sha256": "92f3c90fbd8ecc8cb8691a642ce97d069ebd0994e54479fff41e7061695cbcc2",
+      "bytes": 7957,
+      "mode": 436
+    },
+    "executableStatementsIdentical": true,
+    "qualification": "Only Proof comments and formatting differ. Current tests use Array.at for precise optional fixture types instead of index access; their real fixture inputs and literal outcomes are unchanged. Prior V105 guard proofs are inherited evidence and still need full integration bridge/review."
+  },
+  "faultPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-cache-faults-v1.plan.json",
+    "sha256": "30a5acc93a2283e364a9812076128c711e0ad5f4079a017b4c45eb66a6c4c541",
+    "bytes": 1738,
+    "mode": 384
+  },
+  "faultState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-cache-faults-v1.state.json",
+    "sha256": "3966572c742cf1ff485a37904412f951e571fbdd658f45d6d30599b1b8e22b59",
+    "bytes": 4464,
+    "mode": 384
+  },
+  "checks": [
+    {
+      "name": "project-rollup-source-http-current-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-project-rollups.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "./libs/wbs/domain/contracts/src/http/space-shapes.test.ts",
+          "./libs/wbs/domain/contracts/src/http/unavailable-consumer-shapes.test.ts",
+          "./libs/wbs/domain/contracts/src/dependency-client.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-http-current-v1.receipt.json",
+        "sha256": "a53f8c0e0cf7a2c3ed290f50656ec1b650b2a8b0187f759e2e00b3f6131b4104",
+        "bytes": 1753,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-http-current-v1.log",
+        "sha256": "cc845e2ff912d05ffd95c71c34e2a72adc05da306b728f16673b699ffb21ad14",
+        "bytes": 5985,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-source-restored-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./apps/wbs/be-01/src/controller/isolated-connected-aggregate.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-restored-v1.receipt.json",
+        "sha256": "9c738645f5387460078a8c733fbf2fdd3a43632fd68c88800d3f18913747279c",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-source-restored-v1.log",
+        "sha256": "5a94b130fd457e4adeaca78621173ef5ae67954ea7512e859ba292d1809f5098",
+        "bytes": 3491,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-isolated-current-v4",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/isolated-connected-aggregate.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-isolated-current-v4.receipt.json",
+        "sha256": "58cea5541d3434c729d57ea46b5ce768c1b86f5ad876a7bcdb8407a86394c3be",
+        "bytes": 1377,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-isolated-current-v4.log",
+        "sha256": "a917b4f7cf09e32323b6ce0f99ee9627430843b813ab629c4bbf6d45b87035ad",
+        "bytes": 1451,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-connected-current-v2",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/cross-work-package-live.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-connected-current-v2.receipt.json",
+        "sha256": "d85b1f6038c98de50aae4df8fab488c4eb8d02f75544d8fff33bba7b3543fa40",
+        "bytes": 1374,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-connected-current-v2.log",
+        "sha256": "648277efb851d861b66a90d1f8ce4e7e53b5945f885a64732fe0447ea70b48a5",
+        "bytes": 7901,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-person-current-v3",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/person-load.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-person-current-v3.receipt.json",
+        "sha256": "c6562bafdc77e364fbe8c5677bf39617698b67803671c6200f556cedc3280270",
+        "bytes": 1356,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-person-current-v3.log",
+        "sha256": "f6447322b6ada5c34a573299d0a8bf85f8441463297f3e147b7d9f9208d0b7b5",
+        "bytes": 2706,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-ui-restored-v1",
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-page.test.tsx",
+          "src/components/spaces/spaces-page.test.tsx",
+          "src/components/projects/scoped-step-settings.test.tsx",
+          "src/app-router.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-ui-restored-v1.receipt.json",
+        "sha256": "722b4be95e4decd6a9ed0120e1f452be18bde93281dafc828a0cffc9e47e287d",
+        "bytes": 1784,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-ui-restored-v1.log",
+        "sha256": "c0e69093e804c446b1794915cc791276793a29a11bd0cc072b83b4bd4488039b",
+        "bytes": 6908,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-mcp-current-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/mcp-01/src/generated-document.test.ts",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-mcp-current-v1.receipt.json",
+        "sha256": "5307be33a0b00f408607c6ca58d4ddd4fcc2988959e62c29a9fca1b9b652b905",
+        "bytes": 1386,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-mcp-current-v1.log",
+        "sha256": "133606f58f1d5fc8213b71ac469e8e8c450c2910db4f2248a335d94a6eb28aba",
+        "bytes": 7176,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-http-types-v5",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-project-rollup-http-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-http-types-v5.receipt.json",
+        "sha256": "ee3b9332b22047a5fcabcac3925f6dd379ed926de0f6aea31efcd20683ac9ccb",
+        "bytes": 1336,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-http-types-v5.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-ui-types-v4",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-groups-frontend-types-v2.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-ui-types-v4.receipt.json",
+        "sha256": "f7de737c2a372019e5f877d8a1fdc78b2748e163604f50e6646dab6dce9a31d8",
+        "bytes": 1334,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-ui-types-v4.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-browser-types-v2",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "-p",
+          "/tmp/puni-space-groups-browser-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-browser-types-v2.receipt.json",
+        "sha256": "9bf49e6f9044f3100e42d672f0b42b1b089b0ccb2013cc49b2818150a2bc712e",
+        "bytes": 1343,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-browser-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-http-lint-v2",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.test.ts",
+          "libs/wbs/domain/contracts/src/http/unavailable-consumer-shapes.test.ts",
+          "libs/wbs/domain/contracts/src/dependency-client.test.ts",
+          "libs/wbs/application/core/src/http/space.routes.ts",
+          "apps/wbs/be-01/src/app.ts",
+          "apps/wbs/be-01/src/services.ts",
+          "apps/wbs/be-01/src/boot.ts",
+          "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "apps/wbs/be-01/src/testing/space-fixture.ts",
+          "apps/wbs/be-01/src/testing/route-requests.ts",
+          "apps/wbs/be-01/src/services.db.test.ts",
+          "apps/wbs/be-01/src/services-connected.db.test.ts",
+          "apps/wbs/be-01/src/services-connected-publication.db.test.ts",
+          "apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts",
+          "apps/wbs/be-01/scripts/connected-composed-image-scenario.ts",
+          "apps/wbs/be-01/scripts/connected-composed-image-scenario.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-project-rollups.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "apps/wbs/be-01/src/controller/person-load.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/isolated-connected-aggregate.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/cross-work-package-live.controller.db.test.ts",
+          "apps/wbs/fe-01/src/components/spaces/space-page.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-page.test.tsx",
+          "apps/wbs/fe-01/src/app-router.test.tsx",
+          "apps/wbs/fe-01/e2e/spaces-stub.ts",
+          "apps/wbs/fe-01/e2e/spaces-timeline.spec.ts",
+          "apps/wbs/be-01/src/testing/space-rollup.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-http-lint-v2.receipt.json",
+        "sha256": "12817ff5346fdb97e9c1a1d836dc00d92e58a7e51aa7491a0cc67e29e6071c49",
+        "bytes": 3418,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-http-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-openapi-current-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+          "apps/wbs/mcp-01/src/openapi.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-openapi-current-v1.receipt.json",
+        "sha256": "d6a0b103818701077f43cf648f8034e152aaa002efbfed4bbced5407c333b195",
+        "bytes": 1330,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-openapi-current-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-openspec-current-v1",
+      "command": {
+        "argv": ["bun", "node_modules/.bin/openspec", "validate", "--all", "--json"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-openspec-current-v1.receipt.json",
+        "sha256": "6bd5772d0f041bbb8ce3fbc87d4bdccf8afab4d779315f8c6eff416982fcb4f9",
+        "bytes": 1324,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-openspec-current-v1.log",
+        "sha256": "00888e4b776a89aba6d7d1b478847de40d41c0832f10cb915b43ccf4b1215034",
+        "bytes": 349240,
+        "mode": 384
+      }
+    },
+    {
+      "name": "project-rollup-format-current-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "libs/wbs/application/core/src/ports/space-read.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.ts",
+          "libs/wbs/domain/contracts/src/http/space-shapes.test.ts",
+          "libs/wbs/domain/contracts/src/http/unavailable-consumer-shapes.test.ts",
+          "libs/wbs/domain/contracts/src/dependency-client.test.ts",
+          "libs/wbs/application/core/src/http/space.routes.ts",
+          "apps/wbs/be-01/src/app.ts",
+          "apps/wbs/be-01/src/services.ts",
+          "apps/wbs/be-01/src/boot.ts",
+          "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "apps/wbs/be-01/src/testing/space-fixture.ts",
+          "apps/wbs/be-01/src/testing/route-requests.ts",
+          "apps/wbs/be-01/src/services.db.test.ts",
+          "apps/wbs/be-01/src/services-connected.db.test.ts",
+          "apps/wbs/be-01/src/services-connected-publication.db.test.ts",
+          "apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts",
+          "apps/wbs/be-01/scripts/connected-composed-image-scenario.ts",
+          "apps/wbs/be-01/scripts/connected-composed-image-scenario.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-project-rollups.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "apps/wbs/be-01/src/controller/person-load.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/isolated-connected-aggregate.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/cross-work-package-live.controller.db.test.ts",
+          "apps/wbs/fe-01/src/components/spaces/space-page.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-page.test.tsx",
+          "apps/wbs/fe-01/src/app-router.test.tsx",
+          "apps/wbs/fe-01/e2e/spaces-stub.ts",
+          "apps/wbs/fe-01/e2e/spaces-timeline.spec.ts",
+          "apps/wbs/be-01/src/testing/space-rollup.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-read.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-format-current-v1.receipt.json",
+        "sha256": "9580c424247a96fb49aaffdcf3473e72a174dee780e0fe59886128b906798348",
+        "bytes": 3451,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-format-current-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "sourceHttpContracts": { "pass": 56, "fail": 0, "assertions": 522 },
+    "restoredSourceAndIsolated": { "pass": 32, "fail": 0, "assertions": 613 },
+    "connected": { "pass": 26, "fail": 0, "assertions": 233 },
+    "people": { "pass": 24, "fail": 0, "assertions": 91 },
+    "mcp": { "pass": 62, "fail": 0, "assertions": 561 },
+    "ui": { "pass": 69, "fail": 0, "files": 4 },
+    "typeRoots": { "backend": 353, "frontend": 6, "browser": 4 },
+    "lintOwners": 34,
+    "sourceFiles": 6106,
+    "newIndependentFaults": 5,
+    "mcpTools": 99
+  },
+  "performance": {
+    "status": "failed",
+    "failed": {
+      "name": "project-rollup-performance-current-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout",
+          "120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-performance-current-v1.receipt.json",
+        "sha256": "148acd1fc440a915913968852a35a79fac201b08f983db8b7abc4d2ba314ac66",
+        "bytes": 1369,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-performance-current-v1.log",
+        "sha256": "e0706148bb5ca5e0a85d86bc467653f3e6004f0a09b3e1619b22565db8c46024",
+        "bytes": 976,
+        "mode": 384
+      }
+    },
+    "profile": {
+      "name": "project-rollup-performance-profile-v1",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-rollup-performance-profile-v1.ts",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout",
+          "120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-performance-profile-v1.receipt.json",
+        "sha256": "62bebb07269c027662ad3d766e10c2c099feb596df08a34330d3dd17a303d0eb",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-performance-profile-v1.log",
+        "sha256": "ee35748beb934c9cccb1f7446ab0253aee0b860e25e9dcda66287699552dcfaf",
+        "bytes": 1455,
+        "mode": 384
+      }
+    },
+    "workPackages": 30,
+    "rowsPerPackage": 300,
+    "chunk": 20,
+    "boundsMs": { "space": 120, "warm": 400 }
+  },
+  "scheduleDiagnostic": {
+    "status": "incomplete-deadline",
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-schedule-current-v2.receipt.json",
+      "sha256": "44f7fa7afac1dd99b7184afec536afadfc6577294a74120535d6934a10cadffd",
+      "bytes": 1420,
+      "mode": 384
+    },
+    "transcript": {
+      "path": "/tmp/puni-combined-proposal-v1/control/project-rollup-schedule-current-v2.log",
+      "sha256": "dbbdf6b6310569c3045bb5d93a7900d429d60f20f31eeddd87d541f379a94d59",
+      "bytes": 30784,
+      "mode": 384
+    },
+    "originalObserved": true,
+    "ownerState": "stopped-and-reaped",
+    "descriptorState": "closed",
+    "settled": false
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualifications": [
+    "Actual rollup HTTP now requires projectIds and returns coherent projects with each captured parent shell, position, project rollup and full readable child DTOs plus figures. Mixed/retired package queries refuse; no production flat-response compatibility was added.",
+    "Production services, boot, app and composed harness now create the Source reader after scheduler/optimizer binding via createSpaceRead. Non-space compositions explicitly refuse both capabilities. Browser chunks project IDs, shows server-folded parent totals and updates each parent/children/figures together; unknown, duplicate, missing or contradictory identities reach the error boundary. Cross-chunk moves invalidate the older whole project; modeled membership loss withdraws the page.",
+    "Pure child projection uses a private bounded RollUpCache only after complete current authority, membership and full captured input/cache/metadata evidence. SHA256 of native serialization preserves Maps/Sets; copies on insertion and retrieval isolate caller mutation. Connected components are captured once per request snapshot and reused across their addressed child packages. No authority decision is cached.",
+    "Retained scheduling tests construct actual engagement projects and explicit catalogue steps. Legacy preactivation fixtures explicitly seed migrated parent/catalogue storage. A test-only adapter validates actual grouped replies before exposing package subject figures to existing scheduling assertions; production has no such adapter. Independent protected operation matrix additions are literal. Some control-only UI fixtures explicitly answer503 for unavailable figures.",
+    "Five real faults failed independently and restored exactly: bypass cache lookup, omit captured input evidence, alias warm cache output, alias cache insertion and recapture a connected component. The existing19 Source cases and13 isolated aggregate cases pass after restoration. UI identity/atomicity/move/access guards and HTTP caller/factory guards still need their complete current R5 sweep and Astra review; no parent task is closed.",
+    "Performance remains a real blocker: unchanged30 packages x300 rows, chunk20, space bound120ms and warm bound400ms. Current warm725.8ms; diagnostic with real calls retained warm854.8ms. The diagnostic measured full input capture540.4ms, metadata80.0ms and detached cached finishing163.5ms for the warm chunk. Canonical projection count is20 cold/0warm, scan and all leaf-count/equality assertions pass; wall-clock bound fails. Do not reduce workload/bounds or cache ahead of current authority/input capture.",
+    "Broad schedule-organization run remains incomplete: its native180s deadline sent SIGTERM; original child was observed, owner stopped/reaped and descriptors closed, but settled=false. Observed duplicate grant, stale comparison fields/contracts and selected optimizer publication failures remain. Preserve the log and receipt; no passing74-case claim or blind rerun. V105 frozen v4 scheduler identity mismatch remains unresolved and unchanged.",
+    "Generated OpenAPI matches shared declarations and still derives99 MCP tools. Browser drawing fixtures now contain complete coherent project groups and compile. Actual Chromium/layout, broad core/domain/Memory/whole Source conformance, builds/secrets/migrations/exact-SHA host gate and delivery were not run or completed here.",
+    "Full original9 scope strings remain verbatim. All13 fact families,15 historical guarantees, document17/18 leaf-step projection, step catalogue, people/team management UI, PUNI Optique1.3.6 aliases, exhaustive Bun client inventory/installed checks and authorized delivery remain open. Astra remains unavailable until recorded2026-11-22 10:09AM timezone unspecified; no retry/substitute/new agents/install/PAX/public delivery occurred."
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "merge": "1ce685a3590d195ef0a71787052d12c17e706242",
+  "parents": [
+    "b167cb4440400d11aa216d26339605733a73c6da",
+    "88c08048537fba1870d0af78284206734a6363a4"
+  ],
+  "checks": [
+    {
+      "id": "types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/puni/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-navigator/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json",
+        "apps/wbs/be-01/tsconfig.json",
+        "apps/wbs/gw-01/tsconfig.json",
+        "apps/wbs/fe-01/tsconfig.json",
+        "apps/wbs/mcp-01/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "seconds": 43.014,
+      "log": "/tmp/puni-c21-combination-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./libs/wbs/adapters/store-sqlite/src/access-decisions.db.test.ts",
+        "./apps/wbs/be-01/src/controller/permission-catalogue.controller.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/organization-limits.db.test.ts",
+        "./apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+        "./libs/wbs/domain/contracts/src/http/organization-limits-shapes.test.ts",
+        "./apps/wbs/be-01/src/organization-limits-cli.db.test.ts",
+        "./apps/wbs/be-01/src/controller/compute-provider.controller.db.test.ts",
+        "./apps/wbs/be-01/src/controller/compute-provider-permission.controller.db.test.ts",
+        "./libs/wbs/domain/contracts/src/http/compute-provider-permission-shapes.test.ts",
+        "./apps/wbs/be-01/src/controller/agent-pool-permission.controller.db.test.ts",
+        "./libs/wbs/domain/contracts/src/http/agent-pool-permission-shapes.test.ts",
+        "./apps/wbs/be-01/src/controller/agent-pool.controller.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/agent-pool.db.test.ts",
+        "./libs/wbs/adapters/store-sqlite/src/access-grant-store.db.test.ts",
+        "./apps/wbs/be-01/src/boot.db.test.ts",
+        "./apps/puni/cli/src/cli.test.ts",
+        "./apps/puni/cli/src/cli-parser.test.ts",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "--timeout=30000"
+      ],
+      "exitCode": 0,
+      "seconds": 224.074,
+      "log": "/tmp/puni-c21-combination-tests.log",
+      "logSha256": "9e488db987742e2626a24fd16c21763a8176f3f11943eb30c1132a886bcc81ec"
+    },
+    {
+      "id": "diff",
+      "argv": ["git", "diff", "--check"],
+      "exitCode": 0,
+      "seconds": 0.014,
+      "log": "/tmp/puni-c21-combination-diff.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "inherited": [
+    {
+      "source": "b167cb4440400d11aa216d26339605733a73c6da",
+      "base": "a57dec5e675f29311419e27126cbf2abe9c27769",
+      "paths": 10,
+      "drift": 0
+    },
+    {
+      "source": "88c08048537fba1870d0af78284206734a6363a4",
+      "base": "7a4510db71da7d871cd13742ccf808ca55644599",
+      "paths": 37,
+      "drift": 0
+    }
+  ],
+  "observed": {
+    "pass": 553,
+    "fail": 0,
+    "assertions": 2094,
+    "files": 18,
+    "seconds": 224.01
+  },
+  "review": "Both parent checkpoints received Astra source/evidence review; no new source changes or repeated mutation claims in this merge.",
+  "unrun": [
+    "whole repository runtime gate",
+    "canonical exact-commit host gate",
+    "public PUNI package install",
+    "main merge",
+    "live deployment"
+  ],
+  "wholeGoal": "active"
+}

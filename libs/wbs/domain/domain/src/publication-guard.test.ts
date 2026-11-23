@@ -316,7 +316,7 @@ describe('(iii) the Baseline is computed over the WHOLE canonical input, deadlin
   const rows = [leafRow('a', 10, 1), leafRow('b', 20, 9)];
   const slices = [work('a', 2, { personId: 'kat' }), work('b', 2, { personId: 'kat' })];
 
-  // `a` has nine workdays of room and `b` has none: it is due on the project's
+  // `a` has nine workdays of room and `b` has none: it is due on the work package's
   // first working day against two days of work. So `b` goes first on slack, and
   // it is still late when it does — which is the second half of the difference.
   const deadlines = new Map([

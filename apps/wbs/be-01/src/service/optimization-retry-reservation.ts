@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
@@ -9,7 +9,7 @@ import { solverSlot } from '@wbs/store-sqlite/schema';
 import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
-import { retryMutationIn, retryPreflightIn } from '../repository/optimization';
+import { authorizeRetryIn, retryMutationIn, retryPreflightIn } from '../repository/optimization';
 
 /** Owns eligible Retry, global reclaim, accepted audit and fan-out in one source writer turn. */
 export function createRetryReservationOwner(
@@ -17,11 +17,17 @@ export function createRetryReservationOwner(
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
 ): OptimizationRepository['admitRetry'] {
-  return (ask) =>
-    uow.run(async (scope) => {
+  return (incoming) => {
+    const ask = {
+      ...incoming,
+      key: structuredClone(incoming.key),
+      ...(incoming.scoped === undefined ? {} : { scoped: structuredClone(incoming.scoped) }),
+    };
+    return uow.run(async (scope) => {
       // Proof: moving capture ahead of this preflight made a foreign mounted
       // Retry invoke capture once despite its typed not_found refusal.
-      const preflight = db.transaction((tx) => retryPreflightIn(tx, ask));
+      const authority = await authorizeRetryIn(db, ask);
+      const preflight = db.transaction((tx) => retryPreflightIn(tx, ask, authority));
       if (preflight.kind === 'refused')
         return { commit: true, value: { decision: preflight.decision, envelopes: [] } };
 
@@ -31,15 +37,15 @@ export function createRetryReservationOwner(
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('Retry reservation lacks borrowed ownership and capture');
       const ownership = new Map<string, string>();
-      for (const { projectId } of db
-        .select({ projectId: solverSlot.projectId })
+      for (const { workPackageId } of db
+        .select({ workPackageId: solverSlot.workPackageId })
         .from(solverSlot)
         .all()) {
         // Proof: retaining only the first old-slot organization lost D's
         // durable C-cause event in the mounted three-organization Retry test.
-        if (ownership.has(projectId)) continue;
-        const owner = await capture.resolveLifecycleOwner(projectId);
-        if (owner.kind === 'scoped') ownership.set(projectId, owner.organizationId);
+        if (ownership.has(workPackageId)) continue;
+        const owner = await capture.resolveLifecycleOwner(workPackageId);
+        if (owner.kind === 'scoped') ownership.set(workPackageId, owner.organizationId);
       }
       const before = new Map<string, CapturedFanout>();
       for (const organizationId of new Set(ownership.values()))
@@ -47,17 +53,17 @@ export function createRetryReservationOwner(
 
       const finished = new Set<string>();
       const decision = db.transaction((tx) =>
-        retryMutationIn(tx, ask, preflight, ({ projectId }) => finished.add(projectId)),
+        retryMutationIn(tx, ask, preflight, ({ workPackageId }) => finished.add(workPackageId)),
       );
       // Proof: injecting COMMIT/BEGIN after this mutation and before event
       // recording left deleted A/C, X's PRI queue and recovery audit after
       // the second real event insert failed; the full rollback snapshot failed.
-      const envelopes: CommittedProjectEvent[] = [];
+      const envelopes: CommittedWorkPackageEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         // Proof: omitting these actual finished causes lost B's event when
         // Retry retired A's selected contract but A's local facts stayed equal.
         const causes = [...finished].filter(
-          (projectId) => ownership.get(projectId) === organizationId,
+          (workPackageId) => ownership.get(workPackageId) === organizationId,
         );
         const after = await capture.capture(organizationId);
         // Proof: omitting this record call let installed Retry delete A
@@ -76,4 +82,5 @@ export function createRetryReservationOwner(
       // but lost its installed gateway delivery after A was reclaimed.
       return { commit: true, value: { decision, envelopes } };
     });
+  };
 }

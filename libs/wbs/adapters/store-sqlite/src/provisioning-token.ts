@@ -1,3 +1,4 @@
+import { retainSecurityPrincipal, type SecurityPrincipal } from '@wbs/core';
 import {
   type AuditedAct,
   type AuthenticatedProvisioning,
@@ -10,14 +11,13 @@ import { and, asc, count, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
-import { superAdminRefusal } from './enterprise-connection';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { organizationScimToken, organizationSsoConnection } from './schema';
+import { readSecurityRefusal, runSecurityTransaction } from './security-transaction';
 
-type Transaction = ImmediateTransaction;
+type Transaction = SQLiteBunDatabase;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
 
 const live = (at: number) =>
@@ -77,11 +77,14 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
 
   async list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly ProvisioningTokenSummary[] | 'inactive' | 'forbidden'> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-provisioning-list) failed `retains the actual queued security principal and current grant at provisioning-list`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-provisioning-list) failed `encodes a current grant denial before effects at provisioning-list`; restored GREEN.
       if (refusal !== null) return refusal;
       return tx
         .select()
@@ -102,13 +105,19 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
    */
   issue(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     id: string,
     digest: string,
     act: AuditedAct,
   ): ReturnType<ProvisioningTokens['issue']> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-provisioning-issue) failed `retains the actual queued security principal and current grant at provisioning-issue`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-provisioning-issue) failed `retains detached queued security stamps and audit actors at provisioning-issue`; restored GREEN.
+    act = structuredClone(act);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-provisioning-issue) failed `encodes a current grant denial before effects at provisioning-issue`; restored GREEN.
       if (refusal !== null) return { kind: refusal };
       if (!hasProvenConnection(tx, organizationId)) return { kind: 'sso_connection_unproven' };
       if (liveCount(tx, organizationId, act.stamp.at) >= MOST_LIVE_PROVISIONING_TOKENS)
@@ -130,14 +139,20 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
 
   rotate(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     tokenId: string,
     successorId: string,
     successorDigest: string,
     act: AuditedAct,
   ): ReturnType<ProvisioningTokens['rotate']> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-provisioning-rotate) failed `retains the actual queued security principal and current grant at provisioning-rotate`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-provisioning-rotate) failed `retains detached queued security stamps and audit actors at provisioning-rotate`; restored GREEN.
+    act = structuredClone(act);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-provisioning-rotate) failed `encodes a current grant denial before effects at provisioning-rotate`; restored GREEN.
       if (refusal !== null) return { kind: refusal };
       const at = act.stamp.at;
       const current = tx
@@ -181,12 +196,18 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
 
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     tokenId: string,
     act: AuditedAct,
   ): Promise<'revoked' | 'inactive' | 'forbidden' | 'not_found'> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-provisioning-revoke) failed `retains the actual queued security principal and current grant at provisioning-revoke`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-provisioning-revoke) failed `retains detached queued security stamps and audit actors at provisioning-revoke`; restored GREEN.
+    act = structuredClone(act);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-provisioning-revoke) failed `encodes a current grant denial before effects at provisioning-revoke`; restored GREEN.
       if (refusal !== null) return refusal;
       const revoked = tx
         .update(organizationScimToken)
@@ -244,8 +265,8 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
     });
   }
 
-  private write<T>(work: (tx: Transaction) => T): Promise<T> {
-    return writeImmediately(this.db, this.gate, work);
+  private write<T>(work: (tx: Transaction) => T | Promise<T>): Promise<T> {
+    return runSecurityTransaction(this.db, this.gate, async (tx) => work(tx));
   }
 }
 

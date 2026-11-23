@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023170000_add_work_item_budget';
 const BASELINE = '20261023160000_add_measure_estimate';
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
@@ -19,8 +20,8 @@ let path: string;
 let db: Database;
 
 /**
- * A store at {@link BASELINE} shaped like dev: project `p` owned by `org-a`,
- * project `q` owned by nobody, a cost fact and a cost trio written before
+ * A store at {@link BASELINE} shaped like dev: work package `p` owned by `org-a`,
+ * work package `q` owned by nobody, a cost fact and a cost trio written before
  * bases existed, beside a token fact.
  */
 function seedBaseline(): void {
@@ -72,8 +73,11 @@ const budgetOn = (workItemId: string, key: string, cap = 10, policy = 'strict') 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -89,7 +93,7 @@ beforeEach(() => {
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -113,7 +117,7 @@ describe(MIGRATION, () => {
 
   // Proof: with the factor's CHECK made `CHECK (1)` in migration.sql, this
   // case stored a factor of 0; watched 2026-10-23.
-  it('defaults every project’s budget factor to 1 and refuses 0', () => {
+  it('defaults every work package’s budget factor to 1 and refuses 0', () => {
     expect(db.query('SELECT id, budget_factor FROM project ORDER BY id').all()).toEqual([
       { id: 'p', budget_factor: 1 },
       { id: 'q', budget_factor: 1 },
@@ -158,7 +162,7 @@ describe(MIGRATION, () => {
 
   // Proof: with the keying trigger's UPDATE replaced by `SELECT 1` in
   // migration.sql, this case read the budget unkeyed; watched 2026-10-23.
-  it('keys an unowned project’s budgets when an organization takes it', () => {
+  it('keys an unowned work package’s budgets when an organization takes it', () => {
     budgetOn('q-one', 'tokens');
     expect(budgets()).toEqual([expect.objectContaining({ work_item_id: 'q-one', key: null })]);
     db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-a')");
@@ -170,7 +174,7 @@ describe(MIGRATION, () => {
   it('refuses rollback while a budget, a factor or a priced figure exists, keeping it', () => {
     const refused = () => {
       db.close();
-      expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+      expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
         'budgets, budget factors or priced figures exist',
       );
       db = openDatabase(path);
@@ -198,7 +202,9 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -218,7 +224,7 @@ describe(MIGRATION, () => {
       db.query("SELECT name FROM pragma_table_info('project') WHERE name = 'budget_factor'").all(),
     ).toEqual([]);
     db.close();
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     db = openDatabase(path);
     expect(budgets()).toEqual([]);
   });

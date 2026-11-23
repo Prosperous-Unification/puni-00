@@ -1,0 +1,2935 @@
+{
+  "schemaVersion": 1,
+  "scope": "C26 internal source-bound Bun relocation, shared activation4 assembly and pinned preparation compiler denial",
+  "sourceBase": "c9adb094c8032a8122193b96d595907f9e43867c",
+  "finalObserved": {
+    "passed": 415,
+    "failed": 0,
+    "assertions": 1267,
+    "files": 14,
+    "duration": "106.60s"
+  },
+  "checks": [
+    {
+      "id": "final-forced-types",
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json",
+        "apps/puni/cli/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/puni-c26-final-types.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "evidence": "fresh exec_command completion exit0 observed before compiler-separated final native runtime tests"
+    },
+    {
+      "id": "final-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 4.952295149,
+      "log": "/tmp/puni-c26-final-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "final-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/check-runs.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "--timeout=300000"
+      ],
+      "exitCode": 0,
+      "seconds": 106.640358806,
+      "log": "/tmp/puni-c26-final-tests.log",
+      "logSha256": "fe1760c35b3d80db9e96b29d7aa53c3069cf3bd0fd086e89be21a7ffa72c5c6e"
+    }
+  ],
+  "earlierBaseline": [
+    {
+      "id": "baseline-lint",
+      "argv": [
+        "bunx",
+        "eslint",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 4.959471312,
+      "log": "/tmp/puni-c26-baseline-lint.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "baseline-tests",
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/materialized-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/committed-source.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/check-runs.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-self-check-runtime.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts",
+        "--timeout=300000"
+      ],
+      "exitCode": 0,
+      "seconds": 99.164427729,
+      "log": "/tmp/puni-c26-baseline-tests.log",
+      "logSha256": "276a58e631b52ffea556611605979c62ac89556f60fc4698884f71186f8d2bd7"
+    }
+  ],
+  "canonicalFaults": 65,
+  "canonicalLogs": 130,
+  "namedRedOccurrences": 78,
+  "canonical": [
+    {
+      "id": "c26-build-prior",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "returns prior role-build cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (prior !== undefined) return prior;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=returns prior role-build cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["returns prior role-build cancellation before resolving absent materialization"],
+      "passed": ["returns prior role-build cancellation before resolving absent materialization"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "a31a3ba2520473c075a069b1373f65dd409cdc2cd2a4ef1bd5316daff2c3e5f0",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-prior.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-prior.green.log",
+      "redLogHash": "d5c0b8a3f9acb72e70ba4c53ecdfe902edb7ecb629869e55c4deb5dedd60b35b",
+      "greenLogHash": "56092da896504c24d95917489f4b9e51df25b99903797b01fcc6ced1e19c143a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-terminal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "honors the first interruption delivered during terminal build",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "return readCancellation() ?? settled.value;",
+          "replacement": "return settled.value;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=honors the first interruption delivered during terminal build"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "honors the first interruption delivered during terminal build subscription release"
+      ],
+      "passed": [
+        "honors the first interruption delivered during terminal build subscription release"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "7ef40ad84d3bdfce89fb49587db5c53a5eaa20a2dcf8219192a6ef4d00cca533",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-terminal.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-terminal.green.log",
+      "redLogHash": "a5d0c4770f0fd116b8215305ade9d5a1c82da17168051766883b9b371f2f3e5b",
+      "greenLogHash": "5913b4096779d671f494c0c3ae635896b155c6c94d530d201e1964c66a6ffbfd",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-first-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "honors the first interruption delivered during terminal build",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "first ??= signal;",
+          "replacement": "first = signal;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=honors the first interruption delivered during terminal build"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "honors the first interruption delivered during terminal build subscription release"
+      ],
+      "passed": [
+        "honors the first interruption delivered during terminal build subscription release"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "4cdc5ecae4d5694ae0d6207f8f4b970c5ff2023aafd590066bd80d2b43d91813",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-first-reason.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-first-reason.green.log",
+      "redLogHash": "0f29cc832492adaadd7c0c74031683413b71c15934b56fcd9aa02571e6c4226c",
+      "greenLogHash": "c87803d93a65f849cfc74e20594646c7c46ca803cb3cc1be1e539383b4ca2f24",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-status",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "returns prior role-build cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "first === 'SIGINT' ? 130 : 143",
+          "replacement": "first === 'SIGINT' ? 143 : 130"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=returns prior role-build cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["returns prior role-build cancellation before resolving absent materialization"],
+      "passed": ["returns prior role-build cancellation before resolving absent materialization"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "c54c200efd32df617750a823467eb3c3638f175877c29d2a097e8bd595de8d7b",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-status.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-status.green.log",
+      "redLogHash": "a58bc3c6ccc7b8f4f0e57ff6864f4ec56624b03c82141ea56ceca00378354902",
+      "greenLogHash": "6c220b08605a2610a37f7388220bfd37e016d2d927fa99771ba6231f78b51c0d",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-toolkit",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses a changed selected toolkit identity",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (verified.digest !== toolkitIdentity)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses a changed selected toolkit identity"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses a changed selected toolkit identity before copying dependencies"],
+      "passed": ["refuses a changed selected toolkit identity before copying dependencies"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "5faf7d173cd6e504d0572aec6281ee9aabbb5f76cd53fd5e5094055db954dcfe",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-toolkit.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-toolkit.green.log",
+      "redLogHash": "759b33e2d391550d952c05f8fbc4027e2e0304920c3ba56e4b584460c8f0e850",
+      "greenLogHash": "220e70e0c5e9b75485c173afd698246e3f8c97d11d8db456a58cab85a09aa390",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-captured-modules",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses captured node_modules",
+      "qualification": "diagnostic/order: later exclusive copy also refuses the captured directory",
+      "edits": [
+        {
+          "find": "if (snapshot.entries.some((entry) => entry.path.split('/').includes('node_modules')))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses captured node_modules"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses captured node_modules before copying any preparation dependencies"],
+      "passed": ["refuses captured node_modules before copying any preparation dependencies"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "e5e59e24a2376b84db143f1c011edde1c1cbc7a064cad37df187dcc612502617",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-captured-modules.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-captured-modules.green.log",
+      "redLogHash": "f5caa887cb08aca5029973b73c20a125ad934ea79fbadba6eb7ffaaa4fe3eebd",
+      "greenLogHash": "945237bc9ae630ebc27db00084ac84cec1e374bbb7dd469e5d89de642b18c4d9",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-copy",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses changed dependency copy bytes",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "hashTrustedModules(modules) !==\n      hashTrustedModules(join(verified.directory, 'trusted-node-modules'))",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses changed dependency copy bytes"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses changed dependency copy bytes before building executable roles"],
+      "passed": ["refuses changed dependency copy bytes before building executable roles"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "41eb57216a5e10276d314dbccab96bdfab7775451e621e99c36d13bb190e2269",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-copy.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-copy.green.log",
+      "redLogHash": "3fb198e3f845238ea71f7dc2da280a57038100c4f097a36e9af485d34827060d",
+      "greenLogHash": "3918d6b9c2b2e5938f169cd18f7ebf9664c40a0f52e652bb6a229d0b6b028766",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-compiler-version",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses authenticated compiler metadata",
+      "qualification": "compound metadata predicate fault reaches wrong-version refusal only; no independent null/object/missing-field proof",
+      "edits": [
+        {
+          "find": "typeof manifest !== 'object' ||\n      manifest === null ||\n      !('version' in manifest) ||\n      manifest.version !== ts.version",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses authenticated compiler metadata"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses authenticated compiler metadata that differs from the producer compiler"],
+      "passed": ["refuses authenticated compiler metadata that differs from the producer compiler"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "c5a54b545b5d0602005db1fc5337f6daa3a7e0f4bb8d31646d67b37075703ec6",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-compiler-version.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-compiler-version.green.log",
+      "redLogHash": "c2c0fee28f721c0501ea57c0b44ed46adac62c29ef45e8a80b6a65c4faf6fcf1",
+      "greenLogHash": "e66d52238477a106408f70f2b9ff5551ed12d00ff4d467666905d438a472c62c",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-source-capture",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an uncaptured generated source",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "throw new Error('preparation build requested uncaptured source: ' + offset);",
+          "replacement": "return readFileSync(canonical);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an uncaptured generated source"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an uncaptured generated source file appearing in the materialized view"],
+      "passed": ["refuses an uncaptured generated source file appearing in the materialized view"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "4daab9d03c4739dca00c5abcee6f84c838958904c7d2c071eb20cdbb215c8b0c",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-source-capture.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-source-capture.green.log",
+      "redLogHash": "0044807e60af825d7616dbb7c8a345b4365bb6c4cb9d26fb3b71696853678771",
+      "greenLogHash": "0aef190c627eb276ee20e66165598aeb3ec7e34400ef15eec404ede9ef513b3a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-logical-root",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an unused external captured configuration",
+      "qualification": "early diagnostic/order: existing external directories still meet the native containment fence after lexical-fence removal",
+      "edits": [
+        {
+          "find": "if (!isWithin(directory, absolute))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an unused external captured configuration"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses an unused external captured configuration baseUrl root",
+        "refuses an unused external captured configuration rootDirs root",
+        "refuses an unused external captured configuration typeRoots root"
+      ],
+      "passed": [
+        "refuses an unused external captured configuration baseUrl root",
+        "refuses an unused external captured configuration rootDirs root",
+        "refuses an unused external captured configuration typeRoots root"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "f5a88f137b518df9bd0dfac536ddf8241fb7d1e83c2375732950fa39d02d27c5",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-logical-root.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-logical-root.green.log",
+      "redLogHash": "ce6aff98aa44d3a548d2d153c4385efac840ad0312f1b71173a959b1c55e9e78",
+      "greenLogHash": "92885c0f8d7b1a4fea168038e2671a80ac24c6c6c4c387a6fa032312c8bd78c2",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-vendor-source",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an authenticated vendor importing",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (isWithin(modules, importer) && !isWithin(modules, selected))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an authenticated vendor importing"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses an authenticated vendor importing captured first-party source inside the view"
+      ],
+      "passed": [
+        "refuses an authenticated vendor importing captured first-party source inside the view"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "3c24c6c95efbc544d86966a6ceba6d0d1d2f4e6da4265bb11545913d54ed2617",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-vendor-source.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-vendor-source.green.log",
+      "redLogHash": "4ea03ee1ca7f0dea2518a03ddeb3858c13c6e87812790d64071f5a9d4e85ffae",
+      "greenLogHash": "94c5b6e11b32e85437ee52ef9fcc913ccaea91e4f4663f2ffafc8afc0566dac7",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-role-source",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an executable role selected",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if ([validator, launcher, snapshotter].some((path) => isWithin(modules, path)))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an executable role selected"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an executable role selected from authenticated dependencies"],
+      "passed": ["refuses an executable role selected from authenticated dependencies"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "28a40cfdbdf2ef8170d140691e1392e670aaa3aa77600804c51ff3c2dff4d8cf",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-role-source.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-role-source.green.log",
+      "redLogHash": "c76753254d22bc51ea80c09eae009958665f6decdd82e640ed58c12b5506580f",
+      "greenLogHash": "ccf0216f5327a5e16df356799be84119a879cd3d1eca695afb5c1865c531ed14",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-jsx-refusal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses preserved JSX",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "(original.loader === 'tsx' || original.loader === 'jsx') &&\n          (options.jsx === ts.JsxEmit.Preserve || options.jsx === ts.JsxEmit.ReactNative)",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses preserved JSX"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses preserved JSX instead of silently changing candidate runtime semantics"],
+      "passed": ["refuses preserved JSX instead of silently changing candidate runtime semantics"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "9dca095c83382d87c0ff888d758fc36a8b0d300891b863d86d5321544e875ef3",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-jsx-refusal.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-jsx-refusal.green.log",
+      "redLogHash": "243021d32b37516e81b5e6363cd087be6cba45417f2f159c6474c5aa1a4d41c4",
+      "greenLogHash": "0ba17cb6a505e51a712edf703e3bdfa9b0fb302463cdb22780699285988c53ed",
+      "observedQualification": {
+        "kind": "diagnostic/order",
+        "observation": "Removing explicit preserved-JSX refusal still reaches Bun's Unexpected < refusal; no usable JSX-preserve bundle is admitted.",
+        "log": "/tmp/puni-c26-proofs/c26-build-jsx-refusal.red.log"
+      }
+    },
+    {
+      "id": "c26-build-transform-errors",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses captured TypeScript transform diagnostics",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (errors.length > 0)\n          throw new Error(\n            'preparation source transform failed: ' +",
+          "replacement": "if (false)\n          throw new Error(\n            'preparation source transform failed: ' +"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses captured TypeScript transform diagnostics"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses captured TypeScript transform diagnostics before invoking Bun build"],
+      "passed": ["refuses captured TypeScript transform diagnostics before invoking Bun build"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "f999c9736d93f15da73739ebadfed3f67a10e790f4249bd1878a30cb611e3c65",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-transform-errors.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-transform-errors.green.log",
+      "redLogHash": "249a9c6d856d9c18871551eb14de9b4607a53a49efb4b7bece3dab10e83f4302",
+      "greenLogHash": "02502b3ce6a1cf86a48cd1df7a62bb8a2ed376f2e527ef63191acc3717e8c5a3",
+      "observedQualification": {
+        "kind": "diagnostic/order",
+        "observation": "Removing the TypeScript diagnostic fence still refuses Unexpected ; during scanning before Bun.build; no malformed source bundle is admitted.",
+        "log": "/tmp/puni-c26-proofs/c26-build-transform-errors.red.log"
+      }
+    },
+    {
+      "id": "c26-build-opaque",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an opaque runtime import",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (isLoader && (specifier === undefined || !ts.isStringLiteralLike(specifier)))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an opaque runtime import"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an opaque runtime import rather than claiming a closed build"],
+      "passed": ["refuses an opaque runtime import rather than claiming a closed build"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "f1135642924420826d8af014aa073981ae34d03d673caa0744f378645bcbd027",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-opaque.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-opaque.green.log",
+      "redLogHash": "6183dccf38e91f1479f0b953c82c93f73efdc3447ef4dd94ced3fbcd35b0a779",
+      "greenLogHash": "448246648e5038fe85f0877f1d0258d326744221428a702fbfa30b8831a9b560",
+      "observedQualification": {
+        "kind": "diagnostic/order",
+        "observation": "Removing the AST opaque-loader check still reaches Bun's strict Bundle failed refusal. The named RED fails the boundary-specific diagnostic assertion; it does not show admission of a usable opaque-loader bundle.",
+        "log": "/tmp/puni-c26-proofs/c26-build-opaque.red.log"
+      }
+    },
+    {
+      "id": "c26-build-alias-loader",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an aliased first-party opaque loader",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "!vendor &&\n      ts.isIdentifier(node) &&\n      node.text === 'require' &&\n      ts.isVariableDeclaration(node.parent) &&\n      node.parent.initializer === node",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an aliased first-party opaque loader"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an aliased first-party opaque loader alongside the admitted compiler"],
+      "passed": ["refuses an aliased first-party opaque loader alongside the admitted compiler"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "6cbfbbdf92705198e9b9103ea83330a9cb31c31323a795fd35d39a1420933511",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-alias-loader.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-alias-loader.green.log",
+      "redLogHash": "7445b25078584bc6c8db34aba51498d4f4d3f51a177180a34a85715d1cc3cef5",
+      "greenLogHash": "70a0098904dcc5b6656e36744779cc3c320f1aead6afdd35808fb10356d8c47e",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-macro",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses a candidate macro",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "node.attributes?.elements.some(\n        (attribute) =>\n          attribute.name.text === 'type' &&\n          ts.isStringLiteral(attribute.value) &&\n          attribute.value.text === 'macro',\n      ) === true",
+          "replacement": "false"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses a candidate macro"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses a candidate macro before any bundler execution can create its sentinel"],
+      "passed": ["refuses a candidate macro before any bundler execution can create its sentinel"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "53687e47c023b19f75f305d6a2911deb9ff34674996a14606c5b750d2cc92057",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-macro.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-macro.green.log",
+      "redLogHash": "6839b6109f833656748da9ebc686dbfb0bef4cf63fb61eb06a9f67905c467fea",
+      "greenLogHash": "e07dcfbc6de4d499713be4b008be68f3c53d0f850cbd197ce6c49534b411b1b4",
+      "observedQualification": {
+        "kind": "unexpected build admission",
+        "observation": "Removing macro-attribute refusal makes the build return success, failing the expected Error assertion. The later marker-absence assertion is not reached; this mutant log does not independently prove sentinel execution.",
+        "log": "/tmp/puni-c26-proofs/c26-build-macro.red.log"
+      }
+    },
+    {
+      "id": "c26-build-import-kind",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "preserves import and require conditions",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "JSON.stringify([importer, specifier, kind])",
+          "replacement": "JSON.stringify([importer, specifier])"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves import and require conditions"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["preserves import and require conditions for the same authenticated package"],
+      "passed": ["preserves import and require conditions for the same authenticated package"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "6a981d9d71346dac5fbc689e41560efe9fcaef471ef78a2409ace143632e57c6",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-import-kind.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-import-kind.green.log",
+      "redLogHash": "30101462251b4a6f7de7a7af3c67280dc1816c0f8aa6d2f1075ead683a212b7b",
+      "greenLogHash": "af2d8b630e9f75bdd9e04588fb53c0bd3ce9d9cfdce9dfdb29fb2c1fa8ca7f6f",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-transforms",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "preserves captured class-field assignment semantics|preserves a captured JSX factory",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "...transformOptions,",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves captured class-field assignment semantics|preserves a captured JSX factory"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "preserves captured class-field assignment semantics",
+        "preserves a captured JSX factory instead of adopting producer defaults"
+      ],
+      "passed": [
+        "preserves captured class-field assignment semantics",
+        "preserves a captured JSX factory instead of adopting producer defaults"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "086a8e5116489ecad7ef3823427f3748f7c3f3bfc691ec66b81ae0bbff786dc5",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-transforms.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-transforms.green.log",
+      "redLogHash": "f53332180a4723cdd88e95c5f80c1ceef987478102521cfc9dda4250d24ffbe8",
+      "greenLogHash": "4c1752cae9f8d0d4601a2ab9346cc9ba419e23edd03394d09c7390d9593d783b",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-captured-loading",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "uses captured source and dependency bytes",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "return { contents: module.bytes, loader: module.loader };",
+          "replacement": "return { contents: readFileSync(path), loader: module.loader };"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=uses captured source and dependency bytes"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "uses captured source and dependency bytes after their materialized files change during build"
+      ],
+      "passed": [
+        "uses captured source and dependency bytes after their materialized files change during build"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "47a178fa114edfddaf3255aefd5580c3ad1d883451d44d58bb116786592e6334",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-captured-loading.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-captured-loading.green.log",
+      "redLogHash": "f8f6b8ffd959cd8fe781e02968fc366a844ac1170e06a5bddd353f33b9e8259f",
+      "greenLogHash": "1ecf2adf46494ddec9d3b07bf0f2d4a25341cf5172fe15b964ffefb27134b1ac",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-unplanned-import",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an unplanned sealed import",
+      "qualification": "diagnostic: later undefined access still refuses a broken sealed import contract",
+      "edits": [
+        {
+          "find": "if (selected === undefined)\n                  throw new Error('preparation bundler requested unplanned import: ' + path);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an unplanned sealed import"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an unplanned sealed import requested by the actual Bun bundler"],
+      "passed": ["refuses an unplanned sealed import requested by the actual Bun bundler"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "fef4fcc35a730fdc5d056f53c5adf3394b608b9f89b784c4e4d53ba79d44653d",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-unplanned-import.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-unplanned-import.green.log",
+      "redLogHash": "3c0d5373ccee2d402fcd537b74edaf5f3ec7badec465d498825f61d67bf23f33",
+      "greenLogHash": "3334837ae362ac45bb0ba288cc938128bb7103f5e522952e3729572782b6c90e",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-uncaptured-load",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses an unplanned sealed load",
+      "qualification": "diagnostic: later undefined access still refuses a broken captured load contract",
+      "edits": [
+        {
+          "find": "if (module === undefined)\n                  throw new Error('preparation bundler requested uncaptured bytes: ' + path);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses an unplanned sealed load"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses an unplanned sealed load requested by the actual Bun bundler"],
+      "passed": ["refuses an unplanned sealed load requested by the actual Bun bundler"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "c58002fe78b2221e7978252522282e971e4deba938d3765708a1e957bc8502c9",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-uncaptured-load.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-uncaptured-load.green.log",
+      "redLogHash": "02758e1dbde835ca0688579c01e035129e0d71c8dc3e1b9fa90a695aab5cbf67",
+      "greenLogHash": "0a87d89002afcb78e77f240ff9ff3a4ee321215c4d8aee15823771db5c9024c5",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-success",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses unsuccessful role build",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (!built.success || built.outputs.length !== 1)",
+          "replacement": "if (built.outputs.length !== 1)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses unsuccessful role build"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses unsuccessful role build output after actual Bun build settlement"],
+      "passed": ["refuses unsuccessful role build output after actual Bun build settlement"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "fd6a1837f5aa918a39ffc0d5b24896813329ea90f0043d3f5c2a8123657065c5",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-success.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-success.green.log",
+      "redLogHash": "cdcc447b24dc58dbc446d36ed84c1c65567411f0f7c97efbffbbb06094cfbb1d",
+      "greenLogHash": "cd35be47a0a2be910d4dc2ed2d7321d84452124b84c79420e4f5873ed202b126",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-count",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses multiple role build",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (!built.success || built.outputs.length !== 1)",
+          "replacement": "if (!built.success)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses multiple role build"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses multiple role build output after actual Bun build settlement"],
+      "passed": ["refuses multiple role build output after actual Bun build settlement"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "45b0f42e509c719a7f0d8089030fde6dca783b1f9966081c0039de2c4d2880a3",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-count.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-count.green.log",
+      "redLogHash": "0551eb31815505f97a562b32baf2673c364596feee35b003a6bb6835fdf3dd09",
+      "greenLogHash": "9d6ab41d5802eb008d3fdce36caac6bc0a7b40ff04a803010e5e653b666e627d",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-output-presence",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "refuses disappeared role build",
+      "qualification": "diagnostic: later access also refuses broken build-array contract",
+      "edits": [
+        {
+          "find": "if (artifact === undefined) throw new Error('preparation role build output disappeared');",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses disappeared role build"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses disappeared role build output after actual Bun build settlement"],
+      "passed": ["refuses disappeared role build output after actual Bun build settlement"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "1cb4410abd04c0e1e310c5af7fc00674d2b992076072e5ab7afba37ef3dffacd",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-output-presence.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-output-presence.green.log",
+      "redLogHash": "1757762bd202869062d5ffb7ad4f7e81ce5e3d0e18b9149aba2ea00742da9e4a",
+      "greenLogHash": "35d1fb905ebf8694892036c99047a6bf23814078dedb6c62cebfcae4647251ca",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-after-validator",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "awaits the actual in-process build after interruption",
+      "qualification": "stop-before-next-role after interruption; separate actual-await fault measures active-build ordering",
+      "edits": [
+        {
+          "find": "if (afterValidator !== undefined) return afterValidator;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=awaits the actual in-process build after interruption"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["awaits the actual in-process build after interruption and starts no later role"],
+      "passed": ["awaits the actual in-process build after interruption and starts no later role"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "4c8a189d3f5a32d67dce1727c5612a3e3477ea1ea66dbebb3ea548679667b772",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-after-validator.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-after-validator.green.log",
+      "redLogHash": "d1add3c763e38e937eea84d36f7c080116b19f9312a0c824410de155c0c7ee13",
+      "greenLogHash": "2629e990087e8ac3fbcc38b2e77dc3de0dce6dd889d929a18bd62fa4b866ba26",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-await-validator",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "awaits the actual in-process build after interruption",
+      "qualification": "ordered native settlement: removing the actual await starts the next role while the first build remains gated; no claim of a type-correct mutant",
+      "edits": [
+        {
+          "find": "const validatorBytes = await buildRole(validator);",
+          "replacement": "const validatorBytes = buildRole(validator);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=awaits the actual in-process build after interruption"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["awaits the actual in-process build after interruption and starts no later role"],
+      "passed": ["awaits the actual in-process build after interruption and starts no later role"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "511a87a0f7e37536d5ec7e11f1e679101097712e7919e7ada26bcc3b39c2150e",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-await-validator.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-await-validator.green.log",
+      "redLogHash": "33fd1c4195dd5f55a4c0f3fd8d6439433a971e863263d0092a79f95735ac21e8",
+      "greenLogHash": "644ab08262afa5f4d047ecca5d962e2f76206e44e21e7a2b1bb39c1c6193e304",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "preserves build and subscription release failures",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "    unsubscribe();",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves build and subscription release failures"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "preserves build and subscription release failures ahead of recorded interruption"
+      ],
+      "passed": [
+        "preserves build and subscription release failures ahead of recorded interruption"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "b44292adf144f69e044aa2a262c16654fdeb060b492bb826f2f9190b067c40e5",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-release.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-release.green.log",
+      "redLogHash": "1d52762e83ba545111f5074789f1285d6f5c56089380161f47f298dffaa293e7",
+      "greenLogHash": "53914212a172a0e7b77172f6d94e60fb7feccf50b6b76436e0875bc4585ee3c9",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-both-causes",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "preserves build and subscription release failures",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "[settled.cause, release.cause]",
+          "replacement": "[release.cause]"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves build and subscription release failures"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "preserves build and subscription release failures ahead of recorded interruption"
+      ],
+      "passed": [
+        "preserves build and subscription release failures ahead of recorded interruption"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "97993f417350853d32bc27f76fdac152a2f4c42ed950274c1efc0d11cc793bd1",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-both-causes.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-both-causes.green.log",
+      "redLogHash": "046610bdb552d8dd2c98c47b10a7cbd686654dcd9dd201c7b2a6ce1a2d72d71b",
+      "greenLogHash": "9835ee83750fa69007ead88111f5913b2195e771582e0b2e58c8636eb08b372a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-validator-provenance",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "builds selected checkout roles and aliases",
+      "qualification": "independent selected-role binding substitution with authenticated fixture toolkit bytes",
+      "edits": [
+        {
+          "find": "validator: validatorBytes,",
+          "replacement": "validator: verified.roleBytes['validator.mjs'],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=builds selected checkout roles and aliases"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "passed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "e392e098a0a640621d382c17c62cc4a4997a4fa121379597815caea1277ca508",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-validator-provenance.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-validator-provenance.green.log",
+      "redLogHash": "768645af6003da33fbf31ee57f0062a33cd648bf92919e8dc8553c7d30c62a27",
+      "greenLogHash": "75ee49d434c9b7de069274e6ab79f082d5cbf123ef59fbbb4030f368e9f4a3a4",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-launcher-provenance",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "builds selected checkout roles and aliases",
+      "qualification": "independent selected-role binding substitution with authenticated fixture toolkit bytes",
+      "edits": [
+        {
+          "find": "launcher: Buffer.concat([Buffer.from(createShebang() + '\\n'), Buffer.from(launcherBytes)]),",
+          "replacement": "launcher: verified.roleBytes['launcher.mjs'],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=builds selected checkout roles and aliases"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "passed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "8ae4d8eb98bfc1912d0b46ef13f5c98314cd1048179c33b36a0a66f085b658e3",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-launcher-provenance.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-launcher-provenance.green.log",
+      "redLogHash": "8bbb32d79cbee282bae88eb9719c348c671b24e7f2657576744b25aca0d79c4e",
+      "greenLogHash": "f285aed7b41b8c0fd1511b19ba0d46974a35654f2d2d0faaf60ec81fc08d9056",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-snapshotter-provenance",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "builds selected checkout roles and aliases",
+      "qualification": "independent selected-role binding substitution with authenticated fixture toolkit bytes",
+      "edits": [
+        {
+          "find": "snapshotter: snapshotterBytes,",
+          "replacement": "snapshotter: verified.roleBytes['snapshotter.ts'],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=builds selected checkout roles and aliases"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "passed": ["builds selected checkout roles and aliases from captured B while live B changes"],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "61a1b84c47529ac5cf9b67faf762836f895671eeb565189d42ed3b2b45f0de4d",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-snapshotter-provenance.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-snapshotter-provenance.green.log",
+      "redLogHash": "b42293d9be7ef4a426b9c86042521542a9d595b3c39b98b80a4784412a855789",
+      "greenLogHash": "530b3f2f0682a0fd08b57c510870e1afc242273c967596c13aeb8a589e5f6080",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-pin",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "delivers the producer Bun pin",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "define: { __PUNI_LINT_BUN_VERSION__: JSON.stringify(Bun.version) },",
+          "replacement": "define: {},"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=delivers the producer Bun pin"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "passed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "53406be750b2c72fd4f503c5c583f1ba6b6d00c61356ce103479c94296ef6953",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-pin.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-pin.green.log",
+      "redLogHash": "f5833f1bcc26e6f7609b38928b4ccf614783555a8b3984b58494d448f71230d9",
+      "greenLogHash": "80c242deee871c8945bec856944075561367954941866b693535c092ba00ba34",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-hashbang",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "delivers the producer Bun pin",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "Buffer.concat([Buffer.from(createShebang() + '\\n'), Buffer.from(launcherBytes)])",
+          "replacement": "launcherBytes"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=delivers the producer Bun pin"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "passed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "268f6540c0a04ba3b1191337f13125122cbf7d09dfef7a0a3e90c15a209aa48d",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-hashbang.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-hashbang.green.log",
+      "redLogHash": "6a2fbd4cfa68d1c53e07524b3ced4c67ab32c864a6be8756f3979a3b6e6f796e",
+      "greenLogHash": "679e18a9f5245f13b85b47918e187283d3d3e6045b70143afd2111ce2ae917e5",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-source-hashbang",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "delivers the producer Bun pin",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "emitted.outputText.replace(/^#![^\\n]*(?:\\n|$)/u, '\\n')",
+          "replacement": "emitted.outputText"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=delivers the producer Bun pin"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "passed": [
+        "delivers the producer Bun pin and one protected launcher hashbang in selected roles"
+      ],
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "mutantHash": "e696a8d5d80bb236b86bdf1c4b3afb304520f5d9b8e9ca0992ec99dca0a8bfd1",
+      "restoredHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-source-hashbang.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-source-hashbang.green.log",
+      "redLogHash": "cb107ebb9d55fb6c7d48f9c6ad10f8b34a46c6954b26d1695fa98a03499f9278",
+      "greenLogHash": "99ca4233ee7a0efb2434f9da3c4bca0880f31e454940718c03a23a3ecee8f202",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-build-roster",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+      "pattern": "declares Optique and the actual compiler",
+      "qualification": "one required build-root omission; transitive/redundant roots are not claimed as independent guards",
+      "edits": [
+        {
+          "find": "    '@optique/run',\n",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=declares Optique and the actual compiler"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "declares Optique and the actual compiler in the authenticated current build roster"
+      ],
+      "passed": [
+        "declares Optique and the actual compiler in the authenticated current build roster"
+      ],
+      "beforeHash": "4aaa162e1c7f8be37b5131fbc745a04a71b78e6202ecd48276bf634fe6f84d28",
+      "mutantHash": "7709f751062c0bd9a3fdee9eea7c7429e36427eaed19b95bcb5c30e1955f1b5e",
+      "restoredHash": "4aaa162e1c7f8be37b5131fbc745a04a71b78e6202ecd48276bf634fe6f84d28",
+      "redLog": "/tmp/puni-c26-proofs/c26-build-roster.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-build-roster.green.log",
+      "redLogHash": "d98563219fec8e6d25b6a99b52aaec0f207802e514d1a860066480e5a8080ab9",
+      "greenLogHash": "2e4b54f520d6251118dc33eb42f829a13d79a0f814d2e7371506695acc3eed5a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-first-reason",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "honors first relocation cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "first ??= signal;",
+          "replacement": "first = signal;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=honors first relocation cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "honors first relocation cancellation during outer release after archive settlement"
+      ],
+      "passed": [
+        "honors first relocation cancellation during outer release after archive settlement"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "dd519ca193c80608bd4d09792e4c056d96c30549e6bc72bd3f0042b7b3552e8f",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-first-reason.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-first-reason.green.log",
+      "redLogHash": "51eacb3ff481490b6e566160e093ef4a235967947467540435ba5b5641ec8456",
+      "greenLogHash": "68f1f1baed078a74ca212b6228599ed453edf2c70155b61122d8151db21df867",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-status",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "returns prior relocation cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "first === 'SIGINT' ? 130 : 143",
+          "replacement": "first === 'SIGINT' ? 143 : 130"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=returns prior relocation cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "returns prior relocation cancellation before reading absent candidate base and operator inputs"
+      ],
+      "passed": [
+        "returns prior relocation cancellation before reading absent candidate base and operator inputs"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "18e3bd05b3b140b33a5eef3f095f1c1d401b7fee5eb6b786ec6dcf65d169a4c5",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-status.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-status.green.log",
+      "redLogHash": "4ebf5c1c3442a9867369ff4a69843953401061f9eecb235ead76ee48ea395e72",
+      "greenLogHash": "9ca157cc85073862133409fe2ca1a3828698cdcb7d0a40f578beea9c79682ee8",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-prior",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "returns prior relocation cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (prior !== undefined) return prior;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=returns prior relocation cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "returns prior relocation cancellation before reading absent candidate base and operator inputs"
+      ],
+      "passed": [
+        "returns prior relocation cancellation before reading absent candidate base and operator inputs"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "d26fdda70c3f86d753be15e21f91fdbd876b8c3def17a0a16a12b7b698f62ccd",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-prior.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-prior.green.log",
+      "redLogHash": "9f13d31604dd4305a320b7a3800aa52e1392cbeed8652fe18806836db6e45974",
+      "greenLogHash": "1a743b52721075d326f42a57cf9745bb35e666584de6f6d57f43489cad5fbccf",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-cancel-owner",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses relocation .* dependency cancellation",
+      "qualification": "one shared invariant reached independently through six broken dependency outcomes; not six distinct guards",
+      "edits": [
+        {
+          "find": "if (cancelled === undefined)\n      throw new Error(subject + ' cancellation missing from preparation broker');",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses relocation .* dependency cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses relocation source dependency cancellation without the owning broker",
+        "refuses relocation capture dependency cancellation without the owning broker",
+        "refuses relocation reviewed capture dependency cancellation without the owning broker",
+        "refuses relocation epoch dependency cancellation without the owning broker",
+        "refuses relocation materialization dependency cancellation without the owning broker",
+        "refuses relocation build dependency cancellation without the owning broker"
+      ],
+      "passed": [
+        "refuses relocation source dependency cancellation without the owning broker",
+        "refuses relocation capture dependency cancellation without the owning broker",
+        "refuses relocation reviewed capture dependency cancellation without the owning broker",
+        "refuses relocation epoch dependency cancellation without the owning broker",
+        "refuses relocation materialization dependency cancellation without the owning broker",
+        "refuses relocation build dependency cancellation without the owning broker"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "e510b608aace70ac33ac0b6e401d80dc0732caaa614420a840a708d69d8641e0",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-cancel-owner.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-cancel-owner.green.log",
+      "redLogHash": "606104db4e82184297d01d102e49c1d8d0a56f437b4ecb588531ef331d6fadbf",
+      "greenLogHash": "32946c489047f20225e0ff227dcb6e555247849b418d16e3299bfaab5e66f02d",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-terminal",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "honors first relocation cancellation",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "return readCancellation() ?? settled.value;",
+          "replacement": "return settled.value;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=honors first relocation cancellation"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "honors first relocation cancellation during outer release after archive settlement"
+      ],
+      "passed": [
+        "honors first relocation cancellation during outer release after archive settlement"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "d6d4b62c8ca8698c522534f90f7bc987ad127cfd0011f014cfe4d706f97442aa",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-terminal.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-terminal.green.log",
+      "redLogHash": "fa645d77d6165890155cdefb2ddfa86249c9a714181845a3784bf071a671c07f",
+      "greenLogHash": "93ee5e7530fb58df58d8df5ca56b09fb38e367f8535a9c581346e43fb52cf63e",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-request",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "captures request and runtime authority",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "const selected = { ...request };",
+          "replacement": "const selected = request;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=captures request and runtime authority"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "captures request and runtime authority before the first broker callback can mutate aliases"
+      ],
+      "passed": [
+        "captures request and runtime authority before the first broker callback can mutate aliases"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "5ae34d8e84e10dc9b27e0fdfd781f22a342f0ddc85cc478acb833d8705fc9634",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-request.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-request.green.log",
+      "redLogHash": "19d5af987661bc12c3be3e1fef80d3a9cb0577c75aca72522a34d7bc5c3c48ec",
+      "greenLogHash": "fe2be08094ceb3acddad0c723cac36509ea43e58b9d05dbfa611bf00e739a347",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-runtime",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "captures request and runtime authority",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "environment: { ...context.runtime.environment },",
+          "replacement": "environment: context.runtime.environment,"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=captures request and runtime authority"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "captures request and runtime authority before the first broker callback can mutate aliases"
+      ],
+      "passed": [
+        "captures request and runtime authority before the first broker callback can mutate aliases"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "04c7de77c1383ddbcb13eeb5a1785aec56edacdbfc11282dbdfeb3ffbfd882d9",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-runtime.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-runtime.green.log",
+      "redLogHash": "9836b1023455d1b7c364647fca736e143ff8134bc70354c56f884cc7b1d98010",
+      "greenLogHash": "88a8002b5a1026eae62131f5fbb0fb4814c7ab7eca7986dd5e28b4e727eb7f1e",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-assembly-prior-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "retains relocation roots and stops after interrupted destination",
+      "qualification": "shared assembly owns immediate pre-IO cancellation; C24 owns materialization pre-IO cancellation",
+      "edits": [
+        {
+          "find": "if (prior !== undefined) return prior;",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=retains relocation roots and stops after interrupted destination"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["retains relocation roots and stops after interrupted destination reservation"],
+      "passed": ["retains relocation roots and stops after interrupted destination reservation"],
+      "beforeHash": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+      "mutantHash": "2e69dd26653bbedf56c7c2e33f501eefd4d2db489955591e5e24afa39328940d",
+      "restoredHash": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+      "redLog": "/tmp/puni-c26-proofs/c26-assembly-prior-cancel.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-assembly-prior-cancel.green.log",
+      "redLogHash": "59a597fde7b8d8c0ce1458ad205376c9a2fabe2bf7b6424622823a5a38b51700",
+      "greenLogHash": "65c1c34c47b3ac09ad55a5f45cfc2fa3be7980896dba642308147fa76d5a2b13",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-path",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses invalid selected relocation path",
+      "qualification": "early diagnostic/order; downstream explicit runtime also refuses",
+      "edits": [
+        {
+          "find": "if (path === undefined) throw new Error('trusted preparation PATH is absent');",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses invalid selected relocation path"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses invalid selected relocation path authority before output reservation"],
+      "passed": ["refuses invalid selected relocation path authority before output reservation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "18764751d3311e7ed7a88d779dec01b59f8ceb84f74369220b4bf98c12544d29",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-path.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-path.green.log",
+      "redLogHash": "c0c360f4d727c1586fb9343c999c2b72350c120f2601cc05e443d7134577fcdc",
+      "greenLogHash": "df34629329f86319e03d6cb4fe8f920404e4cceb332ca183c1b33d251b1af2c2",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-epoch-status",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses invalid selected relocation status",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (epoch.status !== 0)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses invalid selected relocation status"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses invalid selected relocation status authority before output reservation"],
+      "passed": ["refuses invalid selected relocation status authority before output reservation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "c6e2e0eff689c69c7683eb4d13a2fb5d18765576121264b7424ae634a36d4195",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-status.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-status.green.log",
+      "redLogHash": "211324e85d12c4d64f374431274249d3389099b925e9d2007d2caeb0cf136a86",
+      "greenLogHash": "4334207148d2760c628ceb7dfb7dae37028f044ca81e1c87e1c77d0c666b9465",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-epoch-utf8",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses invalid selected relocation utf8",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "const committerEpoch = new TextDecoder('utf-8', { fatal: true })",
+          "replacement": "const committerEpoch = new TextDecoder('utf-8', { fatal: false })"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses invalid selected relocation utf8"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses invalid selected relocation utf8 authority before output reservation"],
+      "passed": ["refuses invalid selected relocation utf8 authority before output reservation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "1853f264db60040744086cb8ca4ccb2e6547d11e6f272210dca46b527960792c",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-utf8.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-utf8.green.log",
+      "redLogHash": "8d82bb6f6289d7079ade5d3350caa0230f1a1156d42ef03cd3e21e024da1a191",
+      "greenLogHash": "2998f376cac16bfe4fba9ee384a2aacf26ddbb491a172be623074538fb6f5edc",
+      "observedQualification": {
+        "kind": "decoder diagnostic",
+        "observation": "Replacing fatal decoding with replacement decoding changes the observed TypeError into the epoch grammar Error. The malformed epoch still refuses.",
+        "log": "/tmp/puni-c26-proofs/c26-relocation-epoch-utf8.red.log"
+      }
+    },
+    {
+      "id": "c26-relocation-epoch-grammar",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses invalid selected relocation grammar",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (!/^(0|[1-9][0-9]*)$/u.test(committerEpoch))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses invalid selected relocation grammar"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses invalid selected relocation grammar authority before output reservation"],
+      "passed": ["refuses invalid selected relocation grammar authority before output reservation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "0160d63a25ca74fb0aeb8670d7e3b51e07c04753b51dac776b65bd217032f2db",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-grammar.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-epoch-grammar.green.log",
+      "redLogHash": "612fc080f521a1ea6c00f11cad4c4696a0ccad24f1c52ef596c54fca50d48ec5",
+      "greenLogHash": "5b4313dd46a19c300dfad6eded4f689fd81e184e249c1b316e95d951073afee5",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-release",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "preserves relocation subscription release failure",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "    unsubscribe();",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves relocation subscription release failure"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["preserves relocation subscription release failure after prior cancellation"],
+      "passed": ["preserves relocation subscription release failure after prior cancellation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "10d886b3c8f45301353777a78e34802eac061a93f7a8e3a930de0bda4c235726",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-release.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-release.green.log",
+      "redLogHash": "b0a0626a72e37852f8686b18ab64612fba493822539e3d298a0cd0586e0c86d0",
+      "greenLogHash": "0bd9870cb2dcf35b12f0ef7b2fb8d3ea05eb219ac23c4f831330a682ad268236",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-release-failure",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "preserves relocation subscription release failure",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (release !== undefined)\n    throw new PreparationFailure([...ownedDirectories], archivePath, release.cause);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves relocation subscription release failure"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["preserves relocation subscription release failure after prior cancellation"],
+      "passed": ["preserves relocation subscription release failure after prior cancellation"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "9f305d9ede7ec9c7fb69cd157b333252969e79368ecf7f8f43797d8d5b8b9574",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-release-failure.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-release-failure.green.log",
+      "redLogHash": "0c9f145e8a8541a20f825d76ddfe61bd5958bba87095d59cce5d249300c4d0b2",
+      "greenLogHash": "45c41aab02e530402a5107011d5ebe22ed637ef153b9c98c44eb683a26421c9a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-both-causes",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "preserves relocation input and release failures",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "[settled.cause, release.cause]",
+          "replacement": "[release.cause]"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves relocation input and release failures"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["preserves relocation input and release failures together ahead of interruption"],
+      "passed": ["preserves relocation input and release failures together ahead of interruption"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "a35fd0c69a7869316084913dfce125e1e5c0a7275f99da207c2a409a73fba00b",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-both-causes.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-both-causes.green.log",
+      "redLogHash": "5fc35e9c395837b2ea296c0190dbc02f6ab4a779de5ce14db4d45442d5582a14",
+      "greenLogHash": "0c849fea57be787698a9cf7da9fb2e14382ded633240cec9d118eec7e7f41b1d",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-error-before-cancel",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "preserves relocation input and release failures",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "throw new PreparationFailure([...ownedDirectories], archivePath, cause);",
+          "replacement": ""
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves relocation input and release failures"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["preserves relocation input and release failures together ahead of interruption"],
+      "passed": ["preserves relocation input and release failures together ahead of interruption"],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "d68e9b56161febb92f97e5009da91155950363f4b9852e502a1ea17743da1a3a",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-error-before-cancel.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-error-before-cancel.green.log",
+      "redLogHash": "99cf608f046c4740349d53a3b29126a75a5ed00245f1f2b0311ca18d2e163a53",
+      "greenLogHash": "b3ca62408e2dc7de081432634b32b0f99d5aa1523311675cab2914f9da6d09cb",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-relocation-notice-forward",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "delivers the prepared compiler license",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "notices: executables.notices,",
+          "replacement": "notices: [],"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=delivers the prepared compiler license"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "delivers the prepared compiler license and modification notice inside the relocation archive"
+      ],
+      "passed": [
+        "delivers the prepared compiler license and modification notice inside the relocation archive"
+      ],
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "mutantHash": "505b709c9ebdf06653fd7362560ed51494df273ac1c68d2160427d8caaceb5d0",
+      "restoredHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "redLog": "/tmp/puni-c26-proofs/c26-relocation-notice-forward.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-relocation-notice-forward.green.log",
+      "redLogHash": "d34f385ee8158c194abfb3405ce8bdfcb532c623c95f54ea7b2f7f0a157bec06",
+      "greenLogHash": "be82e218f42d459dacdb887f9a5b23e9f135558e75758dd597af2566ff181603",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-notice-readback",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+      "pattern": "refuses written compiler notice drift",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (hashBytes(readFileSync(target)) !== hashBytes(notice.bytes))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses written compiler notice drift"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses written compiler notice drift before certification and archive reservation"
+      ],
+      "passed": [
+        "refuses written compiler notice drift before certification and archive reservation"
+      ],
+      "beforeHash": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+      "mutantHash": "dbed8905fc4be20a4f8e0b5dfdb465acb576d7a41204aba59b948098c5ffc409",
+      "restoredHash": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+      "redLog": "/tmp/puni-c26-proofs/c26-notice-readback.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-notice-readback.green.log",
+      "redLogHash": "fd1b0a9c515d6a14db201a33f86e5dbec45dde8f351dc0e319cae1e6f8a12999",
+      "greenLogHash": "b2b4152fc6c7c7ec9ec722facc4df0149139e0bdae673d730b26aa56ef022da2",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-member-external",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "refuses candidate-owned role targets",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (isWithin(candidate, canonical))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses candidate-owned role targets"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses candidate-owned role targets inside ancestor base3",
+        "refuses candidate-owned role targets inside ancestor base4"
+      ],
+      "passed": [
+        "refuses candidate-owned role targets inside ancestor base3",
+        "refuses candidate-owned role targets inside ancestor base4"
+      ],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "ee2c68691a78fb527b9d2d2167f8447ec7885ad7b0398b291dab7d30e0eace82",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-member-external.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-member-external.green.log",
+      "redLogHash": "c57f39a043fcabef5d9201aca2fa15abe92b1566e68a941bfff9d2d9bb2af390",
+      "greenLogHash": "d5a3073c37c3c45476ec66333bd5889ef4d0ab835e60b74ca598f77dc6c47aea",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-member-contained",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "refuses escaped metadata",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (!isWithin(root, canonical))",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses escaped metadata"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses escaped metadata inside base3", "refuses escaped metadata inside base4"],
+      "passed": ["refuses escaped metadata inside base3", "refuses escaped metadata inside base4"],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "a039d1d2a9c906b28c13d8d7f00049f4ed052564e1c8cf9c97bec20ac0edae28",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-member-contained.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-member-contained.green.log",
+      "redLogHash": "7e366801bc451fdbab89c76cf4851e29737582145a669215b4d30518ba90250a",
+      "greenLogHash": "f945ed510206bde8f8787883cb3124db95903c761bb024564838774efb2f7e80",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-member-regular",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "refuses FIFO base[34] member manifest.json",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (!statSync(canonical).isFile())\n      throw new ActivationRefusal('relocation base member is not a regular file: ' + path);",
+          "replacement": "if (false)\n      throw new ActivationRefusal('relocation base member is not a regular file: ' + path);"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses FIFO base[34] member manifest.json"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "refuses FIFO base3 member manifest.json before blocking byte reads",
+        "refuses FIFO base4 member manifest.json before blocking byte reads"
+      ],
+      "passed": [
+        "refuses FIFO base3 member manifest.json before blocking byte reads",
+        "refuses FIFO base4 member manifest.json before blocking byte reads"
+      ],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "dca7cd8a46d58e9985925f01d1221711345ab7c7bd0760f6c913fa26a7e7ff76",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-member-regular.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-member-regular.green.log",
+      "redLogHash": "df34a8acf781bff4589d9a44fa8cfd2915c0fdf2f55f1df8338229826fa462d8",
+      "greenLogHash": "e4f4f1516c3b44dc43e7b3364ecb92cbf53e70f5558c705e6fb90cb99ca19213",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-native",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "selects native base authority",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "const root = realpathSync.native(directory),",
+          "replacement": "const root = realpathSync(directory),"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=selects native base authority"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["selects native base authority for a symlink-parent operand with two valid bases"],
+      "passed": ["selects native base authority for a symlink-parent operand with two valid bases"],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "f22bdaa526ae7a58ff757e5119ac3c7cba0560bcebab63a823955b383f281732",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-native.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-native.green.log",
+      "redLogHash": "c17e0f97dff0e48cc2ffde9f3035e119420ccc532507ec722563b78afeb8088b",
+      "greenLogHash": "3ceccd250eea13e28a1831e8259df24ecb2c9de6e1632f3544869f0cf936ba34",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-schema-paths",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "verifies external regular base",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "const paths = manifest.schemaVersion === 3 ? legacyRolePaths : bunRolePaths;",
+          "replacement": "const paths = manifest.schemaVersion === 4 ? legacyRolePaths : bunRolePaths;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=verifies external regular base"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "verifies external regular base3 without executing its roles",
+        "verifies external regular base4 without executing its roles"
+      ],
+      "passed": [
+        "verifies external regular base3 without executing its roles",
+        "verifies external regular base4 without executing its roles"
+      ],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "980b2f306fffeccd4c58f37f880378d1affaff3c755eca5130205a393d5b0343",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-schema-paths.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-schema-paths.green.log",
+      "redLogHash": "86a9352b66e1318464a9b279578f2eff27beb6c02b32b5082abfb0c19edc8018",
+      "greenLogHash": "2fb6da2646e06d6b3c168e384ca4a0e8a290243ed5d9273fff2c78523ddd00c9",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-base-verification",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+      "pattern": "retains complete digest verification",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "return verifyActivation(root);",
+          "replacement": "return { directory: root, identity: hashBytes(readFileSync(join(root, 'manifest.json'))), manifest };"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=retains complete digest verification"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "retains complete digest verification after base3 member preflight",
+        "retains complete digest verification after base4 member preflight"
+      ],
+      "passed": [
+        "retains complete digest verification after base3 member preflight",
+        "retains complete digest verification after base4 member preflight"
+      ],
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "mutantHash": "1024c5d9797d436d0f9ffd410eedc9f15de903ccfac694e1c23d725ac5441f05",
+      "restoredHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "redLog": "/tmp/puni-c26-proofs/c26-base-verification.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-base-verification.green.log",
+      "redLogHash": "f9f7801c1872392dfa9d5604d1b315d67ae200f2ce36946539abeb401441de89",
+      "greenLogHash": "118a38a60fddcec8cf49106a46a7d4ed05844f95ade96ca83fb3a1f15a8c8e8e",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-compiler-upstream",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "pattern": "refuses changed compiler upstream",
+      "qualification": "input-specific diagnostic: changed upstream also differs from the independently pinned output",
+      "edits": [
+        {
+          "find": "if (hashBytes(upstream) !== compilerUpstreamIdentity)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses changed compiler upstream"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses changed compiler upstream bytes"],
+      "passed": ["refuses changed compiler upstream bytes"],
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "mutantHash": "a0982cbfeaab419b6fe063193bc9e3d8fc80f7995dff01a9230d750207380ab7",
+      "restoredHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "redLog": "/tmp/puni-c26-proofs/c26-compiler-upstream.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-compiler-upstream.green.log",
+      "redLogHash": "0b50ea89ee8f077b116bf08716f30747b029030d8fab72dad69bcf6e225b6eed",
+      "greenLogHash": "9356af665df163a98e5c449ca2d7ea721f70abf9e37dfa471f4e573cbf388ab6",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-compiler-output",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "pattern": "refuses a broken transform dependency",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (hashBytes(source) !== outputIdentity)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses a broken transform dependency"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses a broken transform dependency before returning compiler bytes"],
+      "passed": ["refuses a broken transform dependency before returning compiler bytes"],
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "mutantHash": "1ff13b2c12cfca633c160ce0a054b3b51223e90e1aa31c6877df479a3ff1a7a6",
+      "restoredHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "redLog": "/tmp/puni-c26-proofs/c26-compiler-output.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-compiler-output.green.log",
+      "redLogHash": "8013bd7a1004cfc7b45ada73468b50d76ae18f617b7b3410d9e08e05ddf4e320",
+      "greenLogHash": "2ec56ed89d6e5b32e85f9711ce865a1b5141df9dd376e3b49dfe4d614915c0e3",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-compiler-license",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "pattern": "refuses changed compiler license",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (hashBytes(license) !== licenseIdentity)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses changed compiler license"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses changed compiler license bytes"],
+      "passed": ["refuses changed compiler license bytes"],
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "mutantHash": "4cf65d8d1456b82148c9d3c8dc623c633c67a414f8d5236124440fb27adc8a74",
+      "restoredHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "redLog": "/tmp/puni-c26-proofs/c26-compiler-license.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-compiler-license.green.log",
+      "redLogHash": "4a54378d803f87497bbdad9b2c39727184f1a8201db0315de596d8c484725164",
+      "greenLogHash": "c27d1be530cc0ad217c445a6e17124a3b899890b9d47f64dff8da91fb1b9af64",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-compiler-notice",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "pattern": "refuses changed compiler notice",
+      "qualification": "named production-path RED and restored GREEN",
+      "edits": [
+        {
+          "find": "if (hashBytes(notice) !== upstreamNoticeIdentity)",
+          "replacement": "if (false)"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=refuses changed compiler notice"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": ["refuses changed compiler notice bytes"],
+      "passed": ["refuses changed compiler notice bytes"],
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "mutantHash": "99cd59d643183cc0e51cda0c0dc11ac6f100f24cc734cf290ec04d9d298aed2c",
+      "restoredHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "redLog": "/tmp/puni-c26-proofs/c26-compiler-notice.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-compiler-notice.green.log",
+      "redLogHash": "bcbed24cf66b1396b09570f07c14c01c17daa3f25611436ba4da93d77dec76f4",
+      "greenLogHash": "c1b830e61067981941fc1b6b59abba70696e849187419ec73c76143972b3ae6a",
+      "observedQualification": null
+    },
+    {
+      "id": "c26-compiler-loader-policy",
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "test": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+      "pattern": "preserves normal compiler use while refusing the actual plugin loader",
+      "qualification": "combined removal of loader-denial transform plus repinning its output to upstream; controlled plugin executes, not an independent identity-check bypass",
+      "edits": [
+        {
+          "find": "const disabledLoader =\n  '      require: (_baseDir, _moduleName) => ({\\n        module: void 0,\\n        modulePath: void 0,\\n        error: new Error(\"PUNI language-service plugin loading disabled\")\\n      })';\n",
+          "replacement": "const disabledLoader = loaderSource;\n"
+        },
+        {
+          "find": "const outputIdentity = 'c5929df1a9242faa483917053cc8c08b1b9cb0e15fb630bd9eb6565488808874';",
+          "replacement": "const outputIdentity = compilerUpstreamIdentity;"
+        }
+      ],
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "./apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern=preserves normal compiler use while refusing the actual plugin loader"
+      ],
+      "state": "killed-restored",
+      "redExit": 1,
+      "greenExit": 0,
+      "failed": [
+        "preserves normal compiler use while refusing the actual plugin loader before execution"
+      ],
+      "passed": [
+        "preserves normal compiler use while refusing the actual plugin loader before execution"
+      ],
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "mutantHash": "6d994a9316a640be3558a4bda5e3854af4da6f6d28bae6cc326dab0c6fb60fd4",
+      "restoredHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "redLog": "/tmp/puni-c26-proofs/c26-compiler-loader-policy.red.log",
+      "greenLog": "/tmp/puni-c26-proofs/c26-compiler-loader-policy.green.log",
+      "redLogHash": "e521c21916eff7b1c09b66a3864c7ed3872cad6970156673e4b32af4d5d7da08",
+      "greenLogHash": "7482c1fe82d8e83f7bbfcea7c22a7b9576a1a758ca51ca9452dbcda1c47db8d6",
+      "observedQualification": null
+    }
+  ],
+  "excluded": [],
+  "proofPlanSha256": "66557dc00b17abd9ac412c08f481d02cfca7b2f72f2c432dffd2bb67f70f67d4",
+  "proofAuditSha256": "21388605121c717306e55accad723784334650c5250b84dd602c7ea51efbda29",
+  "proofSourceHashes": {
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts": "4aaa162e1c7f8be37b5131fbc745a04a71b78e6202ecd48276bf634fe6f84d28",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67"
+  },
+  "proofTestHashes": {
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts": "4fa2f0d1e19accdfbdfcde377fd25723fd7452d1898af5d5a6fed7aaf4507671",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts": "b679d0c0f319e213f20dc8b7126fe7a1c07dc54a00659dafdad2abd331701708",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts": "3de801ea2b90da508f6dfd386dee39390e2c29356794c2e4b8092fe9ab950c25",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts": "18f7b5c72d5f87fb77f3fb3d396ec4cc50ed8ab2d99e376a438da00212482a0f"
+  },
+  "finalHashes": {
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts": "c17cac6bd75af189fb9006d02cff475ba139f0b6abc4541a8b77c4749616f857",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts": "f6aefe61351cdc1ff290874d45964ccf03ed8fdf3a3ae612919d0b5304c6560d",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+    "openspec/changes/puni-cli/design.md": "38488b47b7a558e92d183b0f1c10c0efd59d830e5a974f3e47b08788e49c5946",
+    "openspec/changes/puni-cli/specs/puni-cli/spec.md": "adf0279e1f68ef9aca53c70bf07cec1d6f3809464100e8663e210c0e812fe658",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts": "18f7b5c72d5f87fb77f3fb3d396ec4cc50ed8ab2d99e376a438da00212482a0f",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts": "3de801ea2b90da508f6dfd386dee39390e2c29356794c2e4b8092fe9ab950c25",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts": "dd15048ba40d8d36827712924143ce946e1c5c3155165962169aa22101958019",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts": "4fa2f0d1e19accdfbdfcde377fd25723fd7452d1898af5d5a6fed7aaf4507671",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts": "b679d0c0f319e213f20dc8b7126fe7a1c07dc54a00659dafdad2abd331701708",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+    "docs/adr/0083-deny-language-service-loaders-in-prepared-compilers.md": "9b92c5b45e3329005d5138785c852968b3c94dacb59f066d12ce4a3450320863"
+  },
+  "commentComparison": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+      "beforeHash": "25ed74de962126b17b97049dde01a855b79ff6762e74d653757e61df8e9b68e9",
+      "afterHash": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+      "executableHash": "89124a06e41f923632a39ddb35fbd2798737c8ba8a4bb98dfdc51390c43b63e8",
+      "notes": 35,
+      "formattedHash": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+      "formattedExecutableHash": "89124a06e41f923632a39ddb35fbd2798737c8ba8a4bb98dfdc51390c43b63e8",
+      "formattedExecutableEqual": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+      "beforeHash": "4aaa162e1c7f8be37b5131fbc745a04a71b78e6202ecd48276bf634fe6f84d28",
+      "afterHash": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+      "executableHash": "8fabf271b525c4a00d53cebbb22cbd6e7fe6c47bae2f61d54f42fdd31f8faf45",
+      "notes": 1,
+      "formattedHash": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+      "formattedExecutableHash": "8fabf271b525c4a00d53cebbb22cbd6e7fe6c47bae2f61d54f42fdd31f8faf45",
+      "formattedExecutableEqual": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+      "beforeHash": "52678732865ee83cb2e9e6f2039f38ef9f45aee306ff75511170b56e0ce3333a",
+      "afterHash": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+      "executableHash": "308037f441a3358bf864cb87ce32e044c26b2e5f981e2938dc461bcaddc0c685",
+      "notes": 16,
+      "formattedHash": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+      "formattedExecutableHash": "308037f441a3358bf864cb87ce32e044c26b2e5f981e2938dc461bcaddc0c685",
+      "formattedExecutableEqual": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+      "beforeHash": "31a238b52502ae66d3e331f272d405380a801a0dca0e6750556a78c572b75a84",
+      "afterHash": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+      "executableHash": "b7c665a5117741d314dd604451d3b8b03d603a0fd212e9f24a1eb7617442650e",
+      "notes": 2,
+      "formattedHash": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+      "formattedExecutableHash": "b7c665a5117741d314dd604451d3b8b03d603a0fd212e9f24a1eb7617442650e",
+      "formattedExecutableEqual": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+      "beforeHash": "5035d1b122c28c761027a7f98c43c8b06bbcf4290d8b92bdf6ddeb4525a54f9f",
+      "afterHash": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+      "executableHash": "be4acbae9e34eb7cfebc66d6f92c9e85366a52c0cc8711ab077da88f304f0593",
+      "notes": 6,
+      "formattedHash": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+      "formattedExecutableHash": "be4acbae9e34eb7cfebc66d6f92c9e85366a52c0cc8711ab077da88f304f0593",
+      "formattedExecutableEqual": true
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+      "beforeHash": "987868a07bde9651135d8327cb185dd3e5dce65434b37dd5ce7fbf8a028bed67",
+      "afterHash": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+      "executableHash": "c537eefca27de66f5be71ed4a902698696f72ab7a5f0bc9c5735cabb48840f43",
+      "notes": 5,
+      "formattedHash": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+      "formattedExecutableHash": "c537eefca27de66f5be71ed4a902698696f72ab7a5f0bc9c5735cabb48840f43",
+      "formattedExecutableEqual": true
+    }
+  ],
+  "review": {
+    "state": "cleared-internal-source-and-evidence",
+    "audit": {
+      "scope": "Read-only C26 source/evidence review; no tests/mutations independently run. Independently executed only hash/receipt reconstruction and Bun transpilation of archived/current source for executable equality.",
+      "counts": {
+        "canonicalFaults": 65,
+        "uniqueMutantHashes": 65,
+        "namedRedOccurrences": 78,
+        "logFiles": 130,
+        "frozenArchivedPaths": 16,
+        "currentProofNotes": 65,
+        "annotatedSourcePaths": 6
+      },
+      "integrityFindings": [],
+      "proofChecks": [
+        "All recorded edits apply once to their archived source and reconstruct mutant hashes",
+        "All before/restored hashes equal exact archived source hashes",
+        "All 16 frozen archive hashes match plan; nonannotated current paths and all four tests match archives at audit",
+        "All 130 log hashes match; exact named failed/passed outcomes and exit-state metadata reconcile",
+        "All 65 IDs have exactly one adjacent current Proof note with each failed test name",
+        "All six independently transpiled current sources have identical minified Bun JavaScript to pre-fault/pre-comment baseline and match comparison receipt hashes"
+      ],
+      "executableEquality": [
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+          "sameJavaScript": true,
+          "currentHash": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+          "javascriptHash": "89124a06e41f923632a39ddb35fbd2798737c8ba8a4bb98dfdc51390c43b63e8",
+          "receiptHashesMatch": true
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+          "sameJavaScript": true,
+          "currentHash": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+          "javascriptHash": "8fabf271b525c4a00d53cebbb22cbd6e7fe6c47bae2f61d54f42fdd31f8faf45",
+          "receiptHashesMatch": true
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+          "sameJavaScript": true,
+          "currentHash": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+          "javascriptHash": "308037f441a3358bf864cb87ce32e044c26b2e5f981e2938dc461bcaddc0c685",
+          "receiptHashesMatch": true
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts",
+          "sameJavaScript": true,
+          "currentHash": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+          "javascriptHash": "b7c665a5117741d314dd604451d3b8b03d603a0fd212e9f24a1eb7617442650e",
+          "receiptHashesMatch": true
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+          "sameJavaScript": true,
+          "currentHash": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+          "javascriptHash": "be4acbae9e34eb7cfebc66d6f92c9e85366a52c0cc8711ab077da88f304f0593",
+          "receiptHashesMatch": true
+        },
+        {
+          "path": "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+          "sameJavaScript": true,
+          "currentHash": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+          "javascriptHash": "c537eefca27de66f5be71ed4a902698696f72ab7a5f0bc9c5735cabb48840f43",
+          "receiptHashesMatch": true
+        }
+      ],
+      "observedQualifications": {
+        "c26-build-opaque": {
+          "kind": "diagnostic/order",
+          "observation": "Removing the AST opaque-loader check still reaches Bun's strict Bundle failed refusal. The named RED fails the boundary-specific diagnostic assertion; it does not show admission of a usable opaque-loader bundle.",
+          "log": "/tmp/puni-c26-proofs/c26-build-opaque.red.log"
+        },
+        "c26-build-jsx-refusal": {
+          "kind": "diagnostic/order",
+          "observation": "Removing explicit preserved-JSX refusal still reaches Bun's Unexpected < refusal; no usable JSX-preserve bundle is admitted.",
+          "log": "/tmp/puni-c26-proofs/c26-build-jsx-refusal.red.log"
+        },
+        "c26-build-transform-errors": {
+          "kind": "diagnostic/order",
+          "observation": "Removing the TypeScript diagnostic fence still refuses Unexpected ; during scanning before Bun.build; no malformed source bundle is admitted.",
+          "log": "/tmp/puni-c26-proofs/c26-build-transform-errors.red.log"
+        },
+        "c26-relocation-epoch-utf8": {
+          "kind": "decoder diagnostic",
+          "observation": "Replacing fatal decoding with replacement decoding changes the observed TypeError into the epoch grammar Error. The malformed epoch still refuses.",
+          "log": "/tmp/puni-c26-proofs/c26-relocation-epoch-utf8.red.log"
+        },
+        "c26-build-macro": {
+          "kind": "unexpected build admission",
+          "observation": "Removing macro-attribute refusal makes the build return success, failing the expected Error assertion. The later marker-absence assertion is not reached; this mutant log does not independently prove sentinel execution.",
+          "log": "/tmp/puni-c26-proofs/c26-build-macro.red.log"
+        }
+      },
+      "otherQualifications": [
+        "Lexical-root and compiler-input identity faults preserve early diagnostics while later native/output guards refuse",
+        "Compound compiler metadata fault exercises wrong-version only",
+        "First role await removal starts a second role while first is gated; records ordered settlement, not a type-correct mutant",
+        "Combined compiler loader-denial removal and upstream output repin reaches actual sys.require module execution; not an independent identity bypass",
+        "Captured-module, missing-map/load/output presence failures include diagnostic-only or order evidence",
+        "One required build-root omission is proved; not each transitive root independently",
+        "Schema3/4 map reversal tests correct layout selection, not a novel artifact admission weakness",
+        "Current internal relocation fixture uses real new launcher/snapshotter with controlled certificate peer; separate full-provider probe proves source build/public declaration/plugin nonexecution, not full relocation certification",
+        "Stable metadata premise; GNU tar/Linux qualification; no public package/default cutover, host gate, deployment or whole-goal completion"
+      ],
+      "sourceConclusion": "No remaining material source blocker found in reviewed C26 scope. Base native/member preflight, strict unresolved imports and pinned loader denial, source-bound executable roles, notice delivery/readback, cancellation/failure priority and shared archive ownership remain coherent.",
+      "currentHashes": {
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts": "c17cac6bd75af189fb9006d02cff475ba139f0b6abc4541a8b77c4749616f857",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts": "348a8debbba2e6972608cf228b8121ba68e2923bb0439be693e602a907428d84",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts": "f6aefe61351cdc1ff290874d45964ccf03ed8fdf3a3ae612919d0b5304c6560d",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts": "f517cf1e8c85e14116d9a268aaeebb86dfcc1847bc78f8119e601b276f0bb1a8",
+        "openspec/changes/puni-cli/design.md": "38488b47b7a558e92d183b0f1c10c0efd59d830e5a974f3e47b08788e49c5946",
+        "openspec/changes/puni-cli/specs/puni-cli/spec.md": "adf0279e1f68ef9aca53c70bf07cec1d6f3809464100e8663e210c0e812fe658",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts": "18f7b5c72d5f87fb77f3fb3d396ec4cc50ed8ab2d99e376a438da00212482a0f",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts": "3d2d70a060c6cedb791b7f7786bb0f5181b9c2f48572951c26c0d64faffe52ec",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts": "3de801ea2b90da508f6dfd386dee39390e2c29356794c2e4b8092fe9ab950c25",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts": "dd15048ba40d8d36827712924143ce946e1c5c3155165962169aa22101958019",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts": "4fa2f0d1e19accdfbdfcde377fd25723fd7452d1898af5d5a6fed7aaf4507671",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts": "7c541a0aadd5039d28280c000c7e7c21f3ccab855886780ec6286e5e77923055",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts": "b679d0c0f319e213f20dc8b7126fe7a1c07dc54a00659dafdad2abd331701708",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts": "43b5659c32f1f1697162f1f44a07d53c586846daed99100eb577d13fc5bebdfc",
+        "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts": "6f808c376794cc3d937686e95577c3cacaab73682137957f67b5758f2ec9b9a7",
+        "docs/adr/0083-deny-language-service-loaders-in-prepared-compilers.md": "9b92c5b45e3329005d5138785c852968b3c94dacb59f066d12ce4a3450320863"
+      },
+      "checksReadAtAudit": [
+        {
+          "id": "final-lint",
+          "argv": [
+            "bunx",
+            "eslint",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/activation.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-toolkit.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.test.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/preparation-compiler.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-base.test.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-inputs.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.test.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.test.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-bun-relocation.ts",
+            "apps/twilight-structure/twilight-burokrat/cli/src/policy/prepared-activation.ts"
+          ],
+          "exitCode": 0,
+          "seconds": 4.952295149,
+          "log": "/tmp/puni-c26-final-lint.log",
+          "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "pendingChecks": "Parent final14-file regression was running at last status. Do not infer passing completion from this audit. Parent separately reported final forced types0; only receipts present above are independently hash-checked.",
+      "artifacts": {
+        "plan": "/tmp/puni-c26-proof-plan.json",
+        "proofs": "/tmp/puni-c26-proofs.json",
+        "comparison": "/tmp/puni-c26-independent-js.json",
+        "fullProviderProbe": "/tmp/puni-c26-built-provider-plugin.json"
+      }
+    },
+    "finalRegressionOwnership": "parent observed final415/0 after source audit; no independent test rerun claimed"
+  },
+  "fullProviderProbe": {
+    "revision": "c9adb094c8032a8122193b96d595907f9e43867c",
+    "candidateRevision": "ff3608b45b9b439a2a47163dcffa698a42ceb50f",
+    "status": 0,
+    "pluginExecuted": false,
+    "publicDeclarations": 1,
+    "stdoutSha256": "edb2f3558d28a169fdd8171cc666e216ff3cdb25797242bec2951d01efe0cf21",
+    "compilerTransforms": [
+      {
+        "kind": "language-service-plugins-disabled",
+        "upstream": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+        "output": "c5929df1a9242faa483917053cc8c08b1b9cb0e15fb630bd9eb6565488808874",
+        "license": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+        "notice": "c83d6c93f9a0b7ab981f61c4a6253211b352e7df258be938e7cf8a66d1918be4"
+      }
+    ],
+    "notices": [
+      {
+        "path": "licenses/typescript-preparation/LICENSE.txt",
+        "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47"
+      },
+      {
+        "path": "licenses/typescript-preparation/NOTICE",
+        "sha256": "c83d6c93f9a0b7ab981f61c4a6253211b352e7df258be938e7cf8a66d1918be4"
+      }
+    ]
+  },
+  "macroRuntimeProbe": {
+    "bun": "1.4.4",
+    "records": [
+      {
+        "name": "cli-disabled",
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "build",
+          "--no-macros",
+          "/tmp/puni-c26-macro-xaMKzC/entry.ts",
+          "--target=bun",
+          "--outfile=/tmp/puni-c26-macro-xaMKzC/cli.mjs"
+        ],
+        "exitCode": 1,
+        "marker": false,
+        "stdout": "",
+        "stderr": "1 | import{produce}from\"./macro.ts\" with {type:\"macro\"};console.log(produce());\n                                                                    ^\nerror: Macros are disabled\n    at /tmp/puni-c26-macro-xaMKzC/entry.ts:1:65\n"
+      },
+      {
+        "name": "api-disabled",
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "--no-macros",
+          "/tmp/puni-c26-macro-xaMKzC/build.ts"
+        ],
+        "exitCode": 0,
+        "marker": true,
+        "stdout": "{\"success\":true,\"outputs\":1}\n",
+        "stderr": ""
+      },
+      {
+        "name": "api-control",
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "/tmp/puni-c26-macro-xaMKzC/build.ts"
+        ],
+        "exitCode": 0,
+        "marker": true,
+        "stdout": "{\"success\":true,\"outputs\":1}\n",
+        "stderr": ""
+      }
+    ]
+  },
+  "approvalReview": {
+    "action": "Enable build-global allowUnresolved empty-pattern when an authenticated vendor loader exists",
+    "state": "rejected-before-execution",
+    "reason": "Global unresolved-import setting could permit arbitrary first-party unresolved imports; broad persistent security weakening not specifically authorized",
+    "response": "Deleted unexecuted source writer; verified source retains allowUnresolved:[]; no retry or indirect execution of rejected approach",
+    "safeAlternativeUnderReview": "Keep strict bundler policy and replace only pinned compiler language-service plugin loader with an explicit refusal, preserving existing PUNI no-candidate-plugin contract",
+    "wholeGoal": "active; work continues",
+    "safeAlternativeStatus": "implemented and Astra-reviewed: strict allowUnresolved:[] retained; exact pinned language-service loader denied before resolve; upstream positive/transformed negative plus actual built provider plugin canaries and archive notices verified"
+  },
+  "failedChecks": [
+    "Initial missing relocation export RED; intentionally deferred dependency-cancellation tests were added after the409-test baseline, then included in final checks.",
+    "Actual full provider probes first refused absent source-map-support then parse5; fixed explicit authenticated build roster before successful full build/extraction.",
+    "TypeScript6 proxy metadata initially compared wrapper6.0.2 rather than actual @typescript/old6.0.3; fixture/identity checks corrected.",
+    "Actual executable source hashbang triggered Bun scanner Unexpected hashbang; scanner-only removal exposed duplicate delivered directives. Final transform removes the source directive before sealed build and emits one protected producer directive.",
+    "New test setup failures: permission-0444 mutation required explicit test chmod; aggregate bundler failures required checking nested diagnostics; JSX refusal fixture initially lost a required alias and was repaired.",
+    "Test lint/type corrections: mixed string/number names, inline type imports, raw reflected values, readonly argv, buffer unions, possibly absent callbacks and index-signature access.",
+    "Two proof-plan anchors were nonunique and tightened before mutation. No failed or surviving mutation attempt is hidden: all65 actual attempted faults are canonical killed/restored."
+  ],
+  "qualifications": [
+    "Base3/4 is verified lineage; historical and toolkit executable role canaries never run. Actual selected launcher/snapshotter execute a controlled certificate peer in relocation tests; this establishes orchestration, not semantic Burokrat certification.",
+    "The separate actual full-provider probe built19106 captured entries with358 authenticated dependency packages, extracted one public declaration with a candidate compiler-plugin/preload/prepare sentinel absent. It is separate from the controlled full-certificate archive fixture.",
+    "Native source/dependency/configuration closure is bound under stable private-root/Git/operator-metadata premises. This is not an execution sandbox for approved provider code.",
+    "Global --no-macros does not constrain Bun.build in pinned Bun1.4.4; original AST macro attributes refuse before scanning/building. The macro mutation log proves unexpected successful build, not independently reached sentinel-absence assertion.",
+    "Diagnostic/order rows retain their explicit planned and observed qualifications. Wrong-version metadata mutation does not independently cover null/object/missing-field predicates; transitive build roots are not counted as independent safety guards.",
+    "The compiler-loader removal plus upstream-output repin is one combined fault. Installed TypeScript and the historical paths-observation derivative remain unchanged; the actual upstream-positive/transformed-negative sentinel is separate from input/output identity checks.",
+    "Compiler transform provenance is returned by the builder. Relocation forwards and archives license/modification notices, without persisting that transform manifest in the public preparation outcome.",
+    "All65 proof comments retain identical whitespace-minified Bun output before insertion and after final formatting. Native forced compilation precedes time-sensitive process/FIFO tests.",
+    "GNU tar and Linuxx64 evidence do not qualify Mac or Windows. No reproducible role bytes across differing private roots, registry ownership, public package, default cutover, exact-SHA host gate or deployment is claimed."
+  ],
+  "remaining": [
+    "Build all five current toolkit roles from one selected source and produce usable packaged preparation entrypoints.",
+    "Add the shared preparation executable/root lifetime owner, bootstrap/admission/CI Bun ports and coherent toolkit2/activation4 default cutover.",
+    "Finish the public installed PUNI package, every client operation/helper, canonical naming, complete first-party operational Bun conversion and consumer-based executable inventory.",
+    "Complete original WBS hierarchy/settings/spaces/step-catalogue scope, combined exact-SHA host gate and authorized rollout."
+  ],
+  "wholeGoal": "active"
+}

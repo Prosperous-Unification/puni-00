@@ -70,7 +70,7 @@ test('same-checkout emitter supplies the runtime document without schema compila
     { cwd: root },
   );
   expect(emission.exitCode).toBe(0);
-  expect(readFileSync(artifact, 'utf8')).toContain('postApiProjectsByIdCommands');
+  expect(readFileSync(artifact, 'utf8')).toContain('postApiWorkPackagesByIdCommands');
   expect(boot()).toEqual({ exitCode: 0, stderr: '' });
   // The runtime bundle must not carry validators or the shared shape registry.
   expect(readFileSync(entry, 'utf8')).not.toContain('class Ajv');

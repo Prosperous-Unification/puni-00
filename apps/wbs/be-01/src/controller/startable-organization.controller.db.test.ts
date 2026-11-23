@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
- * The startable read (`GET /api/projects/:id/startable`, `wbs-team-claims`
+ * The startable read (`GET /api/work-packages/:id/startable`, `wbs-team-claims`
  * task 3.2) under organization isolation, over real SQLite and the production
  * organization access; see {@link OrganizationHarness}. Rows, labels and
  * claims are seeded as SQL: the claim command's own tests cover the writes.
@@ -19,9 +20,11 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -46,7 +49,7 @@ beforeEach(async () => {
     ['w-090', null, 1, null],
   ] as const) {
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
       [id, own, parent, position, `Item ${id}`, frozen],
     );
   }
@@ -73,23 +76,26 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return await createFixturePackage(h, username, name);
 }
 
-async function stepsOf(username: string, projectId: string): Promise<[string, string]> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function stepsOf(username: string, workPackageId: string): Promise<[string, string]> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const { steps } = answer.body as { steps: { id: string }[] };
   const first = steps.at(0);
   const second = steps.at(1);
-  if (first === undefined || second === undefined) throw new Error('the project has no two steps');
+  if (first === undefined || second === undefined)
+    throw new Error('the work package has no two steps');
   return [first.id, second.id];
 }
 
 describe('the startable read', () => {
   it("answers a member and a viewer alike, with the organization's own names", async () => {
-    const forMember = await h.call('ada', 'GET', `/api/projects/${own}/startable?team=tm-platform`);
+    const forMember = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${own}/startable?team=tm-platform`,
+    );
     expect(forMember).toMatchObject({
       status: 200,
       body: {
@@ -145,13 +151,13 @@ describe('the startable read', () => {
         ],
         doesNotFit: [],
         resources: [],
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
       },
     });
-    expect(await h.call('vic', 'GET', `/api/projects/${own}/startable?team=tm-platform`)).toEqual(
-      forMember,
-    );
-    const every = await h.call('vic', 'GET', `/api/projects/${own}/startable`);
+    expect(
+      await h.call('vic', 'GET', `/api/work-packages/${own}/startable?team=tm-platform`),
+    ).toEqual(forMember);
+    const every = await h.call('vic', 'GET', `/api/work-packages/${own}/startable`);
     expect(every.status).toBe(200);
     expect(
       (every.body as { leaves: { workItemId: string }[] }).leaves.map((leaf) => leaf.workItemId),
@@ -168,7 +174,7 @@ describe('the startable read', () => {
       "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('rs-ram', 'org-a', 'h2puni ram')",
     );
     h.sqlite.run(
-      "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, 'rs-ram', 8)",
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES (?, 'rs-ram', 8)",
       [own],
     );
     for (const [workItemId, units] of [
@@ -183,7 +189,7 @@ describe('the startable read', () => {
     h.sqlite.run(
       "INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES ('c-dev', 'rs-ram', 4)",
     );
-    const forMember = await h.call('ada', 'GET', `/api/projects/${own}/startable`);
+    const forMember = await h.call('ada', 'GET', `/api/work-packages/${own}/startable`);
     expect(forMember.status).toBe(200);
     const body = forMember.body as {
       leaves: { workItemId: string; fits: boolean }[];
@@ -219,21 +225,21 @@ describe('the startable read', () => {
         capacity: 8,
         occupied: 4,
         free: 4,
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
         directory: null,
       },
     ]);
-    expect(body.occupancyScope).toBe('project');
-    expect(await h.call('vic', 'GET', `/api/projects/${own}/startable`)).toEqual(forMember);
+    expect(body.occupancyScope).toBe('work_package');
+    expect(await h.call('vic', 'GET', `/api/work-packages/${own}/startable`)).toEqual(forMember);
   });
 
   it('refuses a stranger exactly as the tree read does', async () => {
     for (const tail of ['work-items', 'startable']) {
-      const toForeign = await h.call('ada', 'GET', `/api/projects/${foreign}/${tail}`);
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
       expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      const stranger = await h.call('grace', 'GET', `/api/projects/${own}/${tail}`);
+      const stranger = await h.call('grace', 'GET', `/api/work-packages/${own}/${tail}`);
       expect({ tail, ...stranger }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('nell', 'GET', `/api/projects/${own}/${tail}`)).toEqual({
+      expect(await h.call('nell', 'GET', `/api/work-packages/${own}/${tail}`)).toEqual({
         status: 403,
         body: { error: 'no_active_organization' },
       });
@@ -246,7 +252,9 @@ describe('the startable read', () => {
       "INSERT INTO service_team_organization (resource_id, organization_id, name) VALUES ('tm-b', 'org-b', 'B')",
     );
     for (const team of ['tm-b', 'tm-nobody'])
-      expect(await h.call('ada', 'GET', `/api/projects/${own}/startable?team=${team}`)).toEqual({
+      expect(
+        await h.call('ada', 'GET', `/api/work-packages/${own}/startable?team=${team}`),
+      ).toEqual({
         status: 404,
         body: { error: 'unknown_team' },
       });
@@ -254,8 +262,8 @@ describe('the startable read', () => {
 
   it('refuses a repeated team and an undeclared key', async () => {
     for (const query of ['team=tm-platform&team=tm-platform', 'teams=tm-platform'])
-      expect((await h.call('ada', 'GET', `/api/projects/${own}/startable?${query}`)).status).toBe(
-        400,
-      );
+      expect(
+        (await h.call('ada', 'GET', `/api/work-packages/${own}/startable?${query}`)).status,
+      ).toBe(400);
   });
 });

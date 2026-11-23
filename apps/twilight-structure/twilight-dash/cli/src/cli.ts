@@ -14,7 +14,11 @@ import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import {
   type DashCommand,
+  type GatedPayloadCommand,
+  isGatedPayloadCommand,
+  isLockCommand,
   isReleaseCommand,
+  type LockCommand,
   parseDashCommand,
   type ReleaseCommand,
   UsageRefusal,
@@ -61,6 +65,8 @@ function resourceTools(endpoint: McpEndpoint, key: ApiKey, monotonic: Monotonic)
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
   readonly planEnrollment: PlanEnrollment;
+  /** Fully Dash-namespaced protected launch selected by the executable boundary. */
+  readonly helperPrefix: readonly string[];
   readonly clock: WallClock;
   /** Deadlines for the activation commands; composed now so no later command defaults it. */
   readonly monotonic: Monotonic;
@@ -77,7 +83,10 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 
 /** The commands `entrypoint.ts` dispatches itself, so `mcp token` never loads this module. */
 type EntrypointCommand =
-  Extract<DashCommand, { readonly command: 'mcp' | 'pool' }> | ReleaseCommand;
+  | Extract<DashCommand, { readonly command: 'mcp' | 'pool' }>
+  | ReleaseCommand
+  | LockCommand
+  | GatedPayloadCommand;
 
 /** A parsed command `runDash` dispatches. */
 export type DispatchedCommand = Exclude<DashCommand, EntrypointCommand>;
@@ -86,7 +95,7 @@ type Handlers = {
   readonly [Name in DispatchedCommand['command']]: (
     command: Extract<DispatchedCommand, { readonly command: Name }>,
     deps: DashDependencies,
-  ) => Promise<void> | void;
+  ) => Promise<number> | number;
 };
 
 function commandDependencies(deps: DashDependencies) {
@@ -99,8 +108,9 @@ function commandDependencies(deps: DashDependencies) {
  * candidate or log read, and no connection made for a refused command line.
  */
 export const dashHandlers: Handlers = {
-  'plan-enrollment': (command, deps) =>
-    deps.planEnrollment([
+  'plan-enrollment': async (command, deps) => {
+    // Proof: dash-await-plan; `returns explicit Dash overlap statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+    await deps.planEnrollment([
       '--operation',
       'enroll',
       '--fleet',
@@ -119,21 +129,28 @@ export const dashHandlers: Handlers = {
       command.ansibleVariablesSha256,
       '--known-hosts-sha256',
       command.knownHostsSha256,
-    ]),
+    ]);
+    return 0;
+  },
   'bootstrap-authority': (command, deps) => {
     bootstrapAuthorityCommand(command, commandDependencies(deps));
+    return 0;
   },
   'inspect-authority': (command, deps) => {
     inspectAuthorityCommand(command, commandDependencies(deps));
+    return 0;
   },
   'recover-publication': (command, deps) => {
     recoverPublicationCommand(command, commandDependencies(deps));
+    return 0;
   },
   'submit-admission': (command, deps) => {
     submitAdmission(command, commandDependencies(deps));
+    return 0;
   },
   'render-observation-units': (command, deps) => {
     renderObservationUnitsCommand(command, (text) => deps.stdout.write(text));
+    return 0;
   },
   'run-activation-checks': (command, deps) => {
     runActivationChecksCommand(command, {
@@ -141,19 +158,27 @@ export const dashHandlers: Handlers = {
       execute: spawnCheck,
       write: (text) => deps.stdout.write(text),
     });
+    return 0;
   },
-  'bootstrap-observation': (command, deps) =>
-    bootstrapObservationCommand(command, commandDependencies(deps)),
-  'migrate-observation': (command, deps) =>
-    migrateObservationCommand(command, commandDependencies(deps)),
+  'bootstrap-observation': async (command, deps) => {
+    await bootstrapObservationCommand(command, commandDependencies(deps));
+    return 0;
+  },
+  'migrate-observation': async (command, deps) => {
+    await migrateObservationCommand(command, commandDependencies(deps));
+    return 0;
+  },
   'record-progress': (command, deps) => {
     recordProgress(command, (text) => deps.stdout.write(text));
+    return 0;
   },
   'record-progress-v2': (command, deps) => {
     recordBoundProgress(command, (text) => deps.stdout.write(text));
+    return 0;
   },
   'account-outcomes': (command, deps) => {
     accountOutcomes(command, (text) => deps.stdout.write(text));
+    return 0;
   },
   'report-capacity': async (command, deps) => {
     const PATH = process.env['PATH'] ?? '';
@@ -185,18 +210,25 @@ export const dashHandlers: Handlers = {
         write: (text) => deps.stdout.write(text),
       },
     );
+    return 0;
   },
   resources: async (command, deps) => {
-    process.exitCode = await runResources(
+    // Proof: dash-resources-status; `returns explicit Dash resources statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+    // Proof: dash-resources-no-global; `returns explicit Dash resources statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+    return await runResources(
       command,
       deps.clock,
       (text) => deps.stdout.write(text),
       (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
-      productionLegacyLock,
+      () =>
+        productionLegacyLock(deps.helperPrefix, { clock: deps.clock, monotonic: deps.monotonic }),
     );
   },
   ops: async (command, deps) => {
-    process.exitCode = await runOps(command, {
+    // Proof: dash-ops-status; `returns explicit Dash sequential statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+    // Proof: dash-no-global-status; `returns explicit Dash sequential statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+    return await runOps(command, {
+      helperPrefix: deps.helperPrefix,
       clock: deps.clock,
       monotonic: deps.monotonic,
       environment: process.env,
@@ -206,7 +238,8 @@ export const dashHandlers: Handlers = {
       telemetry: linuxScopeTelemetry(),
       host: linuxHostFacts,
       user: userInfo().username,
-      legacyLock: productionLegacyLock,
+      legacyLock: () =>
+        productionLegacyLock(deps.helperPrefix, { clock: deps.clock, monotonic: deps.monotonic }),
       connect: (endpoint, key) => resourceTools(endpoint, key, deps.monotonic),
     });
   },
@@ -222,19 +255,21 @@ export const dashHandlers: Handlers = {
  * `record-progress` and `record-progress-v2` record explicit operator assertions;
  * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
  * providers' capacity reporter until it exits; `resources` runs the managed resource runtime;
- * `ops` runs host jobs and the host pool and exits with the command's own code.
+ * `ops` runs host jobs and the host pool. Return the selected operation status; only the
+ * executable assigns process.exitCode, so overlapping library invocations cannot overwrite it.
  * `mcp` and `pool` never reach here, because `entrypoint.ts` dispatches them before loading
  * this module.
  *
  * @throws Error `Unsupported Dash command: <name>` for a command no handler takes, which only a
  * JavaScript caller bypassing the parser can pass.
  */
-export async function runDash(command: DispatchedCommand, deps: DashDependencies): Promise<void> {
+export async function runDash(command: DispatchedCommand, deps: DashDependencies): Promise<number> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
   // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
   // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
   // reach the dispatcher (2026-10-11); dropping `monotonic` from it did the same (2026-10-12).
-  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
+  // Proof: omitting helperPrefix admission failed runDash refuses missing dependencies; restoration passed (2026-11-11).
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout', 'helperPrefix'] as const) {
     if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
       throw new Error(`Dash dependency is required: ${name}`);
     }
@@ -248,10 +283,11 @@ export async function runDash(command: DispatchedCommand, deps: DashDependencies
   const handler = dashHandlers[command.command] as (
     command: DispatchedCommand,
     deps: DashDependencies,
-  ) => Promise<void> | void;
+  ) => Promise<number> | number;
   // Proof: injecting a fleet call here failed `dispatcher uses no clocks or fleet planner`
   // on its real dispatcher dependency canary (2026-10-15).
-  await handler(command, deps);
+  // Proof: dash-dispatch-status; `returns explicit Dash sequential statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+  return await handler(command, deps);
 }
 
 /**
@@ -264,14 +300,21 @@ export async function runDash(command: DispatchedCommand, deps: DashDependencies
 export async function runDashArguments(
   argv: readonly string[],
   deps: DashDependencies,
-): Promise<void> {
+): Promise<number> {
   const command = parseDashCommand(argv);
   // Proof: removing the release predicate sent `runDashArguments refuses lightweight release`
   // into the heavy handler and lost its modeled UsageRefusal.
-  if (command.command === 'mcp' || command.command === 'pool' || isReleaseCommand(command)) {
+  if (
+    command.command === 'mcp' ||
+    command.command === 'pool' ||
+    isReleaseCommand(command) ||
+    isLockCommand(command) ||
+    isGatedPayloadCommand(command)
+  ) {
     throw new UsageRefusal(
-      `${isReleaseCommand(command) ? 'ops release' : command.command} is dispatched by entrypoint.ts`,
+      `${isReleaseCommand(command) ? 'ops release' : isLockCommand(command) ? 'ops lock' : command.command} is dispatched by entrypoint.ts`,
     );
   }
-  await runDash(command, deps);
+  // Proof: dash-arguments-status; `returns explicit Dash arguments statuses without touching the executable exit code` failed under the recorded source fault and passed after restoration.
+  return await runDash(command, deps);
 }

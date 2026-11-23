@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,7 +6,8 @@ import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 /**
  * **Tasks 8.3 and 8.4 — the two tables the split is not allowed to touch.**
@@ -31,37 +32,19 @@ import { rollbackTo } from './migrate-down';
  * The last release before this change is the baseline; the two service
  * migrations are the diff under test.
  */
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-
-/** The release immediately before the split — everything after it is this change. */
 const BEFORE_SERVICE = '20260819120000_add_tag';
+const SERVICE = '20260821000000_add_service';
+const ITEM_SERVICE = '20260821080000_add_work_item_service';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb(): { path: string; directory: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-service-untouched-'));
   return {
     path: join(dir, 'test.db'),
+    directory: dir,
     cleanup: (): void => {
       rmSync(dir, { recursive: true, force: true });
     },
   };
-}
-
-/**
- * The three columns `20260901120000_add_audit_columns` adds to every table that
- * holds a domain record.
- *
- * Named here because this file's claims are about what the **service**
- * migrations did to two tables, and that migration is newer than all of them: it
- * adds these three to `project_team_capacity` and `person_team` like everything
- * else, so a shape comparison that included them would be asserting something no
- * case here is about. Each case still pins its own columns exactly, so a
- * `service_id` appearing is caught as before.
- */
-const AUDIT_COLUMNS = ['created_at', 'updated_at', 'created_by'];
-
-/** {@link columnsOf} without the audit columns — see {@link AUDIT_COLUMNS}. */
-function ownColumnsOf(dbPath: string, table: string): { name: string; type: string; pk: number }[] {
-  return columnsOf(dbPath, table).filter((column) => !AUDIT_COLUMNS.includes(column.name));
 }
 
 function columnsOf(dbPath: string, table: string): { name: string; type: string; pk: number }[] {
@@ -100,11 +83,19 @@ describe('the pool and the membership list, across the service migrations', () =
     // generalise the pool` beside it. Watched on h2puni 2026-08-21, reverted.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      const reversed = rollbackTo(db.path, FOLDER, BEFORE_SERVICE);
-      // Non-vacuity: if the rollback reversed nothing, the database below is
-      // already the post-split one and this whole case compares it with itself.
-      expect(reversed.length).toBeGreaterThan(0);
+      const folder = copyRecoveryPrefix(db.directory, ITEM_SERVICE);
+      const expected = readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash }));
+      expect(expected.slice(-3).map(({ name }) => name)).toEqual([
+        BEFORE_SERVICE,
+        SERVICE,
+        ITEM_SERVICE,
+      ]);
+      const baselineDirectory = join(db.directory, 'baseline');
+      mkdirSync(baselineDirectory);
+      runMigrations(db.path, copyRecoveryPrefix(baselineDirectory, BEFORE_SERVICE));
+      expect(rowsOf(db.path, 'SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+        expected.slice(0, -2),
+      );
 
       const sqlite = openDatabase(db.path);
       try {
@@ -126,13 +117,16 @@ describe('the pool and the membership list, across the service migrations', () =
         'SELECT project_id, service_team_id, size FROM project_team_capacity' +
         ' ORDER BY project_id, service_team_id';
       const before = rowsOf(db.path, CAPACITY);
-      const shapeBefore = ownColumnsOf(db.path, 'project_team_capacity');
+      const shapeBefore = columnsOf(db.path, 'project_team_capacity');
       expect(before).toHaveLength(1);
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, folder);
+      expect(rowsOf(db.path, 'SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+        expected,
+      );
 
       expect(rowsOf(db.path, CAPACITY)).toEqual(before);
-      expect(ownColumnsOf(db.path, 'project_team_capacity')).toEqual(shapeBefore);
+      expect(columnsOf(db.path, 'project_team_capacity')).toEqual(shapeBefore);
     } finally {
       db.cleanup();
     }
@@ -145,8 +139,8 @@ describe('the pool and the membership list, across the service migrations', () =
     // is the conversation R2-5 §2 asked for.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      const columns = ownColumnsOf(db.path, 'project_team_capacity');
+      runMigrations(db.path, copyRecoveryPrefix(db.directory, ITEM_SERVICE));
+      const columns = columnsOf(db.path, 'project_team_capacity');
 
       expect(columns.map((c) => c.name)).toEqual(['project_id', 'service_team_id', 'size']);
       expect(columns.map((c) => c.name)).not.toContain('service_id');
@@ -176,9 +170,9 @@ describe('the pool and the membership list, across the service migrations', () =
     // *decision* cached against a plan it cannot see, and the signal is derived
     // on every read for exactly that reason.
     //
-    // Proof: the same append one table over — `ALTER TABLE person_team ADD
-    // service_id text REFERENCES service(id);` — **1 pass, 2 fail**, this case
-    // and 8.3's row comparison. Watched on h2puni 2026-08-21, reverted.
+    // Proof: appending `ALTER TABLE person_team ADD service_id text REFERENCES
+    // service(id);` to the copied service migration failed this case on the
+    // column comparison. Both project capacity cases passed.
     //
     // **The guard that made both reds trustworthy, and it nearly did not.** The
     // first two attempts appended to `up.sql`, a file this repo does not have
@@ -190,12 +184,12 @@ describe('the pool and the membership list, across the service migrations', () =
     // files too: `git status --porcelain`, not `git diff`.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      const before = ownColumnsOf(db.path, 'person_team');
-      const reversed = rollbackTo(db.path, FOLDER, BEFORE_SERVICE);
-      expect(reversed.length).toBeGreaterThan(0);
+      const folder = copyRecoveryPrefix(db.directory, ITEM_SERVICE);
+      runMigrations(db.path, folder);
+      const before = columnsOf(db.path, 'person_team');
+      expect(rollbackTo(db.path, folder, BEFORE_SERVICE)).toEqual([ITEM_SERVICE, SERVICE]);
 
-      expect(ownColumnsOf(db.path, 'person_team')).toEqual(before);
+      expect(columnsOf(db.path, 'person_team')).toEqual(before);
       expect(before.map((c) => c.name)).toEqual(['person_id', 'service_team_id']);
       expect(before.map((c) => c.name)).not.toContain('service_id');
     } finally {

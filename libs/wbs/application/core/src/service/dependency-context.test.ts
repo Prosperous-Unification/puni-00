@@ -1,28 +1,47 @@
-import { openMemorySource } from '@wbs/store-memory';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, test } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import type { DependencyContext } from '../ports/dependency-context';
 import { withDependencyContext } from '../ports/dependency-context';
-import { CREATOR_ADMISSION, NO_ADMISSION } from '../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION, NO_ADMISSION } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { seedLegacyPackageParent } from '../testing/legacy-package-source-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { createDependencyContext, createLocalDependencyContext } from './dependency-context';
 
 async function seeded() {
-  const source = openMemorySource();
-  for (const projectId of ['a', 'b']) {
-    await source.stores.projects.create(projectRow({ id: projectId, ownerId: 'actor' }), [], {
-      at: 1,
-      by: 'actor',
-    });
+  const parentFixture = openMemorySourceFixture();
+  const source = parentFixture.source;
+  await source.stores.users.create(
+    { id: 'actor', username: 'actor', passwordHash: null, createdAt: 1 },
+    { at: 1, by: 'actor' },
+  );
+  seedLegacyPackageParent(parentFixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'actor',
+  });
+  for (const workPackageId of ['a', 'b']) {
+    await source.stores.workPackages.create(
+      workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+      [],
+      {
+        at: 1,
+        by: 'actor',
+      },
+    );
     for (const suffix of ['1', '2'])
       await source.stores.workItems.insert(
-        workItemRow({ id: `${projectId}${suffix}`, projectId, position: Number(suffix) * 10 }),
+        workItemRow({
+          id: `${workPackageId}${suffix}`,
+          workPackageId,
+          position: Number(suffix) * 10,
+        }),
         [],
         { at: 1, by: 'actor' },
       );
@@ -47,7 +66,11 @@ test('closes each local operation on success, refusal and throw without reviving
     const operation = withDependencyContext(local, 'a', 'actor', async (context) => {
       retained.push(context);
       expect(
-        await context.endpoints.readEndpoint({ scope: 'whole', projectId: 'a', workItemId: 'a1' }),
+        await context.endpoints.readEndpoint({
+          scope: 'whole',
+          workPackageId: 'a',
+          workItemId: 'a1',
+        }),
       ).toMatchObject({ ok: true });
       if (end === 'throw') throw new Error('controlled test failure');
       return end;
@@ -69,7 +92,12 @@ test('bound contexts reject a different owner, actor and closed observation', as
   let observing = true;
   const opened = createDependencyContext(
     source.stores,
-    { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+    {
+      workPackageId: 'a',
+      actorId: 'actor',
+      access: LEGACY_ACCESS,
+      admission: LEGACY_EDIT_ADMISSION,
+    },
     () => {
       if (!observing) throw new Error('observation closed');
     },
@@ -92,7 +120,7 @@ test('bound contexts reject a different owner, actor and closed observation', as
 test('local service owner admission precedes factory access, and outgoing foreign incidents fail closed', async () => {
   const source = await seeded();
   const local = createLocalDependencyContext(source.stores);
-  const service = (admission: typeof CREATOR_ADMISSION) =>
+  const service = (admission: typeof LEGACY_EDIT_ADMISSION) =>
     servicesOver(source.stores, {
       dependencyContext: local,
       clock: testClock,
@@ -100,27 +128,27 @@ test('local service owner admission precedes factory access, and outgoing foreig
       scheduler: fastScheduler,
       admission,
     }).workItems;
-  for (const projectId of ['a', 'b'])
+  for (const workPackageId of ['a', 'b'])
     expect(
-      await service(CREATOR_ADMISSION).addTypedDependency(projectId, 'actor', {
-        predecessor: { projectId, scope: 'whole', workItemId: `${projectId}1` },
-        successor: { projectId, scope: 'whole', workItemId: `${projectId}2` },
+      await service(LEGACY_EDIT_ADMISSION).addTypedDependency(workPackageId, 'actor', {
+        predecessor: { workPackageId, scope: 'whole', workItemId: `${workPackageId}1` },
+        successor: { workPackageId, scope: 'whole', workItemId: `${workPackageId}2` },
         type: 'FS',
       }),
     ).toMatchObject({ ok: true });
   await source.stores.typedDependencies.add(
     {
       id: 'external',
-      projectId: 'b',
-      predecessor: { projectId: 'a', scope: 'whole', workItemId: 'a1' },
-      successor: { projectId: 'b', scope: 'whole', workItemId: 'b2' },
+      workPackageId: 'b',
+      predecessor: { workPackageId: 'a', scope: 'whole', workItemId: 'a1' },
+      successor: { workPackageId: 'b', scope: 'whole', workItemId: 'b2' },
       type: 'FS',
     },
     { at: 2, by: 'actor' },
   );
   const input = {
-    predecessor: { projectId: 'a', scope: 'whole' as const, workItemId: 'a2' },
-    successor: { projectId: 'a', scope: 'whole' as const, workItemId: 'a1' },
+    predecessor: { workPackageId: 'a', scope: 'whole' as const, workItemId: 'a2' },
+    successor: { workPackageId: 'a', scope: 'whole' as const, workItemId: 'a1' },
     type: 'FS',
   };
   expect(await service(NO_ADMISSION).addTypedDependency('a', 'actor', input)).toEqual({
@@ -128,7 +156,7 @@ test('local service owner admission precedes factory access, and outgoing foreig
     reason: 'forbidden',
   });
   await rejects(
-    service(CREATOR_ADMISSION).addTypedDependency('a', 'actor', input),
+    service(LEGACY_EDIT_ADMISSION).addTypedDependency('a', 'actor', input),
     'external incidents',
   );
   await withDependencyContext(local, 'a', 'actor', async (context) => {
@@ -136,23 +164,23 @@ test('local service owner admission precedes factory access, and outgoing foreig
   });
 });
 
-test('a local typed operation refuses a proposed foreign endpoint without relabelling its project', async () => {
+test('a local typed operation refuses a proposed foreign endpoint without relabelling its work package', async () => {
   const source = await seeded();
   const graph = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
   });
   expect(
     await graph.workItems.addTypedDependency('b', 'actor', {
-      predecessor: { scope: 'whole', projectId: 'a', workItemId: 'a1' },
-      successor: { scope: 'whole', projectId: 'b', workItemId: 'b1' },
+      predecessor: { scope: 'whole', workPackageId: 'a', workItemId: 'a1' },
+      successor: { scope: 'whole', workPackageId: 'b', workItemId: 'b1' },
       type: 'FS',
     }),
   ).toEqual({ ok: false, reason: 'forbidden' });
-  expect(await source.stores.typedDependencies.listByProject('b')).toEqual([]);
+  expect(await source.stores.typedDependencies.listByWorkPackage('b')).toEqual([]);
 });
 
 test('actual typed service rejects an unknown or missing required authoring capability', async () => {
@@ -168,7 +196,7 @@ test('actual typed service rejects an unknown or missing required authoring capa
           clock: testClock,
           broadcast: recordingBroadcaster(),
           scheduler: fastScheduler,
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
         } as never),
     ).toThrow('external dependency authoring');
   }
@@ -178,7 +206,12 @@ test('actual service cannot borrow a bound context for another owner or actor', 
   const source = await seeded();
   const opened = createDependencyContext(
     source.stores,
-    { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+    {
+      workPackageId: 'a',
+      actorId: 'actor',
+      access: LEGACY_ACCESS,
+      admission: LEGACY_EDIT_ADMISSION,
+    },
     () => undefined,
     { kind: 'raw' },
   );
@@ -188,22 +221,22 @@ test('actual service cannot borrow a bound context for another owner or actor', 
       clock: testClock,
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
     }).workItems;
-    for (const [projectId, actorId] of [
+    for (const [workPackageId, actorId] of [
       ['a', 'rival'],
       ['b', 'actor'],
     ])
       await rejects(
-        service.addTypedDependency(projectId, actorId, {
-          predecessor: { projectId, scope: 'whole', workItemId: `${projectId}1` },
-          successor: { projectId, scope: 'whole', workItemId: `${projectId}2` },
+        service.addTypedDependency(workPackageId, actorId, {
+          predecessor: { workPackageId, scope: 'whole', workItemId: `${workPackageId}1` },
+          successor: { workPackageId, scope: 'whole', workItemId: `${workPackageId}2` },
           type: 'FS',
         }),
         'owner or actor mismatch',
       );
-    expect(await source.stores.typedDependencies.listByProject('a')).toEqual([]);
-    expect(await source.stores.typedDependencies.listByProject('b')).toEqual([]);
+    expect(await source.stores.typedDependencies.listByWorkPackage('a')).toEqual([]);
+    expect(await source.stores.typedDependencies.listByWorkPackage('b')).toEqual([]);
   } finally {
     opened.close();
   }
@@ -215,7 +248,7 @@ test('runner-facing graph inspection requires owner admission before opening loc
   const dependencyContext = {
     kind: 'local-only' as const,
     withContext: <T>(
-      _projectId: string,
+      _work_packageId: string,
       _actorId: string,
       _act: (context: DependencyContext) => Promise<T>,
     ): Promise<T> => {
@@ -252,8 +285,8 @@ test('incident transition enforces owner actor and observation lifetime around i
       ...source.stores,
       typedDependencies: {
         ...source.stores.typedDependencies,
-        listIncident: async (projects) => {
-          const relationships = await source.stores.typedDependencies.listIncident(projects);
+        listIncident: async (workPackages) => {
+          const relationships = await source.stores.typedDependencies.listIncident(workPackages);
           if (entered === undefined) throw new Error('fixture continuation missing');
           entered();
           await readRelease;
@@ -261,7 +294,12 @@ test('incident transition enforces owner actor and observation lifetime around i
         },
       },
     },
-    { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+    {
+      workPackageId: 'a',
+      actorId: 'actor',
+      access: LEGACY_ACCESS,
+      admission: LEGACY_EDIT_ADMISSION,
+    },
     () => undefined,
     { kind: 'raw' },
   );
@@ -316,7 +354,12 @@ for (const retention of [
     expect(() =>
       createDependencyContext(
         source.stores,
-        { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+        {
+          workPackageId: 'a',
+          actorId: 'actor',
+          access: LEGACY_ACCESS,
+          admission: LEGACY_EDIT_ADMISSION,
+        },
         () => undefined,
         retention as never,
       ),
@@ -336,9 +379,120 @@ for (const missing of ['all', 'capture', 'detach', 'restore'] as const)
           ...source.stores,
           typedDependencies: { ...source.stores.typedDependencies, incidents: persistence },
         } as never,
-        { projectId: 'a', actorId: 'actor', access: LEGACY_ACCESS, admission: CREATOR_ADMISSION },
+        {
+          workPackageId: 'a',
+          actorId: 'actor',
+          access: LEGACY_ACCESS,
+          admission: LEGACY_EDIT_ADMISSION,
+        },
         () => undefined,
         { kind: 'raw' },
       ),
     ).toThrow('incident persistence is missing');
   });
+
+for (const phase of ['before-call', 'ownership-read', 'grant-read'] as const) {
+  test('refuses typed write authorization after context closes at ' + phase, async () => {
+    const fixture = openMemorySourceFixture(),
+      source = fixture.source;
+    fixture.addOrganization('org', { legacy: false });
+    await source.stores.users.create(
+      { id: 'actor', username: 'Actor', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'actor' },
+    );
+    fixture.setPackageCreationMembers('org', ['actor']);
+    fixture.seedPackageParent({
+      spaceId: null,
+      spacePosition: null,
+      id: 'fixture-project',
+      organizationId: 'org',
+      name: 'Fixture project',
+      createdBy: 'actor',
+      revision: 0,
+      createdAt: 1,
+      updatedAt: null,
+    });
+    for (const id of ['a', 'b'])
+      await source.stores.workPackages.createInOrganization(
+        workPackageRow({ id, projectId: 'fixture-project' }),
+        [],
+        { at: 1, by: 'actor' },
+        'org',
+        { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
+      );
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    let ownershipReads = 0;
+    let grantReads = 0;
+    const opened = createDependencyContext(
+      {
+        ...source.stores,
+        workPackages: {
+          ...source.stores.workPackages,
+          findInOrganization: async (id, organizationId) => {
+            return source.stores.workPackages.findInOrganization(id, organizationId);
+          },
+        },
+        accessDecisions: {
+          packageTargetOf: async (id, organizationId) => {
+            ownershipReads += 1;
+            if (phase === 'ownership-read') {
+              entered.resolve(undefined);
+              await release.promise;
+            }
+            return source.stores.settings.readTarget({ level: 'work_package', id }, organizationId);
+          },
+          effectiveRoleAt: async (principal, target) => {
+            if (
+              principal.id !== 'actor' ||
+              target.kind !== 'work_package' ||
+              target.chain.organizationId !== 'org'
+            )
+              throw new Error('unexpected grant subject/scope');
+            grantReads += 1;
+            if (phase === 'grant-read') {
+              entered.resolve(undefined);
+              await release.promise;
+            }
+            return { permissions: new Set(['package.read', 'package.write'] as const), via: [] };
+          },
+          readablePackageIds: () => Promise.reject(new Error('unexpected grant listing')),
+        },
+      },
+      {
+        workPackageId: 'a',
+        actorId: 'actor',
+        admission: LEGACY_EDIT_ADMISSION,
+        access: {
+          kind: 'scoped',
+          principal: { id: 'actor' },
+          scope: { userId: 'actor', organizationId: 'org', cap: null },
+        },
+      },
+      () => undefined,
+      { kind: 'raw' },
+    );
+    const capability = opened.context.authorizeTypedWrites;
+    if (capability === undefined) throw new Error('actual factory omitted write authorization');
+    if (phase === 'before-call') opened.close();
+    const pending = capability([
+      {
+        id: 'relation',
+        workPackageId: 'b',
+        type: 'FS',
+        predecessor: { workPackageId: 'a', scope: 'whole', workItemId: 'a1' },
+        successor: { workPackageId: 'b', scope: 'whole', workItemId: 'b1' },
+      },
+    ]);
+    if (phase !== 'before-call') {
+      await entered.promise;
+      opened.close();
+      release.resolve(undefined);
+    }
+    await rejects(pending, 'closed');
+    if (phase === 'before-call') expect(ownershipReads).toBe(0);
+    if (phase === 'ownership-read') expect(grantReads).toBe(0);
+    if (phase === 'grant-read') expect(ownershipReads).toBe(1);
+    await source.close();
+  });
+}

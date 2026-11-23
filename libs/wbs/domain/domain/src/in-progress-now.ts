@@ -16,11 +16,11 @@ export interface InProgressRow {
   progress: Readonly<Record<string, string>>;
 }
 
-/** The project read "in progress now" is computed from: the one the project page reads. */
+/** The work package read "in progress now" is computed from: the one the work package page reads. */
 export interface InProgressTree {
   workItems: readonly InProgressRow[];
   slices: readonly { workItemId: string; stepId: string | null; lateBy: number | null }[];
-  /** The project's steps, in the order the work runs through them. */
+  /** The work package's steps, in the order the work runs through them. */
   steps: readonly { id: string; name: string }[];
   assignedPeople: readonly { id: string; name: string }[];
 }
@@ -39,7 +39,7 @@ export interface InProgressLeaf {
 }
 
 /**
- * The leaves of one project whose folded status reads `in_progress`.
+ * The leaves of one work package whose folded status reads `in_progress`.
  *
  * The fold is the only test: a held or blocked leaf with a step stated in
  * progress is not in progress (ADR 0032), which is why this never reads
@@ -88,14 +88,13 @@ function compareNumbers(left: string, right: string): number {
 
 /**
  * Orders items by end date ascending with undated last, then space position,
- * then number: the order the spec gives "in progress now". Project id breaks
- * the one remaining tie (two projects at one position in `all`, or tied space
+ * then number: the order the spec gives "in progress now". Work package id breaks
+ * the one remaining tie (two work packages at one position in `all`, or tied space
  * positions, ADR 0016), so two reads of unchanged rows agree.
  */
-export function sortInProgress<T extends { position: number; number: string; projectId: string }>(
-  items: readonly T[],
-  endsOn: (item: T) => IsoDate | null,
-): T[] {
+export function sortInProgress<
+  T extends { position: number; number: string; workPackageId: string },
+>(items: readonly T[], endsOn: (item: T) => IsoDate | null): T[] {
   return [...items].sort((left, right) => {
     const l = endsOn(left);
     const r = endsOn(right);
@@ -107,7 +106,11 @@ export function sortInProgress<T extends { position: number; number: string; pro
     return (
       left.position - right.position ||
       compareNumbers(left.number, right.number) ||
-      (left.projectId < right.projectId ? -1 : left.projectId > right.projectId ? 1 : 0)
+      (left.workPackageId < right.workPackageId
+        ? -1
+        : left.workPackageId > right.workPackageId
+          ? 1
+          : 0)
     );
   });
 }

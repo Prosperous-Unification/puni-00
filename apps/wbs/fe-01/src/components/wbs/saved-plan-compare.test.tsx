@@ -33,11 +33,13 @@ const ready = (over: Partial<Extract<SavedPlanComparisonState, { kind: 'ready' }
     summaries: {
       left: {
         source: { kind: 'saved', savedPlanId: 'sp1' },
+        parent: { kind: 'unrecorded' },
         schedule: { present: true, algorithmId: 'historical' },
         provenance: { kind: 'legacy-unknown' },
       },
       right: {
         source: { kind: 'current' },
+        parent: { kind: 'recorded', projectId: 'captured-parent' },
         schedule: { present: true, algorithmId: 'historical' },
         provenance: { kind: 'local' },
       },
@@ -110,11 +112,13 @@ describe('what a comparison renders', () => {
           summaries: {
             left: {
               source: { kind: 'saved', savedPlanId: 'sp1' },
+              parent: { kind: 'unrecorded' },
               schedule: { present: false, absentReason: 'infeasible' },
               provenance: { kind: 'legacy-unknown' },
             },
             right: {
               source: { kind: 'current' },
+              parent: { kind: 'recorded', projectId: 'captured-parent' },
               schedule: { present: false, absentReason: 'infeasible' },
               provenance: { kind: 'local' },
             },

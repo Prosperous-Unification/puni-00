@@ -16,7 +16,7 @@ export interface StepBoardCard {
 /** Column arrays retain the source traversal order, with its revision markers. */
 export interface StepBoard {
   seq: PlanRead['seq'];
-  projectRevision: PlanRead['projectRevision'];
+  workPackageRevision: PlanRead['workPackageRevision'];
   columns: {
     unknown: StepBoardCard[];
     inProgress: StepBoardCard[];
@@ -25,15 +25,15 @@ export interface StepBoard {
 }
 
 /**
- * Projects every leaf × step from one delivered tree, without reading slices.
+ * Work packages every leaf × step from one delivered tree, without reading slices.
  * Preserves work-item order and each delivered steps array's backend order.
  * Only absent progress means Unknown; server-derived work-item status is a label.
  * @throws When trusted progress is malformed, names an absent step, or repeats a card ID.
  */
-export function projectStepBoard(plan: PlanRead): StepBoard {
+export function workPackageStepBoard(plan: PlanRead): StepBoard {
   const board: StepBoard = {
     seq: plan.seq,
-    projectRevision: plan.projectRevision,
+    workPackageRevision: plan.workPackageRevision,
     columns: { unknown: [], inProgress: [], done: [] },
   };
   const parentIds = new Set(plan.workItems.map((row) => row.parentId));

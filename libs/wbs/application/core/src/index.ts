@@ -1,7 +1,7 @@
 /**
  * `@wbs/core` — the application ring: what be-01 does, with nothing about how.
  *
- * Ports and services live here and adapters do not: a file in this project may
+ * Ports and services live here and adapters do not: a file in this work package may
  * import `@wbs/domain`, `@wbs/contracts` and its own peers, and nothing else
  * (`eslint.config.js`'s ring constraints, watched in this change's `verify.md`).
  * What that buys is the composition `compose.test.ts` will make — this graph
@@ -42,8 +42,6 @@ export * from './module/plan-import/contract';
 export * from './module/plan-import/module';
 export * from './module/priority-band/contract';
 export * from './module/priority-band/module';
-export * from './module/project/contract';
-export * from './module/project/module';
 export * from './module/realtime/contract';
 export * from './module/realtime/module';
 export * from './module/saved-plans/contract';
@@ -52,6 +50,9 @@ export * from './module/step/contract';
 export * from './module/step/module';
 export * from './module/work-item/contract';
 export * from './module/work-item/module';
+export * from './module/work-item/tree-reads';
+export * from './module/work-package/contract';
+export * from './module/work-package/module';
 export * from './ports/access-decisions';
 export * from './ports/access-grants';
 export * from './ports/actual-store';
@@ -76,14 +77,16 @@ export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';
 export * from './ports/priority-band-store';
 export * from './ports/progress-store';
+export * from './ports/project-store';
 export * from './ports/step-node-attempt-store';
 export * from './ports/typed-dependency-store';
-// The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
+// The neutral work-package-event port: `Broadcaster`, `WorkPackageEvent` and `subscriptionFor`.
 export * from './module/calendar-marker/calendar-marker.resource';
 export * from './module/capacity/capacity.resource';
 export * from './module/directory/directory.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
+export * from './module/work-package/work-package-birth-owner';
 export * from './ports/agent-pools';
 export * from './ports/compute-providers';
 export * from './ports/credential-rules';
@@ -100,9 +103,6 @@ export * from './ports/optimization-input';
 export * from './ports/organization-access';
 export * from './ports/organization-audit';
 export * from './ports/organization-limits';
-export * from './ports/project-event';
-export * from './ports/project-rank-store';
-export * from './ports/project-store';
 export * from './ports/provisioning-tokens';
 export type { PushTransport } from './ports/push-transport';
 export type {
@@ -112,7 +112,11 @@ export type {
   TokenCodec,
   VerifiedSessionClaims,
 } from './ports/runtime';
-export type { PlanInputReads, SavedPlanCaptureStore } from './ports/saved-plan-capture-store';
+export type {
+  PlanInputReads,
+  ResolvedPlanInputReads,
+  SavedPlanCaptureStore,
+} from './ports/saved-plan-capture-store';
 export type {
   SavedPlanBodyWrite,
   SavedPlanHoldingRow,
@@ -125,13 +129,19 @@ export type {
   SavedPlanWriteOutcome,
   ScopedSavedPlanWrite,
   StoredSavedPlan,
+  StoredSavedPlanBytes,
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';
 export * from './ports/scim-users';
+export * from './ports/security-principal';
 export * from './ports/session-policies';
 export * from './ports/source';
+export * from './ports/space-read';
 export * from './ports/space-store';
+export * from './ports/step-catalogue';
+export type { ProjectStepManifest } from './ports/step-manifest';
 export * from './ports/step-store';
+export type { StepUsageSnapshot } from './ports/step-usage';
 export * from './ports/stores';
 export * from './ports/subtree-store';
 export type { Intervals, Timers } from './ports/timers';
@@ -139,13 +149,26 @@ export * from './ports/trusted-issuers';
 export type { Decision, Scope, UnitOfWork } from './ports/unit-of-work';
 export * from './ports/user-store';
 export * from './ports/work-item-store';
+export * from './ports/work-package-event';
+export * from './ports/work-package-rank-store';
+export * from './ports/work-package-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/auth.service';
+export * from './service/authorize';
 export * from './service/compensating';
 export * from './service/directory-usage';
 export * from './service/machine-grant';
 export * from './service/machine-key';
+export * from './step-catalogue/claim-observation';
+export * from './step-catalogue/estimate-reads';
+export * from './step-catalogue/step-catalogue';
+export * from './step-catalogue/step-fact-reads';
+export { projectStepManifest } from './step-catalogue/step-manifest';
+export * from './step-catalogue/step-order-projection';
+export * from './step-catalogue/step-usage';
+export * from './step-catalogue/step-usage-capture';
+export * from './step-catalogue/step-write';
 // Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep their
 // barrel names until importers name the domain library; task 7.1 retires it.
 export {
@@ -196,7 +219,6 @@ export * from './module/plan-history/plan-history.feature';
 export * from './module/plan-import/plan-import.feature';
 export * from './module/plan-import/prepare-import';
 export * from './module/priority-band/priority-band.resource';
-export * from './module/project/project.resource';
 export * from './module/realtime/realtime.feature';
 export * from './module/realtime/replay-buffer';
 export * from './module/realtime/replay-orchestrator';
@@ -204,6 +226,7 @@ export * from './module/saved-plans/save-plan';
 export * from './module/saved-plans/saved-plan-integrity';
 export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
+export * from './module/work-package/work-package.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
 export * from './ports/command-access';
@@ -218,15 +241,16 @@ export type {
   WorkItemAddress,
 } from './ports/dependency-context';
 export { withDependencyContext } from './ports/dependency-context';
-export * from './ports/project-address-search';
 export * from './ports/resource-capacity-store';
 export * from './ports/resource-runtime';
 export * from './ports/resource-uses';
 export * from './ports/runtime-command-store';
+export * from './ports/setting-store';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';
 export * from './ports/step-parallel-store';
+export * from './ports/work-package-address-search';
 export * from './service/connected-dependency-graph';
 export { deriveConnectedPlan } from './service/connected-plan';
 export type { ConnectedPlanCapture } from './service/connected-plan-values';
@@ -237,9 +261,18 @@ export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';
 export * from './service/plan-command';
-export * from './service/project-address-revision';
-export * from './service/project-address-search';
 export * from './service/saved-plan.service';
 export * from './service/saved-plan-schedule';
 export * from './service/shared-people';
 export * from './service/space.resource';
+export * from './service/work-package-address-revision';
+export * from './service/work-package-address-search';
+export * from './step-catalogue/first-child';
+export * from './step-catalogue/first-child-decision';
+export * from './step-catalogue/first-child-history';
+export * from './step-catalogue/first-child-relationships';
+export * from './step-catalogue/move';
+export { retainPackageUnitWrites } from './step-catalogue/package-unit-write-owner';
+export * from './step-catalogue/step-tuple-read-owner';
+export * from './step-catalogue/step-tuple-reads';
+export * from './step-catalogue/subtree-write';

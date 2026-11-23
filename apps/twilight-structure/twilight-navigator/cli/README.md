@@ -40,7 +40,7 @@ until it is published.
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9 or 10)
+From the repository root, with a WBS plan export (`GET /api/work-packages/:id/export`, preserved versions 7–11, historical connected12 and frozen ordinary13/connected14, or current ownerless ordinary15/connected16)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh
@@ -60,17 +60,9 @@ work items with ancestry, per-step estimates and dependencies) and
 replacing a file, and prints the plan reference digest. The record's `createdAt` is the
 export's `exportedAt`, so the same inputs give the same bytes.
 
-Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9 and 10 write task
-schema 2: each `estimates` entry names its `stepCode`, native `unit` (`minutes` or `workdays`),
-and unchanged optimistic, realistic and pessimistic values. Version 9 requires strict root
-`stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and
-safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid.
-Facts stay in the original export; Navigator emits no blockage commands or eligibility
-calculation. Version 10 adds the plan's resources, their capacities and demands
-(`wbs-resources`); Navigator reads them strictly and they change no task. Future versions
-(version 11 is refused before output) and undeclared keys are refused. The reference records the
-original wire version and hashes the raw export bytes, so a blockedAt-only change changes the
-export and reference digests while preserving tasks and their digest.
+Version 7 keeps task schema 1 with workday estimates. Versions 8–11 retain task schema 2 with native minute/workday estimates and their original bytes and digest meanings. Versions12–16 write task schema3: local leaf tasks keep native estimates and legacy dependencies; a document-level typedDependencies array preserves every authored edge once in input order, including parent successors. Endpoints distinguish local references from external work-package/work-item/step identities and preserve display labels. Historical12 project identity and display spellings map explicitly after complete decoding. No edge is expanded into a schedule.
+
+Every supported export is read strictly before publication. Connected12 uses a lazy complete frozen published response, including detached project history and boundary1, through public requestSchema/validateSchema; frozen13/14 share a separately selected strict union from their public versioned declarations, while current15/16 cache the strict current public union. Current exports require complete matching package/parent metadata; the selected package remains the plan and command destination. Each selected boundary compiles an additional strict graph; HTTP response tolerance stays unchanged. Missing history, mixed spellings, unknown fields and future17+ refuse. Direct blockage facts retain the existing leaf-owner, step, uniqueness and safe-integer checks. Resources, measures and detached connected history are validated, then omitted from task projection; connected relationships never become authored edges or remote authority. The reference retains the original document version and hashes the original export bytes. A history-only change can preserve tasks while changing export/reference digests.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
@@ -91,7 +83,7 @@ bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts receipt-to-
 ```
 
 It decodes the progress receipt and plan reference through Burokrat (which verifies their
-digests), reads either task schema without rewriting it, requires Burokrat plan/task consistency (digest binding, plan identity, task count, supported
+digests), reads all three task schemas without rewriting them, requires Burokrat plan/task consistency (digest binding, plan identity, task count, supported
 version pairing and unique task IDs, step IDs and step codes) before building lookups, and refuses a receipt
 for another plan reference or an entry naming a task or step code the plan does not hold. It
 writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
@@ -101,11 +93,10 @@ historical PlanRef-only consistency; for schema 2 receipts shared consistency al
 complete producer reference digest to match the receipt binding. Neither establishes live WBS
 freshness.
 
-Applying the batch is a person's or the WBS MCP's act (`postApiProjectsByIdCommands`):
+Applying the batch is a person's or the WBS MCP's act (`postApiWorkPackagesByIdCommands`, `POST /api/work-packages/:id/commands`):
 Navigator sends nothing. Receipts come from Dash
 [`record-progress`](../../twilight-dash/cli/README.md#record-progress), which emits the existing
-v1 receipt from explicit operator entries and supplied reference/tasks; entries are operator
-assertions and evidence is not authenticated.
+v1 receipt from explicit operator entries and supplied reference/tasks. `record-progress-v2` binds the complete producer reference, including12–14/schema3; entries remain operator assertions and evidence is not authenticated.
 
 ## Exit codes
 
@@ -126,7 +117,10 @@ bunx nx run-many -t test lint typecheck -p twilight-navigator --skip-nx-cache
 `twilight-navigator:test` needs a non-root runner: the unreadable-input proof relies on file
 modes, so under uid 0 it throws instead of passing vacuously. The
 [OpenSpec change](../../../../openspec/changes/twilight-navigator-plan-reference/verify.md)
-records the observed checks and fault proofs.
+records the original checks and fault proofs. The current12–14 slice's
+[verification summary](../../../../openspec/changes/wbs-work-packages/verify.md#navigator17-accepted-proofs-and-private-closing-2026-11-12)
+records accepted first-property limits and private artifact descriptors. Its referenced
+`verification-1.7-navigator.json` packet is absent from this checkout.
 
 The [receipt consistency change](../../../../openspec/changes/navigator-receipt-plan-consistency/verify.md)
 records the shared checker proofs and scoped verification.

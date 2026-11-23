@@ -23,14 +23,14 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { projectRow } from '../testing/project-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from '../repository/work-package';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
+import { workPackageRow } from '../testing/work-package-fixture';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -56,32 +56,29 @@ describe('the stored schedule body', () => {
   let dir: string;
   let path: string;
 
-  const seedProject = async (startDate: IsoDate | null): Promise<void> => {
+  const seedWorkPackage = async (startDate: IsoDate | null): Promise<void> => {
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
+      wrote,
+    );
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'plan',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate,
       }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -103,7 +100,7 @@ describe('the stored schedule body', () => {
       await items.insert(
         {
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           parentId: null,
           position,
           name: id,
@@ -143,7 +140,8 @@ describe('the stored schedule body', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-body-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
   });
 
   afterEach(() => {
@@ -196,7 +194,7 @@ describe('the stored schedule body', () => {
   };
 
   it('is deep-equal to what schedule() returned, plus the dates', async () => {
-    await seedProject(START);
+    await seedWorkPackage(START);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     expect(result).not.toBeNull();
     const { reads, planned } = result!;
@@ -205,7 +203,9 @@ describe('the stored schedule body', () => {
     // a `Map`, a `Date` or an `undefined` survives an object comparison and
     // does not survive the round trip, and the body is stored as bytes.
     const stored: unknown = JSON.parse(
-      JSON.stringify(buildScheduleBody(planned, reads.project.startDate, SCHEDULE_ALGORITHM_ID)),
+      JSON.stringify(
+        buildScheduleBody(planned, reads.workPackage.startDate, SCHEDULE_ALGORITHM_ID),
+      ),
     );
 
     expect(stored).toEqual(expectedBody(planned, START));
@@ -222,7 +222,7 @@ describe('the stored schedule body', () => {
    * quietly weakening the row above.
    */
   it('is computed over a plan whose resource fields are set', async () => {
-    await seedProject(START);
+    await seedWorkPackage(START);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     const planned = result!.planned;
     const slices = [...planned.slices.values()];
@@ -261,7 +261,7 @@ describe('the stored schedule body', () => {
    * would report a plan as changed for a reason the plan knows nothing about.
    */
   it('serializes to the same bytes whatever order the value was assembled in', async () => {
-    await seedProject(START);
+    await seedWorkPackage(START);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     const { planned } = result!;
     const bytes = serialiseScheduleBody(buildScheduleBody(planned, START, SCHEDULE_ALGORITHM_ID));
@@ -280,7 +280,7 @@ describe('the stored schedule body', () => {
   });
 
   it('carries the version and the algorithm identity', async () => {
-    await seedProject(START);
+    await seedWorkPackage(START);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     const body = buildScheduleBody(result!.planned, START, SCHEDULE_ALGORITHM_ID);
     expect(body.version).toBe(SCHEDULE_BODY_SCHEMA_VERSION);
@@ -288,7 +288,7 @@ describe('the stored schedule body', () => {
   });
 
   it('never stores eventsVisited', async () => {
-    await seedProject(START);
+    await seedWorkPackage(START);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     const body: Record<string, unknown> = buildScheduleBody(
       result!.planned,
@@ -300,20 +300,22 @@ describe('the stored schedule body', () => {
   });
 
   /**
-   * A project off the calendar stores nulls, not an absent key.
+   * A work package off the calendar stores nulls, not an absent key.
    *
-   * The key set of a stored body may not depend on whether the project had a
+   * The key set of a stored body may not depend on whether the work package had a
    * start date: slice 6's comparison reads key sets, and two bodies that
    * disagree about which keys exist compare as changed for a reason that is not
    * about the plan.
    */
-  it('stores null dates rather than absent keys when the project has no start date', async () => {
-    await seedProject(null);
+  it('stores null dates rather than absent keys when the work package has no start date', async () => {
+    await seedWorkPackage(null);
     const result = await captureAndSchedulePlan(capture(), 'p1');
     const { reads, planned } = result!;
-    expect(reads.project.startDate).toBeNull();
+    expect(reads.workPackage.startDate).toBeNull();
     const stored: unknown = JSON.parse(
-      JSON.stringify(buildScheduleBody(planned, reads.project.startDate, SCHEDULE_ALGORITHM_ID)),
+      JSON.stringify(
+        buildScheduleBody(planned, reads.workPackage.startDate, SCHEDULE_ALGORITHM_ID),
+      ),
     );
     expect(stored).toEqual(expectedBody(planned, null));
     const { workItems } = stored as { workItems: Record<string, Record<string, unknown>> };

@@ -11,7 +11,7 @@ import { RecoveryDispatchError } from '../recovery-dispatch-error';
 import { readRecoveryExchange } from '../recovery-evidence';
 import { verifyRecoveryHistory } from '../recovery-history';
 import type { RecoveryBeginCall } from '../recovery-records';
-import { decodeRuntimeIntent, readRuntimeRequest } from '../runtime-codecs';
+import { decodeRuntimeIntent, mapCurrentScope, readRuntimeRequest } from '../runtime-codecs';
 import type { RuntimeIntent } from '../runtime-records';
 import { type HistoryCatalog, validateHistory } from '../validate-history';
 import { executionCommandId } from '../value-codecs';
@@ -181,7 +181,7 @@ export function createWriteRecoveryClient(
     if (shape.operationId === 'readRuntimeState') return Response.json(setup.state);
     if (shape.operationId === 'acquireRuntimeAuthority') {
       const { personId: _personId, ...body } = input.body as Record<string, unknown>;
-      const canonical = canonicalRuntimeRequest(setup.scope, {
+      const canonical = canonicalRuntimeRequest(mapCurrentScope(setup.scope), {
         ...body,
         kind: 'authority',
       });
@@ -197,6 +197,8 @@ export function createWriteRecoveryClient(
       );
       return Response.json({
         ...receipt,
+        schemaVersion: 2,
+        scope: mapCurrentScope(setup.scope),
         acceptance: {
           ...receipt.acceptance,
           authority: { ...receipt.acceptance.authority, ownerId: body['ownerId'] },

@@ -1,0 +1,1279 @@
+{
+  "schema": "puni-current-memory-contract-verification-v1",
+  "recordedAt": "2026-11-21T01:34:43.161Z",
+  "goalStatus": "active",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+      "sha256": "5d869802259ddcf846babdb95090e4dd8b5a0db22f5980a5ecb27a1ee163f516",
+      "bytes": 6853,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+      "sha256": "967a3920f5d9ccd12cada0070b7ddc8d178d3a8965f9d72d3105a887f2077c27",
+      "bytes": 6694,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "87c888e411b3dead255eaf612fa18cf79ae470a853cb4c7ce6d74270fffa8d6b",
+      "bytes": 91727,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+      "sha256": "f0b3434408744b0ff9d5be9875580c48e703fe2ee9d5b9bcbf4ef147ffe32133",
+      "bytes": 12948,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+      "sha256": "d141b8d74819c5d17b53d47993317c8d7318f3146eb9d7d7bf0e1c5a94ad4878",
+      "bytes": 10814,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+      "sha256": "00c372659ed63a8e964d4c6bccb9e304a0a74132ff68db0a693ae69ad56ced54",
+      "bytes": 11214,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/faults.ts",
+      "sha256": "af8e0aa6aaac89d08a9fe8a4e37a3398bc20a2b015328d8a610fcb5fb01edc3f",
+      "bytes": 3028,
+      "mode": 436
+    }
+  ],
+  "scope": "Restore real current Memory safety fixture reachability; preserve rejection behavior and full original WBS/CLI objective.",
+  "behavior": {
+    "targeted": "Real organization/project/global definitions/current package birth precede every successful point write. Actual persisted-column corruptions then exercise all four targeted readers; no invalid ordinary writer is treated as a corruption producer. Missing owner, unresolved and absent global identity, valid foreign package filtering, seven invalid scalars/state/times and missing corruption targets remain covered. Every async assertion explicitly settles its operation and each corruption restores before Source close.",
+    "birth": "Queued current createWithSteps retains complete draft/audit/scoped grant input and returns actual catalogue identities; no ignored legacy starting-step seed is expected.",
+    "emptyOwner": "Malformed empty organization is refused before birth with no publication; a separate real existing-package capture rejects its corrupt empty mapping.",
+    "parallel": "Both legacy standalone cascade cases retained. Two actual Source cases prove protected parallelism value1 under preview/apply, foreign-address opacity, state purity, refusal of bound retirement, successful cleanup/unbind/retirement, reserved code/explicit values and unrelated foreign fact preservation.",
+    "subtree": "The real final-satellite seam now receives actual package/catalogue/leaf setup. Existing rollback/faulted write/after-control assertions remain, with acquired Source cleanup on failures."
+  },
+  "verification": {
+    "before": {
+      "name": "import-source-broad-memory-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-source-broad-memory-v1.receipt.json",
+        "sha256": "32a4d44214c9331fc9db8c2bb253bf08d68c741d79f0b1bccb7fc0bcf319237c",
+        "bytes": 5030,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/import-source-broad-memory-v1.log",
+        "sha256": "603a0ac0ca02015b7fc468f6f5bc3481549a16f5380324bf4a648570366f3cbf",
+        "bytes": 95955,
+        "mode": 384
+      },
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+          "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-execution.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-node-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-package.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-saved-plan.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-status.test.ts",
+          "./libs/wbs/adapters/store-memory/src/directory-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/directory-ownership.test.ts",
+          "./libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+          "./libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "./libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/resolved-plan-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-command.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-rename.test.ts",
+          "./libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/space-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-manifest-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revision-faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revisions.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-usage-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-allowance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-birth-response.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-retirement.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-step-tree.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/move-write.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/point-write-ownership.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/sparse-current-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 750,
+      "fail": 9,
+      "assertions": 22927,
+      "tests": 759,
+      "files": 49,
+      "seconds": 9.33,
+      "failureNames": [
+        "(fail) memory conformance fault controls > reaches the final subtree write inside the real staged source",
+        "(fail) refuses a naturally stored empty legacy organization during generic memory capture",
+        "(fail) refuses removing a memory step with retained parallelism (cascade=false)",
+        "(fail) refuses removing a memory step with retained parallelism (cascade=true)",
+        "(fail) retains the complete public memory creation before waiting for its Source owner",
+        "(fail) targeted memory readers reject malformed trusted state > names a cross-work-package step in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > names a missing step in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > names a missing work-item reference in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > rejects invalid values and timestamps in each satellite shape"
+      ]
+    },
+    "focusedBefore": {
+      "name": "memory-current-contracts-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-contracts-red-v1.receipt.json",
+        "sha256": "c19ced3bf3813a9572fe3892472322c8e4a70832ebeaec3f372240d08c19df8d",
+        "bytes": 1649,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-contracts-red-v1.log",
+        "sha256": "13cde254b65e8b8da5aa68c4d80ca3dbba2b4e73251524db90f498701d21fab1",
+        "bytes": 14172,
+        "mode": 384
+      },
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "--timeout",
+          "15000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 32,
+      "fail": 9,
+      "assertions": 101,
+      "tests": 41,
+      "files": 5,
+      "seconds": 2.54,
+      "failureNames": [
+        "(fail) memory conformance fault controls > reaches the final subtree write inside the real staged source",
+        "(fail) refuses a naturally stored empty legacy organization during generic memory capture",
+        "(fail) refuses removing a memory step with retained parallelism (cascade=false)",
+        "(fail) refuses removing a memory step with retained parallelism (cascade=true)",
+        "(fail) retains the complete public memory creation before waiting for its Source owner",
+        "(fail) targeted memory readers reject malformed trusted state > names a cross-work-package step in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > names a missing step in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > names a missing work-item reference in all four satellite families",
+        "(fail) targeted memory readers reject malformed trusted state > rejects invalid values and timestamps in each satellite shape"
+      ]
+    },
+    "after": {
+      "name": "memory-current-broad-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-broad-v2.receipt.json",
+        "sha256": "de9263f1b27cb3655a514c3a52aef2113ee42760d12542b4d3c9d20bb4ec703e",
+        "bytes": 5018,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-broad-v2.log",
+        "sha256": "e8724d9ae69bc4a6105fe581645bb1b5b4e3afa1a6eba6c64b1030316d4a902d",
+        "bytes": 86746,
+        "mode": 384
+      },
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+          "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+          "./libs/wbs/adapters/store-memory/src/combined-create.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-execution.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-node-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-parent-package.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-saved-plan.test.ts",
+          "./libs/wbs/adapters/store-memory/src/current-status.test.ts",
+          "./libs/wbs/adapters/store-memory/src/directory-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/directory-ownership.test.ts",
+          "./libs/wbs/adapters/store-memory/src/import.service.test.ts",
+          "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+          "./libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "./libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/resolved-plan-capture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-command.test.ts",
+          "./libs/wbs/adapters/store-memory/src/runtime-rename.test.ts",
+          "./libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/space-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/step-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-manifest-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revision-faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-revisions.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/catalogue-usage-read.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/configuration-reference.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-allowance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-birth-response.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-claim-observation.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-retirement.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-saved-identity.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-step-tree.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-unit.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/move-write.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/point-write-ownership.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/sparse-current-readers.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "./libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 763,
+      "fail": 0,
+      "assertions": 23040,
+      "tests": 763,
+      "files": 49,
+      "seconds": 10.09,
+      "failureNames": []
+    },
+    "compiler": {
+      "name": "memory-current-types-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-types-final-v1.receipt.json",
+        "sha256": "6063fbd111bfb43b28427f794d47b044da9cbbd6504463d97e75671680fff7c2",
+        "bytes": 1340,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-types-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-memory-current-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "compilerEntries": 294,
+    "lint": {
+      "name": "memory-current-lint-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-lint-final-v1.receipt.json",
+        "sha256": "d6fa263f3728806f1a3d60ad13215aabb6e6492b51f84e8ce6bef2457edb3bdd",
+        "bytes": 1775,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-lint-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/current-parent-capture.test.ts",
+          "libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+          "libs/wbs/adapters/store-memory/src/source.ts",
+          "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+          "libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+          "libs/wbs/adapters/store-memory/src/testing/faults.ts",
+          "--max-warnings",
+          "0"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    },
+    "lintFiles": 7,
+    "sourceAudit": {
+      "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v32.json",
+      "sha256": "c711e82b27680a953ff48acdce4bfca40fc3815d11cbefff0fe1a51664b7e72e",
+      "bytes": 1874266,
+      "mode": 384
+    },
+    "audit": {
+      "name": "memory-current-audit-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-audit-final-v1.receipt.json",
+        "sha256": "b14eb806e4b27c3b4c504c1daa7019bafd3f77e17cccdbf2b77bd539cd3ae6ce",
+        "bytes": 1281,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-current-audit-final-v1.log",
+        "sha256": "f12aad3b0028f6782a73338729e13df4498b8bd9628bcdb6634c034ffe345ad2",
+        "bytes": 275,
+        "mode": 384
+      },
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v32.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      }
+    }
+  },
+  "proofs": {
+    "state": {
+      "path": "/tmp/puni-combined-proposal-v1/control/memory-current-faults-v1.state.json",
+      "sha256": "7e636facacf44e7df2ced748342831ae1f3415ff0f2ad4810af47c1934756e30",
+      "bytes": 11405,
+      "mode": 384
+    },
+    "faults": [
+      {
+        "id": "ordinary-owner",
+        "kind": "admission",
+        "oracle": "names a missing work-item reference",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-ordinary-owner-v1.receipt.json",
+          "sha256": "0638527440b650257f84b0ace4bbf96ca5b16f88544954607afdb2c588b8ef7b",
+          "bytes": 1427,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-ordinary-owner-v1.log",
+          "sha256": "9cc6d9cec55573ae7d2beb299d44aa005d69264c45bf733c913d23651fca4c83",
+          "bytes": 1198,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-ordinary-owner-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-ordinary-owner-v1.receipt.json",
+            "sha256": "0638527440b650257f84b0ace4bbf96ca5b16f88544954607afdb2c588b8ef7b",
+            "bytes": 1427,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-ordinary-owner-v1.log",
+            "sha256": "9cc6d9cec55573ae7d2beb299d44aa005d69264c45bf733c913d23651fca4c83",
+            "bytes": 1198,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "names a missing work-item",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "tuple-owner",
+        "kind": "admission",
+        "oracle": "names a missing work-item reference",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-tuple-owner-v1.receipt.json",
+          "sha256": "40a386d62308c2edbc3d6cc892580a3b6313d17a1f359f7a79e900a27820180d",
+          "bytes": 1421,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-tuple-owner-v1.log",
+          "sha256": "aeeceb6ee847bdfd306ecd44bfff6b3e012bf59801b30e0a92077a43837f70b8",
+          "bytes": 1198,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-tuple-owner-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-tuple-owner-v1.receipt.json",
+            "sha256": "40a386d62308c2edbc3d6cc892580a3b6313d17a1f359f7a79e900a27820180d",
+            "bytes": 1421,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-tuple-owner-v1.log",
+            "sha256": "aeeceb6ee847bdfd306ecd44bfff6b3e012bf59801b30e0a92077a43837f70b8",
+            "bytes": 1198,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "names a missing work-item",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "estimate-day",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-estimate-day-v1.receipt.json",
+          "sha256": "5762d380fe3fd2c7482857e3345da3795f6c2899a7c4b4d28e6c96e55b04b012",
+          "bytes": 1419,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-estimate-day-v1.log",
+          "sha256": "3f1d699eabbabe6f100c06a7a6506ce5666e0ae1cf59e3da10f9ae9e61283bb6",
+          "bytes": 909,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-estimate-day-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-estimate-day-v1.receipt.json",
+            "sha256": "5762d380fe3fd2c7482857e3345da3795f6c2899a7c4b4d28e6c96e55b04b012",
+            "bytes": 1419,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-estimate-day-v1.log",
+            "sha256": "3f1d699eabbabe6f100c06a7a6506ce5666e0ae1cf59e3da10f9ae9e61283bb6",
+            "bytes": 909,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "actual-day",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-day-v1.receipt.json",
+          "sha256": "62b2c58004be2000a776abf37ceb25f4cb52e604d248cca5045056461c2a66e2",
+          "bytes": 1415,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-day-v1.log",
+          "sha256": "173922c1a80f4f897ca110991fee40dffacbcda39e5d5e24e1c21fac9008487c",
+          "bytes": 909,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-actual-day-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-day-v1.receipt.json",
+            "sha256": "62b2c58004be2000a776abf37ceb25f4cb52e604d248cca5045056461c2a66e2",
+            "bytes": 1415,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-day-v1.log",
+            "sha256": "173922c1a80f4f897ca110991fee40dffacbcda39e5d5e24e1c21fac9008487c",
+            "bytes": 909,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "actual-time",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-time-v1.receipt.json",
+          "sha256": "bb74f9247fec21129644b28e23f9fc86077a72dd20090974ba3506c29970d2c5",
+          "bytes": 1417,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-time-v1.log",
+          "sha256": "a8f621a067aa21da96a4f02b27452403f591838eda68fbeff76e4de8dd57544a",
+          "bytes": 910,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-actual-time-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-time-v1.receipt.json",
+            "sha256": "bb74f9247fec21129644b28e23f9fc86077a72dd20090974ba3506c29970d2c5",
+            "bytes": 1417,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-actual-time-v1.log",
+            "sha256": "a8f621a067aa21da96a4f02b27452403f591838eda68fbeff76e4de8dd57544a",
+            "bytes": 910,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "progress-state",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-state-v1.receipt.json",
+          "sha256": "7b5df7ce53fce39b962331c93b0092f0d1b18ee93ce53904862eb85ac25490d3",
+          "bytes": 1423,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-state-v1.log",
+          "sha256": "33cd0c941d5f2815eac7b69e6d4ab042eea32dd75e1f37bb55bb3340e1cdc0f3",
+          "bytes": 909,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-progress-state-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-state-v1.receipt.json",
+            "sha256": "7b5df7ce53fce39b962331c93b0092f0d1b18ee93ce53904862eb85ac25490d3",
+            "bytes": 1423,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-state-v1.log",
+            "sha256": "33cd0c941d5f2815eac7b69e6d4ab042eea32dd75e1f37bb55bb3340e1cdc0f3",
+            "bytes": 909,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "progress-time",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-time-v1.receipt.json",
+          "sha256": "d5547af2b884ea8fc051205660eae766dec9c1bb8b25cee38101aad28ba1ea86",
+          "bytes": 1421,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-time-v1.log",
+          "sha256": "55178603289d4c2dbb179464e1bce496ed40b7a8fc7d8aa9b64cb5327858432f",
+          "bytes": 910,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-progress-time-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-time-v1.receipt.json",
+            "sha256": "d5547af2b884ea8fc051205660eae766dec9c1bb8b25cee38101aad28ba1ea86",
+            "bytes": 1421,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-progress-time-v1.log",
+            "sha256": "55178603289d4c2dbb179464e1bce496ed40b7a8fc7d8aa9b64cb5327858432f",
+            "bytes": 910,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "measure-value",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-value-v1.receipt.json",
+          "sha256": "82cb26c969e99e025e96a100f0a575d4d1e016e1ea00e6b48635e8ec6512cd0e",
+          "bytes": 1421,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-value-v1.log",
+          "sha256": "c6e3226966ec038eb437d21ccbb42cd91cccf776c7553f9197938cde8d331230",
+          "bytes": 910,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-measure-value-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-value-v1.receipt.json",
+            "sha256": "82cb26c969e99e025e96a100f0a575d4d1e016e1ea00e6b48635e8ec6512cd0e",
+            "bytes": 1421,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-value-v1.log",
+            "sha256": "c6e3226966ec038eb437d21ccbb42cd91cccf776c7553f9197938cde8d331230",
+            "bytes": 910,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "measure-time",
+        "kind": "admission",
+        "oracle": "rejects invalid values and timestamps",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-time-v1.receipt.json",
+          "sha256": "bb1783312194388c500e52ff495824126b10a6fd60e897bdfc93993a1ea7bc47",
+          "bytes": 1419,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-time-v1.log",
+          "sha256": "8681665999711a29af1b9e4c51819ab43ed1e1e548992d24f9e2210d3dbad49b",
+          "bytes": 910,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-measure-time-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-time-v1.receipt.json",
+            "sha256": "bb1783312194388c500e52ff495824126b10a6fd60e897bdfc93993a1ea7bc47",
+            "bytes": 1419,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-measure-time-v1.log",
+            "sha256": "8681665999711a29af1b9e4c51819ab43ed1e1e548992d24f9e2210d3dbad49b",
+            "bytes": 910,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "rejects invalid values",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "resolution-diagnostic",
+        "kind": "diagnostic-only",
+        "oracle": "names a missing step",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-resolution-diagnostic-v1.receipt.json",
+          "sha256": "480d579dac17418404477dfc9eead1f289dd1cb8353ff6e5b7c70a102471b23d",
+          "bytes": 1436,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-resolution-diagnostic-v1.log",
+          "sha256": "d52c78e9164ac9ff920634b5b97224efab2a76cfc0652e3516b980730e9c7db6",
+          "bytes": 1226,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-resolution-diagnostic-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-resolution-diagnostic-v1.receipt.json",
+            "sha256": "480d579dac17418404477dfc9eead1f289dd1cb8353ff6e5b7c70a102471b23d",
+            "bytes": 1436,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-resolution-diagnostic-v1.log",
+            "sha256": "d52c78e9164ac9ff920634b5b97224efab2a76cfc0652e3516b980730e9c7db6",
+            "bytes": 1226,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "names a missing step",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "The actual operation still rejects at another boundary; this proves named classification only."
+      },
+      {
+        "id": "fixture-target",
+        "kind": "diagnostic-only",
+        "oracle": "refuses a missing physical corruption target",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-fixture-target-v1.receipt.json",
+          "sha256": "1e96598c6ac5fb261c6159840bff90537cc5d731ca7463826beebb4e1a62ebf2",
+          "bytes": 1427,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-fixture-target-v1.log",
+          "sha256": "5fcc8687c402f01afd11ab675578014e086da7752957914a7681cef98b2856dd",
+          "bytes": 836,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-fixture-target-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-fixture-target-v1.receipt.json",
+            "sha256": "1e96598c6ac5fb261c6159840bff90537cc5d731ca7463826beebb4e1a62ebf2",
+            "bytes": 1427,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-fixture-target-v1.log",
+            "sha256": "5fcc8687c402f01afd11ab675578014e086da7752957914a7681cef98b2856dd",
+            "bytes": 836,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/targeted-readers.test.ts",
+              "--test-name-pattern",
+              "refuses a missing physical",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "The actual operation still rejects at another boundary; this proves named classification only."
+      },
+      {
+        "id": "queued-input",
+        "kind": "retention",
+        "oracle": "retains the complete public memory creation",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-queued-input-v1.receipt.json",
+          "sha256": "15de36baef1e2b0b1e820b6ab5a76e99f4f96a118ceba83945a2459099cc3aa9",
+          "bytes": 1445,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-queued-input-v1.log",
+          "sha256": "0bba592977a8cd5cbe074aa9abb6cc2fa8726763debe8457fdbbf34bc84ad55f",
+          "bytes": 713,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-queued-input-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-queued-input-v1.receipt.json",
+            "sha256": "15de36baef1e2b0b1e820b6ab5a76e99f4f96a118ceba83945a2459099cc3aa9",
+            "bytes": 1445,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-queued-input-v1.log",
+            "sha256": "0bba592977a8cd5cbe074aa9abb6cc2fa8726763debe8457fdbbf34bc84ad55f",
+            "bytes": 713,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/package-creator-grant.test.ts",
+              "--test-name-pattern",
+              "retains the complete public memory creation",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "subtree-stage",
+        "kind": "required-stage",
+        "oracle": "reaches the final subtree write",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-subtree-stage-v1.receipt.json",
+          "sha256": "987167b5ed8c92d0b722bf24eb4798a5aff98766f18486241acfebd30ba294ea",
+          "bytes": 1428,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-subtree-stage-v1.log",
+          "sha256": "e571cb5454ffc8336491e02a14e8b36ae3cc333d96bda28346f5bd5c254fadec",
+          "bytes": 976,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-subtree-stage-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-subtree-stage-v1.receipt.json",
+            "sha256": "987167b5ed8c92d0b722bf24eb4798a5aff98766f18486241acfebd30ba294ea",
+            "bytes": 1428,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-subtree-stage-v1.log",
+            "sha256": "e571cb5454ffc8336491e02a14e8b36ae3cc333d96bda28346f5bd5c254fadec",
+            "bytes": 976,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/testing/faults.test.ts",
+              "--test-name-pattern",
+              "reaches the final subtree write",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      },
+      {
+        "id": "parallel-fact",
+        "kind": "protected-fact",
+        "oracle": "current memory binding protects",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-parallel-fact-v1.receipt.json",
+          "sha256": "c84cd33571e887b1bf1de0efea3d596e97cfbfbee239069f683cd16d78149e47",
+          "bytes": 1436,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-parallel-fact-v1.log",
+          "sha256": "7bba685486e376b64cce1a4a768e01a767062e01701e62f2cd934d7581c45b2f",
+          "bytes": 1994,
+          "mode": 384
+        },
+        "restored": true,
+        "run": {
+          "name": "memory-current-fault-parallel-fact-v1",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-parallel-fact-v1.receipt.json",
+            "sha256": "c84cd33571e887b1bf1de0efea3d596e97cfbfbee239069f683cd16d78149e47",
+            "bytes": 1436,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-current-fault-parallel-fact-v1.log",
+            "sha256": "7bba685486e376b64cce1a4a768e01a767062e01701e62f2cd934d7581c45b2f",
+            "bytes": 1994,
+            "mode": 384
+          },
+          "exitCode": 1,
+          "command": {
+            "argv": [
+              "bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+              "--test-name-pattern",
+              "current memory binding protects",
+              "--timeout",
+              "5000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 180000
+          }
+        },
+        "qualification": "Actual production dependency omission failed its intended behavior assertion."
+      }
+    ],
+    "total": 14,
+    "restored": true,
+    "qualification": "Independent ordinary/tuple missing-owner, seven scalar/time/state validators, precise resolution/fixture absence diagnostics, actual queued input retention, actual final subtree dependency and parallel usage capture. The two diagnostic-only variants do not prove admission after all checks are removed. Proof runs predate only comments, Source cleanup and the equivalent typed expectation refactor; final full49-file native suite covers all final bytes."
+  },
+  "previousCore": {
+    "name": "import-source-broad-core-v1",
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/import-source-broad-core-v1.receipt.json",
+      "sha256": "1124aa1ae5ffed1ea814c04ff4f6c68575f354a03035d693496c7a936d52c008",
+      "bytes": 14844,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/import-source-broad-core-v1.log",
+      "sha256": "ea73a364388ba434404d011c286f232346afaf0e1c9d0057d6c40d3ede39edbe",
+      "bytes": 251829,
+      "mode": 384
+    },
+    "exitCode": 1,
+    "command": {
+      "argv": [
+        "bun",
+        "test",
+        "./libs/wbs/application/core/src/compose.test.ts",
+        "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+        "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+        "./libs/wbs/application/core/src/http/endpoint.test.ts",
+        "./libs/wbs/application/core/src/http/history.routes.test.ts",
+        "./libs/wbs/application/core/src/http/import.routes.test.ts",
+        "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+        "./libs/wbs/application/core/src/http/project.routes.test.ts",
+        "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+        "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+        "./libs/wbs/application/core/src/http/step-admission.test.ts",
+        "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+        "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+        "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+        "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+        "./libs/wbs/application/core/src/module-boundaries.test.ts",
+        "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+        "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+        "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+        "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+        "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+        "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+        "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+        "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+        "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+        "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+        "./libs/wbs/application/core/src/module/directory/module.test.ts",
+        "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+        "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+        "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+        "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+        "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+        "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+        "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+        "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+        "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+        "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+        "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+        "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+        "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+        "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/input13-integrity.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+        "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+        "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+        "./libs/wbs/application/core/src/module/step/module.test.ts",
+        "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+        "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+        "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+        "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+        "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+        "./libs/wbs/application/core/src/playwright-config.test.ts",
+        "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+        "./libs/wbs/application/core/src/ports/clock.test.ts",
+        "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+        "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+        "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+        "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+        "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+        "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+        "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+        "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+        "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+        "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+        "./libs/wbs/application/core/src/service/actual.test.ts",
+        "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+        "./libs/wbs/application/core/src/service/authorize.test.ts",
+        "./libs/wbs/application/core/src/service/broadcast.test.ts",
+        "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+        "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+        "./libs/wbs/application/core/src/service/compensating.test.ts",
+        "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+        "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+        "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+        "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+        "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+        "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+        "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+        "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+        "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+        "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+        "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+        "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+        "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+        "./libs/wbs/application/core/src/service/estimate.test.ts",
+        "./libs/wbs/application/core/src/service/freeze.test.ts",
+        "./libs/wbs/application/core/src/service/list-query.test.ts",
+        "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+        "./libs/wbs/application/core/src/service/measure.test.ts",
+        "./libs/wbs/application/core/src/service/node-readings.test.ts",
+        "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+        "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+        "./libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+        "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+        "./libs/wbs/application/core/src/service/plan-history.test.ts",
+        "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+        "./libs/wbs/application/core/src/service/progress.test.ts",
+        "./libs/wbs/application/core/src/service/project.resource.test.ts",
+        "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+        "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+        "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+        "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+        "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+        "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+        "./libs/wbs/application/core/src/service/shared-people.test.ts",
+        "./libs/wbs/application/core/src/service/space.resource.test.ts",
+        "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+        "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+        "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+        "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+        "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+        "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+        "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+        "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+        "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+        "./libs/wbs/application/core/src/testing/harness.test.ts",
+        "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+        "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+        "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+        "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+        "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+        "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+        "--timeout",
+        "30000"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "pass": 2118,
+    "fail": 13,
+    "assertions": 12914,
+    "tests": 2131,
+    "files": 171,
+    "seconds": 106.82,
+    "failureNames": [
+      "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+      "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+      "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+      "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+      "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+      "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+      "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+      "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+      "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+      "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+      "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+      "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+      "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+    ]
+  },
+  "limitations": [
+    "Core171-file run is prior V92 evidence:2118pass13fail; not rerun in this fixture-only slice. Current ordinary point writers stay leaf-only.",
+    "All15 genuine old-producer scenarios remain required. Fixture corruption is explicit raw test storage, not a historical producer or migration acceptance certificate.",
+    "Memory221-case current Source declaration retains3 actually absent optional ports. Full Source authority/epoch/lifetime/fact matrices are not certified by this adapter test run.",
+    "No new full SQLite Source/product/browser/host/build/secrets/migration/installed CLI gate was run. The full entity rename, step catalogue, unified PUNI commands and complete Bun client-surface inventory remain open.",
+    "Astra is unavailable until previously recorded2026-11-22 10:09AM, timezone unspecified; no retry/substitute/new agent. No public commit/push/PR/merge/deploy/activation/install."
+  ]
+}

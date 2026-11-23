@@ -6,7 +6,7 @@ import { refusalSentence } from './plan-refusal';
 
 /** A refused batch as the shared client throws it, at the first command. */
 const refusedBatch = (
-  operation: 'postApiProjectsByIdCommands' | 'postApiDirectoryCommands',
+  operation: 'postApiWorkPackagesByIdCommands' | 'postApiDirectoryCommands',
   refusal: Record<string, unknown>,
 ): WbsRequestError =>
   // The refusal bodies below are the contract's own arms; the cast only spares
@@ -18,7 +18,7 @@ const numbersIn = (sentence: string): number[] =>
   [...sentence.matchAll(/\d+/g)].map((match) => Number(match[0]));
 
 describe('organization limit refusal words', () => {
-  it.each(['postApiProjectsByIdCommands', 'postApiDirectoryCommands'] as const)(
+  it.each(['postApiWorkPackagesByIdCommands', 'postApiDirectoryCommands'] as const)(
     'names the agent-person cap with the body’s numbers from %s',
     (operation) => {
       const sentence = refusalSentence(
@@ -39,7 +39,7 @@ describe('organization limit refusal words', () => {
 
   it('names the claim cap with the body’s numbers and no other', () => {
     const sentence = refusalSentence(
-      refusedBatch('postApiProjectsByIdCommands', {
+      refusedBatch('postApiWorkPackagesByIdCommands', {
         error: 'claim_limit',
         at: 2,
         kind: 'claimWorkItem',
@@ -56,7 +56,7 @@ describe('organization limit refusal words', () => {
 
   it('names the capacity cap with the resource, the total and its parts', () => {
     const sentence = refusalSentence(
-      refusedBatch('postApiProjectsByIdCommands', {
+      refusedBatch('postApiWorkPackagesByIdCommands', {
         error: 'capacity_limit',
         at: 0,
         kind: 'setResourceCapacity',
@@ -67,14 +67,14 @@ describe('organization limit refusal words', () => {
       }),
     );
     expect(sentence).toBe(
-      'Organization limit: resource res-ram would declare 72 of 64 units across your projects (48 stated by your other projects, 24 asked here). Nothing was changed.',
+      'Organization limit: resource res-ram would declare 72 of 64 units across your work packages (48 stated by your other work packages, 24 asked here). Nothing was changed.',
     );
     expect(numbersIn(sentence)).toEqual([72, 64, 48, 24]);
   });
 
   it('carries different numbers through rather than any fixed copy', () => {
     const sentence = refusalSentence(
-      refusedBatch('postApiProjectsByIdCommands', {
+      refusedBatch('postApiWorkPackagesByIdCommands', {
         error: 'agent_person_limit',
         at: 0,
         kind: 'patchPerson',
@@ -89,7 +89,7 @@ describe('organization limit refusal words', () => {
   it('leaves every other refusal to the plan’s table', () => {
     expect(
       refusalSentence(
-        refusedBatch('postApiProjectsByIdCommands', {
+        refusedBatch('postApiWorkPackagesByIdCommands', {
           error: 'forbidden',
           at: 0,
           kind: 'patchPerson',

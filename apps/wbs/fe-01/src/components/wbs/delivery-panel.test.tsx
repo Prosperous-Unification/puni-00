@@ -103,7 +103,11 @@ const scope = (organizationId = 'org-a'): ResourceScope => ({
 function panel(referenceValue = reference, workItemId = 'work-a', organization = scope()) {
   return (
     <OrganizationResourcesProvider scope={organization}>
-      <DeliveryPanel projectId="project-a" workItemId={workItemId} reference={referenceValue} />
+      <DeliveryPanel
+        workPackageId="work-package-a"
+        workItemId={workItemId}
+        reference={referenceValue}
+      />
     </OrganizationResourcesProvider>
   );
 }
@@ -152,7 +156,7 @@ describe('delivery observations', () => {
       'org-a',
     );
     expect(fetch.mock.calls[0]?.[0]).toBe(
-      '/api/projects/project-a/work-items/work-a/refs/ref-a/delivery',
+      '/api/work-packages/work-package-a/work-items/work-a/refs/ref-a/delivery',
     );
   });
   it('shows empty checks without a success verdict and keeps unsafe source URLs unfollowable', async () => {
@@ -315,7 +319,7 @@ describe('links editor delivery entry', () => {
         open
         onOpenChange={vi.fn()}
         number="010"
-        projectId="project-a"
+        workPackageId="work-package-a"
         workItemId="work-a"
         refs={[{ ...reference, systemId: 'github', name: 'Change request' }]}
         systems={[{ id: 'github', name: 'github-pr' }]}

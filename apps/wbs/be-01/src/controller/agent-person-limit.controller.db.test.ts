@@ -16,15 +16,44 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
+
+function seedProject(organizationId: string): void {
+  const projectId = 'agent-cap-project';
+  h.sqlite.run(
+    'INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,?)',
+    [projectId, organizationId, projectId, h.userId('ada')],
+  );
+  for (const step of planDocumentFixture().steps) {
+    if (step.code === null) throw new Error('catalogue fixture requires a step code');
+    const id = organizationId + '-' + step.code;
+    h.sqlite.run(
+      "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,?,?,?,?,?,?,'project',?,'authored')",
+      [
+        id,
+        organizationId,
+        step.code,
+        step.name.trim(),
+        step.estimateUnit,
+        step.allowancePercent * 100,
+        step.position,
+        projectId,
+      ],
+    );
+    h.sqlite.run(
+      "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,?,'project',?,?,?,'authored')",
+      [id + '-binding', organizationId, projectId, id, step.position],
+    );
+  }
+}
 
 function capAgents(organizationId: string, maxAgentPersons: number): void {
   h.sqlite.run(
@@ -65,7 +94,7 @@ function agentCount(organizationId: string): number {
   return row.n;
 }
 
-function rowCount(table: 'person' | 'project'): number {
+function rowCount(table: 'person' | 'work_package'): number {
   const row = h.sqlite.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`).get();
   if (row === null) throw new Error(`${table} count answered no row`);
   return row.n;
@@ -109,9 +138,17 @@ function documentWithAgents(agents: readonly string[]) {
   };
 }
 
+function importAgents(names: readonly string[]): Promise<Answer> {
+  return h.call('ada', 'POST', '/api/work-packages/import', {
+    projectId: 'agent-cap-project',
+    document: documentWithAgents(names),
+  });
+}
+
 describe('the agent person cap, activated', () => {
   beforeEach(() => {
     h.activate();
+    seedProject('org-a');
   });
 
   it('refuses the ninth agent by patchPerson, naming the numbers and changing nothing', async () => {
@@ -219,24 +256,27 @@ describe('the agent person cap, activated', () => {
     expect(kindOf('lee')).toBe('person');
   });
 
-  // A project batch runs its directory commands over the working plan's
+  // A work package batch runs its directory commands over the working plan's
   // catalog, not the directory batch's: the path slice 2 left uncapped.
   // Proof: with the working plan's `organizationLimits` getter removed, the
   // promotion under the cap answered 500 "an agent person was added under
   // scoped access without organization limits" (13 pass, 1 fail); watched 2026-10-22.
-  it('promotes inside a project batch under the cap and refuses it at the cap', async () => {
+  it('promotes inside a work package batch under the cap and refuses it at the cap', async () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 7);
     personIn('org-a', 'kat', 'person');
     personIn('org-a', 'lee', 'person');
-    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Fleet' });
+    const created = await h.call('ada', 'POST', '/api/work-packages', {
+      name: 'Fleet',
+      projectId: 'agent-cap-project',
+    });
     if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-    const projectId = (created.body as { project: { id: string } }).project.id;
-    const inProject = (commands: unknown[]) =>
-      h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+    const inWorkPackage = (commands: unknown[]) =>
+      h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 
-    expect((await inProject([promote('kat')])).status).toBe(200);
-    expect(await inProject([promote('lee')])).toEqual({
+    expect((await inWorkPackage([promote('kat')])).status).toBe(200);
+    expect(await inWorkPackage([promote('lee')])).toEqual({
       status: 409,
       body: {
         at: 0,
@@ -393,12 +433,15 @@ describe('the agent person cap, activated', () => {
         status: 400,
         body: { error: 'personKind_must_be_text', at: 0, kind: 'createPerson' },
       });
-    // A project batch carries directory commands through the same parser refusal.
-    const created = await h.call('ada', 'POST', '/api/projects', { name: 'Fleet' });
+    // A work package batch carries directory commands through the same parser refusal.
+    const created = await h.call('ada', 'POST', '/api/work-packages', {
+      name: 'Fleet',
+      projectId: 'agent-cap-project',
+    });
     if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-    const projectId = (created.body as { project: { id: string } }).project.id;
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
     expect(
-      await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+      await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
         commands: [{ kind: 'createPerson', name: 'Odd', personKind: 1 }],
       }),
     ).toEqual({
@@ -424,28 +467,21 @@ describe('the agent person cap, activated', () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 6);
     const people = rowCount('person');
-    const projects = rowCount('project');
+    const workPackages = rowCount('work_package');
 
-    expect(
-      await h.call('ada', 'POST', '/api/projects/import', documentWithAgents(['Ann', 'Bea', 'Cy'])),
-    ).toEqual({
+    expect(await importAgents(['Ann', 'Bea', 'Cy'])).toEqual({
       status: 409,
       body: { error: 'agent_person_limit', cap: 8, current: 6, added: 3 },
     });
     expect(rowCount('person')).toBe(people);
-    expect(rowCount('project')).toBe(projects);
+    expect(rowCount('work_package')).toBe(workPackages);
   });
 
   it('imports two agents at 6 of 8', async () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 6);
 
-    const imported = await h.call(
-      'ada',
-      'POST',
-      '/api/projects/import',
-      documentWithAgents(['Ann', 'Bea']),
-    );
+    const imported = await importAgents(['Ann', 'Bea']);
 
     expect(imported.status).toBe(201);
     expect(agentCount('org-a')).toBe(8);
@@ -455,12 +491,7 @@ describe('the agent person cap, activated', () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 8);
 
-    const imported = await h.call(
-      'ada',
-      'POST',
-      '/api/projects/import',
-      documentWithAgents(['bot-1', 'bot-2']),
-    );
+    const imported = await importAgents(['bot-1', 'bot-2']);
 
     expect(imported.status).toBe(201);
     expect(agentCount('org-a')).toBe(8);
@@ -468,20 +499,26 @@ describe('the agent person cap, activated', () => {
 });
 
 describe('the agent person cap under legacy access', () => {
-  it('admits a promotion and an import with no organization to own a cap', async () => {
+  it('admits a legacy promotion and import before activating organization caps', async () => {
     capAgents('org-a', 0);
     capAgents('org-b', 0);
     h.sqlite.run("INSERT INTO person (id, name, kind) VALUES ('kat', 'kat', 'person')");
 
     expect((await directory('ada', [promote('kat')])).status).toBe(200);
     expect(kindOf('kat')).toBe('agent');
-    expect(
-      (await h.call('ada', 'POST', '/api/projects/import', documentWithAgents(['Ann']))).status,
-    ).toBe(201);
     expect((await directory('ada', [createAgent('Scout')])).status).toBe(200);
     expect(
       h.sqlite.query<{ kind: string }, []>("SELECT kind FROM person WHERE name = 'Scout'").get()
         ?.kind,
     ).toBe('agent');
+    h.sqlite.run(
+      "INSERT INTO organization(id,name,legacy,created_at) VALUES('legacy-fleet','Legacy fleet',1,1)",
+    );
+    seedProject('legacy-fleet');
+    capAgents('legacy-fleet', 0);
+    expect((await importAgents(['Ann'])).status).toBe(201);
+    expect(h.sqlite.query("SELECT kind FROM person WHERE name='Ann'").get()).toEqual({
+      kind: 'agent',
+    });
   });
 });

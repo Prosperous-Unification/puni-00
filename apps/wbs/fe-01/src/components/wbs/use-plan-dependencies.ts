@@ -33,7 +33,7 @@ import { type TreeRow } from './wbs-rows';
  */
 export function usePlanDependencies({
   flat,
-  projectId,
+  workPackageId,
   lookup,
   stepNodes,
   pushToast,
@@ -47,18 +47,18 @@ export function usePlanDependencies({
   typedDependencies,
 }: {
   flat: TreeRow[];
-  projectId: string;
+  workPackageId: string;
   lookup: DependencyLookup;
   stepNodes: PlanRead['stepNodes'];
   pushToast: (toast: Toast) => void;
   busy: BusyWrites;
   commands: PlanCommands;
   /**
-   * Whether the project runtime these commands belong to is still the one its
+   * Whether the work package runtime these commands belong to is still the one its
    * owner publishes — the runtime's own `isCurrent`, closed over by each gesture
    * and asked when its refusals are to be said. Not a ref to the commands the
    * table last rendered with: that stays true for ever once the table is gone,
-   * and the toasts are the page's and outlive it, so a left project's refusal
+   * and the toasts are the page's and outlive it, so a left work package's refusal
    * reached them over the next one. Only the toast asks it: the reread goes to
    * the runtime, which refuses it once withdrawn, and the busy state is the
    * runtime's own.
@@ -197,7 +197,7 @@ export function usePlanDependencies({
           await refreshOrMarkStale(ambiguous ? undefined : 'tree');
         } finally {
           // Lowered however the list ended: this busy state is the runtime's
-          // own, so a project the reader has left lowers only a busy nobody draws.
+          // own, so a work package the reader has left lowers only a busy nobody draws.
           busy.lower();
         }
         const problems = [
@@ -210,10 +210,10 @@ export function usePlanDependencies({
         // dependency in one toast, not one each` failed with two. Watched,
         // 2026-08-06.
         // The refusal belongs to the commands that sent it — this client and
-        // this project — not merely the project id a replacement client may
+        // this work package — not merely the work package id a replacement client may
         // also serve.
         // Proof: on 2026-09-25, dropping `isCurrent() &&` here put `These were refused: …`
-        // over the next project in `says nothing in the next project when a dependency list
+        // over the next work package in `says nothing in the next workPackage when a dependency list
         // asked of the last one is refused`: expected [ Array(1) ] to deeply equal [].
         if (isCurrent() && problems.length > 0)
           pushToast({ kind: 'error', text: problems.join(' ') });
@@ -243,7 +243,7 @@ export function usePlanDependencies({
         try {
           const draft = await resolveDependencyDraft({
             typed,
-            projectId,
+            workPackageId,
             rows: flat,
             nodes: stepNodes ?? [],
             lookup,
@@ -254,13 +254,13 @@ export function usePlanDependencies({
             if (!isCurrent()) return;
             try {
               if (
-                predecessor.endpoint.projectId === projectId &&
+                predecessor.endpoint.workPackageId === workPackageId &&
                 predecessor.endpoint.scope === 'whole'
               )
                 await commands.addDependency(successorId, predecessor.endpoint.workItemId);
               else
                 await commands.addTypedDependency(
-                  serializeDependencyEndpoint(predecessor.endpoint, projectId),
+                  serializeDependencyEndpoint(predecessor.endpoint, workPackageId),
                   { scope: 'whole', workItemId: successorId },
                   'FS',
                 );
@@ -291,7 +291,7 @@ export function usePlanDependencies({
       flat,
       isCurrent,
       lookup,
-      projectId,
+      workPackageId,
       pushToast,
       refreshOrMarkStale,
       setDepPicker,
@@ -338,7 +338,7 @@ export function usePlanDependencies({
     ): Promise<CommitOutcome> => {
       const predecessor = selection.endpoint;
       if (
-        predecessor.projectId === projectId &&
+        predecessor.workPackageId === workPackageId &&
         predecessor.scope === 'whole' &&
         (flat.find((row) => row.id === successorId)?.dependsOn.includes(predecessor.workItemId) ||
           typedDependencies.some(
@@ -354,7 +354,7 @@ export function usePlanDependencies({
       return run((write) =>
         write.perform(['tree'], () =>
           commands.addTypedDependency(
-            serializeDependencyEndpoint(predecessor, projectId),
+            serializeDependencyEndpoint(predecessor, workPackageId),
             { scope: 'whole', workItemId: successorId },
             'FS',
           ),
@@ -371,7 +371,7 @@ export function usePlanDependencies({
         return outcome;
       });
     },
-    [commands, flat, projectId, run, setDepPicker, typedDependencies],
+    [commands, flat, workPackageId, run, setDepPicker, typedDependencies],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */

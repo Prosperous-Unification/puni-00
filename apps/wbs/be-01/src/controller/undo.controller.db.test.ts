@@ -1,12 +1,22 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -29,14 +39,13 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
@@ -61,12 +70,14 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 /**
@@ -79,7 +90,6 @@ import { testWrites } from '../testing/writes-fixture';
  * they are all decided by the revision comparison, so it runs against the
  * database that actually does the comparing.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let app: ReturnType<typeof buildApp>;
@@ -88,15 +98,18 @@ let app: ReturnType<typeof buildApp>;
  * it left behind rather than infer it from what undo happens to answer.
  */
 let journal: CommandJournalRepository;
+let catalogue: StepCatalogueRepository;
 let workItems: WorkItemRepository;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-undo-http-'));
+  migrateOrganizationCatalogueFixture(join(dir, 'test.db'));
   const db = openDrizzle(join(dir, 'test.db'));
-  runMigrations(join(dir, 'test.db'), FOLDER);
+  seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
   journal = new CommandJournalRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
 
-  const projects = new ProjectRepository(db, OPEN);
+  const workPackages = new WorkPackageRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   const estimates = new EstimateRepository(db, OPEN);
   const actuals = new ActualRepository(db, OPEN);
@@ -118,33 +131,33 @@ beforeEach(() => {
     priorityBands: testPriorityBandService(),
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+    workPackages: new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       broadcast: recordingBroadcaster(),
     }),
     steps: new StepService({
-      dependencyContext: sqliteDependencyContext(db, projects),
+      dependencyContext: sqliteDependencyContext(db, workPackages),
       clock: testClock,
-      projects,
+      workPackages,
       steps: new StepRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
       dependencyContext: createLocalDependencyContext({
-        projects: projects,
+        workPackages: workPackages,
         workItems: workItems,
         estimates: estimates,
         dependencies: dependencies,
         typedDependencies: new TypedDependencyRepository(db, OPEN),
       }),
       externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
-      projects,
+      workPackages,
       estimates,
       actuals,
       measures,
@@ -167,7 +180,15 @@ beforeEach(() => {
     }),
   };
   app = buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: new SqliteWorkPackageObservation({
+      currentCapture: refusingSavedCurrentCapture,
+      openConnection: () => openPackageObservationConnection(join(dir, 'test.db')),
+      activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      now: () => testClock.now(),
+    }),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -177,7 +198,8 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
@@ -242,28 +264,28 @@ function send(
   );
 }
 
-async function newProject(token: string, name = 'Rewire the shed'): Promise<string> {
-  const created = await send('/api/projects', token, {
+async function newWorkPackage(token: string, name = 'Rewire the shed'): Promise<string> {
+  const created = await send('/api/work-packages', token, {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ projectId: PROJECT_ID, name }),
   });
-  return ((await created.json()) as { project: { id: string } }).project.id;
+  return ((await created.json()) as { workPackage: { id: string } }).workPackage.id;
 }
 
 /**
- * One plan command, as a batch of one on `POST /api/projects/:id/commands` —
+ * One plan command, as a batch of one on `POST /api/work-packages/:id/commands` —
  * the one way to write to a plan, and the writes every stack below is built
  * from.
  */
-function command(projectId: string, token: string, step: object): Promise<Response> {
-  return send(`/api/projects/${projectId}/commands`, token, {
+function command(workPackageId: string, token: string, step: object): Promise<Response> {
+  return send(`/api/work-packages/${workPackageId}/commands`, token, {
     method: 'POST',
     body: JSON.stringify({ commands: [step] }),
   });
 }
 
-async function addRoot(token: string, projectId: string, name: string): Promise<string> {
-  const created = await command(projectId, token, {
+async function addRoot(token: string, workPackageId: string, name: string): Promise<string> {
+  const created = await command(workPackageId, token, {
     kind: 'createWorkItem',
     parentId: null,
     afterId: null,
@@ -278,55 +300,59 @@ async function addRoot(token: string, projectId: string, name: string): Promise<
 
 function patchItem(
   token: string,
-  projectId: string,
+  workPackageId: string,
   workItemId: string,
   patch: object,
 ): Promise<Response> {
-  return command(projectId, token, { kind: 'patchWorkItem', workItemId, patch });
+  return command(workPackageId, token, { kind: 'patchWorkItem', workItemId, patch });
 }
 
-describe('POST /api/projects/:id/undo', () => {
+describe('POST /api/work-packages/:id/undo', () => {
   it('turns an anonymous request away before it reaches the stack', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
+    const workPackageId = await newWorkPackage(token);
 
     const res = await app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/undo`, { method: 'POST' }),
+      new Request(`http://localhost/api/work-packages/${workPackageId}/undo`, { method: 'POST' }),
     );
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'unauthenticated' });
   });
 
-  it('answers 404 for a project that does not exist', async () => {
+  it('answers 404 for a work package that does not exist', async () => {
     const token = await register('owner');
 
-    const res = await send(`/api/projects/${crypto.randomUUID()}/undo`, token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${crypto.randomUUID()}/undo`, token, {
+      method: 'POST',
+    });
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found' });
   });
 
-  it('answers 403 to somebody who may read the project but not write to it', async () => {
+  it('answers 403 to somebody who may read the work package but not write to it', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const projectId = await newProject(owner);
-    await send(`/api/projects/${projectId}`, owner, {
+    const workPackageId = await newWorkPackage(owner);
+    await send(`/api/work-packages/${workPackageId}`, owner, {
       method: 'PATCH',
       body: JSON.stringify({ restricted: true }),
     });
 
-    const res = await send(`/api/projects/${projectId}/undo`, stranger, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/undo`, stranger, {
+      method: 'POST',
+    });
 
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: 'forbidden' });
   });
 
-  it('answers 409 nothing_to_undo on an untouched project', async () => {
+  it('answers 409 nothing_to_undo on an untouched work package', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
+    const workPackageId = await newWorkPackage(token);
 
-    const res = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' });
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'nothing_to_undo', detail: null });
@@ -334,11 +360,11 @@ describe('POST /api/projects/:id/undo', () => {
 
   it('answers what it undid, so the screen can say it', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
-    const strip = await addRoot(token, projectId, 'Strip');
-    await patchItem(token, projectId, strip, { name: 'Strip out' });
+    const workPackageId = await newWorkPackage(token);
+    const strip = await addRoot(token, workPackageId, 'Strip');
+    await patchItem(token, workPackageId, strip, { name: 'Strip out' });
 
-    const res = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ done: 'rename “Strip out”', detail: null });
@@ -347,19 +373,19 @@ describe('POST /api/projects/:id/undo', () => {
   it('answers 409 stale_undo naming what moved, and undoes nothing', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const projectId = await newProject(owner);
-    const strip = await addRoot(owner, projectId, 'Strip');
-    await patchItem(owner, projectId, strip, { name: 'Mine' });
-    await patchItem(stranger, projectId, strip, { name: 'Theirs' });
+    const workPackageId = await newWorkPackage(owner);
+    const strip = await addRoot(owner, workPackageId, 'Strip');
+    await patchItem(owner, workPackageId, strip, { name: 'Mine' });
+    await patchItem(stranger, workPackageId, strip, { name: 'Theirs' });
 
-    const res = await send(`/api/projects/${projectId}/undo`, owner, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/undo`, owner, { method: 'POST' });
 
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string; detail: string };
     expect(body.error).toBe('stale_undo');
     expect(body.detail).toContain('Theirs');
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, owner);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, owner);
     const names = ((await tree.json()) as { workItems: { name: string }[] }).workItems.map(
       (each) => each.name,
     );
@@ -367,13 +393,13 @@ describe('POST /api/projects/:id/undo', () => {
   });
 });
 
-describe('POST /api/projects/:id/redo', () => {
+describe('POST /api/work-packages/:id/redo', () => {
   it('answers 409 nothing_to_undo until something has been undone', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
-    await addRoot(token, projectId, 'Strip');
+    const workPackageId = await newWorkPackage(token);
+    await addRoot(token, workPackageId, 'Strip');
 
-    const res = await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/redo`, token, { method: 'POST' });
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'nothing_to_undo', detail: null });
@@ -381,12 +407,12 @@ describe('POST /api/projects/:id/redo', () => {
 
   it('puts back what the undo took away', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
-    const strip = await addRoot(token, projectId, 'Strip');
-    await patchItem(token, projectId, strip, { name: 'Strip out' });
-    await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const workPackageId = await newWorkPackage(token);
+    const strip = await addRoot(token, workPackageId, 'Strip');
+    await patchItem(token, workPackageId, strip, { name: 'Strip out' });
+    await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' });
 
-    const res = await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' });
+    const res = await send(`/api/work-packages/${workPackageId}/redo`, token, { method: 'POST' });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ done: 'rename “Strip out”', detail: null });
@@ -394,11 +420,19 @@ describe('POST /api/projects/:id/redo', () => {
 });
 
 describe('first-child assignment hand-down over SQLite', () => {
+  async function registerOwner() {
+    const { token, userId } = await registerAccount('owner');
+    await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, {
+      at: testClock.now(),
+      by: userId,
+    });
+    return token;
+  }
   it('refuses redo when another account changes the parent assignment after undo', async () => {
-    const owner = await register('owner');
+    const owner = await registerOwner();
     const stranger = await register('stranger');
-    const projectId = await newProject(owner);
-    const parentId = await addRoot(owner, projectId, 'Parent');
+    const workPackageId = await newWorkPackage(owner);
+    const parentId = await addRoot(owner, workPackageId, 'Parent');
     const created = await send('/api/directory/commands', owner, {
       method: 'POST',
       body: JSON.stringify({
@@ -413,14 +447,16 @@ describe('first-child assignment hand-down over SQLite', () => {
     const annId = people.results.at(0)?.id;
     const beaId = people.results.at(1)?.id;
     if (annId === undefined || beaId === undefined) throw new Error('people absent');
-    const tree = (await (await send(`/api/projects/${projectId}/work-items`, owner)).json()) as {
+    const tree = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, owner)
+    ).json()) as {
       steps: { id: string; name: string }[];
     };
     const devId = tree.steps.find((step) => step.name === 'Dev')?.id;
     if (devId === undefined) throw new Error('Dev step absent');
     expect(
       (
-        await command(projectId, owner, {
+        await command(workPackageId, owner, {
           kind: 'setAssignee',
           workItemId: parentId,
           stepId: devId,
@@ -428,7 +464,7 @@ describe('first-child assignment hand-down over SQLite', () => {
         })
       ).status,
     ).toBe(200);
-    const child = await command(projectId, owner, {
+    const child = await command(workPackageId, owner, {
       kind: 'createWorkItem',
       parentId,
       afterId: null,
@@ -437,12 +473,12 @@ describe('first-child assignment hand-down over SQLite', () => {
     expect(child.status).toBe(200);
     const childId = ((await child.json()) as { results: { id: string }[] }).results.at(0)?.id;
     if (childId === undefined) throw new Error('child absent');
-    expect((await send(`/api/projects/${projectId}/undo`, owner, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/undo`, owner, { method: 'POST' })).status,
+    ).toBe(200);
     expect(
       (
-        await command(projectId, stranger, {
+        await command(workPackageId, stranger, {
           kind: 'setAssignee',
           workItemId: parentId,
           stepId: devId,
@@ -453,10 +489,12 @@ describe('first-child assignment hand-down over SQLite', () => {
 
     // Proof: omitting parent assignment owners from the create journal's redo
     // preconditions answered 200 here and removed Bea's competing assignment.
-    const redo = await send(`/api/projects/${projectId}/redo`, owner, { method: 'POST' });
+    const redo = await send(`/api/work-packages/${workPackageId}/redo`, owner, { method: 'POST' });
     expect(redo.status).toBe(409);
     expect((await redo.json()) as { error: string }).toMatchObject({ error: 'stale_undo' });
-    const after = (await (await send(`/api/projects/${projectId}/work-items`, owner)).json()) as {
+    const after = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, owner)
+    ).json()) as {
       workItems: { id: string; assignees: Record<string, string> }[];
     };
     expect(after.workItems.find((row) => row.id === parentId)?.assignees[devId]).toBe(beaId);
@@ -464,9 +502,9 @@ describe('first-child assignment hand-down over SQLite', () => {
   });
 
   it('undoes onto the original node and clears the parent again on redo', async () => {
-    const { token } = await registerAccount('owner');
-    const projectId = await newProject(token);
-    const parentId = await addRoot(token, projectId, 'Parent');
+    const token = await registerOwner();
+    const workPackageId = await newWorkPackage(token);
+    const parentId = await addRoot(token, workPackageId, 'Parent');
     const person = await send('/api/directory/commands', token, {
       method: 'POST',
       body: JSON.stringify({ commands: [{ kind: 'createPerson', name: 'Ann', teamIds: [] }] }),
@@ -474,7 +512,9 @@ describe('first-child assignment hand-down over SQLite', () => {
     expect(person.status).toBe(200);
     const personId = ((await person.json()) as { results: { id: string }[] }).results.at(0)?.id;
     if (personId === undefined) throw new Error('person create minted no id');
-    const before = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+    const before = (await (
+      await send(`/api/work-packages/${workPackageId}/work-items`, token)
+    ).json()) as {
       steps: { id: string; name: string }[];
       stepNodes: { id: string; workItemId: string; stepId: string }[];
     };
@@ -482,7 +522,7 @@ describe('first-child assignment hand-down over SQLite', () => {
     if (devId === undefined) throw new Error('Dev step absent');
     expect(
       (
-        await command(projectId, token, {
+        await command(workPackageId, token, {
           kind: 'setAssignee',
           workItemId: parentId,
           stepId: devId,
@@ -495,7 +535,8 @@ describe('first-child assignment hand-down over SQLite', () => {
     const originalNodeId = before.stepNodes.find(
       (node) => node.workItemId === parentId && node.stepId === devId,
     )?.id;
-    const created = await command(projectId, token, {
+    if (originalNodeId === undefined) throw new Error('original Dev node absent');
+    const created = await command(workPackageId, token, {
       kind: 'createWorkItem',
       parentId,
       afterId: null,
@@ -505,7 +546,7 @@ describe('first-child assignment hand-down over SQLite', () => {
     const childId = ((await created.json()) as { results: { id: string }[] }).results.at(0)?.id;
     if (childId === undefined) throw new Error('child create minted no id');
     const read = async () =>
-      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      (await (await send(`/api/work-packages/${workPackageId}/work-items`, token)).json()) as {
         stepNodes: { id: string; workItemId: string; stepId: string }[];
         workItems: { id: string; assignees: Record<string, string> }[];
       };
@@ -514,11 +555,11 @@ describe('first-child assignment hand-down over SQLite', () => {
     );
     const afterCreate = await workItems.findById(parentId);
     if (afterCreate === null) throw new Error('parent absent after create');
-    // Creating the child touches the parent once; clearing its assignment touches it again.
-    expect(afterCreate.revision).toBe(afterAssigned.revision + 2);
-    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    // The first-child transition moves the assignment and bumps each affected row once.
+    expect(afterCreate.revision).toBe(afterAssigned.revision + 1);
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     const undone = await read();
     expect(
       undone.stepNodes.find((node) => node.workItemId === parentId && node.stepId === devId)?.id,
@@ -526,9 +567,9 @@ describe('first-child assignment hand-down over SQLite', () => {
     expect(undone.workItems.find((row) => row.id === parentId)?.assignees[devId]).toBe(personId);
     const afterUndo = await workItems.findById(parentId);
     expect(afterUndo?.revision).toBe(afterCreate.revision + 1);
-    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
-      200,
-    );
+    expect(
+      (await send(`/api/work-packages/${workPackageId}/redo`, token, { method: 'POST' })).status,
+    ).toBe(200);
     const redone = await read();
     expect(redone.workItems.find((row) => row.id === childId)?.assignees[devId]).toBe(personId);
     expect(redone.workItems.find((row) => row.id === parentId)?.assignees[devId]).toBeUndefined();
@@ -541,25 +582,25 @@ describe('what the tree read says about the stack', () => {
   it('carries undoable and redoable for the account reading it', async () => {
     const owner = await register('owner');
     const stranger = await register('stranger');
-    const projectId = await newProject(owner);
-    await addRoot(owner, projectId, 'Strip');
+    const workPackageId = await newWorkPackage(owner);
+    await addRoot(owner, workPackageId, 'Strip');
 
-    const mine = await send(`/api/projects/${projectId}/work-items`, owner);
+    const mine = await send(`/api/work-packages/${workPackageId}/work-items`, owner);
     expect(await mine.json()).toMatchObject({ undoable: true, redoable: false });
 
     // Somebody who has changed nothing here has nothing to undo, however much
     // anybody else has done. The stack is per account.
-    const theirs = await send(`/api/projects/${projectId}/work-items`, stranger);
+    const theirs = await send(`/api/work-packages/${workPackageId}/work-items`, stranger);
     expect(await theirs.json()).toMatchObject({ undoable: false, redoable: false });
   });
 
   it('reports something to redo once something has been undone', async () => {
     const token = await register('owner');
-    const projectId = await newProject(token);
-    await addRoot(token, projectId, 'Strip');
-    await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const workPackageId = await newWorkPackage(token);
+    await addRoot(token, workPackageId, 'Strip');
+    await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' });
 
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
 
     expect(await tree.json()).toMatchObject({ undoable: false, redoable: true });
   });
@@ -577,18 +618,20 @@ describe('what the tree read says about the stack', () => {
 describe('patchWorkItem with a name and its notes at once', () => {
   it('writes one journal entry, and one undo puts both fields back', async () => {
     const { token, userId } = await registerAccount('owner');
-    const projectId = await newProject(token);
-    const strip = await addRoot(token, projectId, 'Strip');
-    await patchItem(token, projectId, strip, { notes: 'measure twice' });
+    const workPackageId = await newWorkPackage(token);
+    const strip = await addRoot(token, workPackageId, 'Strip');
+    await patchItem(token, workPackageId, strip, { notes: 'measure twice' });
     // The stack as the composite edit finds it: the row's creation and the
     // note written under it, both this account's.
     expect(
-      (await journal.entriesFor({ projectId, userId, personId: null })).map((each) => each.kind),
+      (await journal.entriesFor({ workPackageId, userId, personId: null })).map(
+        (each) => each.kind,
+      ),
     ).toEqual(['create', 'patch']);
 
     // Both fields, one gesture, one command — what `commitNameCell` sends when
     // somebody rewrites a line and the note under it before leaving the cell.
-    const patched = await patchItem(token, projectId, strip, {
+    const patched = await patchItem(token, workPackageId, strip, {
       name: 'Strip the wiring',
       notes: 'measure twice, cut once',
     });
@@ -600,10 +643,14 @@ describe('patchWorkItem with a name and its notes at once', () => {
     // it failed further down on `Expected: "Strip" / Received: "Strip the
     // wiring"`: one undo, one field, one Cmd+Z short. Watched, 2026-08-08.
     expect(
-      (await journal.entriesFor({ projectId, userId, personId: null })).map((each) => each.kind),
+      (await journal.entriesFor({ workPackageId, userId, personId: null })).map(
+        (each) => each.kind,
+      ),
     ).toEqual(['create', 'patch', 'patch']);
 
-    const undone = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    const undone = await send(`/api/work-packages/${workPackageId}/undo`, token, {
+      method: 'POST',
+    });
     expect(undone.status).toBe(200);
 
     // Proof: `revertTo`'s `if (patch.notes !== undefined) out.notes =
@@ -611,7 +658,7 @@ describe('patchWorkItem with a name and its notes at once', () => {
     // `Expected: "measure twice" / Received: "measure twice, cut once"` — an
     // undo that put the name back and left the note where nobody asked for it.
     // Watched, 2026-08-08.
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`, token);
     const rows = ((await tree.json()) as { workItems: { name: string; notes: string }[] })
       .workItems;
     expect(rows).toHaveLength(1);

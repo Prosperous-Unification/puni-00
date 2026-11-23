@@ -32,14 +32,14 @@ const LEGACY_TOKEN_ESTIMATE = 'token_estimate';
  * never has both, because each write path removes the other.
  *
  * `definitionsOf` answers the owning organization's definitions, or null for
- * an unowned project, whose one estimable key is `tokens` (design D19).
+ * an unowned work package, whose one estimable key is `tokens` (design D19).
  */
 export function inMemoryMeasureEstimates(
   workItems: WorkItemStore,
   measures: MemoryMeasureTable,
   table: MemoryMeasureEstimateTable = memoryMeasureEstimateTable(),
   steps?: StepStore,
-  definitionsOf: (projectId: string) => MeasureDefinition[] | null = () => null,
+  definitionsOf: (workPackageId: string) => MeasureDefinition[] | null = () => null,
 ): MeasureEstimateStore {
   const { rows } = table;
   const samePair = (
@@ -59,8 +59,8 @@ export function inMemoryMeasureEstimates(
   };
 
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
+    async listByWorkPackage(workPackageId) {
+      const ids = new Set((await workItems.listByWorkPackage(workPackageId)).map((w) => w.id));
       const derived: StoredMeasureEstimate[] = measures.rows
         .filter((row) => ids.has(row.workItemId) && row.metric === LEGACY_TOKEN_ESTIMATE)
         .map((row) => ({
@@ -73,7 +73,10 @@ export function inMemoryMeasureEstimates(
           singlePoint: true,
         }));
       const position = new Map(
-        ((await steps?.listByProject(projectId)) ?? []).map((step) => [step.id, step.position]),
+        ((await steps?.listByWorkPackage(workPackageId)) ?? []).map((step) => [
+          step.id,
+          step.position,
+        ]),
       );
       return [...rows.filter((row) => ids.has(row.workItemId)), ...derived].sort(
         (left, right) =>
@@ -95,9 +98,12 @@ export function inMemoryMeasureEstimates(
         throw new Error(`measure estimate ${workItemId}/${stepId}/${key} is not a single point`);
       const owner = await workItems.findById(workItemId);
       if (owner === null) throw new Error(`measure estimate names absent work item ${workItemId}`);
-      const held = definitionsOf(owner.projectId);
+      const held = definitionsOf(owner.workPackageId);
       // Proof: with this check removed, the memory certification's
       // `measureEstimates.set:defined-key` stored `story_points`; watched 2026-10-23.
+      // Proof: admitting only the independently held foreign_gpu_minutes key
+      // returned written at the current cross-organization refusal oracle
+      // (owned-measure-effect-memory-trio-foreign-v1).
       if (held === null ? key !== TOKEN_ESTIMATE_KEY : !held.some((each) => each.key === key))
         throw new Error(
           `measure ${key} is not defined by the organization owning work item ${workItemId}`,

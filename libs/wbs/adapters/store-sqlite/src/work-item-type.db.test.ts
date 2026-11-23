@@ -2,30 +2,29 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import type { WorkItem, WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from './work-package';
 
 let dir: string;
 let ownerId: string;
 let repo: DirectoryRepository;
 let workItems: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let itemId: string;
 let childId: string;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
@@ -38,7 +37,7 @@ const newItem = (
   parentId: string | null,
 ): WorkItem => ({
   id,
-  projectId,
+  workPackageId,
   parentId,
   position,
   name,
@@ -63,7 +62,8 @@ const typed = (name: string) => repo.addWorkItemType({ id: crypto.randomUUID(), 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-type-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, { hasUnknownOwner: false });
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   repo = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -73,23 +73,12 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
-  projectId = crypto.randomUUID();
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
-  });
-  const steps: Step[] = [
-    {
-      id: crypto.randomUUID(),
-      projectId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
+  workPackageId = crypto.randomUUID();
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
+    wrote(),
+  );
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();
@@ -128,7 +117,9 @@ describe('the work item type vocabulary', () => {
 
     await workItems.patch(itemId, { typeIds: [bug.id, spike.id] }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect([...(row?.typeIds ?? [])].sort()).toEqual([bug.id, spike.id].sort());
   });
 
@@ -150,7 +141,9 @@ describe('the work item type vocabulary', () => {
 
     await workItems.patch(itemId, { typeIds: [spike.id] }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.typeIds).toEqual([spike.id]);
   });
 
@@ -160,7 +153,9 @@ describe('the work item type vocabulary', () => {
 
     await workItems.patch(itemId, { typeIds: [] }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.typeIds).toEqual([]);
   });
 
@@ -172,7 +167,9 @@ describe('the work item type vocabulary', () => {
 
     await workItems.patch(itemId, { name: 'Strip the walls' }, wrote());
 
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.typeIds).toEqual([bug.id]);
   });
 
@@ -189,7 +186,9 @@ describe('the work item type vocabulary', () => {
     const outcome = await workItems.patch(itemId, { typeIds: [bug.id] }, wrote());
 
     expect(outcome.ok).toBe(true);
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.typeIds).toEqual([bug.id]);
   });
 
@@ -206,7 +205,9 @@ describe('the work item type vocabulary', () => {
     expect(outcome).toEqual({ ok: false, reason: 'unknown_type' });
     // The **whole** patch, which is the half a reader loses if the refusal comes
     // after the other fields are written.
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.name).toBe('Strip');
   });
 
@@ -218,7 +219,9 @@ describe('the work item type vocabulary', () => {
     const outcome = await workItems.patch(itemId, { typeIds: [bug.id, bug.id] }, wrote());
 
     expect(outcome.ok).toBe(true);
-    const row = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const row = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(row?.typeIds).toEqual([bug.id]);
   });
 
@@ -232,7 +235,7 @@ describe('the work item type vocabulary', () => {
     // a line: there is no `effectiveTypesOf` to remove. What it guards against is
     // the walk being **added** — copying `effectiveTagsOf` onto this dimension
     // out of symmetry, which is the change a future reader is most likely to
-    // make. Proof: an `inheritedTypes` walk added to `listByProject` — climbing
+    // make. Proof: an `inheritedTypes` walk added to `listByWorkPackage` — climbing
     // to the nearest ancestor stating a type, which is `effectiveTagsOf`'s own
     // shape — watched 2026-08-30 failing on the child coming back carrying the
     // parent's `Epic`. The absence is the behaviour, so the fault to inject is
@@ -240,7 +243,7 @@ describe('the work item type vocabulary', () => {
     const epic = await typed('Epic');
     await workItems.patch(itemId, { typeIds: [epic.id] }, wrote());
 
-    const rows = await workItems.listByProject(projectId);
+    const rows = await workItems.listByWorkPackage(workPackageId);
     expect(rows.find((each) => each.id === itemId)?.typeIds).toEqual([epic.id]);
     expect(rows.find((each) => each.id === childId)?.typeIds).toEqual([]);
   });
@@ -256,14 +259,18 @@ describe('the work item type vocabulary', () => {
     // already shipped once, for people.
     const bug = await typed('Bug');
     await workItems.patch(itemId, { typeIds: [bug.id] }, wrote());
-    const before = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const before = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
 
     expect(await repo.removeWorkItemType(bug.id, true, wrote())).toEqual({
       ok: true,
-      removal: { workItemIds: [itemId], projectIds: [projectId] },
+      removal: { workItemIds: [itemId], workPackageIds: [workPackageId] },
     });
 
-    const after = (await workItems.listByProject(projectId)).find((each) => each.id === itemId);
+    const after = (await workItems.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === itemId,
+    );
     expect(after?.typeIds).toEqual([]);
     expect(after?.revision).toBeGreaterThan(before?.revision ?? 0);
     expect(await repo.listWorkItemTypes()).toEqual([]);
@@ -277,7 +284,7 @@ describe('the work item type vocabulary', () => {
 
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     // `DirectoryUsageRows` is the flat repository shape — the service is what
-    // folds it into a per-project tree — so the row is read off `workItems`.
+    // folds it into a per-work-package tree — so the row is read off `workItems`.
     //
     // **Ascending `work_item.id`, not insertion order.** This line asserted the
     // order the rows happened to be inserted in, which was never what
@@ -285,11 +292,11 @@ describe('the work item type vocabulary', () => {
     // it returned was whatever plan SQLite chose. CI run 34020910596 at
     // `44463938` chose the index and the two ids came back swapped —
     // `0588a41f…` before `d705447e…`, ascending — on bytes whose only change
-    // was merging `work_item_project_id_id` in. The read now states its order
+    // was merging `work_item_work_package_id_id` in. The read now states its order
     // and this states the same one; the ids are UUIDv4, so the expectation is
     // sorted rather than written out.
     expect(outcome.usage.workItems.map((each) => each.id)).toEqual([itemId, childId].sort());
-    expect(outcome.usage.projects.map((each) => each.id)).toEqual([projectId]);
+    expect(outcome.usage.workPackages.map((each) => each.id)).toEqual([workPackageId]);
     expect(await repo.listWorkItemTypes()).toEqual([{ id: bug.id, name: 'Bug' }]);
   });
 
@@ -298,7 +305,7 @@ describe('the work item type vocabulary', () => {
 
     expect(await repo.removeWorkItemType(bug.id, false, wrote())).toEqual({
       ok: true,
-      removal: { workItemIds: [], projectIds: [] },
+      removal: { workItemIds: [], workPackageIds: [] },
     });
     expect(await repo.listWorkItemTypes()).toEqual([]);
   });
@@ -322,14 +329,14 @@ describe('the work item type vocabulary', () => {
     expect((await repo.listWorkItemTypes()).map((each) => each.name)).toEqual(['Bug', 'Spike']);
   });
 
-  it('renames a type and names the projects that carry it', async () => {
+  it('renames a type and names the work packages that carry it', async () => {
     const bug = await typed('Bug');
     await workItems.patch(itemId, { typeIds: [bug.id] }, wrote());
 
     expect(await repo.renameWorkItemType(bug.id, 'Defect', wrote())).toEqual({
       ok: true,
       workItemType: { id: bug.id, name: 'Defect' },
-      projectIds: [projectId],
+      workPackageIds: [workPackageId],
     });
   });
 
@@ -359,6 +366,8 @@ describe('the work item type vocabulary', () => {
 
     await workItems.remove([childId], [], wrote());
 
-    expect((await workItems.listByProject(projectId)).map((each) => each.id)).toEqual([itemId]);
+    expect((await workItems.listByWorkPackage(workPackageId)).map((each) => each.id)).toEqual([
+      itemId,
+    ]);
   });
 });

@@ -13,13 +13,13 @@ import { type ApplicationServices, installApplicationRuntime } from '@/runtime/a
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { credentialOf } from '@/runtime/credential';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
-import { installProjectRuntime } from '@/runtime/project-runtime';
 import {
   createSessionOwner,
   installSessionRuntime,
   type SessionOwner,
 } from '@/runtime/session-runtime';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { installWorkPackageRuntime } from '@/runtime/work-package-runtime';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 
 import type { BrowserSignOutMode } from './app';
 
@@ -392,12 +392,12 @@ describe('a signed-in address asked for while signed out', () => {
 
     renderApp();
 
-    // The page that was asked for, not the project — and the address it was
+    // The page that was asked for, not the work package — and the address it was
     // asked at, unrewritten.
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
     });
-    expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Work package' })).toBeNull();
     expect(window.location.pathname).toBe('/directory');
   });
 });
@@ -770,7 +770,7 @@ describe('log out', () => {
       headers: new Headers(),
     });
     let failClose = (): void => {
-      throw new Error('project close was not held');
+      throw new Error('work package close was not held');
     };
     const owner = recordingOwner(
       [],
@@ -796,7 +796,7 @@ describe('log out', () => {
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error('session was not published');
     await act(async () => {
-      await opened.services.projects.open('p1');
+      await opened.services.workPackages.open('p1');
     });
     fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
     expect(await screen.findByText('Signing out…')).toBeDefined();
@@ -818,7 +818,7 @@ describe('log out', () => {
       headers: new Headers(),
     });
     let releaseClose = (): void => {
-      throw new Error('project close was not held');
+      throw new Error('work package close was not held');
     };
     let closeHeld = false;
     const owner = recordingOwner(
@@ -845,7 +845,7 @@ describe('log out', () => {
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error('session was not published');
     await act(async () => {
-      await opened.services.projects.open('p1');
+      await opened.services.workPackages.open('p1');
     });
     fireEvent.click(screen.getByRole('button', { name: 'Onboarding sign out' }));
     const replacing = owner.open({ userId: 'u2', credential: credentialOf('new-token') });
@@ -1025,7 +1025,7 @@ describe('log out', () => {
 
   /**
    * An owner over fake clients that records, in order, what was given back; the
-   * project's close ends however `closeSocket` says.
+   * work package's close ends however `closeSocket` says.
    */
   const recordingOwner = (
     events: string[],
@@ -1034,7 +1034,7 @@ describe('log out', () => {
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         return {
@@ -1045,14 +1045,14 @@ describe('log out', () => {
           },
         };
       },
-      installProject: (dependencies) => {
-        const installed = installProjectRuntime(dependencies);
+      installWorkPackage: (dependencies) => {
+        const installed = installWorkPackageRuntime(dependencies);
         return {
           services: installed.services,
           close: async (options) => {
             await installed.close(options);
             await closeSocket(options);
-            events.push('project given back');
+            events.push('work package given back');
           },
         };
       },
@@ -1075,8 +1075,8 @@ describe('log out', () => {
     </ApplicationServicesProvider>
   );
 
-  /** Draws the region at the directory, and opens a project through its session. */
-  const signedInWithProject = async (owner: SessionOwner, onSignedOut: () => void) => {
+  /** Draws the region at the directory, and opens a work package through its session. */
+  const signedInWithWorkPackage = async (owner: SessionOwner, onSignedOut: () => void) => {
     window.history.replaceState({}, '', '/directory');
     render(regionOf(owner, onSignedOut));
     await waitFor(() => {
@@ -1085,9 +1085,9 @@ describe('log out', () => {
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
     await act(async () => {
-      await opened.services.projects.open('p1');
+      await opened.services.workPackages.open('p1');
     });
-    expect(opened.services.projects.snapshot().status).toBe('live');
+    expect(opened.services.workPackages.snapshot().status).toBe('live');
     return opened.services;
   };
 
@@ -1104,11 +1104,11 @@ describe('log out', () => {
     });
 
   itDom(
-    'signs out once the project and then the session have let go, and sends nothing',
+    'signs out once the work package and then the session have let go, and sends nothing',
     async () => {
       const paths = requestsSent();
       const events: string[] = [];
-      await signedInWithProject(recordingOwner(events), () => events.push('signed out'));
+      await signedInWithWorkPackage(recordingOwner(events), () => events.push('signed out'));
       const sent = paths.length;
 
       logOut();
@@ -1116,20 +1116,20 @@ describe('log out', () => {
       await waitFor(() => {
         expect(events).toContain('signed out');
       });
-      expect(events).toEqual(['project given back', 'session given back', 'signed out']);
+      expect(events).toEqual(['work package given back', 'session given back', 'signed out']);
       expect(paths.slice(sent)).toEqual([]);
     },
   );
 
   itDom(
-    'shows the fatal state instead of signing out when the project will not let go',
+    'shows the fatal state instead of signing out when the work package will not let go',
     async () => {
       requestsSent();
       const events: string[] = [];
       const owner = recordingOwner(events, () =>
         Promise.reject(new Error('alice@example.com: the socket would not close')),
       );
-      await signedInWithProject(owner, () => events.push('signed out'));
+      await signedInWithWorkPackage(owner, () => events.push('signed out'));
 
       logOut();
 
@@ -1144,47 +1144,52 @@ describe('log out', () => {
     },
   );
 
-  itDom('shows the fatal state at the budget when the project’s socket never closes', async () => {
-    requestsSent();
-    const events: string[] = [];
-    const socket = DiBag.createBuilder()
-      .withServices({
-        socket: DiBag.providerWithDisposal({
-          provider: DiBag.createProvider((): string => 'open', { factoryReturnKind: 'sync-value' }),
-          disposeService: () => new Promise<void>(() => undefined),
-        }),
-      })
-      .buildContainer();
-    socket.resolve('socket');
-    const owner = recordingOwner(
-      events,
-      (options) => socket.close({ waitTimeoutMs: options.timeoutMs }),
-      50,
-    );
-    await signedInWithProject(owner, () => events.push('signed out'));
+  itDom(
+    'shows the fatal state at the budget when the work package’s socket never closes',
+    async () => {
+      requestsSent();
+      const events: string[] = [];
+      const socket = DiBag.createBuilder()
+        .withServices({
+          socket: DiBag.providerWithDisposal({
+            provider: DiBag.createProvider((): string => 'open', {
+              factoryReturnKind: 'sync-value',
+            }),
+            disposeService: () => new Promise<void>(() => undefined),
+          }),
+        })
+        .buildContainer();
+      socket.resolve('socket');
+      const owner = recordingOwner(
+        events,
+        (options) => socket.close({ waitTimeoutMs: options.timeoutMs }),
+        50,
+      );
+      await signedInWithWorkPackage(owner, () => events.push('signed out'));
 
-    logOut();
+      logOut();
 
-    await fatalShown();
-    await act(async () => {
-      await expect(owner.exit()).resolves.toBe('fatal');
-    });
-    expect(events).toEqual([]);
-  });
+      await fatalShown();
+      await act(async () => {
+        await expect(owner.exit()).resolves.toBe('fatal');
+      });
+      expect(events).toEqual([]);
+    },
+  );
 
   itDom(
-    'draws the fatal state in the region’s place when its project cannot be given back outside a log out',
+    'draws the fatal state in the region’s place when its work package cannot be given back outside a log out',
     async () => {
       requestsSent();
       const events: string[] = [];
       const owner = recordingOwner(events, () =>
         Promise.reject(new Error('the socket would not close')),
       );
-      const session = await signedInWithProject(owner, () => events.push('signed out'));
+      const session = await signedInWithWorkPackage(owner, () => events.push('signed out'));
 
-      // What the project page's own cleanup does when its route goes.
+      // What the work package page's own cleanup does when its route goes.
       await act(async () => {
-        await session.projects.leave();
+        await session.workPackages.leave();
       });
 
       await fatalShown();
@@ -1215,7 +1220,7 @@ describe('log out', () => {
           letGo = resolve;
         }),
     );
-    await signedInWithProject(owner, () => events.push('signed out'));
+    await signedInWithWorkPackage(owner, () => events.push('signed out'));
 
     cleanup();
     const retiring = servicesSlot.retire().then(() => events.push('application retired'));
@@ -1224,7 +1229,11 @@ describe('log out', () => {
     letGo();
     await retiring;
 
-    expect(events).toEqual(['project given back', 'session given back', 'application retired']);
+    expect(events).toEqual([
+      'work package given back',
+      'session given back',
+      'application retired',
+    ]);
     expect(servicesSlot.snapshot().status).toBe('empty');
   });
 
@@ -1236,7 +1245,7 @@ describe('log out', () => {
       const owner = recordingOwner(events, () =>
         Promise.reject(new Error('the socket would not close')),
       );
-      await signedInWithProject(owner, () => events.push('signed out'));
+      await signedInWithWorkPackage(owner, () => events.push('signed out'));
 
       cleanup();
 
@@ -1251,7 +1260,7 @@ describe('log out', () => {
     const owner = recordingOwner(events, () =>
       Promise.reject(new Error('the socket would not close')),
     );
-    await signedInWithProject(owner, () => events.push('signed out'));
+    await signedInWithWorkPackage(owner, () => events.push('signed out'));
     logOut();
     await fatalShown();
 
@@ -1305,25 +1314,25 @@ describe('log out', () => {
 
 /**
  * Task 11 through the router and the region: a route change gives the page's
- * project back once and keeps the session, a project that cannot be given back
+ * work package back once and keeps the session, a work package that cannot be given back
  * there is drawn as the fatal state in the region's place, and Strict Mode's
- * re-entry into the region replaces the session before any project is opened.
+ * re-entry into the region replaces the session before any work package is opened.
  */
-describe('the selected project, through the router', () => {
+describe('the selected work package, through the router', () => {
   const KAT = { id: 'u1', username: 'kat', scopes: ['read', 'write'] as ('read' | 'write')[] };
 
   /**
-   * An owner over fake clients that records, in order, every session and project
-   * runtime it builds and gives back; a project's close ends as `closeProject`
+   * An owner over fake clients that records, in order, every session and work package
+   * runtime it builds and gives back; a work package's close ends as `closeWorkPackage`
    * says.
    */
   const recordingOwner = (
     events: string[],
-    closeProject: () => Promise<void> = () => Promise.resolve(),
+    closeWorkPackage: () => Promise<void> = () => Promise.resolve(),
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
-      projectClientFor: () => fakeProjectApi(),
+      workPackageClientFor: () => fakeWorkPackageApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         events.push('session built');
@@ -1335,22 +1344,22 @@ describe('the selected project, through the router', () => {
           },
         };
       },
-      installProject: (dependencies) => {
-        const installed = installProjectRuntime(dependencies);
-        events.push(`project ${dependencies.projectId} built`);
+      installWorkPackage: (dependencies) => {
+        const installed = installWorkPackageRuntime(dependencies);
+        events.push(`work package ${dependencies.workPackageId} built`);
         return {
           services: installed.services,
           close: async (options) => {
             await installed.close(options);
-            await closeProject();
-            events.push(`project ${dependencies.projectId} given back`);
+            await closeWorkPackage();
+            events.push(`work package ${dependencies.workPackageId} given back`);
           },
         };
       },
       budgetMs: 1_000,
     });
 
-  /** The region at `path`, over one project the case holds. */
+  /** The region at `path`, over one work package the case holds. */
   const regionAt = (path: string, owner: SessionOwner) => {
     window.history.replaceState({}, '', path);
     // Every request the shelf and the socket make answers empty: none of them is what these cases count.
@@ -1374,15 +1383,15 @@ describe('the selected project, through the router', () => {
     );
   };
 
-  const pickProject = async (id: string) => {
+  const pickWorkPackage = async (id: string) => {
     await waitFor(() => {
-      expect(screen.getByLabelText('Project')).toBeDefined();
+      expect(screen.getByLabelText('Work package')).toBeDefined();
     });
-    fireEvent.focus(screen.getByLabelText('Project'));
+    fireEvent.focus(screen.getByLabelText('Work package'));
     await waitFor(() => {
-      expect(document.getElementById(`project-option-${id}`)).not.toBeNull();
+      expect(document.getElementById(`work-package-option-${id}`)).not.toBeNull();
     });
-    const option = document.getElementById(`project-option-${id}`);
+    const option = document.getElementById(`work-package-option-${id}`);
     if (option === null) throw new Error(`no option for ${id}`);
     fireEvent.click(option);
   };
@@ -1394,14 +1403,14 @@ describe('the selected project, through the router', () => {
   };
 
   itDom(
-    'gives the project back once when its route goes, keeps the session, and opens a new runtime on return',
+    'gives the work package back once when its route goes, keeps the session, and opens a new runtime on return',
     async () => {
       const events: string[] = [];
       const owner = recordingOwner(events);
       render(regionAt('/', owner));
-      await pickProject('p1');
+      await pickWorkPackage('p1');
       await waitFor(() => {
-        expect(events).toContain('project p1 built');
+        expect(events).toContain('work package p1 built');
       });
       const session = liveSession(owner);
 
@@ -1411,37 +1420,37 @@ describe('the selected project, through the router', () => {
         expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
       });
       await waitFor(() => {
-        expect(events).toContain('project p1 given back');
+        expect(events).toContain('work package p1 given back');
       });
       expect(liveSession(owner)).toBe(session);
-      expect(session.projects.snapshot().status).toBe('empty');
+      expect(session.workPackages.snapshot().status).toBe('empty');
 
       fireEvent.click(screen.getByRole('link', { name: 'Plan' }));
 
       await waitFor(() => {
-        expect(events.filter((event) => event === 'project p1 built')).toHaveLength(2);
+        expect(events.filter((event) => event === 'work package p1 built')).toHaveLength(2);
       });
       expect(events).toEqual([
         'session built',
-        'project p1 built',
-        'project p1 given back',
-        'project p1 built',
+        'work package p1 built',
+        'work package p1 given back',
+        'work package p1 built',
       ]);
       expect(liveSession(owner)).toBe(session);
     },
   );
 
   itDom(
-    'draws the fatal state in the region’s place when a route change cannot give the project back',
+    'draws the fatal state in the region’s place when a route change cannot give the work package back',
     async () => {
       const events: string[] = [];
       const owner = recordingOwner(events, () =>
         Promise.reject(new Error('alice@example.com: the socket would not close')),
       );
       render(regionAt('/', owner));
-      await pickProject('p1');
+      await pickWorkPackage('p1');
       await waitFor(() => {
-        expect(events).toContain('project p1 built');
+        expect(events).toContain('work package p1 built');
       });
 
       fireEvent.click(screen.getByRole('link', { name: 'Directory' }));
@@ -1455,7 +1464,7 @@ describe('the selected project, through the router', () => {
       expect(screen.queryByRole('heading', { name: 'Directory' })).toBeNull();
       expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
       expect(owner.snapshot().status).toBe('live');
-      expect(events).toEqual(['session built', 'project p1 built']);
+      expect(events).toEqual(['session built', 'work package p1 built']);
 
       // The region going hands the session's failed retirement to the application.
       cleanup();
@@ -1467,11 +1476,11 @@ describe('the selected project, through the router', () => {
   /**
    * Strict Mode mounts the region, runs its cleanup — the session left — and
    * mounts it again. The first request is overtaken by that leave before it is
-   * built, so it builds nothing, and the region is drawn, and its project
+   * built, so it builds nothing, and the region is drawn, and its work package
    * opened, from the one runtime the second mount asked for.
    */
   itDom(
-    'leaves the session Strict Mode first opened, and opens the project in the one it opens again',
+    'leaves the session Strict Mode first opened, and opens the work package in the one it opens again',
     async () => {
       const events: string[] = [];
       const owner = recordingOwner(events);
@@ -1483,14 +1492,14 @@ describe('the selected project, through the router', () => {
         },
       };
       render(<StrictMode>{regionAt('/', traced)}</StrictMode>);
-      await pickProject('p1');
+      await pickWorkPackage('p1');
       await waitFor(() => {
-        expect(events).toContain('project p1 built');
+        expect(events).toContain('work package p1 built');
       });
 
-      expect(events).toEqual(['session left', 'session built', 'project p1 built']);
-      const opened = liveSession(owner).projects.snapshot();
-      expect(opened.status === 'live' ? opened.services.projectId : opened.status).toBe('p1');
+      expect(events).toEqual(['session left', 'session built', 'work package p1 built']);
+      const opened = liveSession(owner).workPackages.snapshot();
+      expect(opened.status === 'live' ? opened.services.workPackageId : opened.status).toBe('p1');
     },
   );
 });

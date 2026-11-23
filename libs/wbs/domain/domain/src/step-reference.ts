@@ -2,8 +2,9 @@ import { isReservedStepCode, isStepCode } from './step-code';
 import { orderSteps, type StepNodeRef } from './step-node';
 
 /**
- * What a step reference is resolved against: every work item's current number
- * and leafhood, and every step's code (NULL while uncoded) and position.
+ * Current references resolve against effective numbers, leafhood and each leaf's
+ * captured ordered step identities/codes. Uniform legacy spaces omit leafSteps
+ * and retain their package columns, including uncoded positions.
  *
  * Numbers are the effective ones — derived, or frozen — so a reference means
  * what the table shows.
@@ -11,6 +12,18 @@ import { orderSteps, type StepNodeRef } from './step-node';
 export interface AddressSpace {
   workItems: readonly { id: string; number: string; isLeaf: boolean }[];
   steps: readonly { id: string; code: string | null; position: number }[];
+  /** Current ordered leaf inventories, including explicit empty lists; absent only in uniform legacy spaces. */
+  leafSteps?: ReadonlyMap<string, readonly { readonly id: string; readonly code: string | null }[]>;
+}
+
+/** Current leaf order is authoritative; only an explicitly uniform space uses package columns. */
+export function readAddressSteps(space: AddressSpace, workItemId: string) {
+  if (space.leafSteps === undefined) return orderSteps(space.steps);
+  const steps = space.leafSteps.get(workItemId);
+  // Proof: required-domain-map omitted this check; current address reader throws for an absent
+  // required leaf inventory returned undefined instead of throwing (2026-11-20).
+  if (steps === undefined) throw new Error('address leaf steps are absent');
+  return steps;
 }
 
 /** A step reference taken apart: the ordinal is set only for the input alias. */
@@ -37,7 +50,7 @@ const NUMBER = /^[0-9]+(?:\.[0-9]+)*$/;
  * The canonical step reference: work item number, then the displayed step
  * ordinal before its immutable code — `010.s1-dev`, `020.2.s02-review`.
  *
- * The ordinal is padded to the decimal width of the project's step count, so
+ * The ordinal is padded to the decimal width of the addressed leaf's step count, so
  * plain string sorting keeps the displayed step order within one work item.
  * Reordering or repadding changes this spelling, never {@link StepNodeRef}.
  */
@@ -86,7 +99,7 @@ export function parseStepReference(text: string): ParsedStepReference | null {
 }
 
 /**
- * Resolves a step reference within one project's current addresses.
+ * Resolves a step reference within one work package's current addresses.
  *
  * Staleness is not decided here: the caller compares the address revision the
  * reference was read at against {@link describeAddressSpace} of `space` first,
@@ -113,7 +126,9 @@ export function resolveStepReference(
   const workItem = holders.at(0);
   if (workItem === undefined) return { ok: false, reason: 'unknown_work_item' };
   if (!workItem.isLeaf) return { ok: false, reason: 'parent' };
-  const ordered = orderSteps(space.steps);
+  // Proof: resolver-union made the actual isolated HTTP read resolve an untyped leaf200
+  // instead of422 in current tree carries each leaf own resolved steps and every matching binding.
+  const ordered = readAddressSteps(space, workItem.id);
   const step = ordered.find((each) => each.code === parsed.code);
   if (step === undefined) return { ok: false, reason: 'unknown_code' };
   // Proof: with this comparison disabled, `refuses an alias whose position
@@ -129,27 +144,38 @@ export function resolveStepReference(
       parsed.number,
       parsed.code,
       ordered.indexOf(step) + 1,
+      // Proof: resolver-padding used package count12; the current leaf-count control read s01-dev instead of s1-dev.
       ordered.length,
     ),
   };
 }
 
 /**
- * The canonical text of a project's address space, which the address revision
+ * The canonical text of a work package's address space, which the address revision
  * is a digest of.
  *
- * Holds exactly what can change what a reference means: every work item's id,
- * effective number and leafhood, and every step's id, code and position,
- * uncoded steps included because they hold a displayed ordinal. Names, facts,
- * the freeze flag and entity revisions are left out, so an edit that changes no
- * address keeps the revision. Order-independent: both lists are sorted here.
+ * Current ar2 describes each leaf's ordered identities/codes and ignores unused
+ * package columns. Uniform legacy ar1 retains its exact package-order description,
+ * including uncoded positions. Both describe every effective number and leafhood.
+ * Names, provenance, facts, freeze flags and entity revisions cannot change it.
+ * Work-item input order is immaterial; captured leaf order is meaningful.
  * Two work items holding one number are described like any others; resolving
  * that number is what refuses, as `ambiguous_work_item`.
  */
-export function describeAddressSpace(projectId: string, space: AddressSpace): string {
+export function describeAddressSpace(workPackageId: string, space: AddressSpace): string {
   const workItems = [...space.workItems]
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
     .map((each) => [each.id, each.number, each.isLeaf ? 'leaf' : 'parent']);
+  if (space.leafSteps !== undefined) {
+    const leaves = [...space.workItems]
+      .filter(({ isLeaf }) => isLeaf)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+      .map(({ id }) => [id, readAddressSteps(space, id).map((step) => [step.id, step.code])]);
+    // Proof: digest-omission lost the actual unchanged-union type edit; digest-unused-union
+    // falsely changed the unused-column control. Both owning revision assertions failed.
+    return JSON.stringify(['ar2', workPackageId, workItems, leaves]);
+  }
   const steps = orderSteps(space.steps).map((each) => [each.id, each.code, each.position]);
-  return JSON.stringify(['ar1', projectId, workItems, steps]);
+  // Proof: legacy-bytes appended a field and failed uniform legacy description keeps its exact ar1 representation.
+  return JSON.stringify(['ar1', workPackageId, workItems, steps]);
 }

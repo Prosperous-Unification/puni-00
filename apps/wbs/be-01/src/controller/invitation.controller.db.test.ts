@@ -15,7 +15,7 @@ describe('organization invitations', () => {
     await harness.register('recipient');
     await harness.register('other');
     harness.organization('org');
-    harness.member('org', 'owner', 'super_admin');
+    harness.member('org', 'owner', 'super_admin', ['org-super-admin']);
     harness.bind('owner', 'org');
     harness.sqlite.run(
       "UPDATE users SET email = 'recipient@example.org', email_verified = 1 WHERE id = ?",
@@ -36,7 +36,7 @@ describe('organization invitations', () => {
     expect(
       await harness.call('owner', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'member',
+        initialRoleId: 'project-contributor',
       }),
     ).toEqual({ status: 403, body: { error: 'no_active_organization' } });
     harness.activate();
@@ -44,7 +44,7 @@ describe('organization invitations', () => {
       (
         await harness.call('owner', 'POST', '/api/organization/invitations', {
           email: 'RECIPIENT@EXAMPLE.ORG',
-          role: 'member',
+          initialRoleId: 'project-contributor',
         })
       ).status,
     ).toBe(201);
@@ -67,7 +67,7 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const token = harness.deliveredEmailToken('recipient@example.org');
     expect(
@@ -85,14 +85,14 @@ describe('organization invitations', () => {
       harness.sqlite
         .query('SELECT role FROM organization_membership WHERE user_id = ?')
         .get(harness.userId('recipient')),
-    ).toEqual({ role: 'member' });
+    ).toEqual({ role: 'viewer' });
   });
 
   it('refuses an invitation that expires while acceptance waits for the write gate', async () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const digest = createHash('sha256')
       .update(harness.deliveredEmailToken('recipient@example.org'))
@@ -107,9 +107,8 @@ describe('organization invitations', () => {
     try {
       let now = 100;
       const acceptance = new InvitationRepository(connection.db, gate).accept(
-        harness.userId('recipient'),
+        { id: harness.userId('recipient') },
         digest,
-        harness.userId('recipient'),
         () => now,
       );
       now = 300;
@@ -130,7 +129,7 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const digest = createHash('sha256')
       .update(harness.deliveredEmailToken('recipient@example.org'))
@@ -145,16 +144,15 @@ describe('organization invitations', () => {
     try {
       let now = 100;
       const acceptance = new InvitationRepository(connection.db, gate).accept(
-        harness.userId('recipient'),
+        { id: harness.userId('recipient') },
         digest,
-        harness.userId('recipient'),
         () => now,
       );
       now = 300;
       release();
       expect(await acceptance).toEqual({
         ok: true,
-        value: { organizationId: 'org', role: 'member' },
+        value: { organizationId: 'org' },
       });
       expect(
         harness.sqlite.query('SELECT consumed_at, updated_at FROM organization_invitation').get(),
@@ -172,14 +170,14 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
     harness.organization('foreign');
-    harness.member('foreign', 'other', 'super_admin');
+    harness.member('foreign', 'other', 'super_admin', ['org-super-admin']);
     harness.bind('other', 'foreign');
     await harness.call('other', 'POST', '/api/organization/invitations', {
       email: 'other@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const listed = await harness.call('owner', 'GET', '/api/organization/invitations');
     expect(listed.status).toBe(200);
@@ -201,7 +199,7 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const digest = createHash('sha256')
       .update(harness.deliveredEmailToken('recipient@example.org'))
@@ -232,23 +230,26 @@ describe('organization invitations', () => {
     ).toEqual({ count: 1 });
   }, 20_000);
 
-  it("refuses an admin's admin invitation and a removed issuer", async () => {
+  it('refuses a role-only admin invitation and a removed issuer', async () => {
     harness.activate();
     harness.member('org', 'other', 'admin');
     harness.bind('other', 'org');
     expect(
       await harness.call('other', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'admin',
+        initialRoleId: 'org-admin',
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_members' },
+    });
     harness.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [
       harness.userId('other'),
     ]);
     expect(
       await harness.call('other', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 403, body: { error: 'not_a_member' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
@@ -260,31 +261,31 @@ describe('organization invitations', () => {
       expect(
         await harness.call('owner', 'POST', '/api/organization/invitations', {
           email,
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         }),
       ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     }
     expect(
       await harness.call('owner', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'super_admin',
+        initialRoleId: 'org-super-admin',
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
   });
 
-  it('limits listing and revocation to the current administrator role', async () => {
+  it('requires current manage_members for listing and any pending-offer cancellation', async () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'admin',
+      initialRoleId: 'org-admin',
     });
     const id = (
       harness.sqlite.query('SELECT id FROM organization_invitation').get() as { id: string }
     ).id;
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'other@example.org',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
     const viewerId = (
       harness.sqlite
@@ -303,23 +304,23 @@ describe('organization invitations', () => {
     expect(
       (await harness.call('other', 'DELETE', '/api/organization/invitations/missing')).status,
     ).toBe(403);
-    harness.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
-      harness.userId('other'),
-    ]);
+    harness.grantPermissions('org', 'other', ['organization.manage_members']);
     expect((await harness.call('other', 'GET', '/api/organization/invitations')).status).toBe(200);
     expect(
       (await harness.call('other', 'DELETE', `/api/organization/invitations/${id}`)).status,
-    ).toBe(403);
-    expect(harness.sqlite.query('SELECT revoked_at FROM organization_invitation').get()).toEqual({
-      revoked_at: null,
-    });
+    ).toBe(204);
+    expect(
+      harness.sqlite
+        .query('SELECT revoked_at IS NOT NULL AS revoked FROM organization_invitation WHERE id=?')
+        .get(id),
+    ).toEqual({ revoked: 1 });
   });
 
   it('refuses an unverified or changed recipient without consuming', async () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
     const token = harness.deliveredEmailToken('recipient@example.org');
     harness.sqlite.run('UPDATE users SET email_verified = 0 WHERE id = ?', [
@@ -350,7 +351,7 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'member',
+      initialRoleId: 'project-contributor',
     });
     const token = harness.deliveredEmailToken('recipient@example.org');
     harness.sqlite.run('UPDATE organization_invitation SET created_at = 1, expires_at = 2');
@@ -379,11 +380,11 @@ describe('organization invitations', () => {
   it('gives identical 404 for missing and foreign revocation', async () => {
     harness.activate();
     harness.organization('foreign');
-    harness.member('foreign', 'other', 'super_admin');
+    harness.member('foreign', 'other', 'super_admin', ['org-super-admin']);
     harness.bind('other', 'foreign');
     await harness.call('other', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
     const id = (
       harness.sqlite.query('SELECT id FROM organization_invitation').get() as { id: string }
@@ -397,7 +398,7 @@ describe('organization invitations', () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'viewer',
+      initialRoleId: 'project-viewer',
     });
     const token = harness.deliveredEmailToken('recipient@example.org');
     harness.sqlite.run(
@@ -417,14 +418,14 @@ describe('organization invitations', () => {
     harness.member('org', 'recipient', 'viewer');
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
-      role: 'admin',
+      initialRoleId: 'org-admin',
     });
     const token = harness.deliveredEmailToken('recipient@example.org');
     expect(
       await harness.call('recipient', 'POST', '/api/onboarding/invitations/accept', { token }),
     ).toEqual({
       status: 200,
-      body: { membership: { organizationId: 'org', role: 'viewer' } },
+      body: { membership: { organizationId: 'org' } },
     });
     expect(
       harness.sqlite
@@ -439,7 +440,7 @@ describe('organization invitations', () => {
     expect(
       await harness.call('owner', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
-        role: 'viewer',
+        initialRoleId: 'project-viewer',
       }),
     ).toEqual({ status: 503, body: { error: 'delivery_failed' } });
     expect(
@@ -495,7 +496,7 @@ describe('organization invitations', () => {
       (
         await harness.call('owner', 'POST', '/api/organization/invitations', {
           email: 'recipient@example.org',
-          role: 'viewer',
+          initialRoleId: 'project-viewer',
         })
       ).status,
     ).toBe(500);

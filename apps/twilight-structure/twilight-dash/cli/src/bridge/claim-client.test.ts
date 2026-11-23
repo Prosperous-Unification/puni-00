@@ -1,8 +1,12 @@
-import { ClientConfigurationError, type ClientTransport, readProjectClaims } from '@wbs/contracts';
+import {
+  ClientConfigurationError,
+  type ClientTransport,
+  readWorkPackageClaims,
+} from '@wbs/contracts';
 import { expect, test } from 'bun:test';
 
 import { createClaimClient } from './claim-client';
-test('narrow claim reader forwards only validated project claims with original signal', async () => {
+test('narrow claim reader forwards only validated work package claims with original signal', async () => {
   const signal = new AbortController().signal;
   const sent: unknown[] = [];
   const client = createClaimClient((shape, input) => {
@@ -17,7 +21,7 @@ test('narrow claim reader forwards only validated project claims with original s
   });
   expect(sent).toEqual([
     {
-      shape: readProjectClaims,
+      shape: readWorkPackageClaims,
       input: { params: { id: 'project' }, query: undefined, body: undefined, signal },
     },
   ]);

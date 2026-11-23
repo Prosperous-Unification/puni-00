@@ -1,0 +1,4088 @@
+{
+  "checkpoint": "C30",
+  "baseCommit": "cf328b5bf3f63c6185b0b350fee7c2b1e9348696",
+  "createdAt": "2026-11-11T00:42:56.906Z",
+  "scope": "Internal compatible Bun heavy-lock queue, holder publication/reclamation and observational status; no installed helper, default caller or host rollout.",
+  "checks": {
+    "runtime": {
+      "argv": [
+        "bun",
+        "test",
+        "./libs/shared/adapters/heavy-lock/src",
+        "./libs/shared/adapters/bun-startup/src/startup.test.ts",
+        "./tools/tool-devsync/src/puni-boundaries.test.ts"
+      ],
+      "status": 0,
+      "passed": 162,
+      "failed": 0,
+      "assertions": 515,
+      "tests": 162,
+      "files": 7,
+      "durationSeconds": 14.54,
+      "evidence": {
+        "path": "/tmp/puni-c30b-runtime-final.log",
+        "sha256": "aa9a8e5a30cfe60112b88059e8f20b4581176b545957bc2e211b7d82964bf03f",
+        "bytes": 15820
+      }
+    },
+    "restoredNativeQueue": {
+      "status": 0,
+      "passed": 107,
+      "failed": 0,
+      "assertions": 351,
+      "tests": 107,
+      "files": 5,
+      "durationSeconds": 3.93,
+      "evidence": {
+        "path": "/tmp/puni-c30b-runtime-restored.log",
+        "sha256": "961fadcf72f829e7efd7535b8b5aae80f6cf9b93a01d383dd68479acc7bcc16c",
+        "bytes": 9501
+      }
+    },
+    "forcedTypes": {
+      "argv": [
+        "bunx",
+        "tsc",
+        "--build",
+        "--force",
+        "libs/shared/adapters/heavy-lock/tsconfig.json"
+      ],
+      "status": 0,
+      "evidence": {
+        "path": "/tmp/puni-c30b-types-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "lint": {
+      "argv": ["bunx", "eslint", "libs/shared/adapters/heavy-lock/src"],
+      "status": 0,
+      "evidence": {
+        "path": "/tmp/puni-c30b-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "nxTarget": {
+      "argv": [
+        "bun",
+        "node_modules/nx/dist/bin/nx.js",
+        "run",
+        "shared-heavy-lock:test",
+        "--skip-nx-cache",
+        "--output-style=static"
+      ],
+      "status": 0,
+      "passed": 107,
+      "failed": 0,
+      "assertions": 351,
+      "cache": "Skipped (--skip-nx-cache)",
+      "evidence": {
+        "path": "/tmp/puni-c30b-nx-test.log",
+        "sha256": "387e158effac0daaa895d7374b75205664a834dd3c13cdb790e80021a047435b",
+        "bytes": 14455
+      }
+    },
+    "finalMetadata": "Format/OpenSpec/diff checks are recorded in the adjacent C30 appendix and final task-owned receipt after serialization."
+  },
+  "proofs": {
+    "canonicalEpoch": "puni-c30b",
+    "audit": {
+      "state": "verified-complete",
+      "faults": 53,
+      "distinctMutants": 53,
+      "logs": 106,
+      "inputs": 17,
+      "failedNames": 73,
+      "passedOccurrences": 75,
+      "planHash": "eaef910f56e44c8dfb42d72d0f1018989f90380d17c8784052a7200cf180a464",
+      "excludedRehearsal": {
+        "prefix": "puni-c30",
+        "attempts": 31,
+        "qualifiedButSuperseded": 30,
+        "reason": "The 31st exact-name join rejected dynamic process.pid in the live-holder test name. Production bytes unchanged; the final stable-name epoch reran every fault."
+      },
+      "interpretations": {
+        "queue-fairness": "Actual RED work log is fast-second then slow-first, restored exact reverse; real independent processes and native holder.",
+        "queue-await-work": "First actual RED is settled true after cancellation while callback promise remains pending; later native contention assertion is not reached.",
+        "ticket-exclusive-publication": "First actual RED is resolved operation where rejection was required; later foreign-byte assertion is not reached, so credit exclusive publication refusal only.",
+        "own-ticket-scan": "Later native own-ticket refusal remains; early guard proves mutex creation ordering only."
+      }
+    },
+    "plan": {
+      "state": "ready-for-observation",
+      "root": "/home/df/.codex/worktrees/6ce4/puni-00",
+      "faults": [
+        {
+          "id": "directory-physical",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "protocol symlink (record|queue)",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (!directory.isDirectory())",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "directory-parent-error",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "unreadable parent",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "    directory = lstatSync(path);\n  } catch (cause) {\n    if (isAbsent(cause))",
+              "replacement": "    directory = lstatSync(path);\n  } catch (cause) {\n    if (true)"
+            }
+          ]
+        },
+        {
+          "id": "directory-list-error",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "unreadable queue",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "    return readdirSync(path);\n  } catch (cause) {\n    if (isAbsent(cause))",
+              "replacement": "    return readdirSync(path);\n  } catch (cause) {\n    if (true)"
+            }
+          ]
+        },
+        {
+          "id": "metadata-open-error",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "unreadable (holder|label)",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);\n  } catch (cause) {\n    if (isAbsent(cause))",
+              "replacement": "descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);\n  } catch (cause) {\n    if (true)"
+            }
+          ]
+        },
+        {
+          "id": "metadata-nofollow",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "protocol symlink (holder|label)",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW",
+              "replacement": "constants.O_RDONLY | constants.O_NONBLOCK"
+            }
+          ]
+        },
+        {
+          "id": "metadata-nonblocking",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "readerless metadata FIFO",
+          "qualification": "Actual reader-side FIFO child is bounded by parent SIGKILL. Removed NONBLOCK yields ordinary child-exit assertion failure, not a Bun test timeout.",
+          "edits": [
+            {
+              "find": "constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW",
+              "replacement": "constants.O_RDONLY | constants.O_NOFOLLOW"
+            }
+          ]
+        },
+        {
+          "id": "metadata-regular",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "nonregular (holder|label)",
+          "qualification": "Removing regular-file guard can still meet EISDIR at read; exact regular-file diagnostic, not successful admission, is the oracle.",
+          "edits": [
+            {
+              "find": "if (!fstatSync(descriptor).isFile())",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "metadata-utf8",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "malformed published UTF8",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "{ fatal: true, ignoreBOM: true }",
+              "replacement": "{ fatal: false, ignoreBOM: true }"
+            }
+          ]
+        },
+        {
+          "id": "metadata-close-only",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "metadata close failure after a successful read",
+          "qualification": "Injected close actually closes the real descriptor then throws; proves error identity, not release after a failed close.",
+          "edits": [
+            {
+              "find": "if (release !== undefined) throw release.cause;",
+              "replacement": "if (false) throw release?.cause;"
+            }
+          ]
+        },
+        {
+          "id": "metadata-paired",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "metadata read failure and a close failure",
+          "qualification": "Injected close actually closes the real descriptor then throws; the read and close cause tuple must remain intact.",
+          "edits": [
+            {
+              "find": "[attempt.cause, release.cause]",
+              "replacement": "[attempt.cause]"
+            }
+          ]
+        },
+        {
+          "id": "metadata-newline",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "legacy trailing-LF normalization",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": ".replace(/\\n+$/u, '')",
+              "replacement": ".toString()"
+            }
+          ]
+        },
+        {
+          "id": "ticket-name",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "malformed published ticket note",
+          "qualification": "Diagnostic boundary only; BigInt still refuses nonnumeric text after explicit filename guard removal.",
+          "edits": [
+            {
+              "find": "if (!/^[0-9]{19}-[0-9]+$/u.test(name))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "ticket-pid-lower",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "published ticket PID outside the native range 0",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "pid < 1n || pid > 2147483647n",
+              "replacement": "pid > 2147483647n"
+            }
+          ]
+        },
+        {
+          "id": "ticket-pid-upper",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "published ticket PID outside the native range 2147483648",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "pid < 1n || pid > 2147483647n",
+              "replacement": "pid < 1n"
+            }
+          ]
+        },
+        {
+          "id": "ticket-label",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "malformed published ticket .*no-label",
+          "qualification": "Exact label diagnostic; a missing positional line can also fail through later string acquisition.",
+          "edits": [
+            {
+              "find": "if (labelLine === undefined || !labelLine.startsWith('label ') || labelLine.length === 6)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "ticket-deadline",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "malformed published ticket .*deadline invalid",
+          "qualification": "Diagnostic boundary only; BigInt still refuses the invalid deadline after explicit check removal.",
+          "edits": [
+            {
+              "find": "if (deadlineLine === undefined || !/^deadline [0-9]+$/u.test(deadlineLine))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "status-incomplete-label",
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "pattern": "unreadable label during incomplete",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "label = readObservedText(join(record, 'label'));",
+              "replacement": "label = pidText === undefined || pidText === '' ? undefined : readObservedText(join(record, 'label'));"
+            }
+          ]
+        },
+        {
+          "id": "liveness-esrch-only",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "distinguishes only ESRCH",
+          "qualification": "Controlled actual process.kill boundary error; EPERM is unknown rather than proof of death.",
+          "edits": [
+            {
+              "find": "if (hasCode(cause, 'ESRCH')) return false;",
+              "replacement": "if (true) return false;"
+            }
+          ]
+        },
+        {
+          "id": "wait-cancellation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "wakes a real thirty second wait",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "      finish('cancelled');",
+              "replacement": "      finish('elapsed');"
+            }
+          ]
+        },
+        {
+          "id": "wait-detach",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "detaches (its|the elapsed) listener",
+          "qualification": "Structural listener-release observation at the real AbortSignal boundary; no process-lifetime leak claim.",
+          "edits": [
+            {
+              "find": "      signal.removeEventListener('abort', cancel);",
+              "replacement": "      void cancel;"
+            }
+          ]
+        },
+        {
+          "id": "canonical-platform",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "selects only the existing platform",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "  throw new Error('heavy lock platform is unsupported: ' + platform);",
+              "replacement": "  return '/tmp/wbs-heavy-work.lock';"
+            }
+          ]
+        },
+        {
+          "id": "wait-validation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "invalid request waitSeconds",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (!Number.isSafeInteger(waitSeconds) || waitSeconds < 0)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "poll-validation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "invalid request pollSeconds",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (!Number.isInteger(pollSeconds) || pollSeconds < 1 || pollSeconds > 30)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "pid-validation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "invalid caller PID",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (!Number.isInteger(pid) || pid < 1 || pid > 2147483647)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "label-validation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "pattern": "invalid request label",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (label === '' || /[\\r\\n\\0]/u.test(label))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "stamp-validation",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "invalid queue stamp",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (!/^[0-9]{19}$/u.test(stamp.toString()))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "prepublication-cancel",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "cancels before publishing",
+          "qualification": "Without the early guard later cancellation may still refuse; no queue may have been created in the already-cancelled branch.",
+          "edits": [
+            {
+              "find": "  if (signal.aborted) return { kind: 'cancelled' };\n  const started",
+              "replacement": "  const started"
+            }
+          ]
+        },
+        {
+          "id": "holder-pid-text",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "malformed holder before entering",
+          "qualification": "Diagnostic boundary only; BigInt still refuses malformed PID text.",
+          "edits": [
+            {
+              "find": "if (!/^[0-9]+$/u.test(text))",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "holder-pid-lower",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "holder PID outside the native range 0",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "pid < 1n || pid > 2147483647n",
+              "replacement": "pid > 2147483647n"
+            }
+          ]
+        },
+        {
+          "id": "holder-pid-upper",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "holder PID outside the native range 2147483648",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "pid < 1n || pid > 2147483647n",
+              "replacement": "pid < 1n"
+            }
+          ]
+        },
+        {
+          "id": "holder-live",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "live pre-flock holder",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (isAlive(decodeHolder(holder))) return false;",
+              "replacement": "if (false) return false;"
+            }
+          ]
+        },
+        {
+          "id": "holder-incomplete",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "incomplete or live pre-flock holder (undefined|$)",
+          "qualification": "Guard removal reaches later PID decoding refusal rather than a modeled busy outcome; classification only.",
+          "edits": [
+            {
+              "find": "if (holder === undefined || holder === '') return false;",
+              "replacement": "if (false) return false;"
+            }
+          ]
+        },
+        {
+          "id": "queue-dead-reclaim",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "reclaims dead tickets and drafts",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (readObservedBytes(path) !== undefined) removeFile(path);",
+              "replacement": "void path;"
+            }
+          ]
+        },
+        {
+          "id": "queue-dead-draft-bytes",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "partial UTF8",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (readObservedBytes(path) !== undefined) removeFile(path);",
+              "replacement": "if (readObservedText(path) !== undefined) removeFile(path);"
+            }
+          ]
+        },
+        {
+          "id": "queue-grace",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "strictly beyond its deadline plus sixty",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "now > ticket.deadline + 60n",
+              "replacement": "now >= ticket.deadline + 60n"
+            }
+          ]
+        },
+        {
+          "id": "queue-fairness",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue-peers.test.ts",
+          "pattern": "slower earlier Bun process",
+          "qualification": "Actual independent Bun processes poll at 2 and 1 seconds behind an actual flock holder. Queue-order removal must produce a reversed work log, not a test timeout.",
+          "edits": [
+            {
+              "find": "if (ahead === 0) {",
+              "replacement": "if (true) {"
+            }
+          ]
+        },
+        {
+          "id": "zero-budget-attempt",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "publishes complete legacy metadata",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (ahead === 0) {",
+              "replacement": "if (ahead === 0 && waitSeconds > 0) {"
+            }
+          ]
+        },
+        {
+          "id": "own-ticket-scan",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "published ticket disappeared during admission",
+          "qualification": "Early admission ordering only: removed scan guard still meets the later native ticket refusal, but must not have created the mutex.",
+          "edits": [
+            {
+              "find": "if (!names.includes(name)) throw new Error('heavy lock own ticket vanished before admission');",
+              "replacement": "void names;"
+            }
+          ]
+        },
+        {
+          "id": "own-ticket-native",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "rechecks its ticket inside native",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (readTicket(queue, name) === undefined)",
+              "replacement": "if (false)"
+            }
+          ]
+        },
+        {
+          "id": "monotonic-budget",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "monotonic wait budget",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "readElapsed() - enqueuedAt >= waitSeconds",
+              "replacement": "readElapsed() - enqueuedAt > waitSeconds"
+            }
+          ]
+        },
+        {
+          "id": "arrival-count",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "retains first arrival count",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "aheadAtArrival ??= ahead;",
+              "replacement": "aheadAtArrival = ahead;"
+            }
+          ]
+        },
+        {
+          "id": "request-capture",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "captures request and runtime",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "writeFileSync(join(record, 'label'), label + '\\n'",
+              "replacement": "writeFileSync(join(record, 'label'), request.label + '\\n'"
+            }
+          ]
+        },
+        {
+          "id": "draft-ownership",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "partial draft write failure",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "    ownsDraft = true;",
+              "replacement": "    ownsDraft = false;"
+            }
+          ]
+        },
+        {
+          "id": "ticket-cleanup",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "never jumps an earlier live ticket",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (ownsTicket) removeFile(ticket);",
+              "replacement": "void ticket;"
+            }
+          ]
+        },
+        {
+          "id": "ticket-remove-before-work",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "publishes complete legacy metadata",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "            removeFile(ticket);",
+              "replacement": "            void ticket;"
+            }
+          ]
+        },
+        {
+          "id": "record-cleanup",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "partial holder publication",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "              removeRecord(record);",
+              "replacement": "              void record;"
+            }
+          ]
+        },
+        {
+          "id": "settlement-original-cause",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "exact callback failure after record",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "if (attempt.kind === 'failed') failures.push(attempt.cause);",
+              "replacement": "void attempt;"
+            }
+          ]
+        },
+        {
+          "id": "settlement-cleanup-cause",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "partial draft write failure",
+          "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+          "edits": [
+            {
+              "find": "      release();\n    } catch (cause) {\n      failures.push(cause);",
+              "replacement": "      release();\n    } catch (cause) {\n      void cause;"
+            }
+          ]
+        },
+        {
+          "id": "record-unknown-content",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "retains unknown content",
+          "qualification": "One destructive-recursion fault with its required import; proves operator content is retained and admission refuses.",
+          "edits": [
+            {
+              "find": "  rmdirSync,",
+              "replacement": "  rmdirSync,\n  rmSync,"
+            },
+            {
+              "find": "    rmdirSync(path);",
+              "replacement": "    rmSync(path, { recursive: true });"
+            }
+          ]
+        },
+        {
+          "id": "queue-await-work",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "active work settles after cancellation",
+          "qualification": "Queue callback lifetime is distinct from native primitive lifetime; the acquired-work cancellation test must observe ownership through unsettled work.",
+          "edits": [
+            {
+              "find": "value: await work()",
+              "replacement": "value: work()"
+            }
+          ]
+        },
+        {
+          "id": "holder-publication-order",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "partial holder publication",
+          "qualification": "Actual holder-write failure boundary observes whether the label has already been written.",
+          "edits": [
+            {
+              "find": "            writeFileSync(join(record, 'label'), label + '\\n', { flag: 'wx', mode: 0o600 });\n            writeFileSync(join(record, 'holder'), String(pid) + '\\n', { flag: 'wx', mode: 0o600 });",
+              "replacement": "            writeFileSync(join(record, 'holder'), String(pid) + '\\n', { flag: 'wx', mode: 0o600 });\n            writeFileSync(join(record, 'label'), label + '\\n', { flag: 'wx', mode: 0o600 });"
+            }
+          ]
+        },
+        {
+          "id": "record-independent-cleanup",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "attempts record and ticket cleanup independently",
+          "qualification": "The first oracle is attemptedHolder after label unlink fails; aggregate shape is secondary.",
+          "edits": [
+            {
+              "find": "      removeFile(join(path, field));\n    } catch (cause) {\n      failures.push(cause);",
+              "replacement": "      removeFile(join(path, field));\n    } catch (cause) {\n      throw cause;"
+            }
+          ]
+        },
+        {
+          "id": "ticket-exclusive-publication",
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "pattern": "duplicate published ticket",
+          "qualification": "One overwriting-rename fault plus its required import; foreign published bytes must survive.",
+          "edits": [
+            {
+              "find": "  linkSync,",
+              "replacement": "  linkSync,\n  renameSync,"
+            },
+            {
+              "find": "    linkSync(draft, ticket);",
+              "replacement": "    renameSync(draft, ticket);"
+            }
+          ]
+        }
+      ],
+      "frozenHashes": {
+        "libs/shared/adapters/heavy-lock/project.json": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+        "libs/shared/adapters/heavy-lock/tsconfig.json": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+        "libs/shared/adapters/heavy-lock/tsconfig.lib.json": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+        "libs/shared/adapters/heavy-lock/tsconfig.spec.json": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+        "libs/shared/adapters/heavy-lock/src/index.ts": "1f956ba3bed38f9b31acf56bf301363d4515bf24f24128657149199c303ffc34",
+        "libs/shared/adapters/heavy-lock/src/native.ts": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+        "libs/shared/adapters/heavy-lock/src/native.test.ts": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+        "libs/shared/adapters/heavy-lock/src/records.ts": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "libs/shared/adapters/heavy-lock/src/records.test.ts": "6e7ba6da92cd799af7fdc1e69d8313a29dbb1a46df3b52a1523d051ee9cb2318",
+        "libs/shared/adapters/heavy-lock/src/queue.ts": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "libs/shared/adapters/heavy-lock/src/queue.test.ts": "1e01ab8658f25a1824e7c38c3c5e2b9880b654704a504fd6d71dbe415569b52c",
+        "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts": "0f56d4a171d6abf1b802c7670cc0273817417170197b451a55c3c39ae9b83d90",
+        "libs/shared/adapters/heavy-lock/src/queue-peers.test.ts": "5641573d66c6ca6ab1d94b5574141932be0d1237f28618bf275760eec3868b86",
+        "tsconfig.base.json": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+        "bin/heavy-lock-lib.sh": "5c01854731d0a906639fdae76891cf08077cf9d8daff62dc9bd0660c2596ea1a",
+        "openspec/changes/bun-scripts/design.md": "385abd18c8c9e32efe9be784732bafe94ef8833beec24463d30f6e785455359a",
+        "openspec/changes/bun-scripts/tasks.md": "0fd0f9f38222521f4f0a13cc3ef1fbeaf4cc7e36ae44222497a49a0be46f4efe"
+      }
+    },
+    "observations": [
+      {
+        "id": "directory-physical",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "protocol symlink (record|queue)",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (!directory.isDirectory())",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=protocol symlink (record|queue)"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a protocol symlink record", "refuses a protocol symlink queue"],
+        "passedRaw": ["refuses a protocol symlink record", "refuses a protocol symlink queue"],
+        "failed": ["refuses a protocol symlink record", "refuses a protocol symlink queue"],
+        "passed": ["refuses a protocol symlink record", "refuses a protocol symlink queue"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "dc3c9b86f1a85c113747be465c7fad5d93791f4b513dd574d65e9dc26b000777",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/directory-physical.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/directory-physical.green.log",
+        "redLogHash": "b47f037440517cf1fcd8c7a931a0a34608f9f7e32b0a8bdea6b0a8f91f6e1848",
+        "greenLogHash": "2a41f21da6b1d58a5e25d8392c5a06956ff0bbae55878fe26e5a5b709e537d7a",
+        "redLogBytes": 1422,
+        "greenLogBytes": 269
+      },
+      {
+        "id": "directory-parent-error",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "unreadable parent",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "    directory = lstatSync(path);\n  } catch (cause) {\n    if (isAbsent(cause))",
+            "replacement": "    directory = lstatSync(path);\n  } catch (cause) {\n    if (true)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=unreadable parent"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses an unreadable parent before classifying a directory as absent"],
+        "passedRaw": ["refuses an unreadable parent before classifying a directory as absent"],
+        "failed": ["refuses an unreadable parent before classifying a directory as absent"],
+        "passed": ["refuses an unreadable parent before classifying a directory as absent"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "c392ce3e2cbc724739049c9d953a15e04e8cd212135dfd36f0295c47121e840e",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/directory-parent-error.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/directory-parent-error.green.log",
+        "redLogHash": "2b73fa69e3922081878d1c1cbaeee3a0dcd5ff6b5c4b511edd0fb119533c1720",
+        "greenLogHash": "a3f8dfce7cf2bdfff0b643938129a4e60474f0d3dcccc48830894b6e6756c6ba",
+        "redLogBytes": 908,
+        "greenLogBytes": 255
+      },
+      {
+        "id": "directory-list-error",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "unreadable queue",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "    return readdirSync(path);\n  } catch (cause) {\n    if (isAbsent(cause))",
+            "replacement": "    return readdirSync(path);\n  } catch (cause) {\n    if (true)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=unreadable queue"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses unreadable queue state rather than reporting absence"],
+        "passedRaw": ["refuses unreadable queue state rather than reporting absence"],
+        "failed": ["refuses unreadable queue state rather than reporting absence"],
+        "passed": ["refuses unreadable queue state rather than reporting absence"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "0c366a077cd7f093b78deb9f79260a7fc113b2d93c5c6cc811125868ab89ae70",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/directory-list-error.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/directory-list-error.green.log",
+        "redLogHash": "d8bcae4cacb132fd874a1d07250aaccbaaac9c71f8cbe0d2d93b028de019a8ab",
+        "greenLogHash": "03faf40e138658a0e2a499f0e5c789030f039f3eb4810a941509dc5cb72ae5ff",
+        "redLogBytes": 1054,
+        "greenLogBytes": 246
+      },
+      {
+        "id": "metadata-open-error",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "unreadable (holder|label)",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);\n  } catch (cause) {\n    if (isAbsent(cause))",
+            "replacement": "descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);\n  } catch (cause) {\n    if (true)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=unreadable (holder|label)"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses unreadable holder state rather than reporting absence",
+          "refuses unreadable label state rather than reporting absence",
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "passedRaw": [
+          "refuses unreadable holder state rather than reporting absence",
+          "refuses unreadable label state rather than reporting absence",
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "failed": [
+          "refuses unreadable holder state rather than reporting absence",
+          "refuses unreadable label state rather than reporting absence",
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "passed": [
+          "refuses unreadable holder state rather than reporting absence",
+          "refuses unreadable label state rather than reporting absence",
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "a2c614916f9b3b1ef2e7aaa7d99e496e084e580902af9a043f36c00e161b86b8",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-open-error.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-open-error.green.log",
+        "redLogHash": "0e0bed67578ae38ad53f2ea2ef9576f9a32083bb920257d6d0d73098edf70247",
+        "greenLogHash": "e0d60c342f8f6f1190b9b4987a36957fcfee2c6ba8fb179ba04a7c073593d1b1",
+        "redLogBytes": 3856,
+        "greenLogBytes": 501
+      },
+      {
+        "id": "metadata-nofollow",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "protocol symlink (holder|label)",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW",
+            "replacement": "constants.O_RDONLY | constants.O_NONBLOCK"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=protocol symlink (holder|label)"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a protocol symlink holder", "refuses a protocol symlink label"],
+        "passedRaw": ["refuses a protocol symlink holder", "refuses a protocol symlink label"],
+        "failed": ["refuses a protocol symlink holder", "refuses a protocol symlink label"],
+        "passed": ["refuses a protocol symlink holder", "refuses a protocol symlink label"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "e933bc04d7b32bb15766089db7021cefd6fbfb1fd4f5bd051bb75c05c62f1f72",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-nofollow.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-nofollow.green.log",
+        "redLogHash": "f65ca2a50f791eaf3d5c28825c33eff806cddd66e8d81d8d925404c8d3af495b",
+        "greenLogHash": "0b1e14d6477ae8395f579a396b6f0ef0e78ddc577892427c4ac76fb9a08cc808",
+        "redLogBytes": 1503,
+        "greenLogBytes": 269
+      },
+      {
+        "id": "metadata-nonblocking",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "readerless metadata FIFO",
+        "qualification": "Actual reader-side FIFO child is bounded by parent SIGKILL. Removed NONBLOCK yields ordinary child-exit assertion failure, not a Bun test timeout.",
+        "edits": [
+          {
+            "find": "constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW",
+            "replacement": "constants.O_RDONLY | constants.O_NOFOLLOW"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=readerless metadata FIFO"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a readerless metadata FIFO before opening it can block"],
+        "passedRaw": ["refuses a readerless metadata FIFO before opening it can block"],
+        "failed": ["refuses a readerless metadata FIFO before opening it can block"],
+        "passed": ["refuses a readerless metadata FIFO before opening it can block"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "44d96410149760918e964cda1471075c9b047dbd3423304dfb9d4e50ea7c1f2c",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-nonblocking.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-nonblocking.green.log",
+        "redLogHash": "a3199448bc6b0ae21e61cb60c286399c604b947336b350503071670b3e961d82",
+        "greenLogHash": "6a7804143499108f9e4885e6642617def33fc33cd724c74c42f0fe81dde9b8d7",
+        "redLogBytes": 644,
+        "greenLogBytes": 250
+      },
+      {
+        "id": "metadata-regular",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "nonregular (holder|label)",
+        "qualification": "Removing regular-file guard can still meet EISDIR at read; exact regular-file diagnostic, not successful admission, is the oracle.",
+        "edits": [
+          {
+            "find": "if (!fstatSync(descriptor).isFile())",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=nonregular (holder|label)"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses a nonregular holder before metadata acquisition",
+          "refuses a nonregular label before metadata acquisition",
+          "refuses a nonregular label during incomplete publication holder",
+          "refuses a nonregular label during incomplete publication label"
+        ],
+        "passedRaw": [
+          "refuses a nonregular holder before metadata acquisition",
+          "refuses a nonregular label before metadata acquisition",
+          "refuses a nonregular label during incomplete publication holder",
+          "refuses a nonregular label during incomplete publication label"
+        ],
+        "failed": [
+          "refuses a nonregular holder before metadata acquisition",
+          "refuses a nonregular label before metadata acquisition",
+          "refuses a nonregular label during incomplete publication holder",
+          "refuses a nonregular label during incomplete publication label"
+        ],
+        "passed": [
+          "refuses a nonregular holder before metadata acquisition",
+          "refuses a nonregular label before metadata acquisition",
+          "refuses a nonregular label during incomplete publication holder",
+          "refuses a nonregular label during incomplete publication label"
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "88b341fd0f60cf7d9cb14730f0f08dfa957474a4f450a8688f233d98c8815f8b",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-regular.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-regular.green.log",
+        "redLogHash": "c5118a80d39903080f988b8212b0748dbbd0f080b69d23368501c87e9a4ca043",
+        "greenLogHash": "d54e6c84a7de22cf6ebe4420c808f2b7a170080b329640a846b45c0fe44ad1ac",
+        "redLogBytes": 3215,
+        "greenLogBytes": 473
+      },
+      {
+        "id": "metadata-utf8",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "malformed published UTF8",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "{ fatal: true, ignoreBOM: true }",
+            "replacement": "{ fatal: false, ignoreBOM: true }"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=malformed published UTF8"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses malformed published UTF8 rather than silently replacing its bytes"],
+        "passedRaw": ["refuses malformed published UTF8 rather than silently replacing its bytes"],
+        "failed": ["refuses malformed published UTF8 rather than silently replacing its bytes"],
+        "passed": ["refuses malformed published UTF8 rather than silently replacing its bytes"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "2a032ec939a724bb3bb7edfca6a5a46ecc1cb5f941a3853c5ef7df5481457ba4",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-utf8.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-utf8.green.log",
+        "redLogHash": "58663585d1dc34fb816d8736b8d267cefeb7080470360efcf2df3c6f973f3e73",
+        "greenLogHash": "3ab09a69f09fcadbe0c2a842ab50c2a33afdd228df30f39b6b8a996821d986de",
+        "redLogBytes": 1042,
+        "greenLogBytes": 260
+      },
+      {
+        "id": "metadata-close-only",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "metadata close failure after a successful read",
+        "qualification": "Injected close actually closes the real descriptor then throws; proves error identity, not release after a failed close.",
+        "edits": [
+          {
+            "find": "if (release !== undefined) throw release.cause;",
+            "replacement": "if (false) throw release?.cause;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=metadata close failure after a successful read"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["propagates a metadata close failure after a successful read"],
+        "passedRaw": ["propagates a metadata close failure after a successful read"],
+        "failed": ["propagates a metadata close failure after a successful read"],
+        "passed": ["propagates a metadata close failure after a successful read"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "0aa272d93939dd83a74b99cd28739aaa80244dcc7b63a2250959ab2ce8013368",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-close-only.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-close-only.green.log",
+        "redLogHash": "9a10ce92f42f81180a98f9057d750d182ba9f5809788edfe0a6b84de65a8fef9",
+        "greenLogHash": "81793aa023ced4e768711323cfa48edaec24bf111dd30c9af2023eeec1117925",
+        "redLogBytes": 918,
+        "greenLogBytes": 246
+      },
+      {
+        "id": "metadata-paired",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "metadata read failure and a close failure",
+        "qualification": "Injected close actually closes the real descriptor then throws; the read and close cause tuple must remain intact.",
+        "edits": [
+          {
+            "find": "[attempt.cause, release.cause]",
+            "replacement": "[attempt.cause]"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=metadata read failure and a close failure"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "preserves the metadata read failure and a close failure after closing the real descriptor"
+        ],
+        "passedRaw": [
+          "preserves the metadata read failure and a close failure after closing the real descriptor"
+        ],
+        "failed": [
+          "preserves the metadata read failure and a close failure after closing the real descriptor"
+        ],
+        "passed": [
+          "preserves the metadata read failure and a close failure after closing the real descriptor"
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "8c08a3fa506040179bc424ac28c53c99eb1975a0e5d96fb07357db832f89be7c",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-paired.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-paired.green.log",
+        "redLogHash": "e4189fa5f8502ee458fd1fb6decb1916256fe6a734b36b93b085eb17c80e16f0",
+        "greenLogHash": "0ac1747a7e7e5a07ce37d120e06fb5eb05737d448363864b6ba2ff2c532370df",
+        "redLogBytes": 1323,
+        "greenLogBytes": 275
+      },
+      {
+        "id": "metadata-newline",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "legacy trailing-LF normalization",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": ".replace(/\\n+$/u, '')",
+            "replacement": ".toString()"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=legacy trailing-LF normalization"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "reports holder text observationally and applies legacy trailing-LF normalization"
+        ],
+        "passedRaw": [
+          "reports holder text observationally and applies legacy trailing-LF normalization"
+        ],
+        "failed": [
+          "reports holder text observationally and applies legacy trailing-LF normalization"
+        ],
+        "passed": [
+          "reports holder text observationally and applies legacy trailing-LF normalization"
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "ced0ba8d26001d168df75e48e29886071f20b091359eab91aebcaf14b237a4d1",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/metadata-newline.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/metadata-newline.green.log",
+        "redLogHash": "9c78ce81b3166e56b331ce6fb79d6c3b828b25472aec51bffc5bc88acf89d23f",
+        "greenLogHash": "1c4077a7ab2f5779f7923aa61b4a91cd67120c7ee424602dbc34d1da87f1ef82",
+        "redLogBytes": 1034,
+        "greenLogBytes": 266
+      },
+      {
+        "id": "ticket-name",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "malformed published ticket note",
+        "qualification": "Diagnostic boundary only; BigInt still refuses nonnumeric text after explicit filename guard removal.",
+        "edits": [
+          {
+            "find": "if (!/^[0-9]{19}-[0-9]+$/u.test(name))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=malformed published ticket note"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses malformed published ticket note/label x/deadline 1"],
+        "passedRaw": ["refuses malformed published ticket note/label x/deadline 1"],
+        "failed": ["refuses malformed published ticket note/label x/deadline 1"],
+        "passed": ["refuses malformed published ticket note/label x/deadline 1"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "45ef4fa1d42c68f1d9bbeac1ec6c79bbd75c57655b58deaa0a032f17c6141001",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-name.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-name.green.log",
+        "redLogHash": "4969cd74f8aca8553a669bf32e3504f6aaf80fbb6ce0a788dcb49d61e6ebcb5f",
+        "greenLogHash": "d643312b36386798cb4f737c1712c3a03f3de7d7b5a0566760d84684337044de",
+        "redLogBytes": 811,
+        "greenLogBytes": 244
+      },
+      {
+        "id": "ticket-pid-lower",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "published ticket PID outside the native range 0",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "pid < 1n || pid > 2147483647n",
+            "replacement": "pid > 2147483647n"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=published ticket PID outside the native range 0"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a published ticket PID outside the native range 0"],
+        "passedRaw": ["refuses a published ticket PID outside the native range 0"],
+        "failed": ["refuses a published ticket PID outside the native range 0"],
+        "passed": ["refuses a published ticket PID outside the native range 0"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "00e3f9e771a21b8388f989eae40f690dcdb50cee0b9e329f71f9a2994d9eb2fd",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-pid-lower.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-pid-lower.green.log",
+        "redLogHash": "fe3ae58fb36d7f70d8c05cdc8964506b28cb2460d5afa6b6b2bf984c0247b7a8",
+        "greenLogHash": "b504e7cb656315a8c4976cdbc328f687b9160f99d8dab948a655ec467f7abfbe",
+        "redLogBytes": 1115,
+        "greenLogBytes": 243
+      },
+      {
+        "id": "ticket-pid-upper",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "published ticket PID outside the native range 2147483648",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "pid < 1n || pid > 2147483647n",
+            "replacement": "pid < 1n"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=published ticket PID outside the native range 2147483648"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a published ticket PID outside the native range 2147483648"],
+        "passedRaw": ["refuses a published ticket PID outside the native range 2147483648"],
+        "failed": ["refuses a published ticket PID outside the native range 2147483648"],
+        "passed": ["refuses a published ticket PID outside the native range 2147483648"],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "ed797223b1b36392ea5250085adfe5a7b52ff795c02d383e0fe1207b15f1bd2d",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-pid-upper.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-pid-upper.green.log",
+        "redLogHash": "8140a82ae013c0ff8db9f60d435a315dacbe81f6246c524110bd6406bfdb5e37",
+        "greenLogHash": "aebc8a93b22e65d30310bde0702620f14f8ddda00ee4edd414ab8006bf2fb928",
+        "redLogBytes": 1143,
+        "greenLogBytes": 253
+      },
+      {
+        "id": "ticket-label",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "malformed published ticket .*no-label",
+        "qualification": "Exact label diagnostic; a missing positional line can also fail through later string acquisition.",
+        "edits": [
+          {
+            "find": "if (labelLine === undefined || !labelLine.startsWith('label ') || labelLine.length === 6)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=malformed published ticket .*no-label"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses malformed published ticket 1800000000000000000-12345/no-label/deadline 1"
+        ],
+        "passedRaw": [
+          "refuses malformed published ticket 1800000000000000000-12345/no-label/deadline 1"
+        ],
+        "failed": [
+          "refuses malformed published ticket 1800000000000000000-12345/no-label/deadline 1"
+        ],
+        "passed": [
+          "refuses malformed published ticket 1800000000000000000-12345/no-label/deadline 1"
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "8a3a0abc7e00020e3a5e6980d3676b872e33262ea6787e4a0dfd29f62308815e",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-label.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-label.green.log",
+        "redLogHash": "ce1a3806002230ec045eba596a4f92242cfe3bd596fc5c828592d87e2b2c3ace",
+        "greenLogHash": "b138fa42d047f56ef577b5e43a8ede68e79a073943ca62bfe55b607a440be7d6",
+        "redLogBytes": 1060,
+        "greenLogBytes": 267
+      },
+      {
+        "id": "ticket-deadline",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "malformed published ticket .*deadline invalid",
+        "qualification": "Diagnostic boundary only; BigInt still refuses the invalid deadline after explicit check removal.",
+        "edits": [
+          {
+            "find": "if (deadlineLine === undefined || !/^deadline [0-9]+$/u.test(deadlineLine))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=malformed published ticket .*deadline invalid"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses malformed published ticket 1800000000000000000-12345/label x/deadline invalid"
+        ],
+        "passedRaw": [
+          "refuses malformed published ticket 1800000000000000000-12345/label x/deadline invalid"
+        ],
+        "failed": [
+          "refuses malformed published ticket 1800000000000000000-12345/label x/deadline invalid"
+        ],
+        "passed": [
+          "refuses malformed published ticket 1800000000000000000-12345/label x/deadline invalid"
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "93b2ec1df18c06643b9fab273274e243a15fd7ebacb5955b41f5d31084e8baeb",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-deadline.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-deadline.green.log",
+        "redLogHash": "dfafaf07aec34b8f9e37f7cba0e1682f5cf20bf31317fa02368bd5cb59fc18ce",
+        "greenLogHash": "4e359b7e8e64f224b7c91d189e33d2db4c8038310521618d0245708704f7b44b",
+        "redLogBytes": 837,
+        "greenLogBytes": 271
+      },
+      {
+        "id": "status-incomplete-label",
+        "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+        "pattern": "unreadable label during incomplete",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "label = readObservedText(join(record, 'label'));",
+            "replacement": "label = pidText === undefined || pidText === '' ? undefined : readObservedText(join(record, 'label'));"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=unreadable label during incomplete"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "passedRaw": [
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "failed": [
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "passed": [
+          "refuses an unreadable label during incomplete holder publication undefined",
+          "refuses an unreadable label during incomplete holder publication \"\""
+        ],
+        "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "mutantHash": "dcbf749b1d57804ffedc035a5d1b558a6955a0658c1dcc65ec4d4dd2414e4850",
+        "restoredHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+        "redLog": "/tmp/puni-c30b-proofs/status-incomplete-label.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/status-incomplete-label.green.log",
+        "redLogHash": "04db68c2d2d48f25fdae57c41d44b2fd5714418f468bec186c51bf89c6463475",
+        "greenLogHash": "6beaf5ef76c3dcca3b48080b48954e2e55ef2e2271a86b7b682aa3eddd7311ad",
+        "redLogBytes": 1802,
+        "greenLogBytes": 346
+      },
+      {
+        "id": "liveness-esrch-only",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "distinguishes only ESRCH",
+        "qualification": "Controlled actual process.kill boundary error; EPERM is unknown rather than proof of death.",
+        "edits": [
+          {
+            "find": "if (hasCode(cause, 'ESRCH')) return false;",
+            "replacement": "if (true) return false;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=distinguishes only ESRCH"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["distinguishes only ESRCH from a live or unknown process"],
+        "passedRaw": ["distinguishes only ESRCH from a live or unknown process"],
+        "failed": ["distinguishes only ESRCH from a live or unknown process"],
+        "passed": ["distinguishes only ESRCH from a live or unknown process"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "1766045ab1d89a4e661b40f422d1c02e3a516fbdcd004d5bfd16c53d1b0a9152",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/liveness-esrch-only.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/liveness-esrch-only.green.log",
+        "redLogHash": "4202dded5cce7db3f89716bc722d91a458f52675335885374bd3abd159d6f5c1",
+        "greenLogHash": "bc8c9c992102b5ad66929ca7cb8f0d93003e829e4857483def39825c90207e0e",
+        "redLogBytes": 813,
+        "greenLogBytes": 247
+      },
+      {
+        "id": "wait-cancellation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "wakes a real thirty second wait",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "      finish('cancelled');",
+            "replacement": "      finish('elapsed');"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=wakes a real thirty second wait"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener"
+        ],
+        "passedRaw": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener"
+        ],
+        "failed": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener"
+        ],
+        "passed": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "f968afafd391f1b42349954280fe7fb00f3901bdeaa0961ad8e71010e7d0e7c0",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/wait-cancellation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/wait-cancellation.green.log",
+        "redLogHash": "7850ef192a079e73cbf98abe1aa05f953e2a98637796f34c427ae1a320dc3804",
+        "greenLogHash": "2bf2bf7f398bbb813a646d07751dd255d13cf11bf79e571f23d9b3eced2dec69",
+        "redLogBytes": 802,
+        "greenLogBytes": 274
+      },
+      {
+        "id": "wait-detach",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "detaches (its|the elapsed) listener",
+        "qualification": "Structural listener-release observation at the real AbortSignal boundary; no process-lifetime leak claim.",
+        "edits": [
+          {
+            "find": "      signal.removeEventListener('abort', cancel);",
+            "replacement": "      void cancel;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=detaches (its|the elapsed) listener"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener",
+          "models already cancelled and elapsed waits and detaches the elapsed listener"
+        ],
+        "passedRaw": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener",
+          "models already cancelled and elapsed waits and detaches the elapsed listener"
+        ],
+        "failed": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener",
+          "models already cancelled and elapsed waits and detaches the elapsed listener"
+        ],
+        "passed": [
+          "wakes a real thirty second wait promptly on cancellation and detaches its listener",
+          "models already cancelled and elapsed waits and detaches the elapsed listener"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "d0d59a80c352113cc7c1a7f5d0638c3440dfa029700f1443d7fc9c43f3d246fc",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/wait-detach.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/wait-detach.green.log",
+        "redLogHash": "848d8b4455e7eba5a0e27fdd0715ecea399538472023c26ef14507ba146607c1",
+        "greenLogHash": "769a18ed3f3fd30c368f9bc07aa403ba514a80a5ad5008b4f599949fc04e29b9",
+        "redLogBytes": 1589,
+        "greenLogBytes": 368
+      },
+      {
+        "id": "canonical-platform",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "selects only the existing platform",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "  throw new Error('heavy lock platform is unsupported: ' + platform);",
+            "replacement": "  return '/tmp/wbs-heavy-work.lock';"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=selects only the existing platform"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["selects only the existing platform canonical paths"],
+        "passedRaw": ["selects only the existing platform canonical paths"],
+        "failed": ["selects only the existing platform canonical paths"],
+        "passed": ["selects only the existing platform canonical paths"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "1534be194cc0d9be309e6d75794331426a51966afd2e6ad0f1adbac0d0e26750",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/canonical-platform.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/canonical-platform.green.log",
+        "redLogHash": "770c334d6038a9dfc37e091410fa49c67a946f13c9825ea559f06089b096d3f1",
+        "greenLogHash": "71581a674af5c4e1aa2825599644dcaff56f129d9a53879ad785752819f7e750",
+        "redLogBytes": 899,
+        "greenLogBytes": 243
+      },
+      {
+        "id": "wait-validation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "invalid request waitSeconds",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (!Number.isSafeInteger(waitSeconds) || waitSeconds < 0)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=invalid request waitSeconds"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses invalid request waitSeconds -1 before touching the filesystem",
+          "refuses invalid request waitSeconds 0.5 before touching the filesystem",
+          "refuses invalid request waitSeconds null before touching the filesystem"
+        ],
+        "passedRaw": [
+          "refuses invalid request waitSeconds -1 before touching the filesystem",
+          "refuses invalid request waitSeconds 0.5 before touching the filesystem",
+          "refuses invalid request waitSeconds null before touching the filesystem"
+        ],
+        "failed": [
+          "refuses invalid request waitSeconds -1 before touching the filesystem",
+          "refuses invalid request waitSeconds 0.5 before touching the filesystem",
+          "refuses invalid request waitSeconds null before touching the filesystem"
+        ],
+        "passed": [
+          "refuses invalid request waitSeconds -1 before touching the filesystem",
+          "refuses invalid request waitSeconds 0.5 before touching the filesystem",
+          "refuses invalid request waitSeconds null before touching the filesystem"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "4eda06e24f91d9ac611a80c3dc49c28edec63acd50b95746070959a6e5ab018e",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/wait-validation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/wait-validation.green.log",
+        "redLogHash": "585fc3e7d0d8b4f53cd31f4107f3e9bc7d8848122406faa04775091b3cd37ed9",
+        "greenLogHash": "ec3a1140f19fe02dbf2b1edc6436e3b8f2ad4517ce202e6a83fdbf04e26f8d63",
+        "redLogBytes": 1931,
+        "greenLogBytes": 438
+      },
+      {
+        "id": "poll-validation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "invalid request pollSeconds",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (!Number.isInteger(pollSeconds) || pollSeconds < 1 || pollSeconds > 30)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=invalid request pollSeconds"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses invalid request pollSeconds 0 before touching the filesystem",
+          "refuses invalid request pollSeconds 31 before touching the filesystem",
+          "refuses invalid request pollSeconds 1.5 before touching the filesystem"
+        ],
+        "passedRaw": [
+          "refuses invalid request pollSeconds 0 before touching the filesystem",
+          "refuses invalid request pollSeconds 31 before touching the filesystem",
+          "refuses invalid request pollSeconds 1.5 before touching the filesystem"
+        ],
+        "failed": [
+          "refuses invalid request pollSeconds 0 before touching the filesystem",
+          "refuses invalid request pollSeconds 31 before touching the filesystem",
+          "refuses invalid request pollSeconds 1.5 before touching the filesystem"
+        ],
+        "passed": [
+          "refuses invalid request pollSeconds 0 before touching the filesystem",
+          "refuses invalid request pollSeconds 31 before touching the filesystem",
+          "refuses invalid request pollSeconds 1.5 before touching the filesystem"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "92d371f2943780d6eb79fed53bc954737156b03b49dbccea8cdd6a5e613988bc",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/poll-validation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/poll-validation.green.log",
+        "redLogHash": "bffebca32df57ebbadbbcb0283dd240a7a24b365cb44f99a6a24626ebc4ef530",
+        "greenLogHash": "c4db94be7daee7024a650aff0f2ff6610bb6511641407bf33aca1a3e5352a036",
+        "redLogBytes": 1914,
+        "greenLogBytes": 434
+      },
+      {
+        "id": "pid-validation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "invalid caller PID",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (!Number.isInteger(pid) || pid < 1 || pid > 2147483647)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=invalid caller PID"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses invalid caller PID 0",
+          "refuses invalid caller PID 2147483648",
+          "refuses invalid caller PID 1.5"
+        ],
+        "passedRaw": [
+          "refuses invalid caller PID 0",
+          "refuses invalid caller PID 2147483648",
+          "refuses invalid caller PID 1.5"
+        ],
+        "failed": [
+          "refuses invalid caller PID 0",
+          "refuses invalid caller PID 2147483648",
+          "refuses invalid caller PID 1.5"
+        ],
+        "passed": [
+          "refuses invalid caller PID 0",
+          "refuses invalid caller PID 2147483648",
+          "refuses invalid caller PID 1.5"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "63e48e45b6b20efc3d5601f2d797d756c6218ec46e908b772a97d6df43183ee9",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/pid-validation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/pid-validation.green.log",
+        "redLogHash": "001913001b92610be3d49b3cd5999d348e0886a8eabd01e087571f6fe4aced4b",
+        "greenLogHash": "7cde23ecd4cd7603f16d31215d24efaa170c4fc0efd8acd0328f81cb88cb5766",
+        "redLogBytes": 1946,
+        "greenLogBytes": 315
+      },
+      {
+        "id": "label-validation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+        "pattern": "invalid request label",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (label === '' || /[\\r\\n\\0]/u.test(label))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=invalid request label"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses invalid request label \"\" before touching the filesystem",
+          "refuses invalid request label \"x\\ny\" before touching the filesystem",
+          "refuses invalid request label \"x\\ry\" before touching the filesystem",
+          "refuses invalid request label \"x\\u0000y\" before touching the filesystem"
+        ],
+        "passedRaw": [
+          "refuses invalid request label \"\" before touching the filesystem",
+          "refuses invalid request label \"x\\ny\" before touching the filesystem",
+          "refuses invalid request label \"x\\ry\" before touching the filesystem",
+          "refuses invalid request label \"x\\u0000y\" before touching the filesystem"
+        ],
+        "failed": [
+          "refuses invalid request label \"\" before touching the filesystem",
+          "refuses invalid request label \"x\\ny\" before touching the filesystem",
+          "refuses invalid request label \"x\\ry\" before touching the filesystem",
+          "refuses invalid request label \"x\\u0000y\" before touching the filesystem"
+        ],
+        "passed": [
+          "refuses invalid request label \"\" before touching the filesystem",
+          "refuses invalid request label \"x\\ny\" before touching the filesystem",
+          "refuses invalid request label \"x\\ry\" before touching the filesystem",
+          "refuses invalid request label \"x\\u0000y\" before touching the filesystem"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "48de702c5a93e9980a80b013f699219785e8f893f2f7f5d0f7b9a6d380841079",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/label-validation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/label-validation.green.log",
+        "redLogHash": "d6339d2f23830b04705edb265052dd4398d5068f48f9030fa90b971f599e0d70",
+        "greenLogHash": "5ed4272b90576d39cfdef6917a72ba9e51291de6f749feefeb3f19db5bcfb9ea",
+        "redLogBytes": 2499,
+        "greenLogBytes": 513
+      },
+      {
+        "id": "stamp-validation",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "invalid queue stamp",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (!/^[0-9]{19}$/u.test(stamp.toString()))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=invalid queue stamp"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses an invalid queue stamp before creating filesystem state"],
+        "passedRaw": ["refuses an invalid queue stamp before creating filesystem state"],
+        "failed": ["refuses an invalid queue stamp before creating filesystem state"],
+        "passed": ["refuses an invalid queue stamp before creating filesystem state"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "658fea1d623b0042b0a758b3c16f1c55cb1b39666fe78c5f5223b0114c1468ee",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/stamp-validation.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/stamp-validation.green.log",
+        "redLogHash": "7b5c53d76239d6fe3692ab96325984be1563ecd6b0a8f7e843d78abde8d1c0bd",
+        "greenLogHash": "950a46efa39d515477dfa1eac090beb8f9997ee82efbbe6ddfc64ec4c1a638f7",
+        "redLogBytes": 769,
+        "greenLogBytes": 247
+      },
+      {
+        "id": "prepublication-cancel",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "cancels before publishing",
+        "qualification": "Without the early guard later cancellation may still refuse; no queue may have been created in the already-cancelled branch.",
+        "edits": [
+          {
+            "find": "  if (signal.aborted) return { kind: 'cancelled' };\n  const started",
+            "replacement": "  const started"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=cancels before publishing"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "cancels before publishing and while waiting without entering protected work"
+        ],
+        "passedRaw": [
+          "cancels before publishing and while waiting without entering protected work"
+        ],
+        "failed": ["cancels before publishing and while waiting without entering protected work"],
+        "passed": ["cancels before publishing and while waiting without entering protected work"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "373fe412758390f0b8efb586ce47632273e6d1d9d04caa0511125ea23f58568f",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/prepublication-cancel.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/prepublication-cancel.green.log",
+        "redLogHash": "34441f9b3bca53d0d378a48381e265dabaf2cab8ffb6aac872b268e6fb34a0e4",
+        "greenLogHash": "6af95f97f60cd97f4736237d929a5ceb541e22f3f2e5f21ed468e32c3def8f7f",
+        "redLogBytes": 757,
+        "greenLogBytes": 259
+      },
+      {
+        "id": "holder-pid-text",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "malformed holder before entering",
+        "qualification": "Diagnostic boundary only; BigInt still refuses malformed PID text.",
+        "edits": [
+          {
+            "find": "if (!/^[0-9]+$/u.test(text))",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=malformed holder before entering"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a malformed holder before entering work and leaves it intact"],
+        "passedRaw": ["refuses a malformed holder before entering work and leaves it intact"],
+        "failed": ["refuses a malformed holder before entering work and leaves it intact"],
+        "passed": ["refuses a malformed holder before entering work and leaves it intact"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "100e91974fccf6d5b96fe07b4531d2eed91a52ae4706fc017c625e61ccbb7409",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-pid-text.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-pid-text.green.log",
+        "redLogHash": "9315167977002a21976c8fb236ae33e3ede776b78cf40592b34415355a0c8a6a",
+        "greenLogHash": "5de0dc948fb4b0641e6aa8401e5fb09c9f4ca46dc54232fc790b33d5263ea466",
+        "redLogBytes": 913,
+        "greenLogBytes": 253
+      },
+      {
+        "id": "holder-pid-lower",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "holder PID outside the native range 0",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "pid < 1n || pid > 2147483647n",
+            "replacement": "pid > 2147483647n"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=holder PID outside the native range 0"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a holder PID outside the native range 0"],
+        "passedRaw": ["refuses a holder PID outside the native range 0"],
+        "failed": ["refuses a holder PID outside the native range 0"],
+        "passed": ["refuses a holder PID outside the native range 0"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "66827b4c6bcfec7f4f9a79d09fa7e71f87076cb07e998605a7c84116f370c000",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-pid-lower.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-pid-lower.green.log",
+        "redLogHash": "94d59b84d4be65c8b521a834f2f5280495111a227b97c0503f8c797d366b3994",
+        "greenLogHash": "4ecc4b2709661c7961120dfe8b6727ce4e6254301338f501ee21d92ed5e2e1e2",
+        "redLogBytes": 936,
+        "greenLogBytes": 231
+      },
+      {
+        "id": "holder-pid-upper",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "holder PID outside the native range 2147483648",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "pid < 1n || pid > 2147483647n",
+            "replacement": "pid < 1n"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=holder PID outside the native range 2147483648"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses a holder PID outside the native range 2147483648"],
+        "passedRaw": ["refuses a holder PID outside the native range 2147483648"],
+        "failed": ["refuses a holder PID outside the native range 2147483648"],
+        "passed": ["refuses a holder PID outside the native range 2147483648"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "dca65db8bcb279f917dbc6a7053c88032437a3d56754558c381f6ef12861b57b",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-pid-upper.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-pid-upper.green.log",
+        "redLogHash": "9b59e5b9a9cec3286a6b43c94761ad9a4c9ea185457a3f6f2d0a78217ca92448",
+        "greenLogHash": "e1c32bc997bbe514996eec21fba267d023482373c0ef82d554f1b891e06f7539",
+        "redLogBytes": 945,
+        "greenLogBytes": 241
+      },
+      {
+        "id": "holder-live",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "live pre-flock holder",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (isAlive(decodeHolder(holder))) return false;",
+            "replacement": "if (false) return false;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=live pre-flock holder"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["respects an incomplete or live pre-flock holder live"],
+        "passedRaw": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder ",
+          "respects an incomplete or live pre-flock holder live"
+        ],
+        "failed": ["respects an incomplete or live pre-flock holder live"],
+        "passed": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder ",
+          "respects an incomplete or live pre-flock holder live"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "a8e2af4a7f53c0958067a9bb942d35dc955af95d58b86d63a0d1bc5969a52e1f",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-live.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-live.green.log",
+        "redLogHash": "87ad8c3419698a44afa36c54b3100cc20b6827624b4311216132e4c58c27202b",
+        "greenLogHash": "7fe35ee6835e38c5506b6f0d396acd12fa8faf897f5ab64f8eba7acca5937bee",
+        "redLogBytes": 761,
+        "greenLogBytes": 377
+      },
+      {
+        "id": "holder-incomplete",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "incomplete or live pre-flock holder (undefined|$)",
+        "qualification": "Guard removal reaches later PID decoding refusal rather than a modeled busy outcome; classification only.",
+        "edits": [
+          {
+            "find": "if (holder === undefined || holder === '') return false;",
+            "replacement": "if (false) return false;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=incomplete or live pre-flock holder (undefined|$)"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder "
+        ],
+        "passedRaw": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder "
+        ],
+        "failed": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder "
+        ],
+        "passed": [
+          "respects an incomplete or live pre-flock holder undefined",
+          "respects an incomplete or live pre-flock holder "
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "5cfa399a3afab6ee6739ccc0d9bf59d45bd3de4b9ab3a7d92bbc82a3c7f4bb2f",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-incomplete.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-incomplete.green.log",
+        "redLogHash": "22558f249a3a0ded40af6a5936ecd113714ee92be093cf27a8a44053e3df5edf",
+        "greenLogHash": "09990dbfcb0a520e3de33bc849b78403cdea0cc6c74f26d88ddeeaa9cb6f7eed",
+        "redLogBytes": 2390,
+        "greenLogBytes": 308
+      },
+      {
+        "id": "queue-dead-reclaim",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "reclaims dead tickets and drafts",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (readObservedBytes(path) !== undefined) removeFile(path);",
+            "replacement": "void path;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=reclaims dead tickets and drafts"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["reclaims dead tickets and drafts before decoding their incomplete bodies"],
+        "passedRaw": ["reclaims dead tickets and drafts before decoding their incomplete bodies"],
+        "failed": ["reclaims dead tickets and drafts before decoding their incomplete bodies"],
+        "passed": ["reclaims dead tickets and drafts before decoding their incomplete bodies"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "11ca3b5c671e47a852959a299234e7cd967d90b18287eb4d187b336eac985e8f",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/queue-dead-reclaim.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/queue-dead-reclaim.green.log",
+        "redLogHash": "20b5b683cf1c4ee70ce950149d009912af4ed233495e02fc28aac7bc9475aa15",
+        "greenLogHash": "655e2fadfc556287b879f6ad7d4262dd94bc2791f58e6afd369c474feef47f63",
+        "redLogBytes": 992,
+        "greenLogBytes": 257
+      },
+      {
+        "id": "queue-dead-draft-bytes",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "partial UTF8",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (readObservedBytes(path) !== undefined) removeFile(path);",
+            "replacement": "if (readObservedText(path) !== undefined) removeFile(path);"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=partial UTF8"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["reclaims an interrupted dead draft whose command ends in partial UTF8"],
+        "passedRaw": ["reclaims an interrupted dead draft whose command ends in partial UTF8"],
+        "failed": ["reclaims an interrupted dead draft whose command ends in partial UTF8"],
+        "passed": ["reclaims an interrupted dead draft whose command ends in partial UTF8"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "84857df65eb7f92c3e1f8ef27e9fe2d8f4fdcf4d3ee1ac9ab955b3cdad97b4f1",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/queue-dead-draft-bytes.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/queue-dead-draft-bytes.green.log",
+        "redLogHash": "fa4f5702be354c0a57531a852adc98304a910bc97db3d5e1f346f4736e6f778b",
+        "greenLogHash": "edd0727cbc9c6ad70c341dcd67fe6f9011f3254f232202d0a3c3173816e0f5cc",
+        "redLogBytes": 1759,
+        "greenLogBytes": 254
+      },
+      {
+        "id": "queue-grace",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "strictly beyond its deadline plus sixty",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "now > ticket.deadline + 60n",
+            "replacement": "now >= ticket.deadline + 60n"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=strictly beyond its deadline plus sixty"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "reclaims a live ticket only strictly beyond its deadline plus sixty seconds"
+        ],
+        "passedRaw": [
+          "reclaims a live ticket only strictly beyond its deadline plus sixty seconds"
+        ],
+        "failed": ["reclaims a live ticket only strictly beyond its deadline plus sixty seconds"],
+        "passed": ["reclaims a live ticket only strictly beyond its deadline plus sixty seconds"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "107b611e2c2aa9512c9165fed22c8e3bd04c37f368e357cae9a39dc37e71842b",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/queue-grace.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/queue-grace.green.log",
+        "redLogHash": "2aa3c3d1f33001f87f56fb19896b3ef8b33f89803a8379c6452c5ab99bfac1dd",
+        "greenLogHash": "c3bc6831bd5df7e93336a013c5eee25e9b034e00d60770bcc1d664252de79360",
+        "redLogBytes": 911,
+        "greenLogBytes": 260
+      },
+      {
+        "id": "queue-fairness",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue-peers.test.ts",
+        "pattern": "slower earlier Bun process",
+        "qualification": "Actual independent Bun processes poll at 2 and 1 seconds behind an actual flock holder. Queue-order removal must produce a reversed work log, not a test timeout.",
+        "edits": [
+          {
+            "find": "if (ahead === 0) {",
+            "replacement": "if (true) {"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue-peers.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=slower earlier Bun process"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "serves the slower earlier Bun process before the faster later process after a real holder releases"
+        ],
+        "passedRaw": [
+          "serves the slower earlier Bun process before the faster later process after a real holder releases"
+        ],
+        "failed": [
+          "serves the slower earlier Bun process before the faster later process after a real holder releases"
+        ],
+        "passed": [
+          "serves the slower earlier Bun process before the faster later process after a real holder releases"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "6b24c616549eefca2d04b26c637186e09f5da43218a3fe117f10d5147bf58913",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/queue-fairness.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/queue-fairness.green.log",
+        "redLogHash": "239a2549bb57c5a4e8501f02cd4cb0ce0321e8aaa95ca6164060208719ef6bd6",
+        "greenLogHash": "07e3e07d88bf8e16f455aea316f7f15c4bea9d8e658229933f5d291a93070020",
+        "redLogBytes": 926,
+        "greenLogBytes": 289
+      },
+      {
+        "id": "zero-budget-attempt",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "publishes complete legacy metadata",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (ahead === 0) {",
+            "replacement": "if (ahead === 0 && waitSeconds > 0) {"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=publishes complete legacy metadata"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "passedRaw": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "failed": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "passed": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "29c3cd86f70be21fe6c7b330487c668138f1ce735954f84d8dc7dfa5bdf35196",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/zero-budget-attempt.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/zero-budget-attempt.green.log",
+        "redLogHash": "a8a48e1006af9747f4b180d026d9d909b0e37fe8653e74e8149e087ce58fba8f",
+        "greenLogHash": "65df932821b6b712a52fe82da9995cae0d6fb5f1771fcbd24dcf91b99265146b",
+        "redLogBytes": 848,
+        "greenLogBytes": 281
+      },
+      {
+        "id": "own-ticket-scan",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "published ticket disappeared during admission",
+        "qualification": "Early admission ordering only: removed scan guard still meets the later native ticket refusal, but must not have created the mutex.",
+        "edits": [
+          {
+            "find": "if (!names.includes(name)) throw new Error('heavy lock own ticket vanished before admission');",
+            "replacement": "void names;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=published ticket disappeared during admission"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["refuses to claim when its published ticket disappeared during admission"],
+        "passedRaw": ["refuses to claim when its published ticket disappeared during admission"],
+        "failed": ["refuses to claim when its published ticket disappeared during admission"],
+        "passed": ["refuses to claim when its published ticket disappeared during admission"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "331906e9610d437fb745c1eaff7705495448819b5cefe452e3e5d9d1d200e931",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/own-ticket-scan.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/own-ticket-scan.green.log",
+        "redLogHash": "f4a5501eefee74013ea7b22e692f8507bee2a19005a9bbb1553cb2e7a277dce0",
+        "greenLogHash": "51fc9bb7989b9ccd72a4afc939c8ac815a25041870bb5eb20bffef197aa1a571",
+        "redLogBytes": 659,
+        "greenLogBytes": 256
+      },
+      {
+        "id": "own-ticket-native",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "rechecks its ticket inside native",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (readTicket(queue, name) === undefined)",
+            "replacement": "if (false)"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=rechecks its ticket inside native"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["rechecks its ticket inside native ownership before publishing a record"],
+        "passedRaw": ["rechecks its ticket inside native ownership before publishing a record"],
+        "failed": ["rechecks its ticket inside native ownership before publishing a record"],
+        "passed": ["rechecks its ticket inside native ownership before publishing a record"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "7dd12ecc1b95688ea2f0c0ea830f5eecb33b470efbeb5a2aef91343e1ca6fc52",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/own-ticket-native.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/own-ticket-native.green.log",
+        "redLogHash": "a2e891c4b28e4ed67a8952ebfaa5568aa0a79bab2cdacba43651227372eba995",
+        "greenLogHash": "81bf8d374d5a2bb4a29695e3c444d9e05a1ec9fe6556b1cd330d5ff4e8f8cd7a",
+        "redLogBytes": 707,
+        "greenLogBytes": 255
+      },
+      {
+        "id": "monotonic-budget",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "monotonic wait budget",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "readElapsed() - enqueuedAt >= waitSeconds",
+            "replacement": "readElapsed() - enqueuedAt > waitSeconds"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=monotonic wait budget"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["uses its monotonic wait budget independently of repeated wall clock epochs"],
+        "passedRaw": ["uses its monotonic wait budget independently of repeated wall clock epochs"],
+        "failed": ["uses its monotonic wait budget independently of repeated wall clock epochs"],
+        "passed": ["uses its monotonic wait budget independently of repeated wall clock epochs"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "01499c807122ddc3c08ba3f6eddce655ca4470ef5acdaeb1fde259396f55a407",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/monotonic-budget.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/monotonic-budget.green.log",
+        "redLogHash": "0313607e446e41cfb528c4cf9da75f4b7fbfeb1cf237836f66054f06f29d9ffb",
+        "greenLogHash": "4380a75b533111755096d63a68357e3411f411ba83a3d60b60e6c406a11c8c2c",
+        "redLogBytes": 672,
+        "greenLogBytes": 259
+      },
+      {
+        "id": "arrival-count",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "retains first arrival count",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "aheadAtArrival ??= ahead;",
+            "replacement": "aheadAtArrival = ahead;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=retains first arrival count"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "retains first arrival count while a bounded waiter advances after the earlier ticket leaves"
+        ],
+        "passedRaw": [
+          "retains first arrival count while a bounded waiter advances after the earlier ticket leaves"
+        ],
+        "failed": [
+          "retains first arrival count while a bounded waiter advances after the earlier ticket leaves"
+        ],
+        "passed": [
+          "retains first arrival count while a bounded waiter advances after the earlier ticket leaves"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "ebbdd3a7b27e4f30642096749cd41d1580ee21ddd512835596420bc23198be86",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/arrival-count.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/arrival-count.green.log",
+        "redLogHash": "953d6c2a6401986537ea025a05003c39cbf7b1e626648195bd4f60c989ed11b0",
+        "greenLogHash": "510c56648a428d740b41e23530b891adddc4dea95a43717dc31dce9eb4f4ba76",
+        "redLogBytes": 848,
+        "greenLogBytes": 276
+      },
+      {
+        "id": "request-capture",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "captures request and runtime",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "writeFileSync(join(record, 'label'), label + '\\n'",
+            "replacement": "writeFileSync(join(record, 'label'), request.label + '\\n'"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=captures request and runtime"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "captures request and runtime functions before entering a caller supplied capability"
+        ],
+        "passedRaw": [
+          "captures request and runtime functions before entering a caller supplied capability"
+        ],
+        "failed": [
+          "captures request and runtime functions before entering a caller supplied capability"
+        ],
+        "passed": [
+          "captures request and runtime functions before entering a caller supplied capability"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "fcc80f20b5e775260b043913383bf2eeb788e1728525a20f591d5dbf8d5459b2",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/request-capture.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/request-capture.green.log",
+        "redLogHash": "c4522a051f66456a03350515c60bd974ee9de8e8ccd726d19fa35565b7661940",
+        "greenLogHash": "477d6bf17ae4bde30b8ed48daa9658813e91a1735d0d8724954df2591bde9412",
+        "redLogBytes": 1430,
+        "greenLogBytes": 268
+      },
+      {
+        "id": "draft-ownership",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "partial draft write failure",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "    ownsDraft = true;",
+            "replacement": "    ownsDraft = false;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=partial draft write failure"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "passedRaw": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "failed": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "passed": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "421e267aa45fae5fa783ee23144646b359a85c8c07634bcac29f1208257a5537",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/draft-ownership.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/draft-ownership.green.log",
+        "redLogHash": "96014bc0c8410b52306c5b999f638ed58b8f33b7c128b3eee2915d05b9719ae6",
+        "greenLogHash": "8df4a911aa19fd1f5e79be3ff2f2dadfe61023246dbe49772ed9f653f9ae2ec4",
+        "redLogBytes": 845,
+        "greenLogBytes": 266
+      },
+      {
+        "id": "ticket-cleanup",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "never jumps an earlier live ticket",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (ownsTicket) removeFile(ticket);",
+            "replacement": "void ticket;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=never jumps an earlier live ticket"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["never jumps an earlier live ticket even when the kernel mutex is free"],
+        "passedRaw": ["never jumps an earlier live ticket even when the kernel mutex is free"],
+        "failed": ["never jumps an earlier live ticket even when the kernel mutex is free"],
+        "passed": ["never jumps an earlier live ticket even when the kernel mutex is free"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "455064982c6515067665e7ac9ab4c1e7a98b2a810b585895a3116f43374d62b4",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-cleanup.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-cleanup.green.log",
+        "redLogHash": "8992d8d2302efba8123710a3bd2f4270f50f2827bafbd45d5a9a64b1b89b2328",
+        "greenLogHash": "d0d82771a114c674be74d5ce2e0e43a4a52585780aa63df4f1332487ddfec0f6",
+        "redLogBytes": 797,
+        "greenLogBytes": 253
+      },
+      {
+        "id": "ticket-remove-before-work",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "publishes complete legacy metadata",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "            removeFile(ticket);",
+            "replacement": "            void ticket;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=publishes complete legacy metadata"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "passedRaw": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "failed": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "passed": [
+          "publishes complete legacy metadata before a zero-budget claim and removes its ticket before work"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "e3094b9a09a422154c6c0934fb49c7d8abc7e8bd73af09330c71fd5f92513fed",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-remove-before-work.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-remove-before-work.green.log",
+        "redLogHash": "efac47d84b594ca4d85b923458fb09ea0ea60d48011d84f75384bd14bf13df35",
+        "greenLogHash": "36bdb9912408235a94535efe145162cb2bd8181d803df8c62c71a49bbcdadba1",
+        "redLogBytes": 1563,
+        "greenLogBytes": 281
+      },
+      {
+        "id": "record-cleanup",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "partial holder publication",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "              removeRecord(record);",
+            "replacement": "              void record;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=partial holder publication"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "cleans a partial holder publication before returning its exact write failure"
+        ],
+        "passedRaw": [
+          "cleans a partial holder publication before returning its exact write failure"
+        ],
+        "failed": ["cleans a partial holder publication before returning its exact write failure"],
+        "passed": ["cleans a partial holder publication before returning its exact write failure"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "b70bccab0eda454d428cb83bd9cd13b06c1881631f653d4758a74a13d7791fef",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/record-cleanup.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/record-cleanup.green.log",
+        "redLogHash": "23474bb38f642b64ddb21e69e9ae5a8dba5a11e1f2cb61b12a3c0b73ee845a6f",
+        "greenLogHash": "712a00087ebedeeae46ba51f70806baeafc2daa645f650b55484c1401378f838",
+        "redLogBytes": 702,
+        "greenLogBytes": 261
+      },
+      {
+        "id": "settlement-original-cause",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "exact callback failure after record",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "if (attempt.kind === 'failed') failures.push(attempt.cause);",
+            "replacement": "void attempt;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=exact callback failure after record"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": ["preserves the exact callback failure after record and queue cleanup"],
+        "passedRaw": ["preserves the exact callback failure after record and queue cleanup"],
+        "failed": ["preserves the exact callback failure after record and queue cleanup"],
+        "passed": ["preserves the exact callback failure after record and queue cleanup"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "ff301dbd83af905ea7d76ded12042f38b8a7e26d5cf4bf2f3a84f83cc625c6cd",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/settlement-original-cause.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/settlement-original-cause.green.log",
+        "redLogHash": "86ebae987f6ec23c760d8ff649e6b10c3577b8f36e50a7dab72307c541e3e68a",
+        "greenLogHash": "288183f8b311d800e23c15abc66b36aad96186638d5bf96c0c64746be6edcafc",
+        "redLogBytes": 1745,
+        "greenLogBytes": 252
+      },
+      {
+        "id": "settlement-cleanup-cause",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "partial draft write failure",
+        "qualification": "Production-path fault and exact restored named control; credit follows the first observed assertion.",
+        "edits": [
+          {
+            "find": "      release();\n    } catch (cause) {\n      failures.push(cause);",
+            "replacement": "      release();\n    } catch (cause) {\n      void cause;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=partial draft write failure"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "passedRaw": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "failed": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "passed": [
+          "preserves both a partial draft write failure and its real descriptor close failure"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "423900c14603f090530e70816189bb646c934812eecd694e78edf9fdc508c8eb",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/settlement-cleanup-cause.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/settlement-cleanup-cause.green.log",
+        "redLogHash": "0398120631c969c5c154cbec267136645173cc28cd5066cebf608fcfc21f8bbe",
+        "greenLogHash": "f58fa193391ec99301850544265a3c3f71b2f1b28e012d839bbd13e86cb75e91",
+        "redLogBytes": 1190,
+        "greenLogBytes": 266
+      },
+      {
+        "id": "record-unknown-content",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "retains unknown content",
+        "qualification": "One destructive-recursion fault with its required import; proves operator content is retained and admission refuses.",
+        "edits": [
+          {
+            "find": "  rmdirSync,",
+            "replacement": "  rmdirSync,\n  rmSync,"
+          },
+          {
+            "find": "    rmdirSync(path);",
+            "replacement": "    rmSync(path, { recursive: true });"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=retains unknown content"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "reclaims only the known files of a dead holder and retains unknown content as a refusal"
+        ],
+        "passedRaw": [
+          "reclaims only the known files of a dead holder and retains unknown content as a refusal"
+        ],
+        "failed": [
+          "reclaims only the known files of a dead holder and retains unknown content as a refusal"
+        ],
+        "passed": [
+          "reclaims only the known files of a dead holder and retains unknown content as a refusal"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "92a619d014ac2fa191e7e79e8ec2fd301198eb930bd9ba2264b522aff0b79d38",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/record-unknown-content.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/record-unknown-content.green.log",
+        "redLogHash": "414ff0977b36106a86e3bd535f1904d968d4b2f0f9222d8c2118aa139a3e5a0f",
+        "greenLogHash": "04cc0a0d379e24d7f2d37b26d3a38ea53d9da1db3958a7f754d0babae9a03804",
+        "redLogBytes": 957,
+        "greenLogBytes": 271
+      },
+      {
+        "id": "queue-await-work",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "active work settles after cancellation",
+        "qualification": "Queue callback lifetime is distinct from native primitive lifetime; the acquired-work cancellation test must observe ownership through unsettled work.",
+        "edits": [
+          {
+            "find": "value: await work()",
+            "replacement": "value: work()"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=active work settles after cancellation"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "keeps the native lock and holder until active work settles after cancellation"
+        ],
+        "passedRaw": [
+          "keeps the native lock and holder until active work settles after cancellation"
+        ],
+        "failed": ["keeps the native lock and holder until active work settles after cancellation"],
+        "passed": ["keeps the native lock and holder until active work settles after cancellation"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "eab9a1677b88e422009c99cbbe6efa8f0944aaba65309fb0bf92465e55154a01",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/queue-await-work.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/queue-await-work.green.log",
+        "redLogHash": "3b69cdbffc214b9c8da3d1b5b361fde78cde3db2ffae272c0bfa9bc746b8dee2",
+        "greenLogHash": "c58ce09de47da203b0ebaa73aafaec5ce8dffa4832d295bab90de1fc41e04b68",
+        "redLogBytes": 635,
+        "greenLogBytes": 263
+      },
+      {
+        "id": "holder-publication-order",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "partial holder publication",
+        "qualification": "Actual holder-write failure boundary observes whether the label has already been written.",
+        "edits": [
+          {
+            "find": "            writeFileSync(join(record, 'label'), label + '\\n', { flag: 'wx', mode: 0o600 });\n            writeFileSync(join(record, 'holder'), String(pid) + '\\n', { flag: 'wx', mode: 0o600 });",
+            "replacement": "            writeFileSync(join(record, 'holder'), String(pid) + '\\n', { flag: 'wx', mode: 0o600 });\n            writeFileSync(join(record, 'label'), label + '\\n', { flag: 'wx', mode: 0o600 });"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=partial holder publication"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "cleans a partial holder publication before returning its exact write failure"
+        ],
+        "passedRaw": [
+          "cleans a partial holder publication before returning its exact write failure"
+        ],
+        "failed": ["cleans a partial holder publication before returning its exact write failure"],
+        "passed": ["cleans a partial holder publication before returning its exact write failure"],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "6365a6065d9c58022da884cec1f7147617aaed534c828819b9d8c04dae496bad",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/holder-publication-order.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/holder-publication-order.green.log",
+        "redLogHash": "3aaede7d93c80d44456dc62807cc21f7bd03f22a628da756a73c46aae90d00fd",
+        "greenLogHash": "1aefa7f12c011291ee2c4dde518161b3015a59c9d1aec7f611225e278cb24f67",
+        "redLogBytes": 2283,
+        "greenLogBytes": 261
+      },
+      {
+        "id": "record-independent-cleanup",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "attempts record and ticket cleanup independently",
+        "qualification": "The first oracle is attemptedHolder after label unlink fails; aggregate shape is secondary.",
+        "edits": [
+          {
+            "find": "      removeFile(join(path, field));\n    } catch (cause) {\n      failures.push(cause);",
+            "replacement": "      removeFile(join(path, field));\n    } catch (cause) {\n      throw cause;"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=attempts record and ticket cleanup independently"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "attempts record and ticket cleanup independently and reports callback plus cleanup failures"
+        ],
+        "passedRaw": [
+          "attempts record and ticket cleanup independently and reports callback plus cleanup failures"
+        ],
+        "failed": [
+          "attempts record and ticket cleanup independently and reports callback plus cleanup failures"
+        ],
+        "passed": [
+          "attempts record and ticket cleanup independently and reports callback plus cleanup failures"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "8baa1d4c1967889d70d1b47384404b7edee018c6accd730c4f32f6b7ac6fa1bf",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/record-independent-cleanup.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/record-independent-cleanup.green.log",
+        "redLogHash": "fa68f92080f320387927cacdd498610c90e45857d8d5294c3b8b86280ac891bf",
+        "greenLogHash": "ad61a52af6a0fb8e11658a1186fc517bc6e31c230cceec8840a0764890305349",
+        "redLogBytes": 658,
+        "greenLogBytes": 276
+      },
+      {
+        "id": "ticket-exclusive-publication",
+        "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "test": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+        "pattern": "duplicate published ticket",
+        "qualification": "One overwriting-rename fault plus its required import; foreign published bytes must survive.",
+        "edits": [
+          {
+            "find": "  linkSync,",
+            "replacement": "  linkSync,\n  renameSync,"
+          },
+          {
+            "find": "    linkSync(draft, ticket);",
+            "replacement": "    renameSync(draft, ticket);"
+          }
+        ],
+        "argv": [
+          "/usr/bin/env",
+          "-u",
+          "BUN_OPTIONS",
+          "-u",
+          "BUN_INSPECT_PRELOAD",
+          "-u",
+          "NODE_OPTIONS",
+          "-u",
+          "BUN_BE_BUN",
+          "/home/df/.bun/bin/bun",
+          "--no-env-file",
+          "--config=/dev/null",
+          "test",
+          "./libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "--timeout=30000",
+          "--test-name-pattern=duplicate published ticket"
+        ],
+        "state": "killed-restored",
+        "redExit": 1,
+        "greenExit": 0,
+        "failedRaw": [
+          "refuses a duplicate published ticket without overwriting or removing its bytes"
+        ],
+        "passedRaw": [
+          "refuses a duplicate published ticket without overwriting or removing its bytes"
+        ],
+        "failed": [
+          "refuses a duplicate published ticket without overwriting or removing its bytes"
+        ],
+        "passed": [
+          "refuses a duplicate published ticket without overwriting or removing its bytes"
+        ],
+        "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "mutantHash": "83d082f5f51229a59156f131609afe9f71396c4fb0750b3aeb53405e094b761d",
+        "restoredHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+        "redLog": "/tmp/puni-c30b-proofs/ticket-exclusive-publication.red.log",
+        "greenLog": "/tmp/puni-c30b-proofs/ticket-exclusive-publication.green.log",
+        "redLogHash": "8e5373e78ec44de622b48301864487a3cde9817355ea72e6cdf0cb4b83642dfd",
+        "greenLogHash": "9c462dc38066315aa257a07d1a79b01f3ddec1e31012d0614e9d496243d8cea5",
+        "redLogBytes": 1004,
+        "greenLogBytes": 263
+      }
+    ],
+    "interpretations": {
+      "queue-fairness": "Actual independent processes complete successfully but work log reverses to fast-second then slow-first.",
+      "queue-await-work": "First failed assertion observes API settled while callback remains pending; later holder existence and kernel contention assertions are not reached in RED.",
+      "own-ticket-scan": "Early ordering: later native guard still refuses; RED observes that the mutex was created.",
+      "pid-validation": "All three invalid PID cases first fail no-filesystem-side-effects; downstream ticket grammar/range guards still refuse.",
+      "stamp-validation": "Explicit diagnostic boundary: later ticket-name grammar still refuses; RED first sees a different diagnostic, before the no-filesystem assertion.",
+      "wait-validation": "Negative wait is admitted; fractional and Infinity waits still fail downstream BigInt conversion but first observed assertions prove queue creation. Test label null denotes JSON.stringify(Infinity), not null input.",
+      "label-validation": "Empty/newline labels still refuse downstream but after filesystem effects; CR and NUL cases are admitted.",
+      "ticket-exclusive-publication": "Collision refusal: overwrite mutant resolves instead of rejecting. Subsequent original-byte preservation assertion is not reached in RED.",
+      "record-unknown-content": "Unknown record content must prevent admission; recursive-removal mutant resolves. Subsequent operator-byte preservation assertion is not reached in RED.",
+      "record-independent-cleanup": "First assertion directly observes holder unlink not attempted after label unlink failure.",
+      "holder-publication-order": "Injected holder-write boundary observes label write has not happened; outer failure identity differs.",
+      "ticket-label": "Specified no-label positional line is admitted as label el by mutant. This demonstrates that case, not independent coverage of all missing/empty label arms.",
+      "request-capture": "Actual reached fault is rereading mutable request.label; no independent runtime-function-copy proof from this mutant.",
+      "monotonic-budget": "Mutant > instead of >= makes three polls instead of two at the exact budget boundary; does not independently prove all clock wiring."
+    },
+    "independentReview": {
+      "state": "independently-reconstructed",
+      "canonicalEpoch": "c30b",
+      "observations": 53,
+      "distinctMutants": 53,
+      "logs": 106,
+      "frozenInputsMatched": 17,
+      "failedNamesPerFault": 73,
+      "restoredPassOccurrences": 75,
+      "assertions": [
+        {
+          "id": "directory-physical",
+          "firstAssertionSummary": "error: expect(received).toThrow()\n(fail) refuses a protocol symlink record [0.83ms]\nerror: expect(received).toThrow()\n(fail) refuses a protocol symlink queue [0.41ms]"
+        },
+        {
+          "id": "directory-parent-error",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses an unreadable parent before classifying a directory as absent [0.65ms]"
+        },
+        {
+          "id": "directory-list-error",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses unreadable queue state rather than reporting absence [1.41ms]"
+        },
+        {
+          "id": "metadata-open-error",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses unreadable holder state rather than reporting absence [2.86ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses unreadable label state rather than reporting absence [0.64ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses an unreadable label during incomplete holder publication undefined [0.58ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses an unreadable label during incomplete holder publication \"\" [0.35ms]"
+        },
+        {
+          "id": "metadata-nofollow",
+          "firstAssertionSummary": "error: expect(received).toThrow()\n(fail) refuses a protocol symlink holder [1.13ms]\nerror: expect(received).toThrow()\n(fail) refuses a protocol symlink label [0.24ms]"
+        },
+        {
+          "id": "metadata-nonblocking",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: 0\nReceived: 137\n(fail) refuses a readerless metadata FIFO before opening it can block [760.09ms]"
+        },
+        {
+          "id": "metadata-regular",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses a nonregular holder before metadata acquisition [1.02ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses a nonregular label before metadata acquisition [0.53ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses a nonregular label during incomplete publication holder [0.24ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses a nonregular label during incomplete publication label [0.19ms]"
+        },
+        {
+          "id": "metadata-utf8",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses malformed published UTF8 rather than silently replacing its bytes [2.71ms]"
+        },
+        {
+          "id": "metadata-close-only",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) propagates a metadata close failure after a successful read [1.75ms]"
+        },
+        {
+          "id": "metadata-paired",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: 295 | it('preserves the metadata read failure and a close failure after closing the real descriptor', () => {\nerror: close failed\nReceived: undefined\n(fail) preserves the metadata read failure and a close failure after closing the real descriptor [1.53ms]"
+        },
+        {
+          "id": "metadata-newline",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) reports holder text observationally and applies legacy trailing-LF normalization [0.88ms]"
+        },
+        {
+          "id": "ticket-name",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses malformed published ticket note/label x/deadline 1 [0.65ms]"
+        },
+        {
+          "id": "ticket-pid-lower",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses a published ticket PID outside the native range 0 [1.06ms]"
+        },
+        {
+          "id": "ticket-pid-upper",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses a published ticket PID outside the native range 2147483648 [1.82ms]"
+        },
+        {
+          "id": "ticket-label",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses malformed published ticket 1800000000000000000-12345/no-label/deadline 1 [2.07ms]"
+        },
+        {
+          "id": "ticket-deadline",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses malformed published ticket 1800000000000000000-12345/label x/deadline invalid [0.91ms]"
+        },
+        {
+          "id": "status-incomplete-label",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses an unreadable label during incomplete holder publication undefined [1.29ms]\nerror: expect(received).toThrow(expected)\n(fail) refuses an unreadable label during incomplete holder publication \"\" [0.60ms]"
+        },
+        {
+          "id": "liveness-esrch-only",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) distinguishes only ESRCH from a live or unknown process [0.29ms]"
+        },
+        {
+          "id": "wait-cancellation",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: \"cancelled\"\nReceived: \"elapsed\"\n(fail) wakes a real thirty second wait promptly on cancellation and detaches its listener [0.43ms]"
+        },
+        {
+          "id": "wait-detach",
+          "firstAssertionSummary": "error: expect(received).toHaveBeenCalledWith(...expected)\nExpected: [ \"abort\", Any<Function> ]\n(fail) wakes a real thirty second wait promptly on cancellation and detaches its listener [0.49ms]\nerror: expect(received).toHaveBeenCalledWith(...expected)\nExpected: [ \"abort\", Any<Function> ]\n(fail) models already cancelled and elapsed waits and detaches the elapsed listener [1.23ms]"
+        },
+        {
+          "id": "canonical-platform",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) selects only the existing platform canonical paths [0.23ms]"
+        },
+        {
+          "id": "wait-validation",
+          "firstAssertionSummary": "error: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request waitSeconds -1 before touching the filesystem [3.94ms]\nerror: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid request waitSeconds 0.5 before touching the filesystem [0.27ms]\nerror: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid request waitSeconds null before touching the filesystem [0.18ms]"
+        },
+        {
+          "id": "poll-validation",
+          "firstAssertionSummary": "error: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request pollSeconds 0 before touching the filesystem [2.84ms]\nerror: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request pollSeconds 31 before touching the filesystem [0.36ms]\nerror: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request pollSeconds 1.5 before touching the filesystem [0.30ms]"
+        },
+        {
+          "id": "pid-validation",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid caller PID 0 [1.35ms]\nerror: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid caller PID 2147483648 [0.20ms]\nerror: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid caller PID 1.5 [0.16ms]"
+        },
+        {
+          "id": "label-validation",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid request label \"\" before touching the filesystem [3.32ms]\nerror: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses invalid request label \"x\\ny\" before touching the filesystem [0.46ms]\nerror: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request label \"x\\ry\" before touching the filesystem [1.47ms]\nerror: expect(received).toBeInstanceOf(expected)\n(fail) refuses invalid request label \"x\\u0000y\" before touching the filesystem [0.69ms]"
+        },
+        {
+          "id": "stamp-validation",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses an invalid queue stamp before creating filesystem state [1.50ms]"
+        },
+        {
+          "id": "prepublication-cancel",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) cancels before publishing and while waiting without entering protected work [1.38ms]"
+        },
+        {
+          "id": "holder-pid-text",
+          "firstAssertionSummary": "error: expect(received).toThrow(expected)\n(fail) refuses a malformed holder before entering work and leaves it intact [4.62ms]"
+        },
+        {
+          "id": "holder-pid-lower",
+          "firstAssertionSummary": "error: expect(received).rejects.toThrow(expected)\n(fail) refuses a holder PID outside the native range 0 [4.05ms]"
+        },
+        {
+          "id": "holder-pid-upper",
+          "firstAssertionSummary": "error: expect(received).rejects.toThrow(expected)\n(fail) refuses a holder PID outside the native range 2147483648 [2.67ms]"
+        },
+        {
+          "id": "holder-live",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: \"refused\"\nReceived: \"completed\"\n(fail) respects an incomplete or live pre-flock holder live [0.71ms]"
+        },
+        {
+          "id": "holder-incomplete",
+          "firstAssertionSummary": "error: heavy lock holder PID is malformed\n(fail) respects an incomplete or live pre-flock holder undefined [4.32ms]\nerror: heavy lock holder PID is malformed\n(fail) respects an incomplete or live pre-flock holder  [0.61ms]"
+        },
+        {
+          "id": "queue-dead-reclaim",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: \"completed\"\nReceived: \"refused\"\n(fail) reclaims dead tickets and drafts before decoding their incomplete bodies [3.14ms]"
+        },
+        {
+          "id": "queue-dead-draft-bytes",
+          "firstAssertionSummary": "error: heavy lock metadata UTF8 is malformed: /tmp/puni queued lock PURKH2/mutex.queue/.draft-1799999999000000000-2147483647\n(fail) reclaims an interrupted dead draft whose command ends in partial UTF8 [2.55ms]"
+        },
+        {
+          "id": "queue-grace",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: \"refused\"\nReceived: \"completed\"\n(fail) reclaims a live ticket only strictly beyond its deadline plus sixty seconds [4.06ms]"
+        },
+        {
+          "id": "queue-fairness",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\n(fail) serves the slower earlier Bun process before the faster later process after a real holder releases [2094.52ms]"
+        },
+        {
+          "id": "zero-budget-attempt",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) publishes complete legacy metadata before a zero-budget claim and removes its ticket before work [1.74ms]"
+        },
+        {
+          "id": "own-ticket-scan",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) refuses to claim when its published ticket disappeared during admission [2.23ms]"
+        },
+        {
+          "id": "own-ticket-native",
+          "firstAssertionSummary": "error: expect(received).rejects.toThrow(expected)\n(fail) rechecks its ticket inside native ownership before publishing a record [3.30ms]"
+        },
+        {
+          "id": "monotonic-budget",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: 2\nReceived: 3\n(fail) uses its monotonic wait budget independently of repeated wall clock epochs [4.80ms]"
+        },
+        {
+          "id": "arrival-count",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) retains first arrival count while a bounded waiter advances after the earlier ticket leaves [2.57ms]"
+        },
+        {
+          "id": "request-capture",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\n(fail) captures request and runtime functions before entering a caller supplied capability [2.90ms]"
+        },
+        {
+          "id": "draft-ownership",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) preserves both a partial draft write failure and its real descriptor close failure [1.72ms]"
+        },
+        {
+          "id": "ticket-cleanup",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) never jumps an earlier live ticket even when the kernel mutex is free [1.93ms]"
+        },
+        {
+          "id": "ticket-remove-before-work",
+          "firstAssertionSummary": "error: expect(received).toEqual(expected)\n(fail) publishes complete legacy metadata before a zero-budget claim and removes its ticket before work [2.43ms]"
+        },
+        {
+          "id": "record-cleanup",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) cleans a partial holder publication before returning its exact write failure [4.74ms]"
+        },
+        {
+          "id": "settlement-original-cause",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: 242 |   expect(await active).toEqual({ kind: 'completed', value: 7, aheadAtArrival: 0 });\nerror: protected failure\nReceived: 122 |     }\nerror: heavy lock failure was not preserved\n(fail) preserves the exact callback failure after record and queue cleanup [4.40ms]"
+        },
+        {
+          "id": "settlement-cleanup-cause",
+          "firstAssertionSummary": "error: expect(received).toBeInstanceOf(expected)\nerror: draft write failed\n(fail) preserves both a partial draft write failure and its real descriptor close failure [1.47ms]"
+        },
+        {
+          "id": "record-unknown-content",
+          "firstAssertionSummary": "error: expect(received).rejects.toThrow(expected)\n(fail) reclaims only the known files of a dead holder and retains unknown content as a refusal [4.30ms]"
+        },
+        {
+          "id": "queue-await-work",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: false\nReceived: true\n(fail) keeps the native lock and holder until active work settles after cancellation [12.85ms]"
+        },
+        {
+          "id": "holder-publication-order",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: 496 |   expect(readdirSync(f.path + '.queue')).toEqual([name]);\nerror: holder write failed\nReceived: 504 |     entered = false;\nerror: expect(received).toBe(expected)\nExpected: true\nReceived: false\n(fail) cleans a partial holder publication before returning its exact write failure [3.70ms]"
+        },
+        {
+          "id": "record-independent-cleanup",
+          "firstAssertionSummary": "error: expect(received).toBe(expected)\nExpected: true\nReceived: false\n(fail) attempts record and ticket cleanup independently and reports callback plus cleanup failures [3.07ms]"
+        },
+        {
+          "id": "ticket-exclusive-publication",
+          "firstAssertionSummary": "error: expect(received).rejects.toThrow(expected)\n(fail) refuses a duplicate published ticket without overwriting or removing its bytes [9.46ms]"
+        }
+      ],
+      "scope": "Read-only source/archive/log reconstruction. No tests/builds/mutations. Earlier 31-attempt C30 rehearsal excluded. Notes and final aggregate checks remain pending; no caller/default/host rollout claim.",
+      "findings": [],
+      "interpretations": {
+        "queue-fairness": "Actual independent processes complete successfully but work log reverses to fast-second then slow-first.",
+        "queue-await-work": "First failed assertion observes API settled while callback remains pending; later holder existence and kernel contention assertions are not reached in RED.",
+        "own-ticket-scan": "Early ordering: later native guard still refuses; RED observes that the mutex was created.",
+        "pid-validation": "All three invalid PID cases first fail no-filesystem-side-effects; downstream ticket grammar/range guards still refuse.",
+        "stamp-validation": "Explicit diagnostic boundary: later ticket-name grammar still refuses; RED first sees a different diagnostic, before the no-filesystem assertion.",
+        "wait-validation": "Negative wait is admitted; fractional and Infinity waits still fail downstream BigInt conversion but first observed assertions prove queue creation. Test label null denotes JSON.stringify(Infinity), not null input.",
+        "label-validation": "Empty/newline labels still refuse downstream but after filesystem effects; CR and NUL cases are admitted.",
+        "ticket-exclusive-publication": "Collision refusal: overwrite mutant resolves instead of rejecting. Subsequent original-byte preservation assertion is not reached in RED.",
+        "record-unknown-content": "Unknown record content must prevent admission; recursive-removal mutant resolves. Subsequent operator-byte preservation assertion is not reached in RED.",
+        "record-independent-cleanup": "First assertion directly observes holder unlink not attempted after label unlink failure.",
+        "holder-publication-order": "Injected holder-write boundary observes label write has not happened; outer failure identity differs.",
+        "ticket-label": "Specified no-label positional line is admitted as label el by mutant. This demonstrates that case, not independent coverage of all missing/empty label arms.",
+        "request-capture": "Actual reached fault is rereading mutable request.label; no independent runtime-function-copy proof from this mutant.",
+        "monotonic-budget": "Mutant > instead of >= makes three polls instead of two at the exact budget boundary; does not independently prove all clock wiring."
+      },
+      "epochDelta": "Only queue.test.ts live-holder test title changed from dynamic PID to stable live, with formatter wrapping. Production bytes unchanged from excluded rehearsal.",
+      "verdict": "Evidence cleared with recorded interpretations; source hold may release for annotation and final record.",
+      "evidence": {
+        "path": "/tmp/puni-c30b-independent-evidence-review.json",
+        "sha256": "6b50414d2a46d4d7dcde26ff30c3354a30ced9c9b607a86a59225617f4ccac8c",
+        "bytes": 17967
+      }
+    },
+    "annotation": {
+      "notes": 53,
+      "annotatedPaths": [
+        "libs/shared/adapters/heavy-lock/src/records.ts",
+        "libs/shared/adapters/heavy-lock/src/queue.ts"
+      ],
+      "files": [
+        {
+          "path": "libs/shared/adapters/heavy-lock/project.json",
+          "beforeHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+          "afterHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+          "runtimeHash": "6308a11ab6a93a05ef6979ced463cd6d840dbf678cb0016ebdc2ee93ecb69aee",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.json",
+          "beforeHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+          "afterHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+          "runtimeHash": "cda020e012c219e6b3c49cbdabb50d6d24d349ffdcf40035d86bc8eecd28565a",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.lib.json",
+          "beforeHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+          "afterHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+          "runtimeHash": "d9fc823045aab2bd1b3c190c3ce5aca0b9b872b8c630b2977e8ef422b4da441c",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/tsconfig.spec.json",
+          "beforeHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+          "afterHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+          "runtimeHash": "396394bfb5739f15e978bea409a4bf8f63e7bdcd21401b54879f7fa7ab0e82f1",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/index.ts",
+          "beforeHash": "1f956ba3bed38f9b31acf56bf301363d4515bf24f24128657149199c303ffc34",
+          "afterHash": "1f956ba3bed38f9b31acf56bf301363d4515bf24f24128657149199c303ffc34",
+          "runtimeHash": "f6922562df9d5d170d75a1fdfc1794b831363152b3754b77125bc9f845e96a6e",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/native.ts",
+          "beforeHash": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+          "afterHash": "c3571c71b39fbc540075410effcc2d38c041cfde8f200034200716288310a06a",
+          "runtimeHash": "4d0154b6b627c94f94e160958bd5aa8afe2ed43d7588ba1b21c139cb7633a967",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/native.test.ts",
+          "beforeHash": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+          "afterHash": "b5a60ce15aac7435d2b7dbe2479129cd4443b090833bc07fdadc307d7c3e7813",
+          "runtimeHash": "a104d19b85c1563c5567403ff55296cc3a26162406607548388faf6530875796",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+          "beforeHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+          "afterHash": "315bde2df906ad063814132b2fc82c6dc3184878b657ac90f29ab05eb153498a",
+          "runtimeHash": "91599a0f559fc58408cf2c7ef17ead8878f5f3f9362bf5de9f50cb4cd7d2bc9c",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/records.test.ts",
+          "beforeHash": "6e7ba6da92cd799af7fdc1e69d8313a29dbb1a46df3b52a1523d051ee9cb2318",
+          "afterHash": "6e7ba6da92cd799af7fdc1e69d8313a29dbb1a46df3b52a1523d051ee9cb2318",
+          "runtimeHash": "42bf09b902e7f76ec88f7ba0938fd0b5ca3d1e8823c5193b75c34d53b36e5e35",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+          "beforeHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+          "afterHash": "3295d5d500d53012a418e9369b1cdf8324b743b904bd9c78b7789157f1a20c01",
+          "runtimeHash": "f65213e211393ad74180095e4a9a65ca7707ec068e91c8dfe71b3a316d7224bf",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/queue.test.ts",
+          "beforeHash": "1e01ab8658f25a1824e7c38c3c5e2b9880b654704a504fd6d71dbe415569b52c",
+          "afterHash": "1e01ab8658f25a1824e7c38c3c5e2b9880b654704a504fd6d71dbe415569b52c",
+          "runtimeHash": "855990e5c3a348092ac16e8e29291679760e3f7871b15bb3c41d4838f674ec19",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/queue-runtime.test.ts",
+          "beforeHash": "0f56d4a171d6abf1b802c7670cc0273817417170197b451a55c3c39ae9b83d90",
+          "afterHash": "0f56d4a171d6abf1b802c7670cc0273817417170197b451a55c3c39ae9b83d90",
+          "runtimeHash": "c47919d16b6462dba90f63aa462a50753bd76526154787e7cdafcf673231c7ce",
+          "runtimeEqual": true
+        },
+        {
+          "path": "libs/shared/adapters/heavy-lock/src/queue-peers.test.ts",
+          "beforeHash": "5641573d66c6ca6ab1d94b5574141932be0d1237f28618bf275760eec3868b86",
+          "afterHash": "5641573d66c6ca6ab1d94b5574141932be0d1237f28618bf275760eec3868b86",
+          "runtimeHash": "c848ccab12b0bcb19ef0563a878f80d9a28772616d7fde8041ae736904fb4c9c",
+          "runtimeEqual": true
+        },
+        {
+          "path": "tsconfig.base.json",
+          "beforeHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+          "afterHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+          "runtimeHash": "a64ed48fd7fc2bcfff3f25f6351f6551d1915f81cf856395820ea3b4b1c1850c",
+          "runtimeEqual": true
+        },
+        {
+          "path": "bin/heavy-lock-lib.sh",
+          "beforeHash": "5c01854731d0a906639fdae76891cf08077cf9d8daff62dc9bd0660c2596ea1a",
+          "afterHash": "5c01854731d0a906639fdae76891cf08077cf9d8daff62dc9bd0660c2596ea1a",
+          "runtimeHash": "5c01854731d0a906639fdae76891cf08077cf9d8daff62dc9bd0660c2596ea1a",
+          "runtimeEqual": true
+        },
+        {
+          "path": "openspec/changes/bun-scripts/design.md",
+          "beforeHash": "385abd18c8c9e32efe9be784732bafe94ef8833beec24463d30f6e785455359a",
+          "afterHash": "385abd18c8c9e32efe9be784732bafe94ef8833beec24463d30f6e785455359a",
+          "runtimeHash": "385abd18c8c9e32efe9be784732bafe94ef8833beec24463d30f6e785455359a",
+          "runtimeEqual": true
+        },
+        {
+          "path": "openspec/changes/bun-scripts/tasks.md",
+          "beforeHash": "0fd0f9f38222521f4f0a13cc3ef1fbeaf4cc7e36ae44222497a49a0be46f4efe",
+          "afterHash": "0fd0f9f38222521f4f0a13cc3ef1fbeaf4cc7e36ae44222497a49a0be46f4efe",
+          "runtimeHash": "0fd0f9f38222521f4f0a13cc3ef1fbeaf4cc7e36ae44222497a49a0be46f4efe",
+          "runtimeEqual": true
+        }
+      ],
+      "evidence": {
+        "path": "/tmp/puni-c30b-comment-comparison/final.json",
+        "sha256": "dd556b0b56aedc89567329f5178f0c681338e06950ef6695c9ebea23987ce659",
+        "bytes": 24863
+      },
+      "postFormatComparison": {
+        "files": [
+          {
+            "path": "libs/shared/adapters/heavy-lock/src/queue.ts",
+            "frozenHash": "4000942b2a3dced43c0c6fcda7124092024f223f64a9771bb1bc4c29d1698e9d",
+            "formattedHash": "7510b71534ec6cc4668e328125730e16d7793abba76910ee6d0b03ebae83af2b",
+            "runtimeHash": "f65213e211393ad74180095e4a9a65ca7707ec068e91c8dfe71b3a316d7224bf",
+            "runtimeEqual": true
+          },
+          {
+            "path": "libs/shared/adapters/heavy-lock/src/records.ts",
+            "frozenHash": "98cfd4f74fafb42adfd3aba69454142f8f0b32a2f0aa346871e5ba035de35a13",
+            "formattedHash": "205bc412ac2e7df3974e450cb6c45e9f1d9a1396616e11fc358062e6f8de2a71",
+            "runtimeHash": "91599a0f559fc58408cf2c7ef17ead8878f5f3f9362bf5de9f50cb4cd7d2bc9c",
+            "runtimeEqual": true
+          }
+        ],
+        "qualification": "Only source annotation formatting changed; task2.1b closure and verification metadata were serialized separately after the original17-input annotation snapshot.",
+        "evidence": {
+          "path": "/tmp/puni-c30b-post-format-comparison.json",
+          "sha256": "cc361c9357cc27e19e729d6846c2992f87ed45e19abeeca578d3cbc21cb7c81f"
+        }
+      }
+    },
+    "artifacts": {
+      "plan": {
+        "path": "/tmp/puni-c30b-proof-plan.json",
+        "sha256": "eaef910f56e44c8dfb42d72d0f1018989f90380d17c8784052a7200cf180a464",
+        "bytes": 30905
+      },
+      "observations": {
+        "path": "/tmp/puni-c30b-proofs.json",
+        "sha256": "8506143ad8788447a29b0cc7282284f8c4b0c7d79837db83c833a5db669b25fd",
+        "bytes": 120332
+      },
+      "audit": {
+        "path": "/tmp/puni-c30b-proof-audit.json",
+        "sha256": "51de2bae04ff93999b5c2d98259e8fa4e44b396873f92861cf143c8b4c2b416a",
+        "bytes": 1180
+      },
+      "run": {
+        "path": "/tmp/puni-c30b-proof-run.log",
+        "sha256": "48126b1d17b801eed7c30eeb4dab0012929253f5e286cd465d40381e52c0f0da",
+        "bytes": 4946
+      }
+    }
+  },
+  "limitations": [
+    "Qualified on current Linux/x64 Bun1.4.4 only; Darwin path selection is tested as a pure mapping, not a Darwin native runtime.",
+    "Status is an observation and cannot certify kernel ownership; raw corrupt holder text is intentionally preserved.",
+    "Stable trusted parent namespaces and cooperating writers are required; path cleanup does not claim atomic identity comparison against hostile namespace replacement.",
+    "Only ESRCH proves process death. EPERM and other unexpected probe failures throw. Cleanup failures throw after all known actions are attempted.",
+    "Cancellation stops admission; entered work settles before record cleanup and native release. Executable signal-code mapping and descendant ownership remain in the later helper/caller slice.",
+    "Unknown record content is retained/refused; ordinary empty record paths can be removed. No recursive removal of unknown record artifacts.",
+    "Actual old Bash/Perl peers remain bounded test specimens for migration compatibility. Their active production consumers remain until coherent switching.",
+    "The excluded original C30 rehearsal contains31attempts/30supersededqualified observations; dynamic PID in one test name caused a reporter-only join rejection. Production bytes were unchanged; all53faults reran in the stable-name canonical epoch.",
+    "Shared heavy-lock parent2.1, script inventory/compliance, all installed helpers/caller ports, gate conversion, canonical host gates, deployment, entity scope and whole persistent goal remain open."
+  ],
+  "finalRecordReview": {
+    "path": "/tmp/puni-c30b-final-record-review.json",
+    "sha256": "3757ad2718491aa6fc609ca5eda2498e7e71b16955c7fd8d490bb5ffc5546da0",
+    "bytes": 1043,
+    "qualification": "Clear with formatting condition; post-format comparison and final style receipts discharge that condition."
+  }
+}

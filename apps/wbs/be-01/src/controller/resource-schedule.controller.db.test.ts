@@ -4,12 +4,13 @@ import { WorkItemService } from '@wbs/core';
 import { scheduleInputOfCaptured, schedulePlanInput } from '@wbs/core/service/saved-plan-schedule';
 import * as preparation from '@wbs/core/service/schedule-parts';
 import { RollUpCache } from '@wbs/core/service/space.resource';
-import type { ProjectRollUp, ResourceCapacity } from '@wbs/domain';
+import type { ResourceCapacity, WorkPackageRollUp } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { DirectoryRepository } from '../repository/directory';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
@@ -40,21 +41,51 @@ async function seedPlan(mode: 'isolated' | 'shared', role: 'member' | 'admin' = 
   h = harness;
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', role);
+  harness.member(
+    'org-a',
+    'ada',
+    role,
+    role === 'admin' ? ['org-admin'] : ['project-contributor', 'org-viewer'],
+  );
+  if (role === 'member')
+    harness.grantPermissions('org-a', 'ada', [
+      'organization.create_project',
+      'organization.manage_directory',
+      'package.manage_settings',
+    ]);
   harness.bind('ada', 'org-a');
   harness.activate();
   if (mode === 'shared')
     harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-  const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Staging' });
+  const parent = await harness.call('ada', 'POST', '/api/projects', { name: 'Staging project' });
+  expect(parent.status).toBe(201);
+  const { project } = parent.body as { project: { id: string } };
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', project.id, {
+      by: harness.userId('ada'),
+      at: now,
+    });
+    return { commit: true, value: undefined };
+  });
+  const created = await harness.call('ada', 'POST', '/api/work-packages', {
+    name: 'Staging',
+    projectId: project.id,
+  });
   expect(created.status).toBe(200);
-  const { project, steps } = created.body as {
-    project: { id: string };
+  const { workPackage, steps } = created.body as {
+    workPackage: { id: string };
     steps: { id: string }[];
   };
+  expect(steps).toHaveLength(2);
   const batch = async (commands: unknown[]) => {
-    const applied = await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
-      commands,
-    });
+    const applied = await harness.call(
+      'ada',
+      'POST',
+      `/api/work-packages/${workPackage.id}/commands`,
+      {
+        commands,
+      },
+    );
     expect(applied.status).toBe(200);
     return applied.body as { results: { id: string; ref: string }[] };
   };
@@ -80,7 +111,11 @@ async function seedPlan(mode: 'isolated' | 'shared', role: 'member' | 'admin' = 
   // Through the reader fe-01's client parses this route with, so a field the
   // chart draws from and the contract does not declare fails here first.
   const readTree = async () => {
-    const answer = await harness.call('ada', 'GET', `/api/projects/${project.id}/work-items`);
+    const answer = await harness.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackage.id}/work-items`,
+    );
     expect(answer.status).toBe(200);
     const [success] = getWorkItems.responses;
     const parsed = await validateSchema(success.schema, answer.body);
@@ -93,7 +128,7 @@ async function seedPlan(mode: 'isolated' | 'shared', role: 'member' | 'admin' = 
       demandedResources?: { id: string; name: string; kind: string; unitLabel: string }[];
     };
   };
-  return { harness, projectId: project.id, leaves, batch, readTree };
+  return { harness, projectId: project.id, workPackageId: workPackage.id, leaves, batch, readTree };
 }
 
 for (const mode of ['isolated', 'shared'] as const) {
@@ -161,8 +196,11 @@ for (const mode of ['isolated', 'shared'] as const) {
         });
     });
     it(`caches and captures a clamped plan (${mode})`, async () => {
-      const { harness, projectId, leaves, batch, readTree } = await seedPlan(mode, 'admin');
-      const plan = `/api/projects/${projectId}`;
+      const { harness, projectId, workPackageId, leaves, batch, readTree } = await seedPlan(
+        mode,
+        'admin',
+      );
+      const plan = `/api/work-packages/${workPackageId}`;
       const command = async (draft: unknown) => {
         const answer = await harness.call('ada', 'POST', '/api/directory/commands', {
           commands: [draft],
@@ -195,15 +233,20 @@ for (const mode of ['isolated', 'shared'] as const) {
           `/api/spaces/all/roll-ups?projectIds=${projectId}`,
         );
         expect(answer.status).toBe(200);
-        const { rollUps } = answer.body as {
-          rollUps: Record<string, ProjectRollUp | undefined>;
+        const { projects } = answer.body as {
+          projects: {
+            project: { id: string };
+            workPackages: { workPackage: { id: string }; rollUp: WorkPackageRollUp }[];
+          }[];
         };
-        const rollUp = rollUps[projectId];
+        const rollUp = projects
+          .find((group) => group.project.id === projectId)
+          ?.workPackages.find((row) => row.workPackage.id === workPackageId)?.rollUp;
         if (!rollUp?.dates) throw new Error('Dated roll-up is absent');
         return { ...rollUp, dates: rollUp.dates };
       };
       const capture = async () => {
-        const reads = await harness.capturePlanInput(projectId);
+        const reads = await harness.capturePlanInput(workPackageId);
         if (reads === null) throw new Error('Admitted capture is absent');
         return reads;
       };
@@ -221,7 +264,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         const slack = await readRollUp();
         expect(await readRollUp()).toEqual(slack);
         expect(cache.mock.results.at(-1)?.value).toMatchObject({ rollUp: slack });
-        const slackHash = await harness.optimizationHash(projectId);
+        const slackHash = await harness.optimizationHash(workPackageId);
         expect(overlaps((await readTree()).slices)).toBe(true);
 
         await setDirectoryCapacity(16);
@@ -232,7 +275,7 @@ for (const mode of ['isolated', 'shared'] as const) {
           .query<{ message: string }, [string, number]>(
             'SELECT message FROM event_log WHERE subscription = ? AND seq > ? ORDER BY seq',
           )
-          .all(`project:${projectId}`, slack.seq)
+          .all(`work-package:${workPackageId}`, slack.seq)
           .map(({ message }) => (JSON.parse(message) as { type: string }).type);
         expect(messages).toContain('directory_changed');
         const prepare = spyOn(preparation, 'prepareScheduleParts');
@@ -242,7 +285,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         } finally {
           prepare.mockRestore();
         }
-        const liveHash = await harness.optimizationHash(projectId);
+        const liveHash = await harness.optimizationHash(workPackageId);
         expect(liveHash).not.toBe(slackHash);
 
         const frozen = await capture();
@@ -282,7 +325,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         const next = await readRollUp();
         expect(next.seq).toBeGreaterThan(clamped.seq);
         expect(next.dates).toEqual(slack.dates);
-        expect(await harness.optimizationHash(projectId)).toBe(slackHash);
+        expect(await harness.optimizationHash(workPackageId)).toBe(slackHash);
         const current = await capture();
         expect(current.directoryCapacities).toEqual([{ resourceId, units: 64 }]);
         expect(scheduleInputHash(scheduleInputOfCaptured(current))).toBe(slackHash);
@@ -309,7 +352,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     });
     for (const scenario of mode === 'shared' ? ['scheduled', 'cycle'] : ['scheduled'])
       it(`uses the existing directory observation when arranging (${mode}, ${scenario})`, async () => {
-        const { harness, projectId, leaves, batch } = await seedPlan(mode, 'admin');
+        const { harness, workPackageId, leaves, batch } = await seedPlan(mode, 'admin');
         const response = await harness.call('ada', 'POST', '/api/directory/commands', {
           commands: [
             { kind: 'createResource', name: 'RAM', resourceKind: 'divisible', unitLabel: 'GB' },
@@ -334,13 +377,13 @@ for (const mode of ['isolated', 'shared'] as const) {
           const leaf = leaves.at(0);
           if (leaf === undefined) throw new Error('Missing cycle endpoint');
           harness.sqlite.run(
-            'INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES (?, ?, ?, ?)',
-            ['stored-cycle', projectId, leaf, leaf],
+            'INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES (?, ?, ?, ?)',
+            ['stored-cycle', workPackageId, leaf, leaf],
           );
         }
 
         const arrange = () =>
-          harness.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+          harness.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
             commands: [{ kind: 'arrangeBySchedule' }],
           });
         // The command's private live fallback and the captured SQLite queries

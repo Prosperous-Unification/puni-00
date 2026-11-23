@@ -1,5 +1,6 @@
 import { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 import { jwtVerify, SignJWT } from 'jose';
@@ -33,15 +34,18 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { refusingPlanExports } from '../testing/plan-export-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { testProjectService } from '../testing/project-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageObservation } from '../testing/work-package-fixture';
+import { testWorkPackageService } from '../testing/work-package-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import { authPasswordEndpoints } from './auth-password-endpoints';
 
@@ -49,7 +53,10 @@ const TEST_SECRET = 'x'.repeat(32);
 
 function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: refusingWorkPackageObservation,
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -59,7 +66,8 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(maxConcurrentLogins),
@@ -72,15 +80,15 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
     auth,
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
+    workPackages: testWorkPackageService(),
+    workItems: testWorkItemService(openTestSource()),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
     admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: TEST_SECRET,
-    writes: testWrites(),
+    writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
     migrationsApplied: true,
   });
 }
@@ -178,7 +186,10 @@ describe('GET /api/auth/me', () => {
       },
     });
     const res = await buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: refusingWorkPackageObservation,
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -188,7 +199,8 @@ describe('GET /api/auth/me', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -201,15 +213,15 @@ describe('GET /api/auth/me', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: local,
-      projects: testProjectService(),
-      workItems: testWorkItemService(),
+      workPackages: testWorkPackageService(),
+      workItems: testWorkItemService(openTestSource()),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
-      writes: testWrites(),
+      writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
       migrationsApplied: true,
     }).handle(new Request('http://localhost/api/auth/me'));
 

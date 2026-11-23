@@ -1,11 +1,11 @@
 import { Button } from '@ui/saas-01';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 
-import type { ProjectRuntime } from '@/modules/project/contract';
+import type { WorkPackageRuntime } from '@/modules/work-package/contract';
 
 import { refusalSentence } from '../wbs/plan-refusal';
 import { statusWords } from '../wbs/status-cell';
-import { projectStepBoard, type StepBoardCard } from './step-board';
+import { type StepBoardCard, workPackageStepBoard } from './step-board';
 import type { BoardColumn, StepBoardAction } from './step-board-action';
 
 const columns = [
@@ -25,17 +25,17 @@ interface FocusIntent {
   readonly origin: HTMLElement;
 }
 
-/** The selected project's delivered board and its step-progress move controls. */
+/** The selected work package's delivered board and its step-progress move controls. */
 export function StepBoardView({
-  project,
+  workPackage,
   action,
   onReturnToPlan,
 }: {
-  project: Pick<ProjectRuntime, 'plan' | 'reread'>;
+  workPackage: Pick<WorkPackageRuntime, 'plan' | 'reread'>;
   action: StepBoardAction;
   onReturnToPlan: () => void;
 }): React.JSX.Element {
-  const delivered = useSyncExternalStore(project.plan.subscribe, project.plan.snapshot);
+  const delivered = useSyncExternalStore(workPackage.plan.subscribe, workPackage.plan.snapshot);
   const actionState = useSyncExternalStore(action.subscribe, action.snapshot);
   const localDrag = useRef<LocalDrag | null>(null);
   const focusIntent = useRef<FocusIntent | null>(null);
@@ -52,7 +52,7 @@ export function StepBoardView({
       ? 'This plan may be out of date — the last refresh failed.'
       : refusalSentence(treeFailure.cause);
 
-  // A separate steps delivery can be newer than this tree. Project only the tree's own steps.
+  // A separate steps delivery can be newer than this tree. Work package only the tree's own steps.
   // Proof: replacing tree.value.steps with delivered.steps failed `does not combine separately
   // delivered newer steps with an older tree` (QA vanished before the newer tree arrived).
   // Proof: bypassing the projector's malformed-progress throw defaulted it to Unknown and
@@ -61,12 +61,12 @@ export function StepBoardView({
   // stale after a failed read and shows disconnection` (Build vanished).
   // Proof: adding pending Unknown cards to Done failed `keeps pending and delivered
   // placement distinct` before the held request delivered a covering tree.
-  const board = tree === null ? null : projectStepBoard(tree.value);
-  // Proof: suppressing this branch failed `distinguishes an empty project from work with
-  // no project steps` (no "No work items" text).
-  const isEmptyProject = tree !== null && tree.value.workItems.length === 0;
-  // Proof: suppressing this branch failed `distinguishes an empty project from work with
-  // no project steps` (no "No project steps" text).
+  const board = tree === null ? null : workPackageStepBoard(tree.value);
+  // Proof: suppressing this branch failed `distinguishes an empty workPackage from work with
+  // no workPackage steps` (no "No work items" text).
+  const isEmptyWorkPackage = tree !== null && tree.value.workItems.length === 0;
+  // Proof: suppressing this branch failed `distinguishes an empty workPackage from work with
+  // no workPackage steps` (no "No work package steps" text).
   const hasNoSteps = tree !== null && tree.value.steps.length === 0;
 
   // Proof: removing this action-change reset focused the replacement runtime's same-ID
@@ -130,7 +130,7 @@ export function StepBoardView({
     // the current runtime` (received steps, expected tree).
     // Proof: injecting a direct progress resend here made the mounted failed-covering-read
     // Retry case record two progress requests instead of its one original request.
-    void project.reread(['tree']);
+    void workPackage.reread(['tree']);
   };
 
   return (
@@ -157,10 +157,10 @@ export function StepBoardView({
         treeMayBeStale ? null : (
           <p>Loading board…</p>
         )
-      ) : isEmptyProject ? (
+      ) : isEmptyWorkPackage ? (
         <p>No work items</p>
       ) : hasNoSteps ? (
-        <p>No project steps</p>
+        <p>No work package steps</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map(({ key, label }) => (

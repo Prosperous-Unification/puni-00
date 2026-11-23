@@ -1,78 +1,72 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { rejects } from 'node:assert/strict';
 
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
-import { inMemoryServices } from '@wbs/core/testing/harness';
+import { createTestServices } from '@wbs/core/testing/harness';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { createScopePackage, openScopedServiceFixture } from './testing/scoped-service-fixture';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STAMP = { at: 1, by: 'owner' };
-let folder: string;
+let owned: ReturnType<typeof openScopedServiceFixture>;
 let path: string;
 let directory: DirectoryRepository;
 let service: WorkItemService;
 let recorded: { sql: string; bindings: unknown[] }[];
 
 beforeEach(async () => {
-  folder = mkdtempSync(join(tmpdir(), 'wbs-assignment-scope-'));
-  path = join(folder, 'test.db');
-  runMigrations(path, FOLDER);
   recorded = [];
-  const db = openDrizzle(path, {
+  owned = openScopedServiceFixture('wbs-assignment-scope-', {
     logQuery(sql, bindings) {
       recorded.push({ sql, bindings });
     },
   });
+  path = owned.path;
+  const db = owned.source.db;
   directory = new DirectoryRepository(db, OPEN);
-  const projects = new ProjectRepository(db, OPEN);
+  const workPackages = new WorkPackageRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
-  service = inMemoryServices({ projects, workItems, directory }).service;
+  service = createTestServices(owned.source, { workPackages, workItems, directory }).service;
   await new UserRepository(db, OPEN).create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     STAMP,
   );
   const team = await directory.addTeam({ id: 'team', name: 'Shared team' }, STAMP);
   for (let index = 0; index < 41; index += 1) {
-    const projectId = `project-${String(index)}`;
+    const workPackageId = `work-package-${String(index)}`;
     const stepId = `step-${String(index)}`;
     const workItemId = `work-${String(index)}`;
     const personId = `person-${String(index)}`;
-    await projects.create(
-      projectRow({ id: projectId, ownerId: 'owner' }),
-      [
-        {
-          id: stepId,
-          projectId,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    await createScopePackage(
+      owned.source,
+      workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+      {
+        id: stepId,
+        name: 'Dev ' + stepId,
+        position: 10,
+        code: stepId,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
       STAMP,
     );
-    await workItems.insert(workItemRow({ id: workItemId, projectId }), [], STAMP);
+    await workItems.insert(workItemRow({ id: workItemId, workPackageId }), [], STAMP);
     await personAdded(directory.addPerson({ id: personId, name: personId }, [team.id], STAMP));
     await directory.assign(workItemId, stepId, personId, STAMP);
   }
   recorded = [];
 });
 
-afterEach(() => {
-  rmSync(folder, { recursive: true, force: true });
+afterEach(async () => {
+  await owned.close();
 });
 
 /** Examines the actual statements issued by the production call, on its migrated schema. */
@@ -109,9 +103,9 @@ function expectBoundedReads(): void {
   }
 }
 
-describe('project-scoped assignment reads', () => {
+describe('work-package-scoped assignment reads', () => {
   it('[PROJECT-ASSIGNMENT-READS-001] materializes only assigned project rows and names during a tiny tree read', async () => {
-    const tree = await service.tree('project-0');
+    const tree = await service.tree('work-package-0');
     expect(tree?.assignedPeople).toEqual([{ id: 'person-0', name: 'person-0' }]);
     expectBoundedReads();
   });
@@ -125,10 +119,38 @@ describe('project-scoped assignment reads', () => {
     expect(await directory.assignmentsOf(['work-1'])).toEqual([
       { workItemId: 'work-1', stepId: 'step-1', personId: 'person-1' },
     ]);
-    const undone = await service.undo('project-0', 'owner');
+    const undone = await service.undo('work-package-0', 'owner');
     expect(undone.ok).toBe(true);
     expect(await directory.assignmentsOf(['work-0'])).toEqual([
       { workItemId: 'work-0', stepId: 'step-0', personId: 'person-0' },
     ]);
+  });
+
+  it('models missing step identities without hiding other assignment failures', async () => {
+    const store = owned.source.stores.directory;
+    const revisions = () => owned.source.db.all('SELECT id,revision FROM work_item ORDER BY id');
+    const before = revisions();
+    expect(await store.assign('work-0', 'absent', 'person-0', STAMP)).toEqual({
+      ok: false,
+      reason: 'unknown_step',
+    });
+    expect(await store.assign('work-0', 'absent', 'missing-person', STAMP)).toEqual({
+      ok: false,
+      reason: 'unknown_person',
+    });
+    await rejects(store.assign('missing-owner', 'step-0', 'person-0', STAMP));
+    expect(revisions()).toEqual(before);
+    expect(await store.assignmentsOf(['work-0'])).toEqual([
+      { workItemId: 'work-0', stepId: 'step-0', personId: 'person-0' },
+    ]);
+
+    await new WorkItemRepository(owned.source.db, OPEN).insert(
+      workItemRow({ id: 'child-0', workPackageId: 'work-package-0', parentId: 'work-0' }),
+      [],
+      STAMP,
+    );
+    expect(await store.assign('work-0', 'step-0', null, STAMP)).toEqual({ ok: true });
+    expect(await store.assign('work-0', 'absent', null, STAMP)).toEqual({ ok: true });
+    expect(await store.assignmentsOf(['work-0'])).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@ import { priorityBandOf } from '@wbs/domain/priority-band';
 
 import type { EstimateMethod } from '@/lib/wbs-api';
 
-import { DEADLINE_UNREACHABLE_CELL, deadlineBeforeProjectStart } from './deadline-impossible';
+import { DEADLINE_UNREACHABLE_CELL, deadlineBeforeWorkPackageStart } from './deadline-impossible';
 import { minuteCharge, showDuration } from './duration-words';
 import type { ExportRow, FilteredScope, NamedEntry, PlanExport } from './plan-export-model';
 import { scheduleUnavailableWords } from './schedule-unavailable-words';
@@ -42,7 +42,7 @@ function danglingDependencies(plan: PlanExport): number {
   );
 }
 
-/** The method under the name the project chose it by, never its wire value. */
+/** The method under the name the work package chose it by, never its wire value. */
 const METHOD_NAMES: Record<EstimateMethod, string> = {
   pert: 'PERT',
   optimistic: 'optimistic',
@@ -171,7 +171,7 @@ function rowById(rows: readonly ExportRow[], id: string): ExportRow | undefined 
  */
 function headerFields(plan: PlanExport): { key: string; value: string }[] {
   const fields = [
-    { key: 'Project', value: plan.projectName },
+    { key: 'Work package', value: plan.workPackageName },
     { key: 'Final figures', value: METHOD_NAMES[plan.method] },
     { key: 'Start date', value: plan.startDate ?? NOT_ON_A_CALENDAR },
     {
@@ -226,7 +226,7 @@ function headerFields(plan: PlanExport): { key: string; value: string }[] {
  * the schedule is computed over the whole plan whatever the screen is showing
  * (`notes/wbs-scope-2026-08-13-wave6.md:188-189`). A reader who assumed
  * otherwise would read these dates as a plan of this work alone, which would be
- * a shorter and entirely fictional project.
+ * a shorter and entirely fictional work package.
  */
 function scopeField(plan: PlanExport, scope: FilteredScope): { key: string; value: string } {
   const kept =
@@ -614,7 +614,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     // be-01 still stores, and blanking it would be this document deleting their
     // input on somebody else's edit.
     //
-    // `deadlineBeforeProjectStart`, so the sheet, the table cell and be-01's
+    // `deadlineBeforeWorkPackageStart`, so the sheet, the table cell and be-01's
     // write boundary all resolve the question through `deadlineOffsetOf` and no
     // face holds a second opinion. **No lateness is derived here**: `Late by N
     // workdays` is be-01's number and 9.2's rule is that no view recomputes it,
@@ -623,7 +623,9 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     {
       header: 'Work item deadline unreachable',
       cell: (row) =>
-        deadlineBeforeProjectStart(plan.startDate, row.deadline) ? DEADLINE_UNREACHABLE_CELL : '',
+        deadlineBeforeWorkPackageStart(plan.startDate, row.deadline)
+          ? DEADLINE_UNREACHABLE_CELL
+          : '',
     },
     { header: 'Status', cell: (row) => STATUS_LABEL[row.status] },
     { header: 'Fact start', cell: (row) => row.factStart ?? '' },
@@ -708,11 +710,11 @@ export function planToCsv(plan: PlanExport): string {
   return records.map((record) => record.map(csvField).join(',')).join(CRLF);
 }
 
-/** What a project with no usable characters in its name is filed under. */
-const UNNAMEABLE_PROJECT = 'plan';
+/** What a work package with no usable characters in its name is filed under. */
+const UNNAMEABLE_WORK_PACKAGE = 'plan';
 
 /**
- * The name the downloaded file lands under: the project, slugified, the day it
+ * The name the downloaded file lands under: the work package, slugified, the day it
  * was taken, and the extension the caller asked for.
  *
  * The day comes off {@link PlanExport.generatedAt}, which is UTC — two people
@@ -731,13 +733,13 @@ const UNNAMEABLE_PROJECT = 'plan';
  * can tell apart afterwards.
  */
 export function planFileName(
-  plan: Pick<PlanExport, 'projectName' | 'generatedAt' | 'scope'>,
+  plan: Pick<PlanExport, 'workPackageName' | 'generatedAt' | 'scope'>,
   extension: 'csv' | 'json' | 'md' = 'csv',
 ): string {
-  const slug = plan.projectName
+  const slug = plan.workPackageName
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-+|-+$/g, '');
   const narrowed = plan.scope === undefined ? '' : '-on-screen';
-  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}${narrowed}.${extension}`;
+  return `${slug === '' ? UNNAMEABLE_WORK_PACKAGE : slug}-${plan.generatedAt.slice(0, 10)}${narrowed}.${extension}`;
 }

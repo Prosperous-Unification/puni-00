@@ -7,26 +7,43 @@ import {
   type ResourceRuntimeAdmission,
   type ResourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent,
-  resourceRuntimeEvent,
   type ResourceRuntimeHostJobUse,
-  resourceUse,
 } from '@wbs/contracts';
-import type { ResourceRuntime, ResourceRuntimeActor, ResourceUseAnswer } from '@wbs/core';
+import {
+  assertResourceRuntimeActor,
+  authorize,
+  type ResourceRuntime,
+  type ResourceRuntimeActor,
+  type ResourceUseAnswer,
+  type ResourceUseDenial,
+  retainResourceRuntimeActor,
+} from '@wbs/core';
 import type { ResourceUse, ResourceUseEvent } from '@wbs/domain';
 import { and, asc, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import {
+  encodeResourceAdmission,
+  encodeResourceDeclaration,
+  encodeResourceEvent,
+  matchesResourceAdmissionIdentity,
+  matchesResourceDeclaration,
+  matchesResourceEventIdentity,
+  readStoredResourceEvidence,
+} from './resource-runtime-identities';
+import {
   actorNameIn,
-  admitResourceUseProject,
+  admitResourceUseWorkPackage,
   appendResourceUseIn,
   personIn,
+  readResourceUseCredentialRefusal,
   registerResourceUseIn,
 } from './resource-use';
+import { readStoredResourceUse } from './resource-use-history';
 import {
   resourceAuthorityRecord,
   resourceCleanupRequestRecord,
@@ -36,33 +53,62 @@ import {
   resourceUseEventRecord,
   resourceUseRecord,
 } from './schema';
+import { runSecurityTransaction } from './security-transaction';
 
 type Reader = Pick<SQLiteBunDatabase, 'select' | 'get' | 'all'>;
+type RuntimeWriter = Pick<
+  SQLiteBunDatabase,
+  'select' | 'get' | 'all' | 'run' | 'insert' | 'update'
+>;
 const refused = (reason: 'not_found' | 'forbidden' | 'conflict' | 'invalid_body') =>
   ({ ok: false, reason }) as const;
-function organizationOf(tx: Reader, actor: ResourceRuntimeActor, admin: boolean): string {
+async function organizationOf(
+  tx: Reader,
+  actor: ResourceRuntimeActor,
+  admin: boolean,
+): Promise<{ organizationId: string } | ResourceUseDenial> {
   if (actor.access.kind !== 'scoped' || readOrganizationActivation(tx) !== 'activated')
-    return 'forbidden';
-  const member = currentMembershipAccess(tx, actor.access.scope.organizationId, actor.id);
-  if (!member.ok || member.access.kind !== 'scoped') return 'forbidden';
-  // Proof: removing the administrator-role predicate let a viewer bind authority in the composed binding test (2026-10-25).
-  if (
-    admin &&
-    (actor.access.scope.delegated ||
-      actor.credentialId !== null ||
-      !['admin', 'super_admin'].includes(member.access.scope.role))
-  )
-    return 'forbidden';
-  return actor.access.scope.organizationId;
+    return refused('forbidden');
+  const organizationId = actor.access.scope.organizationId;
+  const member = readMembershipIn(tx, organizationId, actor.principal.id);
+  // Proof: runtime-current-member.
+  // The recorded fault broke `rechecks current membership inside resource requests owner after queueing`; restored GREEN.
+  if (member === null) return refused('forbidden');
+  // Proof: runtime-current-credential.
+  // The recorded fault broke `rechecks queued runtime admission replay current source mcp_consent before effects`; restored GREEN.
+  if (readResourceUseCredentialRefusal(tx, actor) !== null) return refused('forbidden');
+  // Proof: infrastructure-no-grant-dependency.
+  // The injected forbidden dependency broke `keeps runtime admission replay independent of grants and mutable planning references`; restored GREEN.
+  // Proof: infrastructure-no-planning-dependency.
+  // The injected forbidden dependency broke `keeps runtime admission replay independent of grants and mutable planning references`; restored GREEN.
+  if (admin) {
+    const decision = await authorize(
+      new AccessDecisionRepository(tx),
+      // Proof: runtime-actual-capped-principal.
+      // The recorded fault broke `caps a runtime bind port machine own administrator grant without account fallback`; restored GREEN.
+      actor.principal,
+      { kind: 'organization', organizationId },
+      'organization.manage_directory',
+    );
+    // Proof: runtime-current-directory-permission.
+    // The recorded fault broke `encodes manage_directory for role-only runtime authority bind and read without effects`; restored GREEN.
+    if (!decision.ok) return decision;
+    // Proof: runtime-current-directory-nondelegation.
+    // The recorded fault broke `refuses a delegated human runtime bind with effective manage_directory`; restored GREEN.
+    if (actor.principal.delegation !== undefined)
+      return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
+  }
+  return { organizationId };
 }
-function authorityIn(
+async function authorityIn(
   tx: Reader,
   id: string,
   actor: ResourceRuntimeActor,
   admin: boolean,
-): ResourceAuthority | 'not_found' | 'forbidden' {
-  const organizationId = organizationOf(tx, actor, admin);
-  if (organizationId === 'forbidden') return organizationId;
+): Promise<ResourceAuthority | ResourceUseDenial> {
+  const organization = await organizationOf(tx, actor, admin);
+  if ('ok' in organization) return organization;
+  const { organizationId } = organization;
   const authority = tx
     .select()
     .from(resourceAuthorityRecord)
@@ -73,11 +119,11 @@ function authorityIn(
       ),
     )
     .get();
-  if (authority === undefined) return 'not_found';
+  if (authority === undefined) return refused('not_found');
   if (!admin) {
     // Proof: removing exact credential identity accepted a second key for the same machine person (2026-10-25).
     if (actor.credentialId !== authority.credentialId || actor.personId === null)
-      return 'forbidden';
+      return refused('forbidden');
     // Proof: removing revoked_at accepted an already-admitted grant after revocation in the composed grant test (2026-10-25).
     // Proof: without current person/account binding, queued unbound and rebound actors both committed sequence 2 in the composed review regression (2026-10-25).
     const live = tx.get<
@@ -87,7 +133,7 @@ function authorityIn(
       JOIN person_organization o ON o.resource_id=p.id AND o.organization_id=c.organization_id
       WHERE c.id=${authority.credentialId} AND c.organization_id=${organizationId} AND provider.organization_id=${organizationId}
       AND c.person_id=${actor.personId} AND p.account_id=${actor.id} AND p.kind='agent' AND c.revoked_at IS NULL`);
-    if (live === undefined) return 'forbidden';
+    if (live === undefined) return refused('forbidden');
   }
   return {
     authorityId: authority.authorityId,
@@ -110,9 +156,32 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     binding: { providerId: string; credentialId: string; epoch: string },
     at: number,
   ): Promise<ResourceUseAnswer<ResourceAuthority>> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const organizationId = organizationOf(tx, actor, true);
-      if (organizationId === 'forbidden') return refused(organizationId);
+    // Proof: entry-bind-tuple.
+    // The recorded fault broke `rejects direct resource bind actor mismatch before reads`; restored GREEN.
+    assertResourceRuntimeActor(actor);
+    // Proof: runtime-bind-actor-retention-first removed this capture independently.
+    // retains runtime bind queued id before the writer
+    // retains runtime bind queued scope organization before the writer
+    // retains runtime bind queued authentication before the writer
+    // retains runtime bind queued delegation before the writer
+    // Named RED with that fault; restored five-case GREEN (bounded resource/runtime receipt).
+    // Proof: store-bind-authority.
+    // The recorded fault broke `retains runtime bind queued id before the writer`; restored GREEN.
+    actor = retainResourceRuntimeActor(actor);
+    // Proof: runtime-bind-payload-retention-first removed this capture independently.
+    // retains runtime bind queued payload before the writer
+    // Named RED with that fault; restored five-case GREEN (bounded resource/runtime receipt).
+    // Proof: store-bind-payload.
+    // The recorded fault broke `retains runtime bind queued payload before the writer`; restored GREEN.
+    binding = structuredClone(binding);
+    // Proof: owner-bind-gate.
+    // The recorded fault broke `serializes and fences the actual resource bind owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-bind-transaction.
+    // The recorded fault broke `serializes and fences the actual resource bind owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const organization = await organizationOf(tx, actor, true);
+      if ('ok' in organization) return organization;
+      const { organizationId } = organization;
       const known = tx
         .select()
         .from(resourceAuthorityRecord)
@@ -172,12 +241,19 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     });
   }
   read(authorityId: string, actor: ResourceRuntimeActor) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const authority = authorityIn(this.db, authorityId, actor, true);
-      return typeof authority === 'string'
-        ? refused(authority)
-        : { ok: true as const, value: authority };
+    // Proof: entry-read-tuple.
+    // The recorded fault broke `rejects direct resource read actor mismatch before reads`; restored GREEN.
+    assertResourceRuntimeActor(actor);
+    // Proof: store-read-authority.
+    // The recorded fault broke `retains runtime read queued id before the writer`; restored GREEN.
+    actor = retainResourceRuntimeActor(actor);
+    // Proof: owner-read-gate.
+    // The recorded fault broke `serializes and fences the actual resource read owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-read-transaction.
+    // The recorded fault broke `serializes and fences the actual resource read owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const authority = await authorityIn(tx, authorityId, actor, true);
+      return 'ok' in authority ? authority : { ok: true as const, value: authority };
     });
   }
   /** The immutable registered history carries admission identity, even before a source sequence exists. */
@@ -187,21 +263,34 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     admission: ResourceRuntimeAdmission,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceRuntimeAdmissionReceipt>> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const authority = authorityIn(tx, authorityId, actor, false);
-      if (typeof authority === 'string') return refused(authority);
+    // Proof: entry-admit-tuple.
+    // The recorded fault broke `rejects direct resource admit actor mismatch before reads`; restored GREEN.
+    assertResourceRuntimeActor(actor);
+    // Proof: store-admit-authority.
+    // The recorded fault broke `retains runtime admit queued id before the writer`; restored GREEN.
+    actor = retainResourceRuntimeActor(actor);
+    // Proof: store-admit-payload.
+    // The recorded fault broke `retains runtime admit queued payload before the writer`; restored GREEN.
+    admission = structuredClone(admission);
+    // Proof: owner-admit-gate.
+    // The recorded fault broke `serializes and fences the actual resource admit owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-admit-transaction.
+    // The recorded fault broke `serializes and fences the actual resource admit owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const authority = await authorityIn(tx, authorityId, actor, false);
+      if ('ok' in authority) return authority;
       // Proof: bypassing the epoch check admitted a wrong-epoch request (final-fix-mutations/admission-epoch.log).
       if (admission.epoch !== authority.epoch) return refused('conflict');
       if (!admission.reason.trim() || admission.observedAt > at + 300000)
         return refused('invalid_body');
-      const fingerprint = admissionFingerprint(authorityId, admission);
+      const fingerprint = encodeResourceAdmission(authorityId, admission);
       const prior = tx
         .select()
         .from(resourceUseRecord)
         .where(eq(resourceUseRecord.id, admission.useId))
         .get();
       if (prior !== undefined) {
-        const original = resourceUse.assert(prior.registrationResponse);
+        const original = readStoredResourceUse(prior.registrationResponse);
         const history = tx
           .select()
           .from(resourceUseEventRecord)
@@ -216,17 +305,21 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         if (
           prior.organizationId !== authority.organizationId ||
           original.runtimeId !== authorityId ||
+          // Proof: resource-admission-retry-call.
+          // Injected fault failed `old admission rejects changed locator without accepting another historical identity`; restored GREEN.
+          // Evidence scope: production-behavior.
           original.incarnation !== admission.incarnation ||
-          history?.fingerprint !== fingerprint
+          history === undefined ||
+          !matchesResourceAdmissionIdentity(history.fingerprint, authorityId, admission)
         )
           return refused('conflict');
       } else {
-        // Proof: project-only event identity admitted two projects with one authority event (2026-10-25).
+        // Proof: work-package-only event identity admitted two work packages with one authority event (2026-10-25).
         if (
           tx.get<{ id: string } | undefined>(sql`
           SELECT e.id FROM resource_use_event e JOIN resource_use u ON u.id=e.use_id
           WHERE e.id=${admission.eventId}
-          AND (e.project_id=${admission.use.projectId} OR json_extract(u.registration_response,'$.runtimeId')=${authorityId})
+          AND (e.work_package_id=${admission.use.workPackageId} OR json_extract(u.registration_response,'$.runtimeId')=${authorityId})
           LIMIT 1
         `) !== undefined
         )
@@ -244,9 +337,9 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           sql`SELECT name FROM compute_provider WHERE id=${authority.providerId}`,
         );
         if (provider === undefined) return refused('not_found');
-        const registered = registerResourceUseIn(
+        const registered = await registerResourceUseIn(
           tx,
-          admission.use.projectId,
+          admission.use.workPackageId,
           actor,
           {
             requestId: `runtime:${authorityId}:${admission.eventId}`,
@@ -291,10 +384,25 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     event: ResourceRuntimeEvent,
     at: number,
   ): Promise<ResourceUseAnswer<{ acceptedSequence: number; useId: string; revision: number }>> {
-    return writeImmediately(this.db, this.gate, (tx) => {
-      const authority = authorityIn(tx, authorityId, actor, false);
-      if (typeof authority === 'string') return refused(authority);
-      const fingerprint = JSON.stringify(event);
+    // Proof: entry-ingest-tuple.
+    // The recorded fault broke `rejects direct resource ingest actor mismatch before reads`; restored GREEN.
+    assertResourceRuntimeActor(actor);
+    // Proof: store-ingest-authority.
+    // The recorded fault broke `retains runtime ingest queued id before the writer`; restored GREEN.
+    actor = retainResourceRuntimeActor(actor);
+    // Proof: store-ingest-payload.
+    // The recorded fault broke `retains runtime ingest queued payload before the writer`; restored GREEN.
+    // Proof: store-ingest-deep-payload.
+    // The recorded fault broke `retains runtime ingest queued nested retention before the writer`; restored GREEN.
+    event = structuredClone(event);
+    // Proof: owner-ingest-gate.
+    // The recorded fault broke `serializes and fences the actual resource ingest owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-ingest-transaction.
+    // The recorded fault broke `serializes and fences the actual resource ingest owner on the shared Gate connection`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const authority = await authorityIn(tx, authorityId, actor, false);
+      if ('ok' in authority) return authority;
+      const fingerprint = encodeResourceEvent(event);
       const prior = tx
         .select()
         .from(resourceRuntimeEventRecord)
@@ -306,7 +414,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         )
         .get();
       if (prior !== undefined)
-        return prior.fingerprint === fingerprint
+        return matchesResourceEventIdentity(prior.fingerprint, event)
           ? { ok: true, value: prior.response }
           : refused('conflict');
       // Proof: removing sequence adjacency accepted a gap in the composed runtime-credential test (2026-10-25).
@@ -366,7 +474,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
       // Source revision 0 in the original response names provisional admission, not missing runtime authority.
       const admitted =
         stored !== undefined &&
-        resourceUse.assert(stored.registrationResponse).runtimeRevision === 0;
+        readStoredResourceUse(stored.registrationResponse).runtimeRevision === 0;
       if (
         !(event.kind === 'registered' && admitted) &&
         tx
@@ -374,7 +482,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           .from(resourceUseEventRecord)
           .where(
             and(
-              eq(resourceUseEventRecord.projectId, event.use.projectId),
+              eq(resourceUseEventRecord.workPackageId, event.use.workPackageId),
               eq(resourceUseEventRecord.id, event.eventId),
             ),
           )
@@ -390,7 +498,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
         )
           return refused('conflict');
         if (admitted) {
-          const original = resourceUse.assert(stored.registrationResponse);
+          const original = readStoredResourceUse(stored.registrationResponse);
           const history = tx
             .select()
             .from(resourceUseEventRecord)
@@ -410,17 +518,21 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             reason: event.reason,
             use: event.use,
           };
-          // Proof: omitting confirmation identity accepted a substituted locator after project deletion (admission-confirmation-identity.log).
+          // Proof: omitting confirmation identity accepted a substituted locator after work package deletion (admission-confirmation-identity.log).
           if (
             stored.organizationId !== authority.organizationId ||
             original.runtimeId !== authorityId ||
+            // Proof: resource-confirmation-call.
+            // Injected fault failed `old provisional confirmation rejects changed locator before source or projection effects`; restored GREEN.
+            // Evidence scope: production-behavior.
             original.incarnation !== event.incarnation ||
-            history?.fingerprint !== admissionFingerprint(authorityId, admission)
+            history === undefined ||
+            !matchesResourceAdmissionIdentity(history.fingerprint, authorityId, admission)
           )
             return refused('conflict');
           // Only source progress changes here; operator requests may already have advanced projection history.
           // Proof: restoring the original admission snapshot erased revision 2/pending intent (admission-projection-preservation.log).
-          use = { ...resourceUse.assert(stored.snapshot), runtimeRevision: 1 };
+          use = { ...readStoredResourceUse(stored.snapshot), runtimeRevision: 1 };
           tx.update(resourceUseRecord)
             .set({ snapshot: use })
             .where(eq(resourceUseRecord.id, use.id))
@@ -439,9 +551,9 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             sql`SELECT name FROM compute_provider WHERE id=${authority.providerId}`,
           );
           if (providerName === undefined) return refused('not_found');
-          const registered = registerResourceUseIn(
+          const registered = await registerResourceUseIn(
             tx,
-            event.use.projectId,
+            event.use.workPackageId,
             actor,
             {
               requestId: `runtime:${authorityId}:${event.eventId}`,
@@ -475,7 +587,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             authorityId,
             incarnation: event.incarnation,
             revision: event.revision,
-            declaration: JSON.stringify(event.use),
+            declaration: encodeResourceDeclaration(event.use),
           })
           .run();
       } else {
@@ -486,21 +598,31 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           runtime.authorityId !== authorityId ||
           stored.organizationId !== authority.organizationId ||
           runtime.incarnation !== event.incarnation ||
+          // Proof: resource-planning-declaration-call.
+          // Injected fault failed `old planning declaration rejects changed locator before live followup effects`; restored GREEN.
+          // Evidence scope: production-behavior.
           runtime.revision + 1 !== event.revision ||
-          runtime.declaration !== JSON.stringify(event.use)
+          !matchesResourceDeclaration(runtime.declaration, event.use)
         )
           return refused('conflict');
-        const project = admitResourceUseProject(tx, stored.projectId, actor, true, true);
-        // Runtime authority retains responsibility for deleted projects; its immutable organization binding owns those orphans.
+        // The bound runtime owns deleted-package cleanup; personal orphan grants never enter this branch.
         if (
-          typeof project === 'string' &&
-          (project !== 'not_found' ||
-            tx.get<{ id: string } | undefined>(
-              sql`SELECT id FROM project WHERE id=${stored.projectId}`,
-            ) !== undefined)
-        )
-          return refused(project);
-        use = resourceUse.assert(stored.snapshot);
+          tx.get<{ id: string } | undefined>(
+            sql`SELECT id FROM work_package WHERE id=${stored.workPackageId}`,
+          ) !== undefined
+        ) {
+          // Proof: runtime-live-followup-current-permission.
+          // The recorded fault broke `encodes actual runtime live followup package.write denial over HTTP without effects`; restored GREEN.
+          const workPackage = await admitResourceUseWorkPackage(
+            tx,
+            stored.workPackageId,
+            actor,
+            true,
+            false,
+          );
+          if ('ok' in workPackage) return workPackage;
+        }
+        use = readStoredResourceUse(stored.snapshot);
         const terminalAcknowledgment =
           use.state === 'release_verified' &&
           event.kind === 'release_verified' &&
@@ -557,8 +679,12 @@ export class SqliteResourceRuntime implements ResourceRuntime {
             .get();
           if (recorded === undefined)
             throw new Error('terminal runtime evidence envelope is absent');
-          const original = resourceRuntimeEvent.assert(JSON.parse(recorded.fingerprint)).evidence;
-          if (original === undefined || event.evidence === undefined) return refused('conflict');
+          // Proof: resource-terminal-reader-call.
+          // Injected fault failed `refuses corrupt legacy terminal kind as trusted failure before acknowledgment`; restored GREEN.
+          // Injected fault failed `refuses corrupt tagged terminal kind as trusted failure before acknowledgment`; restored GREEN.
+          // Evidence scope: actual terminal consumer must validate retained evidence, not substitute incoming proof.
+          const original = readStoredResourceEvidence(recorded.fingerprint);
+          if (event.evidence === undefined) return refused('conflict');
           const originalProof = [
             original.digest,
             original.locator,
@@ -630,7 +756,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
           .values({
             id: event.eventId,
             useId: use.id,
-            projectId: use.projectId,
+            workPackageId: use.workPackageId,
             revision: changed.revision,
             snapshot: history,
             fingerprint,
@@ -662,11 +788,20 @@ export class SqliteResourceRuntime implements ResourceRuntime {
     });
   }
   requests(authorityId: string, actor: ResourceRuntimeActor, after: number, limit: number) {
-    return this.gate.enter(async () => {
-      await Promise.resolve();
-      const authority = authorityIn(this.db, authorityId, actor, false);
-      if (typeof authority === 'string') return refused(authority);
-      const rows = this.db
+    // Proof: entry-requests-tuple.
+    // The recorded fault broke `rejects direct resource requests actor mismatch before reads`; restored GREEN.
+    assertResourceRuntimeActor(actor);
+    // Proof: store-requests-authority.
+    // The recorded fault broke `retains runtime requests queued id before the writer`; restored GREEN.
+    actor = retainResourceRuntimeActor(actor);
+    // Proof: owner-requests-gate.
+    // The recorded fault broke `serializes and fences the actual resource requests owner on the shared Gate connection`; restored GREEN.
+    // Proof: owner-requests-transaction.
+    // The recorded fault broke `fences a second connection at runtime request authority read until settlement`; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const authority = await authorityIn(tx, authorityId, actor, false);
+      if ('ok' in authority) return authority;
+      const rows = tx
         .select()
         .from(resourceCleanupRequestRecord)
         .where(
@@ -701,7 +836,7 @@ export class SqliteResourceRuntime implements ResourceRuntime {
 }
 /** Records the accepted envelope and advances the authority's sequence, in the ingesting transaction. */
 function acceptRuntimeEvent(
-  tx: ImmediateTransaction,
+  tx: RuntimeWriter,
   authorityId: string,
   event: ResourceRuntimeEvent,
   fingerprint: string,
@@ -754,23 +889,23 @@ function namesRunRecord(
 }
 
 /**
- * Projects one host job event (`dash-host-jobs` J10): `registered` at revision 1 creates the
+ * Records one host job event (`dash-host-jobs` J10): `registered` at revision 1 creates the
  * row, owned by the authority and its organization; `release_verified` at revision 2, carrying
  * the same declaration and the settlement evidence (`returned`, or `not_created` when it has no
  * run record; J2', task 6.8), marks it returned and stores that evidence. No
  * other kind exists for a host job, and nothing here admits, refuses or ends one: the host pool
- * already did. Planning links are kept as sent and never resolved, so a deleted project, work
+ * already did. Planning links are kept as sent and never resolved, so a deleted work package, work
  * item or person cannot strand the use. The caller has checked epoch, sequence, reason, instant
  * and evidence shape.
  */
 function ingestHostJob(
-  tx: ImmediateTransaction,
+  tx: RuntimeWriter,
   authority: ResourceAuthority,
   event: ResourceRuntimeEvent & { use: ResourceRuntimeHostJobUse },
   fingerprint: string,
   at: number,
 ): ResourceUseAnswer<{ acceptedSequence: number; useId: string; revision: number }> {
-  const declaration = JSON.stringify(event.use);
+  const declaration = encodeResourceDeclaration(event.use);
   const stored = tx
     .select()
     .from(resourceHostJobRecord)
@@ -819,8 +954,11 @@ function ingestHostJob(
       stored.incarnation !== event.incarnation ||
       stored.state !== 'registered' ||
       event.revision !== 2 ||
+      // Proof: resource-host-declaration-call.
+      // Injected fault failed `old host-job declaration rejects changed label before settlement effects`; restored GREEN.
+      // Evidence scope: production-behavior.
       event.requestId !== undefined ||
-      stored.declaration !== declaration
+      !matchesResourceDeclaration(stored.declaration, event.use)
     )
       return refused('conflict');
     tx.update(resourceHostJobRecord)
@@ -841,7 +979,7 @@ function ingestHostJob(
 
 /** A delayed registration cannot miss an attempt-end signal that committed before its outbox arrived. */
 function queueEndedAttempt(
-  tx: ImmediateTransaction,
+  tx: RuntimeWriter,
   use: ResourceUse,
   actor: ResourceRuntimeActor,
   at: number,
@@ -853,7 +991,7 @@ function queueEndedAttempt(
   if (ended?.endedAt == null) return;
   const queued = appendResourceUseIn(
     tx,
-    use.projectId,
+    use.workPackageId,
     use,
     {
       eventId: crypto.randomUUID(),
@@ -867,9 +1005,4 @@ function queueEndedAttempt(
     actor.personId,
   );
   if (!queued.ok) throw new Error('late runtime registration could not queue cleanup');
-}
-
-/** Includes authority/epoch and every immutable field; admission replay never resolves mutable planning rows. */
-function admissionFingerprint(authorityId: string, admission: ResourceRuntimeAdmission): string {
-  return JSON.stringify({ authorityId, admission });
 }

@@ -15,7 +15,7 @@ import { useResourceClient, useResourceScope } from '@/runtime/organization-reso
 const DELIVERY_SHAPES = [getWorkItemDelivery] as const;
 const FRESHNESS_MS = 5 * 60 * 1000;
 interface DeliveryPanelProps {
-  projectId: string;
+  workPackageId: string;
   workItemId: string;
   reference: { id: string; url: string };
 }
@@ -33,12 +33,12 @@ type ReadingState =
  * Refresh discards the previous reading; freshness updates never fetch a provider. The server
  * may answer a refresh from its short reading cache, which the unchanged `observedAt` shows.
  */
-export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPanelProps) {
+export function DeliveryPanel({ workPackageId, workItemId, reference }: DeliveryPanelProps) {
   const client = useResourceClient(DELIVERY_SHAPES);
   const scope = useResourceScope();
   const identity = JSON.stringify([
     scope.organization,
-    projectId,
+    workPackageId,
     workItemId,
     reference.id,
     reference.url,
@@ -50,8 +50,8 @@ export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPane
     let isCurrent = true;
     const abort = new AbortController();
     setState({ kind: 'loading', identity });
-    void client['getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery']({
-      params: { id: projectId, workItemId, refId: reference.id },
+    void client['getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery']({
+      params: { id: workPackageId, workItemId, refId: reference.id },
       signal: abort.signal,
     }).then((reply) => {
       if (!isCurrent || !scope.isCurrent()) return;
@@ -87,7 +87,7 @@ export function DeliveryPanel({ projectId, workItemId, reference }: DeliveryPane
       isCurrent = false;
       abort.abort();
     };
-  }, [client, scope, identity, projectId, workItemId, reference.id, refresh]);
+  }, [client, scope, identity, workPackageId, workItemId, reference.id, refresh]);
 
   const owned = state.identity === identity ? state : { kind: 'loading' as const, identity };
   return (

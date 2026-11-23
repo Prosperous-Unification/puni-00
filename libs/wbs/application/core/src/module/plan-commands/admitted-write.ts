@@ -3,14 +3,14 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { CommandCaller } from '../../ports/command-access';
 import type { ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectService } from '../project/project.resource';
+import type { Broadcaster } from '../../ports/work-package-event';
 import type { StepService } from '../step/step.resource';
+import type { WorkPackageService } from '../work-package/work-package.resource';
 import type { AuthorityRefusal } from './plan-commands.feature';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
-  readonly projects: Pick<ProjectService, 'updateWithin'>;
+  readonly workPackages: Pick<WorkPackageService, 'updateWithin' | 'createWithin'>;
   readonly steps: Pick<StepService, 'removeWithin'>;
 }
 
@@ -19,7 +19,7 @@ export type AdmittedWriteDecision<T> = { commit: true; value: T } | { commit: fa
 /** One admitted route write over a mapped graph, with no source capability. */
 export interface AdmittedWriteTransaction {
   run<T>(
-    projectId: string,
+    workPackageId: string | null,
     caller: CommandCaller,
     broadcast: Broadcaster,
     act: (services: AdmittedServices, access: ResourceAccess) => Promise<AdmittedWriteDecision<T>>,
@@ -33,7 +33,7 @@ export interface AdmittedWriteOptions {
 }
 
 /**
- * A project `depReach` change and a step removal, each run as one unit of work.
+ * A work package `depReach` change and a step removal, each run as one unit of work.
  * Principals without write scope are refused before opening that unit of work.
  *
  * Both read the combined step-node graph and then write, outside any command
@@ -45,20 +45,23 @@ export interface AdmittedWriteOptions {
  */
 export function admittedWrites(options: AdmittedWriteOptions) {
   const admit = async <T extends { ok: boolean }>(
-    projectId: string,
+    workPackageId: string | null,
     actor: AuthenticatedUser,
     expectedAccess: ResourceAccess,
-    act: (graph: AdmittedServices, access: ResourceAccess) => Promise<T>,
+    act: (graph: AdmittedServices, access: ResourceAccess, actorId: string) => Promise<T>,
   ): Promise<T | AuthorityRefusal> => {
-    // Proof: removing this guard made direct read-only project update and bare step removal commit (command-current-authority.controller.db.test.ts).
+    // Proof: removing this snapshot admitted substituted account grants in queued work package admission; named machine-provenance test fault/restored pass, 2026-11-09.
+    actor = structuredClone(actor);
+    expectedAccess = structuredClone(expectedAccess);
+    // Proof: removing this guard made direct read-only work package update and bare step removal commit (command-current-authority.controller.db.test.ts).
     if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
     const collector = new AnnouncementCollector(options.announcements);
     const outcome = await options.transaction.run<T>(
-      projectId,
+      workPackageId,
       { kind: 'human', principal: actor, expectedAccess },
       collector,
       async (graph, access) => {
-        const value = await act(graph, access);
+        const value = await act(graph, access, actor.id);
         return value.ok ? { commit: true, value } : { commit: false, value };
       },
     );
@@ -66,24 +69,34 @@ export function admittedWrites(options: AdmittedWriteOptions) {
     return outcome;
   };
   return {
-    updateProjectWithin: (
+    createWorkPackageWithin: (
+      name: string,
       projectId: string,
       actor: AuthenticatedUser,
-      patch: Parameters<ProjectService['updateWithin']>[2],
+      expectedAccess: ResourceAccess,
+      abbreviation?: string,
+    ) =>
+      admit(null, actor, expectedAccess, (graph, access, actorId) =>
+        graph.workPackages.createWithin(name, projectId, actorId, access, abbreviation),
+      ),
+    updateWorkPackageWithin: (
+      workPackageId: string,
+      actor: AuthenticatedUser,
+      patch: Parameters<WorkPackageService['updateWithin']>[2],
       expectedAccess: ResourceAccess,
     ) =>
-      admit(projectId, actor, expectedAccess, (graph, access) =>
-        graph.projects.updateWithin(projectId, actor.id, patch, access),
+      admit(workPackageId, actor, expectedAccess, (graph, access, actorId) =>
+        graph.workPackages.updateWithin(workPackageId, actorId, patch, access),
       ),
     removeStepWithin: (
-      projectId: string,
+      workPackageId: string,
       stepId: string,
       actor: AuthenticatedUser,
       cascade: boolean,
       expectedAccess: ResourceAccess,
     ) =>
-      admit(projectId, actor, expectedAccess, (graph, access) =>
-        graph.steps.removeWithin(projectId, stepId, actor.id, cascade, access),
+      admit(workPackageId, actor, expectedAccess, (graph, access, actorId) =>
+        graph.steps.removeWithin(workPackageId, stepId, actorId, cascade, access),
       ),
   };
 }

@@ -20,8 +20,8 @@ export type ServedDeliveryReading = typeof ServedDeliveryReadingSchema.infer;
 /** Reads delivery only for a saved reference owned by the addressed accessible work item. */
 export const getWorkItemDelivery = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/work-items/:workItemId/refs/:refId/delivery',
-  operationId: 'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  path: '/api/work-packages/:id/work-items/:workItemId/refs/:refId/delivery',
+  operationId: 'getApiWorkPackagesByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
   policies: [
     // Proof: removing identity made 'refuses unauthenticated, unbound and removed members without provider reads' answer 500 instead of 401 (2026-10-24).
     { kind: 'identity', require: 'signed-in' },

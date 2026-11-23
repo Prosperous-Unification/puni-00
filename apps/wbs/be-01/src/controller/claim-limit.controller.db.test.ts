@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * The concurrent-claim cap (`wbs-organization-limits` slice 3, L9) over be-01's
@@ -11,7 +12,7 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
  * here; two accounts keep two undo stacks.
  */
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let steps: string[];
 
 beforeEach(async () => {
@@ -21,7 +22,7 @@ beforeEach(async () => {
   }
   h.organization('org-a');
   for (const username of ['ada', 'bea']) {
-    h.member('org-a', username, 'admin');
+    h.member('org-a', username, 'admin', ['org-admin']);
     h.bind(username, 'org-a');
   }
 });
@@ -30,30 +31,27 @@ afterEach(() => {
   h.close();
 });
 
-/** Activates the store and opens A's project with every person the cases claim as. */
+/** Activates the store and opens A's work package with every person the cases claim as. */
 async function activated(): Promise<void> {
   h.activate();
-  await openProject();
+  await openWorkPackage('activated');
 }
 
-async function openProject(): Promise<void> {
-  const created = await h.call('ada', 'POST', '/api/projects', { name: 'Claims' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  steps = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ? ORDER BY position')
-    .all(projectId)
-    .map(({ id }) => id);
+async function openWorkPackage(mode: 'activated' | 'legacy'): Promise<void> {
+  workPackageId = await createFixturePackage(h, 'ada', 'Claims');
+  steps = (await readFixturePackage(h, 'ada', workPackageId)).steps.map(({ id }) => id);
+  expect(steps).toHaveLength(2);
   for (const id of ['claire', 'codex', 'worker']) {
     h.sqlite.run('INSERT INTO person (id, name, kind) VALUES (?, ?, ?)', [
       id,
       `root-${id}`,
       'agent',
     ]);
-    h.sqlite.run(
-      'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
-      [id, 'org-a', id],
-    );
+    if (mode === 'activated')
+      h.sqlite.run(
+        'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+        [id, 'org-a', id],
+      );
   }
 }
 
@@ -68,7 +66,7 @@ function capClaims(maxConcurrentClaims: number): void {
 }
 
 function batch(commands: unknown[], username = 'ada'): Promise<Answer> {
-  return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+  return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 
 /** `count` root leaves, answered by id in order. */
@@ -250,11 +248,13 @@ describe('the concurrent-claim cap, activated', () => {
     capClaims(1);
     const [a, b] = await leaves(2);
     expect((await batch([claim(a, 'claire')])).status).toBe(200);
-    expect((await h.call('ada', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/undo`)).status).toBe(
+      200,
+    );
     expect((await batch([claim(b, 'codex')], 'bea')).status).toBe(200);
     const rows = claimRows();
 
-    const redone = await h.call('ada', 'POST', `/api/projects/${projectId}/redo`);
+    const redone = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/redo`);
     expect(redone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     expect((redone.body as { detail: string }).detail).toBe('claim_limit: cap 1, current 1.');
     expect(claimRows()).toBe(rows);
@@ -267,7 +267,7 @@ describe('the concurrent-claim cap, activated', () => {
     expect((await batch([release(a, 'codex')])).status).toBe(200);
     expect((await batch([claim(b, 'claire')], 'bea')).status).toBe(200);
 
-    const undone = await h.call('ada', 'POST', `/api/projects/${projectId}/undo`);
+    const undone = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/undo`);
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     expect((undone.body as { detail: string }).detail).toBe('claim_limit: cap 1, current 1.');
     expect(
@@ -285,7 +285,7 @@ describe('the concurrent-claim cap, activated', () => {
     expect(boundClaims()).toBe(0);
     expect((await batch([claim(b, 'claire')], 'bea')).status).toBe(200);
 
-    const undone = await h.call('ada', 'POST', `/api/projects/${projectId}/undo`);
+    const undone = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/undo`);
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     expect((undone.body as { detail: string }).detail).toBe('claim_limit: cap 1, current 1.');
     expect(
@@ -301,14 +301,16 @@ describe('the concurrent-claim cap, activated', () => {
     expect((await batch([claim(a, 'codex')])).status).toBe(200);
     expect((await batch([release(a, 'codex')])).status).toBe(200);
 
-    expect((await h.call('ada', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/undo`)).status).toBe(
+      200,
+    );
     expect(boundClaims()).toBe(1);
   });
 });
 
 describe('the concurrent-claim cap under legacy access', () => {
   it('claims past any cap with no organization to own one', async () => {
-    await openProject();
+    await openWorkPackage('legacy');
     // Legacy access has no organization role to bypass the binding (D5).
     h.sqlite.run('UPDATE person SET account_id = ?', [h.userId('ada')]);
     capClaims(0);

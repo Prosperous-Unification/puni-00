@@ -1,0 +1,14 @@
+{
+  "corruptSql": "UPDATE work_item SET parent_id='missing-owner' WHERE id='rename-child'",
+  "recoverySql": "INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES('historical-recovery','rename-org','rename-owner','restricted_project_recovery','project','rename-p','{\"before\":true,\"after\":false,\"note\":\"projectId\"}',9)",
+  "recoveryAfter": {
+    "id": "historical-recovery",
+    "organization_id": "rename-org",
+    "actor_id": "rename-owner",
+    "action": "restricted_work_package_recovery",
+    "subject_kind": "work_package",
+    "subject_id": "rename-p",
+    "detail": "{\"before\":true,\"after\":false,\"note\":\"projectId\"}",
+    "created_at": 9
+  }
+}

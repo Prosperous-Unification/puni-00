@@ -1,6 +1,8 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { applyWorkPackageCommands as applyWorkPackageCommandsShape } from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * The Name cell's height, in a browser.
@@ -55,7 +57,7 @@ async function seedRows(page: Page, _account: string, rows: number): Promise<voi
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (let made = 1; made <= rows; made += 1) {
     await addRow.click();
@@ -126,20 +128,30 @@ const linesHidden = (box: CellBox): number =>
  */
 async function aPeerRenames(page: Page, workItemId: string, name: string): Promise<void> {
   const status = await page.evaluate(
-    async ([id, newName]) => {
-      // A batch of one on the page's own project, as every write is now.
-      const projectId = window.localStorage.getItem('wbs.project');
-      if (projectId === null) throw new Error('no wbs.project in localStorage');
-      const res = await fetch(`/api/projects/${projectId}/commands`, {
+    async ({ requestHeaders, fixtureInput }) => {
+      const [id, newName] = fixtureInput;
+
+      // A batch of one on the page's own work package, as every write is now.
+      const workPackageId = window.localStorage.getItem('wbs.workPackage');
+      if (workPackageId === null) throw new Error('no wbs.work package in localStorage');
+      const res = await fetch(`/api/work-packages/${workPackageId}/commands`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.applyWorkPackageCommands),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify({
           commands: [{ kind: 'patchWorkItem', workItemId: id, patch: { name: newName } }],
         }),
       });
       return res.status;
     },
-    [workItemId, name] as const,
+    {
+      requestHeaders: {
+        applyWorkPackageCommands: createOrdinaryHeaders(applyWorkPackageCommandsShape),
+      },
+      fixtureInput: [workItemId, name] as const,
+    },
   );
   expect(status, 'the peer edit was refused by be-01').toBe(200);
 }
@@ -411,7 +423,7 @@ test.describe('the Name cell at rest is the name alone', () => {
     const saveReleased = new Promise<void>((resolve) => {
       releaseSave = resolve;
     });
-    await page.route('**/api/projects/*/commands', async (route) => {
+    await page.route('**/api/work-packages/*/commands', async (route) => {
       if (isMySave(route.request().postData())) await saveReleased;
       await route.continue();
     });

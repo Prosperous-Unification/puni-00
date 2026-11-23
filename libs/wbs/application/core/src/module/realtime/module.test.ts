@@ -3,14 +3,14 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
-import { type ProjectEvent, subscriptionFor } from '../../ports/project-event';
 import type { PushTransport } from '../../ports/push-transport';
+import { subscriptionFor, type WorkPackageEvent } from '../../ports/work-package-event';
 import { EventLogService } from '../event-log/event-log.resource';
 import { installRealtime } from './check';
 import { REALTIME_LABEL } from './contract';
 import { realtimeModule } from './module';
 
-const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
+const EVENT: WorkPackageEvent = { type: 'tree_replaced', workItems: [] };
 
 /** A push client that records what it was handed, borrowed from `gateway-broadcaster.test.ts`'s own fixture. */
 function fakePush() {
@@ -63,7 +63,7 @@ describe('the Realtime module', () => {
   it('builds a buffer, a broadcaster and a replay orchestrator over the same requirements', () => {
     const { replayBuffer, broadcaster, replay } = installRealtime(requirements());
 
-    expect(replayBuffer.oldestSeq('project:p-1')).toBeNull();
+    expect(replayBuffer.oldestSeq('work-package:p-1')).toBeNull();
     expect(typeof broadcaster.publish).toBe('function');
     expect(typeof replay.replay).toBe('function');
   });
@@ -78,10 +78,10 @@ describe('the Realtime module', () => {
     await broadcaster.publish('p-1', EVENT);
 
     expect(replayBuffer.oldestSeq(subscriptionFor('p-1'))).toBe(0);
-    expect(await replay.replay({ 'project:p-1': -1 })).toEqual({
-      'project:p-1': { status: 'replaying', events: [{ seq: 0, message: EVENT }] },
+    expect(await replay.replay({ 'work-package:p-1': -1 })).toEqual({
+      'work-package:p-1': { status: 'replaying', events: [{ seq: 0, message: EVENT }] },
     });
-    expect(pushed).toEqual([{ subscription: 'project:p-1', seq: 0 }]);
+    expect(pushed).toEqual([{ subscription: 'work-package:p-1', seq: 0 }]);
   });
 
   /**

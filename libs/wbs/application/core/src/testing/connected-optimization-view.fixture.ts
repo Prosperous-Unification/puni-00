@@ -8,7 +8,8 @@ import type { LivePlanRead } from '../ports/shared-people-values';
 import { deriveConnectedPlan } from '../service/connected-plan';
 import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import { deriveConnectedReadiness } from '../service/connected-readiness';
-import { projectConnectedTree } from '../service/connected-tree';
+import { workPackageConnectedTree } from '../service/connected-tree';
+import { authorFixtureLeafSteps } from './connected-leaf-fixture';
 import { connectedCapture, connectedReads } from './connected-plan-fixture';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
@@ -22,30 +23,34 @@ const key = (id: string) => sliceKey(id, 'build');
 export function createConnectedOptimizationRead(
   state: 'ready' | 'ready-sibling' | 'boundary-infeasible' | 'pending' | 'floor' = 'ready',
 ): ConnectedRead {
-  const projects = ['A', 'B', 'C'].map((projectId, rank) => {
+  const workPackages = ['A', 'B', 'C'].map((workPackageId, rank) => {
     const reads = connectedReads(
-      projectId,
+      workPackageId,
       rank === 0 ? '2026-10-05' : rank === 1 ? '2026-10-06' : '2026-10-07',
     );
     const first = reads.workItems.at(0);
     if (first === undefined) throw new Error('missing fixture work');
     return {
-      projectId,
-      abbreviation: `P${projectId}`,
+      workPackageId,
+      abbreviation: `P${workPackageId}`,
       rank,
       reads: {
         ...reads,
-        project: {
-          ...reads.project,
+        workPackage: {
+          ...reads.workPackage,
           optimizationEnabled: true,
-          scheduleEngine: projectId === 'B' ? ('fast' as const) : ('optimized' as const),
+          scheduleEngine: workPackageId === 'B' ? ('fast' as const) : ('optimized' as const),
           scheduleObjective: 'time' as const,
         },
-        ...(projectId === 'A'
+        ...(workPackageId === 'A'
           ? {
               workItems: [
                 { ...first, id: 'a' },
                 { ...first, id: 'a2', position: 1 },
+              ],
+              leafSteps: [
+                { workItemId: 'a', stepIds: ['build'] },
+                { workItemId: 'a2', stepIds: ['build'] },
               ],
               estimates: [
                 ...reads.estimates,
@@ -60,30 +65,30 @@ export function createConnectedOptimizationRead(
     kind: 'connected',
     organizationId: 'org',
     mode: 'isolated',
-    projects,
+    workPackages,
     relationships: [
       {
         id: 'ab',
-        projectId: 'B',
+        workPackageId: 'B',
         type: 'SS',
-        predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
-        successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+        predecessor: { workPackageId: 'A', scope: 'whole', workItemId: 'a' },
+        successor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
       },
       {
         id: 'bc',
-        projectId: 'C',
+        workPackageId: 'C',
         type: 'SS',
-        predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-        successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+        predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+        successor: { workPackageId: 'C', scope: 'whole', workItemId: 'c' },
       },
     ],
   };
   const optimizer: ConnectedOptimizedCapturedAdapter = {
     readConnectedCaptured: ({ stage }) => {
       const question = {
-        projectId: stage.projectId,
-        inputHash: stage.projectId,
-        questionHash: `q-${stage.projectId}`,
+        workPackageId: stage.workPackageId,
+        inputHash: stage.workPackageId,
+        questionHash: `q-${stage.workPackageId}`,
         objective: 'time' as const,
         contractVersion: 'test',
         budgetMs: 100,
@@ -103,23 +108,26 @@ export function createConnectedOptimizationRead(
                           stage.input.slices.some(
                             (slice) =>
                               sliceKey(slice.workItemId, slice.stepId) === key &&
-                              slice.workItemId.startsWith(stage.projectId.toLowerCase()),
+                              slice.workItemId.startsWith(stage.workPackageId.toLowerCase()),
                           ),
                         )
                         .map(([key, start]) => [key, start + 1]),
                     )
-                  : stage.projectId === 'A'
+                  : stage.workPackageId === 'A'
                     ? new Map([
                         [key('a'), 0],
                         [key('a2'), 1],
                       ])
                     : new Map([
-                        [key(stage.projectId.toLowerCase()), stage.projectId === 'B' ? 3 : 6],
+                        [
+                          key(stage.workPackageId.toLowerCase()),
+                          stage.workPackageId === 'B' ? 3 : 6,
+                        ],
                       ]),
             }
           : null;
       return {
-        inputHash: stage.projectId,
+        inputHash: stage.workPackageId,
         generation: null,
         contractVersion: 'test',
         budgetMs: 100,
@@ -180,11 +188,11 @@ export function createConnectedOptimizationRead(
 /** A complete HTTP tree produced from the captured mixed-engine observation. */
 export function createConnectedOptimizationTree(
   state: Parameters<typeof createConnectedOptimizationRead>[0] = 'ready',
-  projectId = 'A',
+  workPackageId = 'A',
 ) {
   return {
     ...presentConnectedTree(
-      projectConnectedTree(createConnectedOptimizationRead(state), projectId),
+      workPackageConnectedTree(createConnectedOptimizationRead(state), workPackageId),
     ),
     undoable: false,
     redoable: false,
@@ -201,21 +209,24 @@ function buildConnectedRead(
     readiness: deriveConnectedReadiness(
       capture,
       projection.authored,
-      new Map(capture.projects.map(({ projectId }) => [projectId, []])),
+      new Map(capture.workPackages.map(({ workPackageId }) => [workPackageId, []])),
     ),
-    metadataByProject: new Map(
-      capture.projects.map(({ projectId, abbreviation, reads }) => [
-        projectId,
+    metadataByWorkPackage: new Map(
+      capture.workPackages.map(({ workPackageId, abbreviation, reads }) => [
+        workPackageId,
         {
-          project: { ...reads.project, abbreviation, revision: 1, createdAt: 0 },
-          workItems: reads.workItems.map((row) => ({
-            ...row,
-            externalRefs: [],
-            factStart: null,
-            factEnd: null,
-            createdAt: 0,
-          })),
-          steps: reads.steps.map((step) => ({ ...step, projectId })),
+          workPackage: { ...reads.workPackage, abbreviation, revision: 1, createdAt: 0 },
+          workItems: authorFixtureLeafSteps(
+            reads.workItems.map((row) => ({
+              ...row,
+              externalRefs: [],
+              factStart: null,
+              factEnd: null,
+              createdAt: 0,
+            })),
+            reads.steps,
+          ),
+          steps: reads.steps.map((step) => ({ ...step, workPackageId })),
           attempts: [],
           blockages: [],
           seq: 1,
@@ -237,25 +248,25 @@ export function createFractionalConnectedOptimizationTree(
   sibling: 'idle' | 'pending' | 'failed' | 'boundary-infeasible' = 'idle',
   inputHash = 'fractional',
 ) {
-  const projects = ['A', 'B', 'C'].map((projectId, rank) => {
-    const reads = connectedReads(projectId);
+  const workPackages = ['A', 'B', 'C'].map((workPackageId, rank) => {
+    const reads = connectedReads(workPackageId);
     return {
-      projectId,
-      abbreviation: `P${projectId}`,
+      workPackageId,
+      abbreviation: `P${workPackageId}`,
       rank,
       reads: {
         ...reads,
-        project: {
-          ...reads.project,
-          optimizationEnabled: projectId === 'B',
-          scheduleEngine: projectId === 'B' ? ('optimized' as const) : ('fast' as const),
+        workPackage: {
+          ...reads.workPackage,
+          optimizationEnabled: workPackageId === 'B',
+          scheduleEngine: workPackageId === 'B' ? ('optimized' as const) : ('fast' as const),
           scheduleObjective: 'time' as const,
         },
         estimates: reads.estimates.map((estimate) => ({
           ...estimate,
-          optimistic: projectId === 'A' ? 0.2 : 1,
-          realistic: projectId === 'A' ? 0.2 : 1,
-          pessimistic: projectId === 'A' ? 0.2 : 1,
+          optimistic: workPackageId === 'A' ? 0.2 : 1,
+          realistic: workPackageId === 'A' ? 0.2 : 1,
+          pessimistic: workPackageId === 'A' ? 0.2 : 1,
         })),
       },
     };
@@ -264,21 +275,21 @@ export function createFractionalConnectedOptimizationTree(
     kind: 'connected',
     organizationId: 'org',
     mode: 'isolated',
-    projects,
+    workPackages,
     relationships: [
       {
         id: 'ab',
-        projectId: 'B',
+        workPackageId: 'B',
         type: 'FS',
-        predecessor: { projectId: 'A', scope: 'whole', workItemId: 'a' },
-        successor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
+        predecessor: { workPackageId: 'A', scope: 'whole', workItemId: 'a' },
+        successor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
       },
       {
         id: 'bc',
-        projectId: 'C',
+        workPackageId: 'C',
         type: 'FS',
-        predecessor: { projectId: 'B', scope: 'whole', workItemId: 'b' },
-        successor: { projectId: 'C', scope: 'whole', workItemId: 'c' },
+        predecessor: { workPackageId: 'B', scope: 'whole', workItemId: 'b' },
+        successor: { workPackageId: 'C', scope: 'whole', workItemId: 'c' },
       },
     ],
   };
@@ -298,7 +309,7 @@ export function createFractionalConnectedOptimizationTree(
         const classified = prepareConnectedBoundaryOutcome(prepared);
         const request = classified.certificate.request;
         const question = {
-          projectId: stage.projectId,
+          workPackageId: stage.workPackageId,
           inputHash: request.scope.inputHash,
           questionHash: request.scope.questionHash,
           objective,
@@ -349,7 +360,7 @@ export function createFractionalConnectedOptimizationTree(
     optimizer,
   );
   return {
-    ...presentConnectedTree(projectConnectedTree(buildConnectedRead(capture, projection), 'B')),
+    ...presentConnectedTree(workPackageConnectedTree(buildConnectedRead(capture, projection), 'B')),
     undoable: false,
     redoable: false,
   };
@@ -362,15 +373,15 @@ export function createUnavailableConnectedOptimizationTree(
   const reads = connectedReads('A', reason === 'missing-calendar' ? null : '2026-10-05');
   const capture = connectedCapture({
     ...reads,
-    project: {
-      ...reads.project,
+    workPackage: {
+      ...reads.workPackage,
       scheduleEngine: reason === 'required-engine' ? 'optimized' : 'fast',
       optimizationEnabled: reason === 'required-engine',
     },
   });
   const projection = deriveConnectedPlan(capture, { supports: () => false }, scheduleResolved);
   return {
-    ...presentConnectedTree(projectConnectedTree(buildConnectedRead(capture, projection), 'B')),
+    ...presentConnectedTree(workPackageConnectedTree(buildConnectedRead(capture, projection), 'B')),
     undoable: false,
     redoable: false,
   };

@@ -11,14 +11,13 @@ import {
   OWNERSHIP_CONFLICT_KINDS,
   type OwnershipConflictKind,
 } from './organization-ownership';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { copyRecoveryPrefix } from './testing/recovery-state';
 /**
  * The conflicts here re-own roots, which the ownership freeze refuses;
  * reconciliation still guards a database that reached such a state before the
  * freeze applied, so the fixture builds one by dropping the freeze triggers of
  * a fully migrated database. Rolling back below the freeze instead would also
- * take every newer table a conflict query reads (`project_resource_capacity`,
+ * take every newer table a conflict query reads (`work_package_resource_capacity`,
  * `work_item_resource_demand`).
  */
 function dropOwnershipFreeze(): void {
@@ -51,27 +50,27 @@ function run(statements: readonly string[]): void {
 /**
  * Two organizations before activation: the bridge maps everything to legacy, then organization
  * B's roots are re-owned, as a bug or a premature second tenant would leave them. Each has a
- * project, two work items, a step and one of every catalog, all linked inside the organization.
+ * work package, two work items, a step and one of every catalog, all linked inside the organization.
  */
 function roots(org: string): string[] {
   const statements = [
-    `INSERT INTO project (id, name, owner_id, created_at) VALUES ('p-${org}', 'Plan ${org}', 'u1', 1)`,
-    `INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-${org}', 'p-${org}', NULL, 0, 'Root')`,
-    `INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w2-${org}', 'p-${org}', 'w-${org}', 0, 'Child')`,
-    `INSERT INTO step (id, project_id, name, position) VALUES ('st-${org}', 'p-${org}', 'Build', 0)`,
+    `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p-${org}', 'Plan ${org}', 'u1', 1)`,
+    `INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-${org}', 'p-${org}', NULL, 0, 'Root')`,
+    `INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w2-${org}', 'p-${org}', 'w-${org}', 0, 'Child')`,
+    `INSERT INTO step (id, work_package_id, name, position) VALUES ('st-${org}', 'p-${org}', 'Build', 0)`,
     `INSERT INTO person (id, name) VALUES ('pe-${org}', 'Ada ${org}')`,
     `INSERT INTO service_team (id, name) VALUES ('tm-${org}', 'Team ${org}')`,
     `INSERT INTO service (id, name) VALUES ('sv-${org}', 'Service ${org}')`,
     `INSERT INTO tag (id, name) VALUES ('tg-${org}', 'Tag ${org}')`,
     `INSERT INTO work_item_type (id, name) VALUES ('ty-${org}', 'Type ${org}')`,
     `INSERT INTO external_system (id, name) VALUES ('es-${org}', 'System ${org}')`,
-    `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+    `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp-${org}', 'p-${org}', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
     `INSERT INTO resource (id, name, kind, unit_label) VALUES ('rs-${org}', 'RAM ${org}', 'divisible', 'GB')`,
   ];
   if (org === 'b')
     for (const kind of [
-      'project',
+      'work_package',
       'person',
       'service_team',
       'service',
@@ -90,7 +89,7 @@ function roots(org: string): string[] {
 /** Every dependent relation, linked within organization `org`. */
 function links(org: string): string[] {
   return [
-    `INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-${org}', 'p-${org}', 'w-${org}', 'w2-${org}')`,
+    `INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('d-${org}', 'p-${org}', 'w-${org}', 'w2-${org}')`,
     `UPDATE work_item SET service_team_id = 'tm-${org}', service_id = 'sv-${org}' WHERE id = 'w2-${org}'`,
     `INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-${org}', 'tg-${org}')`,
     `INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w-${org}', 'tm-${org}')`,
@@ -104,19 +103,19 @@ function links(org: string): string[] {
     `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w-${org}', 'st-${org}', 'hours_actual', 1, 1)`,
     `INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-${org}', 'tm-${org}')`,
     `INSERT INTO team_service (team_id, service_id) VALUES ('tm-${org}', 'sv-${org}')`,
-    `INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-${org}', 'tm-${org}', 1)`,
-    `INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p-${org}', 'rs-${org}', 8)`,
+    `INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('p-${org}', 'tm-${org}', 1)`,
+    `INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p-${org}', 'rs-${org}', 8)`,
     `INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES ('w2-${org}', 'rs-${org}', 2)`,
-    `INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-${org}', 'p-${org}', 'u1', 'k', 'l', 'w-${org}', 'st-${org}', '{}', '{}', 1)`,
-    `INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:p-${org}', 1)`,
-    `INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:p-${org}', 0, '{}', 1)`,
+    `INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-${org}', 'p-${org}', 'u1', 'k', 'l', 'w-${org}', 'st-${org}', '{}', '{}', 1)`,
+    `INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work-package:p-${org}', 1)`,
+    `INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('work-package:p-${org}', 0, '{}', 1)`,
   ];
 }
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-reconciliation-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  runMigrations(path, copyRecoveryPrefix(dir, '20261110100000_rename_project_to_work_package'));
   dropOwnershipFreeze();
   run([
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
@@ -137,14 +136,14 @@ async function findConflicts(): Promise<{ kind: OwnershipConflictKind; id: strin
   return new OrganizationOwnershipRepository(openDrizzle(path)).findOwnershipConflicts();
 }
 
-/** One cross-organization or cross-project reference per conflict kind. */
+/** One cross-organization or cross-work-package reference per conflict kind. */
 const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
-  saved_plan_project: [
+  saved_plan_work_package: [
     "UPDATE saved_plan_organization SET organization_id = 'org-b' WHERE resource_id = 'sp-a'",
     'sp-a',
   ],
   dependency_endpoint: [
-    "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-x', 'p-a', 'w-a', 'w-b')",
+    "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('d-x', 'p-a', 'w-a', 'w-b')",
     'd-x',
   ],
   work_item_parent: ["UPDATE work_item SET parent_id = 'w-b' WHERE id = 'w2-a'", 'w2-a'],
@@ -209,12 +208,12 @@ const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
     "INSERT INTO team_service (team_id, service_id) VALUES ('tm-a', 'sv-b')",
     'tm-a/sv-b',
   ],
-  project_team_capacity: [
-    "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-a', 'tm-b', 1)",
+  work_package_team_capacity: [
+    "INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('p-a', 'tm-b', 1)",
     'p-a/tm-b',
   ],
-  project_resource_capacity: [
-    "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES ('p-a', 'rs-b', 1)",
+  work_package_resource_capacity: [
+    "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('p-a', 'rs-b', 1)",
     'p-a/rs-b',
   ],
   work_item_resource_demand: [
@@ -222,16 +221,61 @@ const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
     'w-a/rs-b',
   ],
   plan_event_subject: [
-    "INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-x', 'p-a', 'u1', 'k', 'l', 'w-b', NULL, '{}', '{}', 1)",
+    "INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at) VALUES ('e-x', 'p-a', 'u1', 'k', 'l', 'w-b', NULL, '{}', '{}', 1)",
     'e-x',
   ],
   event_stream: [
-    "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:deleted', 0, '{}', 1)",
-    'project:deleted',
+    "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('work-package:deleted', 0, '{}', 1)",
+    'work-package:deleted',
   ],
 };
 
+function captureTransport() {
+  const db = openDatabase(path);
+  try {
+    return {
+      log: db.query('SELECT * FROM event_log ORDER BY subscription, seq').all(),
+      sequencer: db.query('SELECT * FROM event_sequencer ORDER BY subscription').all(),
+    };
+  } finally {
+    db.close();
+  }
+}
+
 describe('OrganizationOwnershipRepository.findOwnershipConflicts', () => {
+  it('both stored namespaces resolve the same mapped owner without rewriting transport rows', async () => {
+    run([
+      `INSERT INTO event_log (subscription, seq, message, created_at)
+       VALUES ('project:p-a', 7, '{ "projectId" : "old-value", "opaque" : [3, 1] }', 107)`,
+      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:p-a', 41)",
+    ]);
+    const before = captureTransport();
+    expect(await findConflicts()).toEqual([]);
+    expect(captureTransport()).toEqual(before);
+  });
+
+  it('live unmapped and unknown stored keys retain exact conflict identities', async () => {
+    run([
+      "DELETE FROM work_package_organization WHERE resource_id = 'p-a'",
+      "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:p-a', 7, '{}', 107)",
+      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:p-a', 41)",
+      "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('work_package:p-a', 3, '{}', 103)",
+      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work_package:p-a', 37)",
+    ]);
+    const before = captureTransport();
+    expect((await findConflicts()).filter(({ kind }) => kind === 'event_stream')).toEqual([
+      { kind: 'event_stream', id: 'project:p-a' },
+      { kind: 'event_stream', id: 'work-package:p-a' },
+      { kind: 'event_stream', id: 'work_package:p-a' },
+    ]);
+    const repository = new OrganizationOwnershipRepository(openDrizzle(path));
+    expect(await repository.findUnmappedRoots()).toContainEqual({
+      kind: 'work_package',
+      id: 'p-a',
+    });
+    expect(captureTransport()).toEqual(before);
+  });
+
   it('answers empty when every dependent stays inside its organization', async () => {
     expect(await findConflicts()).toEqual([]);
   });
@@ -243,7 +287,7 @@ describe('OrganizationOwnershipRepository.findOwnershipConflicts', () => {
   });
 
   it('keeps late legacy-era writes of every family mapped and conflict-free through the bridge', async () => {
-    // An outgoing-release writer adds a whole project family after the legacy organization exists.
+    // An outgoing-release writer adds a whole work package family after the legacy organization exists.
     // Proof: dropping `saved_plan_organization_bridge` first made this case fail on the unmapped
     // `sp-c`. Observed 2026-09-27.
     run([...roots('c'), ...links('c')]);

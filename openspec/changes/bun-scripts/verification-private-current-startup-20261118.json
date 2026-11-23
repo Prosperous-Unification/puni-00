@@ -1,0 +1,1594 @@
+{
+  "schema": "private-puni-current-startup-observations-v1",
+  "date": "2026-11-18",
+  "status": "bounded private implementation progress; full goal remains active",
+  "sourceBeforeNotes": {
+    "path": "/tmp/puni-cli-loaded-first-live-v1/source-pins.json",
+    "sha256": "b04c53804316fbcc348bd5a8723901c671e82734a1d9dada7bb845d6ce8d77e4",
+    "bytes": 261234,
+    "mode": 384
+  },
+  "observations": [
+    {
+      "qualification": "Original current request first RED at the frozen historical closed decoder; setup prerequisites passed, later negatives unreached.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.receipt.json",
+          "sha256": "a013cee776977364e60c6c323fb0aeb12f695991fbdc9f7476c81b658415e0d8",
+          "bytes": 1488,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.log",
+          "sha256": "52bf04826a20d77b1145324296f31350b6f1a0d4d11d3fe9c069aec43e037e91",
+          "bytes": 1290,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.validation.json",
+          "sha256": "430c33e996f8c1ceb51bfd56e938ede93e56bb3c7e9c9419f1c13f3234187246",
+          "bytes": 1798,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "tools/tool-remote-scripts/src/lib/dependency-complete-activation.test.ts",
+            "--test-name-pattern",
+            "^current source request explicitly routes cold-v2 while retaining the detached historical request$",
+            "--timeout=30000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T08:46:56.961Z",
+        "endedAt": "2026-11-18T08:46:57.066Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.log",
+          "sha256": "52bf04826a20d77b1145324296f31350b6f1a0d4d11d3fe9c069aec43e037e91",
+          "bytes": 1290
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-remote-scripts/src/lib/dependency-complete-activation.test.ts:\n54 | }\n55 | // Proof: ignoring closed fields admitted extra-completion-field through real retained-record inspection.\n56 | export function readClosed(value: unknown, keys: string[]): Fields {\n57 |   const record = readFields(value);\n58 |   if (Object.keys(record).length !== keys.length || keys.some((key) => !Object.hasOwn(record, key)))\n59 |     throw new Error('managed cohort record has unknown or missing fields');\n                                                                              ^\nerror: managed cohort record has unknown or missing fields\n      at readClosed (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-remote-scripts/src/lib/managed-cohort.ts:59:74)\n      at decodeCompleteDependencyActivationRequest (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts:99:18)\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-remote-scripts/src/lib/dependency-complete-activation.test.ts:168:19)\n(fail) current source request explicitly routes cold-v2 while retaining the detached historical request [0.85ms]\n\n 0 pass\n 19 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [86.00ms]\n",
+      "validation": {
+        "phase": "coldRequest",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-request-first-live-v3/source-pins.json",
+            "sha256": "7334111f6b678a5f7884b3ad1ddf5d1da6be617b8e74d66a68ecc583bc0f6e7d",
+            "bytes": 256880,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-request-first-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-request-first-live-v3/forge-read-inputs.json",
+            "sha256": "e660ac640cf2c5c31e20f8f66ce7c7e20cfadd42b82218dfb32b79fc8e71dff5",
+            "bytes": 12542,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.log",
+            "sha256": "52bf04826a20d77b1145324296f31350b6f1a0d4d11d3fe9c069aec43e037e91",
+            "bytes": 1290,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.receipt.json",
+            "sha256": "a013cee776977364e60c6c323fb0aeb12f695991fbdc9f7476c81b658415e0d8",
+            "bytes": 1488,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Original exact packaging facade importer boundary first RED, real Nx prerequisite and inherited options reached.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.receipt.json",
+          "sha256": "6e0147d7305aa40d439be593ff9569b4137c1ff923c9d2c84104eb963388cf7d",
+          "bytes": 1459,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.log",
+          "sha256": "bde6568682cff7f3de3b33ec2c261d48d4cdecdf40695b420187891789c3ae32",
+          "bytes": 1197,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.validation.json",
+          "sha256": "719200d9e7ad702a09ea0c17627bdfb10ac5a9df4e4b2d060159f6f37c736695",
+          "bytes": 1776,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "tools/tool-devsync/src/puni-boundaries.test.ts",
+            "--test-name-pattern",
+            "^current source installation verification permits only its exact public PUNI packaging facade importer$",
+            "--timeout=30000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:06:43.130Z",
+        "endedAt": "2026-11-18T09:06:44.896Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.log",
+          "sha256": "bde6568682cff7f3de3b33ec2c261d48d4cdecdf40695b420187891789c3ae32",
+          "bytes": 1197
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-devsync/src/puni-boundaries.test.ts:\n327 |   const inherited = await readBoundaryConfig('tools/tool-remote-scripts/src/lib/source-dev-inputs.ts');\n328 |   const inheritedAllow = inherited['allow'];\n329 |   if (!Array.isArray(inheritedAllow) || !inheritedAllow.every((entry: unknown): entry is string => typeof entry === 'string'))\n330 |     throw new Error('source installation inherited boundary allowances are malformed');\n331 |   expect(inheritedAllow).toEqual(['^@wbs/contracts/solver/supervisor-protocol$', '^@wbs/domain$']);\n332 |   expect(selected['allow']).toEqual([...inheritedAllow, '^@puni/packaging$']);\n                                  ^\nerror: expect(received).toEqual(expected)\n\n  [\n    \"^@wbs/contracts/solver/supervisor-protocol$\",\n    \"^@wbs/domain$\",\n-   \"^@puni/packaging$\",\n  ]\n\n- Expected  - 1\n+ Received  + 0\n\n      at <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-devsync/src/puni-boundaries.test.ts:332:29)\n(fail) current source installation verification permits only its exact public PUNI packaging facade importer [1177.05ms]\n\n 0 pass\n 59 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [1.73s]\n",
+      "validation": {
+        "phase": "coldBoundary",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-type-boundary-live-v1/source-pins.json",
+            "sha256": "718cd72ace2f076ee699bcf1a32dd82c120977c3422c97c0e30f2047d8765466",
+            "bytes": 256880,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-type-boundary-live-v1/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-type-boundary-live-v1/forge-read-inputs.json",
+            "sha256": "60426d63f487d73511c4fc6c1cc3a561673ed4b332053317f84b6fa522d350ee",
+            "bytes": 12542,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.log",
+            "sha256": "bde6568682cff7f3de3b33ec2c261d48d4cdecdf40695b420187891789c3ae32",
+            "bytes": 1197,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-type-boundary-live-v1/coldBoundary/native.receipt.json",
+            "sha256": "6e0147d7305aa40d439be593ff9569b4137c1ff923c9d2c84104eb963388cf7d",
+            "bytes": 1459,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Current25 checkpoint:request1/5assertions,boundary1/3,realinstalledtree5/84,numeric-userBunimage12/42. Current HTTP/container readiness and loaded compiler/assets closure remain unproved.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.receipt.json",
+          "sha256": "6c346b8bfb744fe747b361b757cea187a57f7354d283f5da096536ec78d81a1f",
+          "bytes": 1523,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.log",
+          "sha256": "08748ce09df79afb75383b95bee6680bdfb04c766d938a8f3495f55bb20e9dee",
+          "bytes": 305,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.validation.json",
+          "sha256": "cd10a60f9381b5176dfae6f740ea959e135f52350ac89fe6255e874778a66507",
+          "bytes": 1782,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "--timeout=30000",
+            "tools/tool-remote-scripts/src/lib/dependency-complete-activation.test.ts",
+            "--test-name-pattern=^current source request explicitly routes cold-v2 while retaining the detached historical request$"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:52:57.265Z",
+        "endedAt": "2026-11-18T09:52:57.771Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.log",
+          "sha256": "08748ce09df79afb75383b95bee6680bdfb04c766d938a8f3495f55bb20e9dee",
+          "bytes": 305
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-remote-scripts/src/lib/dependency-complete-activation.test.ts:\n(pass) current source request explicitly routes cold-v2 while retaining the detached historical request [1.86ms]\n\n 1 pass\n 19 filtered out\n 0 fail\n 5 expect() calls\nRan 1 test across 1 file. [479.00ms]\n",
+      "validation": {
+        "phase": "coldRequest",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/source-pins.json",
+            "sha256": "d642adc37beb4465d4cf54901e45563ca6ee20833d034d32c86955251ac19ad9",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.log",
+            "sha256": "08748ce09df79afb75383b95bee6680bdfb04c766d938a8f3495f55bb20e9dee",
+            "bytes": 305,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldRequest/native.receipt.json",
+            "sha256": "6c346b8bfb744fe747b361b757cea187a57f7354d283f5da096536ec78d81a1f",
+            "bytes": 1523,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Current25 checkpoint:request1/5assertions,boundary1/3,realinstalledtree5/84,numeric-userBunimage12/42. Current HTTP/container readiness and loaded compiler/assets closure remain unproved.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.receipt.json",
+          "sha256": "7dc978da4ecf36c9851e65cf5a921ed2610f9f64c3d8b5526db152e68a26956c",
+          "bytes": 1428,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.log",
+          "sha256": "64f2a335babc55881282206d136ad39e13ab1aeb322ae7820784cc15f137e132",
+          "bytes": 284,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.validation.json",
+          "sha256": "9924ddcb6474a6b05ab0959ee1b63d0397ec19833ca9d723e555f838348c2e8f",
+          "bytes": 1785,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "--timeout=30000",
+            "tools/tool-devsync/src/puni-boundaries.test.ts",
+            "--test-name-pattern=current source installation"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:53:01.518Z",
+        "endedAt": "2026-11-18T09:53:03.098Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.log",
+          "sha256": "64f2a335babc55881282206d136ad39e13ab1aeb322ae7820784cc15f137e132",
+          "bytes": 284
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-devsync/src/puni-boundaries.test.ts:\n(pass) current source installation verification permits only its exact public PUNI packaging facade importer [1028.73ms]\n\n 1 pass\n 59 filtered out\n 0 fail\n 3 expect() calls\nRan 1 test across 1 file. [1.54s]\n",
+      "validation": {
+        "phase": "coldBoundary",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/source-pins.json",
+            "sha256": "d642adc37beb4465d4cf54901e45563ca6ee20833d034d32c86955251ac19ad9",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.log",
+            "sha256": "64f2a335babc55881282206d136ad39e13ab1aeb322ae7820784cc15f137e132",
+            "bytes": 284,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldBoundary/native.receipt.json",
+            "sha256": "7dc978da4ecf36c9851e65cf5a921ed2610f9f64c3d8b5526db152e68a26956c",
+            "bytes": 1428,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Current25 checkpoint:request1/5assertions,boundary1/3,realinstalledtree5/84,numeric-userBunimage12/42. Current HTTP/container readiness and loaded compiler/assets closure remain unproved.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.receipt.json",
+          "sha256": "8e436516c544dcdafa3a12270b08103ec4d606333d9349a937350e0557f98a09",
+          "bytes": 1458,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.log",
+          "sha256": "a7e09900cba32a96acb7039d74085e4052741228fe222283c144903f0de83f6b",
+          "bytes": 843,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.validation.json",
+          "sha256": "fc670a6831e6a745b8434be2e296812969e5266096006cde720e8c222a6daa59",
+          "bytes": 1773,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "--timeout=90000",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "--test-name-pattern=^current cold source owns "
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:53:08.536Z",
+        "endedAt": "2026-11-18T09:53:17.405Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.log",
+          "sha256": "a7e09900cba32a96acb7039d74085e4052741228fe222283c144903f0de83f6b",
+          "bytes": 843
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts:\n(pass) current cold source owns healthy after real Bun installation, clean Git and full current tree capture [1703.23ms]\n(pass) current cold source owns changed-source after real Bun installation, clean Git and full current tree capture [1719.85ms]\n(pass) current cold source owns changed-config after real Bun installation, clean Git and full current tree capture [1745.31ms]\n(pass) current cold source owns changed-installation after real Bun installation, clean Git and full current tree capture [1658.78ms]\n(pass) current cold source owns legacy-launch after real Bun installation, clean Git and full current tree capture [1683.09ms]\n\n 5 pass\n 102 filtered out\n 0 fail\n 84 expect() calls\nRan 5 tests across 1 file. [8.83s]\n",
+      "validation": {
+        "phase": "coldTree",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/source-pins.json",
+            "sha256": "d642adc37beb4465d4cf54901e45563ca6ee20833d034d32c86955251ac19ad9",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.log",
+            "sha256": "a7e09900cba32a96acb7039d74085e4052741228fe222283c144903f0de83f6b",
+            "bytes": 843,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTree/native.receipt.json",
+            "sha256": "8e436516c544dcdafa3a12270b08103ec4d606333d9349a937350e0557f98a09",
+            "bytes": 1458,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Current25 checkpoint:request1/5assertions,boundary1/3,realinstalledtree5/84,numeric-userBunimage12/42. Current HTTP/container readiness and loaded compiler/assets closure remain unproved.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.receipt.json",
+          "sha256": "0c854d8d611eed3daeb752046adacb81c770a1c2cf6940be59815175536a2552",
+          "bytes": 1439,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.log",
+          "sha256": "117d2ad661f72f8dbba16500216def27941781260128a42a6e1c0903e2f0d402",
+          "bytes": 1533,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.validation.json",
+          "sha256": "5fe64c2bbae99a52bb504fd2d730e66e736bd09445ef5712e3cd9f74f725eea7",
+          "bytes": 1777,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "--timeout=15000",
+            "tools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts",
+            "--test-name-pattern=^current Bun image probe owns "
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:53:22.712Z",
+        "endedAt": "2026-11-18T09:53:23.659Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.log",
+          "sha256": "117d2ad661f72f8dbba16500216def27941781260128a42a6e1c0903e2f0d402",
+          "bytes": 1533
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-remote-scripts/src/lib/source-dev-inputs.test.ts:\n(pass) current Bun image probe owns absent HOME and healthy after healthy numeric-user premises [21.65ms]\n(pass) current Bun image probe owns absent HOME and home-config after healthy numeric-user premises [42.02ms]\n(pass) current Bun image probe owns absent HOME and source-config after healthy numeric-user premises [32.49ms]\n(pass) current Bun image probe owns absent HOME and source-dangling after healthy numeric-user premises [34.46ms]\n(pass) current Bun image probe owns absent HOME and home-unreadable after healthy numeric-user premises [32.87ms]\n(pass) current Bun image probe owns absent HOME and source-unreadable after healthy numeric-user premises [29.09ms]\n(pass) current Bun image probe owns present HOME and healthy after healthy numeric-user premises [20.06ms]\n(pass) current Bun image probe owns present HOME and home-config after healthy numeric-user premises [41.79ms]\n(pass) current Bun image probe owns present HOME and source-config after healthy numeric-user premises [46.53ms]\n(pass) current Bun image probe owns present HOME and source-dangling after healthy numeric-user premises [50.55ms]\n(pass) current Bun image probe owns present HOME and home-unreadable after healthy numeric-user premises [45.44ms]\n(pass) current Bun image probe owns present HOME and source-unreadable after healthy numeric-user premises [30.33ms]\n\n 12 pass\n 55 filtered out\n 0 fail\n 42 expect() calls\nRan 12 tests across 1 file. [904.00ms]\n",
+      "validation": {
+        "phase": "coldImage",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/source-pins.json",
+            "sha256": "d642adc37beb4465d4cf54901e45563ca6ee20833d034d32c86955251ac19ad9",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.log",
+            "sha256": "117d2ad661f72f8dbba16500216def27941781260128a42a6e1c0903e2f0d402",
+            "bytes": 1533,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldImage/native.receipt.json",
+            "sha256": "0c854d8d611eed3daeb752046adacb81c770a1c2cf6940be59815175536a2552",
+            "bytes": 1439,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Normal PUNI/remote-scripts/devsync/Burokrat roots passed atd642adc3 before later tests-only loaded-SDK composition.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.receipt.json",
+          "sha256": "638554c341228ecafb2387eaf3355b0a63e3bb6f001194bfc76fbf1da8bd1670",
+          "bytes": 1497,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.validation.json",
+          "sha256": "1b6a8baa0b79c8f9804e06bc28ddf3a848dc00cd57d32e57dcfcc4d8ae27ceef",
+          "bytes": 1774,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/puni/cli/tsconfig.json",
+            "tools/tool-remote-scripts/tsconfig.json",
+            "tools/tool-devsync/tsconfig.json",
+            "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:53:47.886Z",
+        "endedAt": "2026-11-18T09:53:59.521Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "transcript": "",
+      "validation": {
+        "phase": "coldTypes",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/source-pins.json",
+            "sha256": "d642adc37beb4465d4cf54901e45563ca6ee20833d034d32c86955251ac19ad9",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-cold-checkpoint-live-v3/coldTypes/native.receipt.json",
+            "sha256": "638554c341228ecafb2387eaf3355b0a63e3bb6f001194bfc76fbf1da8bd1670",
+            "bytes": 1497,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "109pass351assertions across8files with diagnostic Nx owner instrumentation. The clean fixture still fails and this is not its fix.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.receipt.json",
+          "sha256": "eabf70c2a353e8bb2d056646094f8c6a32295e44dcd0ea0cd2d45b71c1039514",
+          "bytes": 1803,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.log",
+          "sha256": "16a6264b3f729f7dcd4610ab35988218adcffcdea4351ed384dbaf82a21d2b91",
+          "bytes": 15393,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.validation.json",
+          "sha256": "92f412b96de989c8978a598fc1fe61c74708e366b2735994e3542b351cd0d080",
+          "bytes": 1869,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "tools/tool-devsync/src/k3s/forge-installation.test.ts",
+            "tools/tool-devsync/src/k3s/forge-admission.test.ts",
+            "tools/tool-devsync/src/k3s/forge-puni-admission.test.ts",
+            "tools/tool-devsync/src/k3s/dev-environment.test.ts",
+            "tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts",
+            "tools/tool-devsync/src/k3s/forge-supervisor.test.ts",
+            "tools/tool-fleet/src/k3d-lab.test.ts",
+            "tools/tool-fleet/src/forge-installation-policy.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:47:28.660Z",
+        "endedAt": "2026-11-18T09:47:41.237Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.log",
+          "sha256": "16a6264b3f729f7dcd4610ab35988218adcffcdea4351ed384dbaf82a21d2b91",
+          "bytes": 15393
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-fleet/src/k3d-lab.test.ts:\n(pass) parseK3dLabRequest > decodes an up request with a resolved worktree root [0.28ms]\n(pass) parseK3dLabRequest > defaults the lab ID to local [0.02ms]\n(pass) parseK3dLabRequest > refuses a flag without a value [0.04ms]\n(pass) parseK3dLabRequest > refuses a lab ID that is not a short DNS label [0.05ms]\n(pass) parseK3dLabRequest > refuses an unknown profile, action, or flag [0.04ms]\n(pass) parseK3dLabRequest > requires an explicit worktree root on up and refuses mounts elsewhere [0.02ms]\n(pass) parseK3dLabRequest > routes only --lab-id requests to the VM lab [0.02ms]\n(pass) renderK3dConfig > substitutes every placeholder [0.10ms]\n(pass) renderK3dConfig > refuses a placeholder without a value [0.02ms]\n(pass) renderK3dConfig > refuses a dollar sign it did not substitute [0.02ms]\n(pass) renderK3dConfig > refuses a value that could break out of its YAML scalar [0.01ms]\n(pass) renderK3dConfig > renders both committed configs with loopback-only host ports and lab labels [10.62ms]\n(pass) requireProfileResources > accepts a host with room for the profile [0.10ms]\n(pass) requireProfileResources > refuses a short host and names the next smaller profile [0.04ms]\n(pass) requireProfileResources > points below app at native Bun [0.01ms]\n(pass) requireProfileResources > reads MemAvailable and refuses a kernel without it [0.08ms]\n(pass) planK3dLabDown > deletes only lab-labelled resources with lab-derived names [0.17ms]\n(pass) planK3dLabDown > never deletes a lab-named resource that lacks the lab label [0.06ms]\n(pass) planK3dLabDown > leaves clusters outside the named profile [0.04ms]\n(pass) planK3dLabDown > keeps state while anything it names remains [0.04ms]\n(pass) planK3dLabDown > refuses an unreadable Docker row [0.02ms]\n(pass) requireLoopbackPublished > accepts loopback-only bindings [0.06ms]\n(pass) requireLoopbackPublished > refuses a port published beyond loopback [0.04ms]\n(pass) prepareStateDirectory > creates an owner-only directory that Git ignores [4.89ms]\n(pass) prepareStateDirectory > refuses a state directory Git would commit [3.47ms]\n(pass) prepareStateDirectory > tightens an existing directory to owner-only [5.69ms]\n(pass) decodeK3dLabRecord > accepts the record up writes [0.86ms]\n(pass) decodeK3dLabRecord > refuses a record with an unknown field or a missing cluster [2.03ms]\n(pass) decodeK3dLabRecord > keeps lab1 closed while an explicit lab2 records its installation mount identity [0.69ms]\n(pass) requireLabTools > names the locked version and variable of an absent tool [3.33ms]\n(pass) generates a fresh strict namespace and refuses a caller-selected creation identity [0.13ms]\n(pass) refuses legacy commands for the reserved strict namespace even without a marker [0.02ms]\n(pass) Flux bootstrap authenticates vendor before applying shared overlay and waits afterward [438.13ms]\n(pass) a PUNI lab explicitly parses its external installation root without changing legacy status [0.12ms]\n(pass) renders the explicit PUNI lab installation mount read-only beside the original node bindings [0.48ms]\n\ntools/tool-fleet/src/forge-installation-policy.test.ts:\n(pass) the committed platform explicitly starts with no PUNI installation permission [0.87ms]\n\ntools/tool-devsync/src/k3s/dev-environment.test.ts:\n(pass) parseDevEnvironmentRequest > decodes up with a resolved worktree [0.77ms]\n(pass) parseDevEnvironmentRequest > refuses a slug that is not a short DNS label [0.10ms]\n(pass) parseDevEnvironmentRequest > refuses up without a worktree, a non-lab cluster, and unknown or repeated flags [0.08ms]\n(pass) findForgeCluster > finds the platform cluster of a lab [0.10ms]\n(pass) findForgeCluster > refuses a workers cluster and an unknown cluster [0.03ms]\n(pass) findForgeCluster > decodes the lab record and refuses a malformed one [0.45ms]\n(pass) requireOwnedWorktree > maps an owned worktree under the prefix to its node path [0.12ms]\n(pass) requireOwnedWorktree > refuses a symlink that escapes the prefix [0.03ms]\n(pass) requireOwnedWorktree > refuses a path outside the prefix and the prefix itself [2.16ms]\n(pass) requireOwnedWorktree > refuses a subdirectory of a worktree [0.03ms]\n(pass) requireOwnedWorktree > refuses a worktree another user owns [0.02ms]\n(pass) requireOwnedWorktree > refuses a checkout of another repository [0.02ms]\n(pass) requireOwnedWorktree > refuses a path the comma-separated admission list cannot hold [0.01ms]\n(pass) requireUniqueEnvironment > allows re-running up for the same slug and worktree [0.06ms]\n(pass) requireUniqueEnvironment > refuses a legacy shared-namespace environment before creating a duplicate [0.02ms]\n(pass) requireUniqueEnvironment > refuses a duplicate slug for another worktree [0.01ms]\n(pass) requireUniqueEnvironment > refuses a second slug for the same worktree [0.01ms]\n(pass) bindEnvironment > binds the committed overlay to one environment [2.08ms]\n(pass) bindEnvironment > refuses an overlay with an extra object [0.84ms]\n(pass) bindEnvironment > refuses an object in another namespace and an extra volume [1.24ms]\n(pass) bindEnvironment > refuses a forge image that is not digest-pinned [0.51ms]\n(pass) bindEnvironment > runs the Pod as the worktree owner [0.60ms]\n(pass) bindEnvironment > refuses to run as root [0.42ms]\n(pass) bindEnvironment > changes the Pod fingerprint when the recreate inputs change [0.90ms]\n(pass) decodeRunningEnvironments > reads the identity a bound Pod carries [0.77ms]\n(pass) decodeRunningEnvironments > refuses a forge Pod without its identity [0.04ms]\n(pass) existingPodFingerprint > reads the first listed Pod, so up can tell keep from recreate [0.94ms]\n(pass) digestRecreateInputs > depends on content and path, not listing order [0.37ms]\n(pass) forge supervisor fingerprint > restarts on a changed restart path and marks absence explicitly [1.11ms]\n(pass) forge supervisor fingerprint > hashes a file by content [0.26ms]\n(pass) installFailureOf > reports an install failure from the current or last termination [0.09ms]\n(pass) requireMountedRoot > accepts the recorded directory and refuses a root replaced after lab up [0.04ms]\nNX_INSPECTOR DEBUG nx::native::tasks::running_tasks_service: Checking if 3542831 exists\nDEBUG nx::native::tasks::running_tasks_service: Task fixture:serve is running\nNX_LOOKUP {\"label\":\"independent-inspector\",\"pid\":3542831,\"observerPid\":3542879,\"workspaceRoot\":\"/tmp/forge-nx-ownership-qwj40p\",\"directory\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data\",\"databasePath\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data/20805c41a8fee67f5231b7eb6a92e71c-v3.db\",\"lookup\":[\"fixture:serve\"],\"rows\":[{\"task_id\":\"fixture:serve\",\"pid\":3542831,\"command\":\"/home/df/.bun/bin/bun --no-env-file --config=/dev/null /tmp/forge-nx-ownership-qwj40p/owner.cjs\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\"}],\"cmdlineHex\":\"2f686f6d652f64662f2e62756e2f62696e2f62756e002d2d6e6f2d656e762d66696c65002d2d636f6e6669673d2f6465762f6e756c6c002f746d702f666f7267652d6e782d6f776e6572736869702d71776a3430702f6f776e65722e636a7300\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\",\"stat\":\"3542831 (bun) S 3542582 3542831 3542831 0 -1 4194304 7007 0 0 0 4 3 0 0 32 12 39 0 82327210 8410828800 14734 18446744073709551615 27526656 109269568 140724076747856 0 0 0 0 16781312 1610614008 0 0 0 17 8 0 0 0 0 0 109273664 109391576 286277632 140724076756443 140724076756539 140724076756539 140724076756962 0\\n\",\"observerArgv\":[\"/home/df/.bun/bin/bun\",\"/tmp/forge-nx-ownership-qwj40p/inspector.cjs\"],\"observerExecArgv\":[\"--no-env-file\",\"--config=/dev/null\"]}\n\nNX_OWNER_DIAGNOSTIC DEBUG nx::native::tasks::running_tasks_service: Added fixture:serve to running tasks\nDEBUG nx::native::tasks::running_tasks_service: Checking if 3542831 exists\nDEBUG nx::native::tasks::running_tasks_service: Task fixture:serve is running\nNX_LOOKUP {\"label\":\"owner-at-add\",\"pid\":3542831,\"observerPid\":3542831,\"workspaceRoot\":\"/tmp/forge-nx-ownership-qwj40p\",\"directory\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data\",\"databasePath\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data/20805c41a8fee67f5231b7eb6a92e71c-v3.db\",\"lookup\":[\"fixture:serve\"],\"rows\":[{\"task_id\":\"fixture:serve\",\"pid\":3542831,\"command\":\"/home/df/.bun/bin/bun --no-env-file --config=/dev/null /tmp/forge-nx-ownership-qwj40p/owner.cjs\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\"}],\"cmdlineHex\":\"2f686f6d652f64662f2e62756e2f62696e2f62756e002d2d6e6f2d656e762d66696c65002d2d636f6e6669673d2f6465762f6e756c6c002f746d702f666f7267652d6e782d6f776e6572736869702d71776a3430702f6f776e65722e636a7300\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\",\"stat\":\"3542831 (bun) R 3542582 3542831 3542831 0 -1 4194304 6785 0 0 0 4 2 0 0 32 12 31 0 82327210 8406601728 14573 18446744073709551615 27526656 109269568 140724076747856 0 0 0 0 16781312 1610614008 0 0 0 17 8 0 0 0 0 0 109273664 109391576 286277632 140724076756443 140724076756539 140724076756539 140724076756962 0\\n\",\"observerArgv\":[\"/home/df/.bun/bin/bun\",\"/tmp/forge-nx-ownership-qwj40p/owner.cjs\"],\"observerExecArgv\":[\"--no-env-file\",\"--config=/dev/null\"]}\nDEBUG nx::native::tasks::running_tasks_service: Checking if 3542831 exists\nDEBUG nx::native::tasks::running_tasks_service: Task fixture:serve is running\nNX_LOOKUP {\"label\":\"owner-next-turn\",\"pid\":3542831,\"observerPid\":3542831,\"workspaceRoot\":\"/tmp/forge-nx-ownership-qwj40p\",\"directory\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data\",\"databasePath\":\"/tmp/forge-nx-ownership-qwj40p/.nx/workspace-data/20805c41a8fee67f5231b7eb6a92e71c-v3.db\",\"lookup\":[\"fixture:serve\"],\"rows\":[{\"task_id\":\"fixture:serve\",\"pid\":3542831,\"command\":\"/home/df/.bun/bin/bun --no-env-file --config=/dev/null /tmp/forge-nx-ownership-qwj40p/owner.cjs\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\"}],\"cmdlineHex\":\"2f686f6d652f64662f2e62756e2f62696e2f62756e002d2d6e6f2d656e762d66696c65002d2d636f6e6669673d2f6465762f6e756c6c002f746d702f666f7267652d6e782d6f776e6572736869702d71776a3430702f6f776e65722e636a7300\",\"cwd\":\"/tmp/forge-nx-ownership-qwj40p\",\"stat\":\"3542831 (bun) R 3542582 3542831 3542831 0 -1 4194304 7003 0 0 0 4 2 0 0 32 12 39 0 82327210 8410828800 14965 18446744073709551615 27526656 109269568 140724076747856 0 0 0 0 16781312 1610614008 0 0 0 17 8 0 0 0 0 0 109273664 109391576 286277632 140724076756443 140724076756539 140724076756539 140724076756962 0\\n\",\"observerArgv\":[\"/home/df/.bun/bin/bun\",\"/tmp/forge-nx-ownership-qwj40p/owner.cjs\"],\"observerExecArgv\":[\"--no-env-file\",\"--config=/dev/null\"]}\nownership ready\n\nNX_DIAGNOSTIC_RETAINED /tmp/forge-nx-ownership-qwj40p\n(pass) forge Nx workspace state > starts independently of poisoned worktree ownership without changing its database [711.60ms]\n(pass) Forge up parses an explicitly pinned installation selection while preserving down and status requests [0.13ms]\n(pass) keeps legacy lab schema closed and admits an explicit installation-mapped lab2 [0.50ms]\n(pass) refuses absent, relative, malformed or out-of-scope selection arguments [0.10ms]\n\ntools/tool-devsync/src/k3s/forge-installation.test.ts:\n(pass) Forge binds an explicitly selected external PUNI installation without changing its existing tier resources [2.06ms]\n(pass) Forge refuses partial or writable installation mounts before binding the committed Pod [3.51ms]\n\ntools/tool-devsync/src/k3s/forge-admission.test.ts:\n(pass) decodeForgeAdmission > takes the committed roots as the base on the first write [0.30ms]\n(pass) decodeForgeAdmission > refuses parameters another lab owns [0.03ms]\n(pass) decodeForgeAdmission > refuses a Flux-applied ConfigMap without create-once [0.08ms]\n(pass) planForgeAdmission > derives roots from the base, the claims and the solver directory [0.21ms]\n(pass) planForgeAdmission > refuses a second forge image while another environment holds the first [0.06ms]\n(pass) planForgeAdmission > restores the previous claim and image [0.03ms]\n(pass) updateForgeAdmission > keeps both roots when two claims race [0.63ms]\n(pass) updateForgeAdmission > releases a root by slug and gives up after bounded conflicts [0.31ms]\n(pass) round-trips exact installation claims separately from writable worktree policy parameters [0.11ms]\n(pass) refuses absent explicit installation admission fields instead of accepting a legacy parameter object [0.05ms]\n(pass) refuses ambiguous installation directory spelling before policy encoding [0.08ms]\n(pass) refuses installation policy roots that do not exactly reflect their retained claims [0.08ms]\n(pass) refuses a malformed incoming installation claim before replacing admission after a healthy actual update [0.42ms]\n\ntools/tool-devsync/src/k3s/forge-puni-admission.test.ts:\n(pass) Forge claims an exact installation separately from its worktree mount permission [0.07ms]\n(pass) Forge releases only the departing installation claim while another environment retains its mount [0.04ms]\n(pass) Forge restores the original installation claim without reverting another environment [0.04ms]\n\ntools/tool-devsync/src/k3s/forge-supervisor.test.ts:\n(pass) supervisorActionOf > restarts the tiers for a restart path and does nothing otherwise [0.04ms]\n(pass) supervisorActionOf > exits when its own sources change\n(pass) supervisorActionOf > fingerprints non-test supervisor sources only [1.01ms]\n(pass) installDependencies > reports INSTALL REQUIRED and refuses to start the tiers when install fails [0.07ms]\n\ntools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:\n(pass) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on up when the legacy Pod is gone [692.24ms]\n(pass) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on status when the legacy Pod is gone [705.46ms]\n(pass) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on down when the legacy Pod is gone [706.74ms]\n(pass) legacy workload production command boundary > refuses surviving Service on up when the legacy Pod is gone [693.64ms]\n(pass) legacy workload production command boundary > refuses surviving Service on status when the legacy Pod is gone [692.21ms]\n(pass) legacy workload production command boundary > refuses surviving Service on down when the legacy Pod is gone [698.11ms]\n(pass) legacy workload production command boundary > refuses surviving Ingress on up when the legacy Pod is gone [690.95ms]\n(pass) legacy workload production command boundary > refuses surviving Ingress on status when the legacy Pod is gone [689.17ms]\n(pass) legacy workload production command boundary > refuses surviving Ingress on down when the legacy Pod is gone [697.50ms]\n(pass) legacy workload production command boundary > refuses surviving NetworkPolicy on up when the legacy Pod is gone [701.77ms]\n(pass) legacy workload production command boundary > refuses surviving NetworkPolicy on status when the legacy Pod is gone [703.87ms]\n(pass) legacy workload production command boundary > refuses surviving NetworkPolicy on down when the legacy Pod is gone [692.60ms]\n(pass) legacy workload production command boundary > allows status when the shared namespace has no legacy workload [735.75ms]\n(pass) legacy workload production command boundary > allows down when the shared namespace has no legacy workload [857.30ms]\n(pass) legacy workload production command boundary > refuses a malformed legacy workload list before releasing admission or Leases [697.77ms]\n\n 109 pass\n 0 fail\n 351 expect() calls\nRan 109 tests across 8 files. [12.53s]\n",
+      "validation": {
+        "phase": "pure-renderer-admission-parsers",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/source-pins.json",
+            "sha256": "142d86991a8ffe050f9687a57c6e72321b0b12095c901e8e7ecd0875f30b54ae",
+            "bytes": 256880,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/forge-read-inputs.json",
+            "sha256": "22cb5ea9b30d44b270ca8d09f894edce52dd88dfdf8bbd77d5bd53b340447805",
+            "bytes": 13848,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.log",
+            "sha256": "16a6264b3f729f7dcd4610ab35988218adcffcdea4351ed384dbaf82a21d2b91",
+            "bytes": 15393,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/pure-renderer-admission-parsers/native.receipt.json",
+            "sha256": "eabf70c2a353e8bb2d056646094f8c6a32295e44dcd0ea0cd2d45b71c1039514",
+            "bytes": 1803,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "One real installation/native supervisor TERM owner passes17assertions. Restart remains unrun.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.receipt.json",
+          "sha256": "d556eca377c547af042cbc97a2a23001a3b9aa029047ce98f74f07c9992d6e75",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.log",
+          "sha256": "39bc48ec20fabb363f74222b6d4dfb939abbd0961d31e72d06fb564a2b3acbd2",
+          "bytes": 313,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.validation.json",
+          "sha256": "d72981bdf9326e107fd22b99d5b335f21a4e4259e4d44a783454777168a3d488",
+          "bytes": 1840,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "--test-name-pattern",
+            "^Forge owns an admitted PUNI fixture parent through actual TERM and a returned API outcome$",
+            "--timeout=120000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:48:02.268Z",
+        "endedAt": "2026-11-18T09:48:06.213Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.log",
+          "sha256": "39bc48ec20fabb363f74222b6d4dfb939abbd0961d31e72d06fb564a2b3acbd2",
+          "bytes": 313
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts:\n(pass) Forge owns an admitted PUNI fixture parent through actual TERM and a returned API outcome [3548.25ms]\n\n 1 pass\n 101 filtered out\n 0 fail\n 17 expect() calls\nRan 1 test across 1 file. [3.90s]\n",
+      "validation": {
+        "phase": "actual-supervisor-TERM",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/source-pins.json",
+            "sha256": "142d86991a8ffe050f9687a57c6e72321b0b12095c901e8e7ecd0875f30b54ae",
+            "bytes": 256880,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/forge-read-inputs.json",
+            "sha256": "22cb5ea9b30d44b270ca8d09f894edce52dd88dfdf8bbd77d5bd53b340447805",
+            "bytes": 13848,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.log",
+            "sha256": "39bc48ec20fabb363f74222b6d4dfb939abbd0961d31e72d06fb564a2b3acbd2",
+            "bytes": 313,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-lookup-diagnostic-live-v2/actual-supervisor-TERM/native.receipt.json",
+            "sha256": "d556eca377c547af042cbc97a2a23001a3b9aa029047ce98f74f07c9992d6e75",
+            "bytes": 1520,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Clean original ownership premise still starts instead of waiting:0pass1fail2assertions. Linux cleanup now completes; no native ownership root cause is inferred from diagnostic passes.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.receipt.json",
+          "sha256": "863f74fd01bf23aa3fabca7b5aa5c578acc9e772bb91b8416305b105251f0d0a",
+          "bytes": 1445,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.log",
+          "sha256": "5259c9b115c698fc8c5e8bb776adc92711d50545c31bf46a697b63e7fd705f76",
+          "bytes": 1141,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.validation.json",
+          "sha256": "7ff44a950d9baf361a298a6f01732c8ae18e6033238d0444b94ca50450250f3d",
+          "bytes": 1776,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "tools/tool-devsync/src/k3s/dev-environment.test.ts",
+            "--test-name-pattern",
+            "starts independently of poisoned worktree ownership without changing its database",
+            "--timeout=60000"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:49:17.191Z",
+        "endedAt": "2026-11-18T09:49:29.856Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.log",
+          "sha256": "5259c9b115c698fc8c5e8bb776adc92711d50545c31bf46a697b63e7fd705f76",
+          "bytes": 1141
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\ntools/tool-devsync/src/k3s/dev-environment.test.ts:\n531 |   observe: () => boolean | Promise<boolean>,\n532 |   diagnosis: () => string,\n533 | ): Promise<void> {\n534 |   const deadline = Date.now() + 12_000;\n535 |   while (!(await observe())) {\n536 |     if (Date.now() >= deadline) throw new Error(`Nx fixture timed out: ${diagnosis()}`);\n                                                ^\nerror: Nx fixture timed out: \n> nx run fixture:serve\n\n> '/usr/bin/env' '-u' 'BUN_OPTIONS' '-u' 'BUN_INSPECT_PRELOAD' '-u' 'NODE_OPTIONS' '-u' 'BUN_BE_BUN' '/home/df/.bun/bin/bun' '--no-env-file' '--config=/dev/null' '/tmp/forge-nx-ownership-rdTdnz/serve.cjs'\r\n\r\n\n      at waitForNx (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-devsync/src/k3s/dev-environment.test.ts:536:43)\n      at async <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/tools/tool-devsync/src/k3s/dev-environment.test.ts:844:13)\n(fail) forge Nx workspace state > starts independently of poisoned worktree ownership without changing its database [12162.96ms]\n\n 0 pass\n 35 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [12.64s]\n",
+      "validation": {
+        "phase": "nxOwnershipActual",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-nx-cleanup-live-v1/source-pins.json",
+            "sha256": "720f8eecac813bad7dc505b0ac02f659571b348ebe74edcbbafc3face915ac16",
+            "bytes": 256880,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-cleanup-live-v1/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-cleanup-live-v1/forge-read-inputs.json",
+            "sha256": "8b5f8dd05912b04c40ecb32756177a98799926ad40471ba746ed5d56a521043b",
+            "bytes": 13848,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.log",
+            "sha256": "5259c9b115c698fc8c5e8bb776adc92711d50545c31bf46a697b63e7fd705f76",
+            "bytes": 1141,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-nx-cleanup-live-v1/nxOwnershipActual/native.receipt.json",
+            "sha256": "863f74fd01bf23aa3fabca7b5aa5c578acc9e772bb91b8416305b105251f0d0a",
+            "bytes": 1445,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "SETUP ONLY: independent real supervisor/native health and original compile passed; copied graph compile misses dynamic/import package resolution after25assertions. No SDK mutation or development-acquisition feature verdict reached.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.receipt.json",
+          "sha256": "c0c38c296fbe2bb88c53b4a7e4deb2002605bfd4d466276aef6f005cc3af2940",
+          "bytes": 1528,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.log",
+          "sha256": "9d995b804ffa5fac457a081cd607f04d32aedd58c41b9b4438a1505308de1021",
+          "bytes": 1759,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.validation.json",
+          "sha256": "6d4459dac07f1125a33b4e21b9136b01d3382167bbcb225670dddb080bba8684",
+          "bytes": 1768,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "--timeout=180000",
+            "apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+            "--test-name-pattern=^Forge refuses a successor when its actual compiler-captured SDK changes after frozen install$"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 240000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:56:48.618Z",
+        "endedAt": "2026-11-18T09:56:54.003Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.log",
+          "sha256": "9d995b804ffa5fac457a081cd607f04d32aedd58c41b9b4438a1505308de1021",
+          "bytes": 1759
+        },
+        "settled": true
+      },
+      "transcript": "bun test v1.4.4 (38afee6c8)\n\napps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts:\n58 |   const { assertOrdinaryControllerAdmission } = await import('./edge-policy');\n                                                                  ^\nerror: Could not resolve: \"./edge-policy\"\n    at /tmp/puni-installed-current-tDf332/loaded-worktree/tools/tool-remote-scripts/src/lib/edge-admission.ts:58:62\n\n242 |   const { captureSolverReaderArtifact } = await import('./solver-reader-preparation');\n                                                             ^\nerror: Could not resolve: \"./solver-reader-preparation\"\n    at /tmp/puni-installed-current-tDf332/loaded-worktree/tools/tool-remote-scripts/src/lib/edge-admission.ts:242:56\n\n4 | import ts from 'typescript';\n                   ^\nerror: Could not resolve: \"typescript\". Maybe you need to \"bun install\"?\n    at /tmp/puni-installed-current-tDf332/loaded-worktree/apps/twilight-structure/twilight-burokrat/cli/src/policy/build-dependencies.ts:4:16\n\n1 | import { type Type, type } from 'arktype';\n                                    ^\nerror: Could not resolve: \"arktype\". Maybe you need to \"bun install\"?\n    at /tmp/puni-installed-current-tDf332/loaded-worktree/libs/shared/domain/validation/src/core.ts:1:33\n\n13 | import ts from 'typescript';\n                    ^\nerror: Could not resolve: \"typescript\". Maybe you need to \"bun install\"?\n    at /tmp/puni-installed-current-tDf332/loaded-worktree/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts:13:16\n(fail) Forge refuses a successor when its actual compiler-captured SDK changes after frozen install [5018.59ms]\n\n 0 pass\n 107 filtered out\n 1 fail\n 25 expect() calls\nRan 1 test across 1 file. [5.35s]\n",
+      "validation": {
+        "phase": "loadedFirst",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/source-pins.json",
+            "sha256": "b04c53804316fbcc348bd5a8723901c671e82734a1d9dada7bb845d6ce8d77e4",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.log",
+            "sha256": "9d995b804ffa5fac457a081cd607f04d32aedd58c41b9b4438a1505308de1021",
+            "bytes": 1759,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/loadedFirst/native.receipt.json",
+            "sha256": "c0c38c296fbe2bb88c53b4a7e4deb2002605bfd4d466276aef6f005cc3af2940",
+            "bytes": 1528,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 1,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    },
+    {
+      "qualification": "Retained original actual Bun compiler metadata206inputs and one9,286,159-byte emitted entry with no listed output imports. Static output imports do not close dynamic/runtime/native assets or import.meta placement.",
+      "originals": {
+        "receipt": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.receipt.json",
+          "sha256": "71f0cc383dd35f426a98fbee8cf9708faff28f1bfa3275805e294ed9b424050f",
+          "bytes": 1339,
+          "mode": 384
+        },
+        "transcript": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.log",
+          "sha256": "d82bb23a33ccc6bdd748c5f7d27b79cbdc6d1e71b506eba37ae34da364414137",
+          "bytes": 497,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.validation.json",
+          "sha256": "3fdb78e5f0a8bb3e056ee866d42f835cc1fcc59ebdf1fba9ad4038b7d5ad383d",
+          "bytes": 1794,
+          "mode": 384
+        }
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "/tmp/puni-loaded-compiler-output-root-v1.ts"
+          ],
+          "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-18T09:59:24.979Z",
+        "endedAt": "2026-11-18T09:59:25.278Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.log",
+          "sha256": "d82bb23a33ccc6bdd748c5f7d27b79cbdc6d1e71b506eba37ae34da364414137",
+          "bytes": 497
+        },
+        "settled": true
+      },
+      "transcript": "{\"directory\":\"/tmp/puni-loaded-compiler-output-live-v1\",\"inputs\":206,\"outputs\":[{\"original\":\"tools/tool-devsync/src/k3s/forge-supervisor.js\",\"kind\":\"entry-point\",\"path\":\"/tmp/puni-loaded-compiler-output-live-v1/output-0.mjs\",\"sha256\":\"326633dad8132b31ddacab997fad2aa7340f664879cab01eb199ea3bea82d366\",\"bytes\":9286159,\"mode\":384}],\"bareOutputImports\":[],\"qualification\":\"Retained actual compiler outputs and metadata; runtime/external/asset and import.meta placement still require qualification.\"}\n",
+      "validation": {
+        "phase": "loadedCompilerOutput",
+        "snapshots": [
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/source-pins.json",
+            "sha256": "b04c53804316fbcc348bd5a8723901c671e82734a1d9dada7bb845d6ce8d77e4",
+            "bytes": 261234,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+            "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+            "bytes": 145510,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+            "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+            "bytes": 76933,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/native-io-immutable-support-pins.json",
+            "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+            "bytes": 704,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/forge-read-inputs.json",
+            "sha256": "e33f3340d8a64a6b41dea8a6eb5e20fd118fcc71175f4bb093bd069cb3ab3ed9",
+            "bytes": 13849,
+            "mode": 384
+          }
+        ],
+        "originals": [
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.log",
+            "sha256": "d82bb23a33ccc6bdd748c5f7d27b79cbdc6d1e71b506eba37ae34da364414137",
+            "bytes": 497,
+            "mode": 384
+          },
+          {
+            "path": "/tmp/puni-cli-loaded-first-live-v1/loadedCompilerOutput/native.receipt.json",
+            "sha256": "71f0cc383dd35f426a98fbee8cf9708faff28f1bfa3275805e294ed9b424050f",
+            "bytes": 1339,
+            "mode": 384
+          }
+        ],
+        "formatted": null,
+        "allOtherInputsMatched": true,
+        "originalExitCode": 0,
+        "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+      }
+    }
+  ],
+  "compilerArtifacts": [
+    {
+      "path": "/tmp/puni-loaded-compiler-output-live-v1/metafile.json",
+      "sha256": "964f94dc76aeaa90cc4a0d186c062a413cc5b13645849510883451eaffe22380",
+      "bytes": 180710,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-loaded-compiler-output-live-v1/source-inputs.json",
+      "sha256": "44e68f02625531b82f5203e590b5640e368ae9256b1ab979a0fd4b1f805ecb82",
+      "bytes": 49268,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-loaded-compiler-output-live-v1/outputs.json",
+      "sha256": "5bc2c425b914e70dfdfaf49019a6c3655a91b31c355adda56c75eceac5c934d1",
+      "bytes": 294,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-loaded-compiler-output-live-v1/output-0.mjs",
+      "sha256": "326633dad8132b31ddacab997fad2aa7340f664879cab01eb199ea3bea82d366",
+      "bytes": 9286159,
+      "mode": 384
+    }
+  ],
+  "requiredRemainder": [
+    "Correct loaded-SDK fixture setup, then actual first feature failure and full required loaded/runtime/asset implementation",
+    "Passive real Nx ownership diagnosis with original owner unchanged",
+    "Current HTTP/container/native mount checks",
+    "Owned shell retirement and complete client CLI inventory",
+    "Remaining metadata/current guards formal fault necessity",
+    "Source quality, real packed PUNI verification, host gates and integration"
+  ],
+  "qualification": "Frozen source-startup-manifest.ts remains exact96f35890. No historical codec edits, public publication/activation, parent task ticks or whole-goal completion."
+}

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { OPEN } from './gate';
 import {
   beginOptimizationDrain,
   finishOptimizationDrain,
@@ -19,12 +19,15 @@ import { allocateGeneration, readGeneration } from './optimization-generation';
 import {
   optimizationGeneration,
   optimizedScheduleCache,
-  project,
   solverQueue,
   solverSlot,
+  workPackage,
 } from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { StepCatalogueRepository } from './step-catalogue';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 /** The two releases running against one file during a swap. */
 const BLUE = '7+1.0.0';
@@ -35,40 +38,77 @@ const stampAt = (at: number): WriteStamp => ({ at, by: 'u-1' });
 let dir: string;
 let path: string;
 let db: Drizzle;
+let custody: CatalogueFixtureCustody;
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-drain-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   const seed = openDatabase(path);
   try {
     seed.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
+    seed.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
     seed.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('parent','org','Parent',1)",
     );
-    // The bystander. Deleting one project closes every release of THAT project,
-    // which is only a meaningful claim beside a project it must not touch.
     seed.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-2', 'Re-tile the roof', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'Rewire the shed', 'parent', 'u-1', 0, 0, 1)`,
+    );
+    // The bystander. Deleting one work package closes every release of THAT work package,
+    // which is only a meaningful claim beside a work package it must not touch.
+    seed.run(
+      `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at)
+       VALUES ('p-2', 'Re-tile the roof', 'parent', 'u-1', 0, 0, 1)`,
+    );
+    seed.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('p-1','org'),('p-2','org')",
     );
   } finally {
     seed.close();
   }
   db = openDrizzle(path);
+  expect(
+    (
+      await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+        'org',
+        {
+          id: 's-1',
+          code: 'work',
+          name: 'Work',
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+          position: 10,
+        },
+        {
+          bindingId: 'work-binding',
+          scopeKind: 'organization',
+          scopeId: 'org',
+          workItemTypeId: null,
+          position: 10,
+        },
+        stampAt(1),
+      )
+    ).ok,
+  ).toBe(true);
 });
 
 afterEach(() => {
+  // Proof: real helper close returned before an injected lost-close-authority throw.
+  // Removing this guard deleted the fixture namespace and lost its required diagnostic;
+  // exact restoration retained both (drain custody controls, v322). No FD-leak claim.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
-function seedQueue(contractVersion: string, generation: number, projectId = 'p-1'): void {
+function seedQueue(contractVersion: string, generation: number, workPackageId = 'p-1'): void {
   db.insert(solverQueue)
     .values({
-      projectId,
+      workPackageId,
       contractVersion,
       objective: 'time',
       budgetMs: 60000,
@@ -83,18 +123,18 @@ function seedSlot(
   contractVersion: string,
   objective: 'pri' | 'time',
   cancelRequestedAt: number | null,
-  projectId = 'p-1',
+  workPackageId = 'p-1',
   admittedDeadlineAt = 61000,
 ): void {
   db.insert(solverSlot)
     .values({
-      projectId,
+      workPackageId,
       contractVersion,
       generation: 1,
       objective,
       budgetMs: 60000,
       ownerId: 'own-1',
-      attemptToken: `tok-${projectId}-${contractVersion}-${objective}`,
+      attemptToken: `tok-${workPackageId}-${contractVersion}-${objective}`,
       lifecycle: 'running',
       pid: 4242,
       startedAt: 1,
@@ -125,34 +165,34 @@ function queueRows(): string[] {
 }
 
 /**
- * The same two views with the project id in front.
+ * The same two views with the work package id in front.
  *
- * The retirement cases above seed one project and read the table bare, which
- * says everything they are about. A deletion is a claim about which project's
+ * The retirement cases above seed one work package and read the table bare, which
+ * says everything they are about. A deletion is a claim about which work package's
  * rows moved, so its cases need the id in the value they compare.
  */
-function slotRowsByProject(): string[] {
+function slotRowsByWorkPackage(): string[] {
   return db
     .select()
     .from(solverSlot)
     .all()
     .map(
       (row) =>
-        `${row.projectId}/${row.contractVersion}/${row.objective}/${String(row.cancelRequestedAt)}`,
+        `${row.workPackageId}/${row.contractVersion}/${row.objective}/${String(row.cancelRequestedAt)}`,
     )
     .sort();
 }
 
-function queueRowsByProject(): string[] {
+function queueRowsByWorkPackage(): string[] {
   return db
     .select()
     .from(solverQueue)
     .all()
-    .map((row) => `${row.projectId}/${row.contractVersion}`)
+    .map((row) => `${row.workPackageId}/${row.contractVersion}`)
     .sort();
 }
 
-/** `projectId/admissionState/cancelEpoch` for every generation row on file. */
+/** `workPackageId/admissionState/cancelEpoch` for every generation row on file. */
 function generationRows(): string[] {
   return db
     .select()
@@ -160,20 +200,20 @@ function generationRows(): string[] {
     .all()
     .map(
       (row) =>
-        `${row.projectId}/${row.contractVersion}/${row.admissionState}/${String(row.cancelEpoch)}`,
+        `${row.workPackageId}/${row.contractVersion}/${row.admissionState}/${String(row.cancelEpoch)}`,
     )
     .sort();
 }
 
-function deletePendingAt(projectId: string): number | null {
-  const row = db.select().from(project).where(eq(project.id, projectId)).get();
+function deletePendingAt(workPackageId: string): number | null {
+  const row = db.select().from(workPackage).where(eq(workPackage.id, workPackageId)).get();
   return row?.optimizationDeletePendingAt ?? null;
 }
 
-function seedCache(contractVersion: string, projectId = 'p-1'): void {
+function seedCache(contractVersion: string, workPackageId = 'p-1'): void {
   db.insert(optimizedScheduleCache)
     .values({
-      projectId,
+      workPackageId,
       inputHash: 'h1',
       objective: 'pri',
       contractVersion,
@@ -192,14 +232,14 @@ function cacheRows(): string[] {
     .select()
     .from(optimizedScheduleCache)
     .all()
-    .map((row) => `${row.projectId}/${row.contractVersion}`)
+    .map((row) => `${row.workPackageId}/${row.contractVersion}`)
     .sort();
 }
 
-function projectIds(): string[] {
+function workPackageIds(): string[] {
   return db
     .select()
-    .from(project)
+    .from(workPackage)
     .all()
     .map((row) => row.id)
     .sort();
@@ -279,8 +319,8 @@ describe('beginning a contract retirement', () => {
   });
 });
 
-describe('beginning a project deletion', () => {
-  it('writes the durable marker and closes every release of that project', () => {
+describe('beginning a work package deletion', () => {
+  it('writes the durable marker and closes every release of that work package', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
@@ -288,7 +328,7 @@ describe('beginning a project deletion', () => {
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
     // Retirement names one release because the other is still serving readers.
-    // A deletion has no such other: every release of this project is going.
+    // A deletion has no such other: every release of this work package is going.
     expect(deletePendingAt('p-1')).toBe(20);
     expect(generationRows()).toEqual([
       `p-1/${BLUE}/draining/1`,
@@ -298,7 +338,7 @@ describe('beginning a project deletion', () => {
     expect(deletePendingAt('p-2')).toBeNull();
   });
 
-  it('leaves the physical project row in place while its children still run', () => {
+  it('leaves the physical work package row in place while its children still run', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     seedSlot(BLUE, 'pri', null);
@@ -310,11 +350,11 @@ describe('beginning a project deletion', () => {
     // Taking the row here is the immediate cascade that let six real processes
     // run while SQLite counted two.
     expect(beginOptimizationDrain(db, 'p-1', stampAt(20))).toBe(2);
-    expect(db.select().from(project).where(eq(project.id, 'p-1')).get()).toBeDefined();
-    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/20`, `p-1/${GREEN}/time/20`]);
+    expect(db.select().from(workPackage).where(eq(workPackage.id, 'p-1')).get()).toBeDefined();
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${BLUE}/pri/20`, `p-1/${GREEN}/time/20`]);
   });
 
-  it('stamps and deletes across every release of that project and no other', () => {
+  it('stamps and deletes across every release of that work package and no other', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
@@ -327,12 +367,12 @@ describe('beginning a project deletion', () => {
 
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
-    expect(slotRowsByProject()).toEqual([
+    expect(slotRowsByWorkPackage()).toEqual([
       `p-1/${BLUE}/pri/20`,
       `p-1/${GREEN}/pri/20`,
       `p-2/${BLUE}/pri/null`,
     ]);
-    expect(queueRowsByProject()).toEqual([`p-2/${BLUE}`]);
+    expect(queueRowsByWorkPackage()).toEqual([`p-2/${BLUE}`]);
   });
 
   it('keeps the instant the deletion was first requested when it runs again', () => {
@@ -347,9 +387,9 @@ describe('beginning a project deletion', () => {
     expect(deletePendingAt('p-1')).toBe(20);
   });
 
-  it('fences a project that has never solved', () => {
+  it('fences a work package that has never solved', () => {
     // No generation row, because nothing ever allocated one. The marker is still
-    // owed: a project deleted before its first solve must be closed to admission
+    // owed: a work package deleted before its first solve must be closed to admission
     // exactly like one deleted mid-solve, or the delete races the first solve.
     expect(beginOptimizationDrain(db, 'p-1', stampAt(20))).toBe(0);
 
@@ -357,7 +397,7 @@ describe('beginning a project deletion', () => {
     expect(generationRows()).toEqual([]);
   });
 
-  it('is a no-op on a project that is not there', () => {
+  it('is a no-op on a work package that is not there', () => {
     expect(beginOptimizationDrain(db, 'ghost', stampAt(20))).toBe(0);
 
     // A contract case rather than a mutation-proved one, and it says so: no
@@ -429,8 +469,8 @@ describe('finishing a contract retirement', () => {
   });
 });
 
-describe('finishing a project deletion', () => {
-  it('deletes the project and lets the cascade take everything under it', () => {
+describe('finishing a work package deletion', () => {
+  it('deletes the work package and lets the cascade take everything under it', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
@@ -442,35 +482,32 @@ describe('finishing a project deletion', () => {
     expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
 
     // Here the cascade IS the mechanism, because every optimizer table
-    // references `project` with `ON DELETE CASCADE`.
-    expect(projectIds()).toEqual(['p-2']);
+    // references `workPackage` with `ON DELETE CASCADE`.
+    expect(workPackageIds()).toEqual(['p-2']);
     expect(generationRows()).toEqual([`p-2/${BLUE}/open/0`]);
     expect(cacheRows()).toEqual([`p-2/${BLUE}`]);
-    expect(queueRowsByProject()).toEqual([`p-2/${BLUE}`]);
+    expect(queueRowsByWorkPackage()).toEqual([`p-2/${BLUE}`]);
   });
 
-  it('waits while any of the project’s slots is still counted', () => {
+  it('waits while any of the work package’s slots is still counted', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     seedSlot(GREEN, 'time', null);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
-    // A project's outstanding count spans every release it has, so a green
+    // A work package's outstanding count spans every release it has, so a green
     // child keeps a deletion waiting even with blue empty.
     expect(finishOptimizationDrain(db, 'p-1')).toBe('waiting');
 
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
-    expect(slotRowsByProject()).toEqual([`p-1/${GREEN}/time/20`]);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${GREEN}/time/20`]);
   });
 
-  it('keeps a populated project graph intact while a child remains counted', () => {
+  it('keeps a populated work package graph intact while a child remains counted', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
-      );
-      seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
       );
       seed.run(
         "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-1', 's-1', 1, 1, 1)",
@@ -486,8 +523,8 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       for (const [table, column, id] of [
-        ['project', 'id', 'p-1'],
-        ['step', 'id', 's-1'],
+        ['work_package', 'id', 'p-1'],
+        ['step_definition', 'id', 's-1'],
         ['work_item', 'id', 'w-1'],
         ['estimate', 'work_item_id', 'w-1'],
       ]) {
@@ -499,17 +536,17 @@ describe('finishing a project deletion', () => {
     }
   });
 
-  it('refuses a cross-project dependency instead of cascading another project’s edge', () => {
+  it('refuses a cross-work-package dependency instead of cascading another work package’s edge', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
       );
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
       );
       seed.run(
-        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('foreign-edge', 'p-2', 'w-1', 'w-2')",
+        "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('foreign-edge', 'p-2', 'w-1', 'w-2')",
       );
     } finally {
       seed.close();
@@ -518,13 +555,13 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM dependency ORDER BY id').all(),
       };
-      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package');
       expect({
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM dependency ORDER BY id').all(),
       }).toEqual(before);
@@ -534,17 +571,17 @@ describe('finishing a project deletion', () => {
     }
   });
 
-  it('refuses a cross-project typed dependency instead of cascading another project’s edge', () => {
+  it('refuses a cross-work-package typed dependency instead of cascading another work package’s edge', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
       );
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
       );
       seed.run(
-        "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-typed-edge', 'p-2', 'w-1', 'whole', 'w-2', 'whole', 'FS')",
+        "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-typed-edge', 'p-2', 'w-1', 'whole', 'w-2', 'whole', 'FS')",
       );
     } finally {
       seed.close();
@@ -553,13 +590,13 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       };
-      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package');
       expect({
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       }).toEqual(before);
@@ -569,15 +606,14 @@ describe('finishing a project deletion', () => {
     }
   });
 
-  it('refuses a typed edge pointing at a target step from another project', () => {
+  it('retains a bystander typed edge using the same shared definition', () => {
     const seed = openDatabase(path);
     try {
-      seed.run("INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'A', 10)");
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
       );
       seed.run(
-        "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('foreign-step-edge', 'p-2', 'w-2', 'node', 's-1', 'w-2', 'whole', 'FS')",
+        "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('foreign-step-edge', 'p-2', 'w-2', 'node', 's-1', 'w-2', 'whole', 'FS')",
       );
     } finally {
       seed.close();
@@ -586,14 +622,15 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
-        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        values: inspect.query("SELECT * FROM work_package_step WHERE work_package_id='p-2'").all(),
+        steps: inspect.query('SELECT * FROM step_definition ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       };
-      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+      expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
+      expect(workPackageIds()).toEqual(['p-2']);
       expect({
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
-        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        values: inspect.query("SELECT * FROM work_package_step WHERE work_package_id='p-2'").all(),
+        steps: inspect.query('SELECT * FROM step_definition ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       }).toEqual(before);
       expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -607,15 +644,15 @@ describe('finishing a project deletion', () => {
       const seed = openDatabase(path);
       try {
         seed.run(
-          "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
+          "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
         );
         if (relation === 'dependency') {
           seed.run(
-            "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('foreign-owned-edge', 'p-1', 'w-2', 'w-2')",
+            "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('foreign-owned-edge', 'p-1', 'w-2', 'w-2')",
           );
         } else {
           seed.run(
-            "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-owned-typed-edge', 'p-1', 'w-2', 'whole', 'w-2', 'whole', 'FS')",
+            "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('foreign-owned-typed-edge', 'p-1', 'w-2', 'whole', 'w-2', 'whole', 'FS')",
           );
         }
       } finally {
@@ -625,23 +662,23 @@ describe('finishing a project deletion', () => {
       const inspect = openDatabase(path);
       try {
         const before = inspect.query(`SELECT * FROM ${relation}`).all();
-        expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-project');
+        expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package');
         expect(inspect.query(`SELECT * FROM ${relation}`).all()).toEqual(before);
-        expect(inspect.query("SELECT id FROM project WHERE id = 'p-1'").all()).toHaveLength(1);
+        expect(inspect.query("SELECT id FROM work_package WHERE id = 'p-1'").all()).toHaveLength(1);
       } finally {
         inspect.close();
       }
     });
   }
 
-  it('lets the restrictive foreign key roll back a cross-project parent reference', () => {
+  it('lets the restrictive foreign key roll back a cross-work-package parent reference', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
       );
       seed.run(
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-2', 'p-2', 'w-1', 10, 'B')",
+        "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-2', 'p-2', 'w-1', 10, 'B')",
       );
     } finally {
       seed.close();
@@ -650,12 +687,12 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
       };
       expect(() => finishOptimizationDrain(db, 'p-1')).toThrow();
       expect({
-        projects: inspect.query('SELECT * FROM project ORDER BY id').all(),
+        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
         workItems: inspect.query('SELECT * FROM work_item ORDER BY id').all(),
       }).toEqual(before);
       expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -668,11 +705,11 @@ describe('finishing a project deletion', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'A')",
       );
       expect(() =>
         seed.run(
-          "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('missing-step', 'p-1', 'w-1', 'node', 'missing', 'w-1', 'whole', 'FS')",
+          "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, type) VALUES ('missing-step', 'p-1', 'w-1', 'node', 'missing', 'w-1', 'whole', 'FS')",
         ),
       ).toThrow();
       expect(seed.query('SELECT * FROM typed_dependency').all()).toEqual([]);
@@ -686,18 +723,15 @@ describe('finishing a project deletion', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO step (id, project_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
-      );
-      seed.run(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
       );
       seed.run(
         "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-1', 's-1', 1, 1, 1)",
       );
       seed.run(
-        `CREATE TRIGGER fail_step_cleanup BEFORE DELETE ON step
-         WHEN OLD.project_id = 'p-1'
-           AND NOT EXISTS (SELECT 1 FROM work_item WHERE project_id = 'p-1')
+        `CREATE TRIGGER fail_step_cleanup BEFORE DELETE ON work_package_step
+         WHEN OLD.work_package_id = 'p-1'
+           AND NOT EXISTS (SELECT 1 FROM work_item WHERE work_package_id = 'p-1')
          BEGIN SELECT RAISE(ABORT, 'later raw cleanup failed'); END`,
       );
     } finally {
@@ -707,16 +741,16 @@ describe('finishing a project deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        project: inspect.query("SELECT * FROM project WHERE id = 'p-1'").all(),
-        step: inspect.query("SELECT * FROM step WHERE project_id = 'p-1'").all(),
-        workItems: inspect.query("SELECT * FROM work_item WHERE project_id = 'p-1'").all(),
+        workPackage: inspect.query("SELECT * FROM work_package WHERE id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM work_package_step WHERE work_package_id = 'p-1'").all(),
+        workItems: inspect.query("SELECT * FROM work_item WHERE work_package_id = 'p-1'").all(),
         estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
       };
       expect(() => finishOptimizationDrain(db, 'p-1')).toThrow();
       expect({
-        project: inspect.query("SELECT * FROM project WHERE id = 'p-1'").all(),
-        step: inspect.query("SELECT * FROM step WHERE project_id = 'p-1'").all(),
-        workItems: inspect.query("SELECT * FROM work_item WHERE project_id = 'p-1'").all(),
+        workPackage: inspect.query("SELECT * FROM work_package WHERE id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM work_package_step WHERE work_package_id = 'p-1'").all(),
+        workItems: inspect.query("SELECT * FROM work_item WHERE work_package_id = 'p-1'").all(),
         estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
       }).toEqual(before);
     } finally {
@@ -724,22 +758,22 @@ describe('finishing a project deletion', () => {
     }
   });
 
-  it('refuses a project nobody is deleting, which is most projects', () => {
+  it('refuses a work package nobody is deleting, which is most work packages', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
 
     // The single most destructive thing this function could do. `p-1` has no
     // slots — the ordinary state — and no marker, so it is not a drain that
-    // finished, it is a project going about its business.
+    // finished, it is a work package going about its business.
     expect(finishOptimizationDrain(db, 'p-1')).toBe('open');
 
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
     expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
   });
 
-  it('is a no-op on a project that is already gone', () => {
+  it('is a no-op on a work package that is already gone', () => {
     expect(finishOptimizationDrain(db, 'ghost')).toBe('absent');
 
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
   });
 });
 
@@ -747,11 +781,11 @@ describe('finishing a project deletion', () => {
 function releaseOf(
   contractVersion: string,
   objective: 'pri' | 'time',
-  projectId = 'p-1',
-  attemptToken = `tok-${projectId}-${contractVersion}-${objective}`,
+  workPackageId = 'p-1',
+  attemptToken = `tok-${workPackageId}-${contractVersion}-${objective}`,
 ): Parameters<typeof releaseSolverSlot>[1] {
   return {
-    projectId,
+    workPackageId,
     contractVersion,
     generation: 1,
     objective,
@@ -774,10 +808,10 @@ describe('releasing a slot, which is how most drains finish', () => {
       retirement: 'open',
       deletion: 'open',
     });
-    expect(slotRowsByProject()).toEqual([]);
+    expect(slotRowsByWorkPackage()).toEqual([]);
     expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
     expect(cacheRows()).toEqual([`p-1/${BLUE}`]);
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
   });
 
   it('retires the release in the same call that removes the last of its slots', () => {
@@ -799,8 +833,8 @@ describe('releasing a slot, which is how most drains finish', () => {
     });
     expect(generationRows()).toEqual([`p-1/${GREEN}/open/0`]);
     expect(cacheRows()).toEqual([`p-1/${GREEN}`]);
-    expect(slotRowsByProject()).toEqual([`p-1/${GREEN}/time/null`]);
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${GREEN}/time/null`]);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
   });
 
   it('waits while another slot of the same release is still counted', () => {
@@ -816,43 +850,43 @@ describe('releasing a slot, which is how most drains finish', () => {
       deletion: 'open',
     });
     expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
-    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/time/20`]);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${BLUE}/time/20`]);
   });
 
-  it('closes both targets when the last slot of a deleted project goes back', () => {
+  it('closes both targets when the last slot of a deleted work package goes back', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     seedCache(BLUE);
     seedSlot(BLUE, 'pri', null);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
     // A deletion closes every release, so the last slot back retires its own
-    // contract version AND takes the project — in that order, because retiring
+    // contract version AND takes the work package — in that order, because retiring
     // first is what makes the observation the drain exists to make.
     expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
       released: true,
       retirement: 'finished',
       deletion: 'finished',
     });
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
     expect(generationRows()).toEqual([]);
     expect(cacheRows()).toEqual([]);
   });
 
-  it('retires its own release and leaves the project waiting on the other one', () => {
+  it('retires its own release and leaves the work package waiting on the other one', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     seedSlot(BLUE, 'pri', null);
     seedSlot(GREEN, 'time', null);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
-    // The project's physical row stays while a child it counts is still
+    // The work package's physical row stays while a child it counts is still
     // running, which is the same reason a slot row survives a retirement.
     expect(releaseSolverSlot(db, releaseOf(BLUE, 'pri'))).toEqual({
       released: true,
       retirement: 'finished',
       deletion: 'waiting',
     });
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
     expect(generationRows()).toEqual([`p-1/${GREEN}/draining/1`]);
     expect(deletePendingAt('p-1')).toBe(20);
   });
@@ -870,7 +904,7 @@ describe('releasing a slot, which is how most drains finish', () => {
       retirement: 'waiting',
       deletion: 'open',
     });
-    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/20`]);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${BLUE}/pri/20`]);
     expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
   });
 });
@@ -889,7 +923,7 @@ describe('reconciling drains nobody finished', () => {
       waiting: 0,
     });
     expect(generationRows()).toEqual([]);
-    expect(slotRowsByProject()).toEqual([]);
+    expect(slotRowsByWorkPackage()).toEqual([]);
   });
 
   it('leaves a child inside its own deadline alone, whatever this pass thinks the budget is', () => {
@@ -906,10 +940,10 @@ describe('reconciling drains nobody finished', () => {
       waiting: 1,
     });
     expect(generationRows()).toEqual([`p-1/${BLUE}/draining/1`]);
-    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/20`]);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${BLUE}/pri/20`]);
   });
 
-  it('physically deletes a project whose delete crashed between begin and finish', () => {
+  it('physically deletes a work package whose delete crashed between begin and finish', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-1', GREEN, 'h1', 10);
     seedCache(BLUE);
@@ -917,14 +951,14 @@ describe('reconciling drains nobody finished', () => {
     seedSlot(GREEN, 'time', null, 'p-1', 500);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
-    // 3.9b's third watched red, at the repository layer: the project was hidden
+    // 3.9b's third watched red, at the repository layer: the work package was hidden
     // with admission closed and nothing finished it. Admission is exactly what a
-    // draining project rejects, so without this pass no read could ever sweep it
-    // and the project is wedged and undeletable.
+    // draining work package rejects, so without this pass no read could ever sweep it
+    // and the work package is wedged and undeletable.
     const pass = reconcileOptimizationDrains(db, 600);
 
     expect(pass.reclaimed).toBe(2);
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
     expect(generationRows()).toEqual([]);
     expect(cacheRows()).toEqual([]);
   });
@@ -933,7 +967,7 @@ describe('reconciling drains nobody finished', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     seedCache(BLUE);
     // Long past its deadline, and still nobody's business: a slot is reclaimed
-    // as part of a drain, and this project is not draining.
+    // as part of a drain, and this work package is not draining.
     seedSlot(BLUE, 'pri', null, 'p-1', 100);
 
     expect(reconcileOptimizationDrains(db, 600)).toEqual({
@@ -941,9 +975,9 @@ describe('reconciling drains nobody finished', () => {
       finished: 0,
       waiting: 0,
     });
-    expect(projectIds()).toEqual(['p-1', 'p-2']);
+    expect(workPackageIds()).toEqual(['p-1', 'p-2']);
     expect(generationRows()).toEqual([`p-1/${BLUE}/open/0`]);
-    expect(slotRowsByProject()).toEqual([`p-1/${BLUE}/pri/null`]);
+    expect(slotRowsByWorkPackage()).toEqual([`p-1/${BLUE}/pri/null`]);
   });
 
   it('reaches the same end state when a second reconciler runs the same pass', () => {
@@ -958,7 +992,7 @@ describe('reconciling drains nobody finished', () => {
 
     expect(first.finished).toBeGreaterThan(0);
     expect(second).toEqual({ reclaimed: 0, finished: 0, waiting: 0 });
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
   });
 });
 
@@ -980,12 +1014,12 @@ describe('the closed-state predicate admission and dequeue share', () => {
     expect(readOptimizationClosedState(db, 'p-1', GREEN)).toBeNull();
   });
 
-  it('says deleting rather than draining when the project is going', () => {
+  it('says deleting rather than draining when the work package is going', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
 
     // Both are true — a deletion closes every release — and the marker is the
-    // more useful of the two to report, because it is about the project.
+    // more useful of the two to report, because it is about the work package.
     expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('deleting');
     expect(readOptimizationClosedState(db, 'p-2', BLUE)).toBe('absent');
   });
@@ -1001,16 +1035,16 @@ describe('the closed-state predicate admission and dequeue share', () => {
     expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
   });
 
-  it('refuses a project that is already gone', () => {
+  it('refuses a work package that is already gone', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
     expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
 
     expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
   });
 
-  it('keeps a bystander project admitting while its neighbour drains', () => {
+  it('keeps a bystander work package admitting while its neighbour drains', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
@@ -1048,7 +1082,7 @@ describe('two coordinators against one file, which is the point of all of it', (
     expect(readOptimizationClosedState(green, 'p-1', BLUE)).toBe('absent');
   });
 
-  it('sees a project deletion from the other coordinator and still admits its neighbour', () => {
+  it('sees a work package deletion from the other coordinator and still admits its neighbour', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     allocateGeneration(db, 'p-2', BLUE, 'h1', 10);
     beginOptimizationDrain(db, 'p-1', stampAt(20));
@@ -1070,7 +1104,7 @@ describe('two coordinators against one file, which is the point of all of it', (
       retirement: 'finished',
       deletion: 'finished',
     });
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
   });
 
   it('lets a different coordinator reconcile a drain the first one died inside', () => {
@@ -1083,7 +1117,175 @@ describe('two coordinators against one file, which is the point of all of it', (
     const pass = reconcileOptimizationDrains(green, 600);
 
     expect(pass.reclaimed).toBe(1);
-    expect(projectIds()).toEqual(['p-2']);
+    expect(workPackageIds()).toEqual(['p-2']);
     expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
   });
+});
+
+describe('terminal current typed identity evidence', () => {
+  for (const fault of [
+    'missing-work-item',
+    'missing-definition',
+    'missing-values',
+    'foreign-organization',
+    'missing-definition-organization',
+    'malformed-values',
+    'unknown-scope',
+    'whole-with-step',
+    'unknown-type',
+  ] as const) {
+    it(`refuses selected typed ${fault} before cleanup and preserves exact state`, () => {
+      const sqlite = openDatabase(path);
+      try {
+        sqlite.run(
+          "INSERT INTO work_item(id,work_package_id,name,position) VALUES('typed-owner','p-1','Typed',1)",
+        );
+        sqlite.run(
+          "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('typed-point','p-1','typed-owner','node','s-1','typed-owner','whole','FS')",
+        );
+        beginOptimizationDrain(db, 'p-1', stampAt(20));
+        sqlite.run('PRAGMA foreign_keys=OFF');
+        sqlite.run('PRAGMA ignore_check_constraints=ON');
+        if (fault === 'missing-work-item')
+          sqlite.run("DELETE FROM work_item WHERE id='typed-owner'");
+        if (fault === 'missing-definition')
+          sqlite.run("DELETE FROM step_definition WHERE id='s-1'");
+        if (fault === 'missing-values')
+          sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-1' AND step_id='s-1'");
+        if (fault === 'foreign-organization')
+          sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('foreign','Foreign',1)");
+        if (fault === 'foreign-organization' || fault === 'missing-definition-organization')
+          sqlite.run("UPDATE step_definition SET organization_id=? WHERE id='s-1'", [
+            fault === 'foreign-organization' ? 'foreign' : 'missing',
+          ]);
+        if (fault === 'malformed-values')
+          sqlite.run(
+            "UPDATE work_package_step SET estimate_unit=x'01' WHERE work_package_id='p-1' AND step_id='s-1'",
+          );
+        if (fault === 'unknown-scope')
+          sqlite.run("UPDATE typed_dependency SET predecessor_scope='other'");
+        if (fault === 'whole-with-step')
+          sqlite.run("UPDATE typed_dependency SET predecessor_scope='whole'");
+        if (fault === 'unknown-type') sqlite.run("UPDATE typed_dependency SET type='SF'");
+        sqlite.run('PRAGMA ignore_check_constraints=OFF');
+        sqlite.run('PRAGMA foreign_keys=ON');
+        const capture = () =>
+          [
+            'work_package',
+            'work_item',
+            'typed_dependency',
+            'work_package_step',
+            'step_definition',
+            'step_binding',
+            'step_retirement',
+            'optimization_generation',
+            'solver_slot',
+            'optimized_schedule_cache',
+            'command_journal',
+            'event_log',
+            'event_sequencer',
+          ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+        const before = capture();
+        const diagnostic = {
+          'missing-work-item': 'cross-work-package typed dependency',
+          'missing-definition': 'step parallelism has an invalid step reference',
+          'missing-values': 'has no explicit values for step',
+          'foreign-organization': 'drain step definition organization is absent or foreign',
+          'missing-definition-organization':
+            'drain step definition organization is absent or foreign',
+          'malformed-values': 'catalogue package estimate unit is malformed',
+          'unknown-scope': 'unknown predecessor scope other',
+          'whole-with-step': 'whole predecessor with a step',
+          'unknown-type': 'unknown relationship type SF',
+        }[fault];
+        expect(() => finishOptimizationDrain(db, 'p-1')).toThrow(diagnostic);
+        expect(capture()).toEqual(before);
+      } finally {
+        sqlite.close();
+      }
+    });
+  }
+  it('selects actual successor incidence despite a foreign declared owner', () => {
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(
+        "INSERT INTO work_item(id,work_package_id,name,position) VALUES('actual-a','p-1','A',1),('actual-b','p-2','B',1)",
+      );
+      sqlite.run(
+        "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES('foreign-successor','p-2','actual-b','whole','actual-a','whole','FS')",
+      );
+      beginOptimizationDrain(db, 'p-1', stampAt(20));
+      const before = sqlite.query('SELECT * FROM typed_dependency').all();
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow(
+        'cross-work-package typed dependency',
+      );
+      expect(sqlite.query('SELECT * FROM typed_dependency').all()).toEqual(before);
+      expect(workPackageIds()).toEqual(['p-1', 'p-2']);
+      expect(sqlite.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      sqlite.close();
+    }
+  });
+});
+
+it('refuses actual successor ownership before a bystander predecessor missing package values', () => {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO work_item(id,work_package_id,name,position) VALUES('mixed-a','p-1','A',1),('mixed-b','p-2','B',1)",
+    );
+    sqlite.run(
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('mixed','p-2','mixed-b','node','s-1','mixed-a','whole','FS')",
+    );
+    sqlite.run('PRAGMA foreign_keys=OFF');
+    sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-2' AND step_id='s-1'");
+    sqlite.run('PRAGMA foreign_keys=ON');
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const capture = () =>
+      [
+        'work_package',
+        'work_item',
+        'typed_dependency',
+        'work_package_step',
+        'step_definition',
+        'step_binding',
+        'step_retirement',
+      ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = capture();
+    expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package typed dependency');
+    expect(capture()).toEqual(before);
+  } finally {
+    sqlite.close();
+  }
+});
+
+it('refuses later cross-owner edges before an earlier local edge missing package values', () => {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO work_item(id,work_package_id,name,position) VALUES('mixed-a','p-1','A',1),('mixed-b','p-2','B',1)",
+    );
+    sqlite.run(
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('local-first','p-1','mixed-a','node','s-1','mixed-a','whole','FS'),('cross-later','p-2','mixed-b','whole',NULL,'mixed-a','whole','FS')",
+    );
+    sqlite.run('PRAGMA foreign_keys=OFF');
+    sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-1' AND step_id='s-1'");
+    sqlite.run('PRAGMA foreign_keys=ON');
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const capture = () =>
+      [
+        'work_package',
+        'work_item',
+        'typed_dependency',
+        'work_package_step',
+        'step_definition',
+        'step_binding',
+        'step_retirement',
+      ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = capture();
+    expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package typed dependency');
+    expect(capture()).toEqual(before);
+  } finally {
+    sqlite.close();
+  }
 });

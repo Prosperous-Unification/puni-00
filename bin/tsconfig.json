@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "tool-wiki-lint.ts",
+    "dev-ports.ts",
+    "dev.ts",
+    "dev-be-probe.ts",
+    "assert-rename-window.ts"
+  ]
+}

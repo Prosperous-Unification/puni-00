@@ -4,9 +4,12 @@ import { CapacityRepository } from '@wbs/store-sqlite/capacity';
 import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness | undefined;
-afterEach(() => h?.close());
+afterEach(async () => {
+  await h?.closeComposed();
+});
 
 for (const mode of ['isolated', 'shared'] as const) {
   describe(`live node resources (${mode})`, () => {
@@ -17,24 +20,26 @@ for (const mode of ['isolated', 'shared'] as const) {
       h = harness;
       await harness.register('ada');
       harness.organization('org-a');
-      harness.member('org-a', 'ada', 'member');
+      harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+      harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
       harness.bind('ada', 'org-a');
       harness.activate();
       if (mode === 'shared')
         harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-      const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Resources' });
-      expect(created.status).toBe(200);
-      const { project, steps } = created.body as {
-        project: { id: string };
-        steps: { id: string }[];
-      };
+      const id = await createFixturePackage(harness, 'ada', 'Resources');
+      const { workPackage, steps } = await readFixturePackage(harness, 'ada', id);
       const dev = steps.at(0)?.id;
       const qa = steps.at(1)?.id;
       if (dev === undefined || qa === undefined) throw new Error('seed steps missing');
       const batch = async (commands: unknown[]) => {
-        const applied = await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
-          commands,
-        });
+        const applied = await harness.call(
+          'ada',
+          'POST',
+          `/api/work-packages/${workPackage.id}/commands`,
+          {
+            commands,
+          },
+        );
         expect(applied.status).toBe(200);
         return applied.body as { results: { id: string; ref: string }[] };
       };
@@ -64,8 +69,8 @@ for (const mode of ['isolated', 'shared'] as const) {
         ['narrow', 2],
       ] as const)
         harness.sqlite.run(
-          'INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES (?, ?, ?)',
-          [project.id, teamId, size],
+          'INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES (?, ?, ?)',
+          [workPackage.id, teamId, size],
         );
       await batch([{ kind: 'patchWorkItem', workItemId: leaf, patch: { maxParallel: 3 } }]);
       await batch(
@@ -77,7 +82,11 @@ for (const mode of ['isolated', 'shared'] as const) {
         })),
       );
       const read = async () => {
-        const answer = await harness.call('ada', 'GET', `/api/projects/${project.id}/work-items`);
+        const answer = await harness.call(
+          'ada',
+          'GET',
+          `/api/work-packages/${workPackage.id}/work-items`,
+        );
         expect(answer.status).toBe(200);
         return answer.body as {
           workItems: {
@@ -92,13 +101,13 @@ for (const mode of ['isolated', 'shared'] as const) {
       const readCapacity = CapacityRepository.prototype.slotsFor;
       let changedCapacity = false;
       const concurrent = spyOn(CapacityRepository.prototype, 'slotsFor').mockImplementation(
-        async function (this: CapacityRepository, projectId) {
-          const capacity = await readCapacity.call(this, projectId);
-          if (projectId === project.id && !changedCapacity) {
+        async function (this: CapacityRepository, workPackageId) {
+          const capacity = await readCapacity.call(this, workPackageId);
+          if (workPackageId === workPackage.id && !changedCapacity) {
             changedCapacity = true;
             harness.sqlite.run(
-              'UPDATE project_team_capacity SET size = 1 WHERE project_id = ? AND service_team_id = ?',
-              [project.id, 'narrow'],
+              'UPDATE work_package_team_capacity SET size = 1 WHERE work_package_id = ? AND service_team_id = ?',
+              [workPackage.id, 'narrow'],
             );
           }
           return capacity;
@@ -114,13 +123,13 @@ for (const mode of ['isolated', 'shared'] as const) {
       expect(
         harness.sqlite
           .query(
-            'SELECT size FROM project_team_capacity WHERE project_id = ? AND service_team_id = ?',
+            'SELECT size FROM work_package_team_capacity WHERE work_package_id = ? AND service_team_id = ?',
           )
-          .get(project.id, 'narrow'),
+          .get(workPackage.id, 'narrow'),
       ).toEqual({ size: 1 });
       harness.sqlite.run(
-        'UPDATE project_team_capacity SET size = 2 WHERE project_id = ? AND service_team_id = ?',
-        [project.id, 'narrow'],
+        'UPDATE work_package_team_capacity SET size = 2 WHERE work_package_id = ? AND service_team_id = ?',
+        [workPackage.id, 'narrow'],
       );
       expect(first.workItems.find((row) => row.id === parent)).not.toHaveProperty('nodeResources');
       const resource = first.workItems.find((row) => row.id === leaf)?.nodeResources?.[dev];
@@ -171,7 +180,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const single = await harness.call(
         'ada',
         'GET',
-        `/api/projects/${project.id}/work-items/${leaf}`,
+        `/api/work-packages/${workPackage.id}/work-items/${leaf}`,
       );
       expect(single.status).toBe(200);
       expect(
@@ -180,7 +189,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const page = await harness.call(
         'ada',
         'GET',
-        `/api/projects/${project.id}/work-item-rows?fields=constraints&parentId=${parent}`,
+        `/api/work-packages/${workPackage.id}/work-item-rows?fields=constraints&parentId=${parent}`,
       );
       expect(page.status).toBe(200);
       expect(
@@ -189,7 +198,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const outline = await harness.call(
         'ada',
         'GET',
-        `/api/projects/${project.id}/work-item-rows?parentId=${parent}`,
+        `/api/work-packages/${workPackage.id}/work-item-rows?parentId=${parent}`,
       );
       expect(outline.status).toBe(200);
       expect((outline.body as { rows: unknown[] }).rows[0]).not.toHaveProperty('nodeResources');
@@ -197,8 +206,8 @@ for (const mode of ['isolated', 'shared'] as const) {
       const readTree = WorkItemService.prototype.treeWithin;
       for (const fault of ['absent', 'malformed'] as const) {
         const producer = spyOn(WorkItemService.prototype, 'treeWithin').mockImplementation(
-          async function (this: WorkItemService, projectId, access) {
-            const tree = await readTree.call(this, projectId, access);
+          async function (this: WorkItemService, workPackageId, access) {
+            const tree = await readTree.call(this, workPackageId, access);
             if (tree === null || 'kind' in tree) return tree;
             return {
               ...tree,
@@ -218,7 +227,7 @@ for (const mode of ['isolated', 'shared'] as const) {
           const boundary = await harness.call(
             'ada',
             'GET',
-            `/api/projects/${project.id}/work-items`,
+            `/api/work-packages/${workPackage.id}/work-items`,
           );
           expect(boundary.status).toBe(fault === 'absent' ? 200 : 500);
           if (fault === 'absent')
@@ -229,9 +238,10 @@ for (const mode of ['isolated', 'shared'] as const) {
         }
       }
       await batch([{ kind: 'moveWorkItem', workItemId: leaf, parentId: other, afterId: null }]);
+      harness.grantPermissions('org-a', 'ada', ['organization.manage_settings']);
       expect(
         (
-          await harness.call('ada', 'PATCH', `/api/projects/${project.id}/steps/${dev}`, {
+          await harness.call('ada', 'PATCH', `/api/organization/steps/${dev}`, {
             name: 'Renamed',
           })
         ).status,
@@ -245,7 +255,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const exported = await harness.call(
         'ada',
         'GET',
-        `/api/projects/${project.id}/export?format=json`,
+        `/api/work-packages/${workPackage.id}/export?format=json`,
       );
       expect(exported.status).toBe(200);
       for (const row of (exported.body as { workItems: unknown[] }).workItems)
@@ -253,13 +263,16 @@ for (const mode of ['isolated', 'shared'] as const) {
       const document = structuredClone(exported.body) as { workItems: Record<string, unknown>[] };
       for (const row of document.workItems)
         row['nodeResources'] = { ignored: 'malformed derived input' };
-      const imported = await harness.call('ada', 'POST', '/api/projects/import', document);
+      const imported = await harness.call('ada', 'POST', '/api/work-packages/import', {
+        projectId: workPackage.projectId,
+        document,
+      });
       expect(imported.status).toBe(201);
-      const importedProject = (imported.body as { projectId: string }).projectId;
+      const importedWorkPackage = (imported.body as { workPackageId: string }).workPackageId;
       const importedTree = await harness.call(
         'ada',
         'GET',
-        `/api/projects/${importedProject}/work-items`,
+        `/api/work-packages/${importedWorkPackage}/work-items`,
       );
       expect(importedTree.status).toBe(200);
       for (const row of (
@@ -277,19 +290,33 @@ for (const mode of ['isolated', 'shared'] as const) {
       h = harness;
       await harness.register('ada');
       harness.organization('org-a');
-      harness.member('org-a', 'ada', 'member');
+      harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+      harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
       harness.bind('ada', 'org-a');
       harness.activate();
       if (mode === 'shared')
         harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-      const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Stepless' });
-      const projectId = (created.body as { project: { id: string } }).project.id;
-      const applied = await harness.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
-        commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Leaf' }],
+      const created = await harness.call('ada', 'POST', '/api/projects', {
+        name: 'Stepless project',
+        workPackage: { name: 'Stepless' },
       });
+      expect(created.status).toBe(201);
+      const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+      const applied = await harness.call(
+        'ada',
+        'POST',
+        `/api/work-packages/${workPackageId}/commands`,
+        {
+          commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Leaf' }],
+        },
+      );
       expect(applied.status).toBe(200);
-      harness.sqlite.run('DELETE FROM step WHERE project_id = ?', [projectId]);
-      const tree = await harness.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+      expect((await readFixturePackage(harness, 'ada', workPackageId)).steps).toEqual([]);
+      const tree = await harness.call(
+        'ada',
+        'GET',
+        `/api/work-packages/${workPackageId}/work-items`,
+      );
       expect(tree.status).toBe(200);
       expect(
         (tree.body as { workItems: { nodeResources: unknown }[] }).workItems.map(

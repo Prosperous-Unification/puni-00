@@ -10,12 +10,12 @@ import { OptimizationCoordinator } from '../module/optimization/optimization.fea
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '18+0.4.0';
 const BUDGET_MS = 60_000;
 const INPUT: ScheduleInput = {
@@ -53,7 +53,8 @@ function database() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-spawn-handshake-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'optimization-org', 'optimization-project');
   const raw = openDatabase(path);
   try {
     raw.run(
@@ -61,9 +62,9 @@ function database() {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
-       VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+       VALUES ('p-1', 'Plan', 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
   } finally {
     raw.close();
@@ -172,7 +173,7 @@ describe('the two-coordinator spawn handshake', () => {
     const greenCoordinator = coordinator(green, 'green');
 
     expect(
-      await blueCoordinator.read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await blueCoordinator.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     await until(() => blueAttempts.length === 2);
     const firstRows = blue.select().from(solverSlot).all();
@@ -181,7 +182,7 @@ describe('the two-coordinator spawn handshake', () => {
     now = Math.max(...firstRows.map(({ admittedDeadlineAt }) => admittedDeadlineAt)) + 1;
 
     expect(
-      await greenCoordinator.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+      await greenCoordinator.read({ workPackageId: 'p-1', objective: 'time', input: INPUT }),
     ).toBeNull();
     await until(
       () => greenAttempts.length === 2 && greenAttempts.every(({ marker }) => existsSync(marker)),

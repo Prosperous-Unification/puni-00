@@ -4,12 +4,17 @@ import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { runRecoveryWrite } from '@wbs/core/http/recovery-write';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
 import { openDatabase } from '../repository/db';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -55,7 +60,7 @@ async function open() {
   await harness.register('ada');
   for (const id of ['org-a', 'org-b']) {
     harness.organization(id);
-    harness.member(id, 'ada', 'super_admin');
+    harness.member(id, 'ada', 'super_admin', ['org-super-admin']);
   }
   harness.activate();
   const selected = await harness.request('/api/organization/active', {
@@ -82,18 +87,33 @@ async function open() {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const created = await request('POST', '/api/projects', { name: 'Plan' });
+  const parent = await request('POST', '/api/projects', { name: 'Authority project' });
+  expect(parent.status).toBe(201);
+  const {
+    project: { id: projectId },
+  } = (await parent.json()) as { project: { id: string } };
+  const define = (name: string, code: string, position: number) =>
+    request('POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position,
+      define: { name, code, position, defaultAllowanceBps: 0, defaultEstimateUnit: 'workdays' },
+    });
+  const bound = await define('Build', 'build', 10);
+  expect(bound.status).toBe(201);
+  const {
+    binding: { stepId, bindingId },
+  } = (await bound.json()) as { binding: { stepId: string; bindingId: string } };
+  const created = await request('POST', '/api/work-packages', { name: 'Plan', projectId });
   expect(created.status).toBe(200);
-  const project = harness.sqlite.query<{ id: string }, []>('SELECT id FROM project').get();
-  if (project === null) throw new Error('fixture project is absent');
-  const step = harness.sqlite
-    .query<{ id: string }, []>('SELECT id FROM step ORDER BY position LIMIT 1')
-    .get();
-  if (step === null) throw new Error('fixture step is absent');
-  const path = `/api/projects/${project.id}`;
+  const {
+    workPackage: { id: workPackageId },
+  } = (await created.json()) as { workPackage: { id: string } };
+  const path = `/api/work-packages/${workPackageId}`;
   const commands = [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Row' }];
   expect((await request('POST', `${path}/commands`, { commands })).status).toBe(200);
-  return { request, path, stepId: step.id, projectId: project.id, cookie };
+  return { request, path, stepId, bindingId, define, projectId, workPackageId, cookie };
 }
 
 /** Includes all command, history, audit and fan-out rows, excluding only the injected authority. */
@@ -120,7 +140,7 @@ const operations = [
   'undo',
   'redo',
   'prelude',
-  'project',
+  'work_package',
   'step',
   'step-rename',
   'step-remove',
@@ -140,8 +160,14 @@ describe('current command authority on the process writer', () => {
         );
         const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
         const access = {
+          principal: { id: principal.id },
           kind: 'scoped' as const,
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+          scope: {
+            cap: null,
+            organizationId: 'org-a',
+            userId: principal.id,
+            role: 'super_admin' as const,
+          },
         };
         let release!: () => void;
         let entered!: () => void;
@@ -167,10 +193,12 @@ describe('current command authority on the process writer', () => {
         const pending = (() => {
           switch (operation) {
             case 'direct':
-              return harness.publicCommands().runWithin(fixture.projectId, principal, [], access);
+              return harness
+                .publicCommands()
+                .runWithin(fixture.workPackageId, principal, [], access);
             case 'bare-step':
               return harness.removeBareStep(
-                fixture.projectId,
+                fixture.workPackageId,
                 fixture.stepId,
                 principal,
                 true,
@@ -185,21 +213,22 @@ describe('current command authority on the process writer', () => {
               return fixture.request('POST', `${fixture.path}/${operation}`);
             case 'prelude':
               return fixture.request('PATCH', `${fixture.path}/steps/${fixture.stepId}`, {
-                name: 'Queued',
-                allowancePercent: 10,
+                estimateUnit: 'minutes',
+                allowanceBps: 1000,
               });
-            case 'project':
+            case 'work_package':
               return fixture.request('PATCH', fixture.path, { startDate: '2026-10-22' });
             case 'step':
-              return fixture.request('POST', `${fixture.path}/steps`, { name: 'Queued' });
+              return fixture.define('Queued', 'queued', 20);
             case 'step-rename':
-              return fixture.request('PATCH', `${fixture.path}/steps/${fixture.stepId}`, {
+              return fixture.request('PATCH', `/api/organization/steps/${fixture.stepId}`, {
                 name: 'Queued',
               });
             case 'step-remove':
               return fixture.request(
                 'DELETE',
-                `${fixture.path}/steps/${fixture.stepId}?cascade=true`,
+                `/api/organization/step-bindings/${fixture.bindingId}`,
+                { dryRun: false },
               );
             case 'batch':
               return fixture.request('POST', `${fixture.path}/commands`, {
@@ -237,9 +266,10 @@ describe('current command authority on the process writer', () => {
             error = 'not_a_member';
           } else if (fault === 'demotion') {
             harness.sqlite.run(
-              "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+              "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
               [userId],
             );
+            harness.grant('org-a', 'ada', 'org-viewer');
             error = 'forbidden';
           } else {
             harness.sqlite.run(
@@ -300,17 +330,29 @@ test('direct runner compares current kind, organization and principal identity w
   for (const expected of [
     { kind: 'legacy' as const },
     {
+      principal: { id: principal.id },
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-b', userId: principal.id, role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-b',
+        userId: principal.id,
+        role: 'super_admin' as const,
+      },
     },
     {
+      principal: { id: 'another-user' },
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: 'another-user', role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: 'another-user',
+        role: 'super_admin' as const,
+      },
     },
   ]) {
     const before = effects();
     expect(
-      await harness.publicCommands().runWithin(fixture.projectId, principal, [], expected),
+      await harness.publicCommands().runWithin(fixture.workPackageId, principal, [], expected),
     ).toEqual({ ok: false, refusal: 'organization_context_changed' });
     expect(effects()).toEqual(before);
   }
@@ -319,7 +361,9 @@ test('direct runner compares current kind, organization and principal identity w
 test('explicit legacy runner refuses after durable activation', async () => {
   const fixture = await open();
   const before = effects();
-  expect(await harness.publicCommands().run(fixture.projectId, harness.userId('ada'), [])).toEqual({
+  expect(
+    await harness.publicCommands().run(fixture.workPackageId, harness.userId('ada'), []),
+  ).toEqual({
     ok: false,
     refusal: 'no_active_organization',
   });
@@ -332,7 +376,7 @@ test('missing trusted activation state throws instead of reopening legacy comman
   const before = effects();
   const failure = await harness
     .publicCommands()
-    .run(fixture.projectId, harness.userId('ada'), [])
+    .run(fixture.workPackageId, harness.userId('ada'), [])
     .then(
       () => null,
       (cause: unknown) => cause,
@@ -342,27 +386,35 @@ test('missing trusted activation state throws instead of reopening legacy comman
   expect(effects()).toEqual(before);
 });
 
-test('malformed trusted membership throws before direct command effects', async () => {
+test('malformed trusted grant catalogue throws before direct command effects', async () => {
   const fixture = await open();
   const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
   const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
   harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-  harness.sqlite.run("UPDATE organization_membership SET role='broken' WHERE user_id=?", [
-    principal.id,
-  ]);
+  try {
+    const corrupted = harness.sqlite
+      .query(
+        "INSERT INTO access_role_permission(role_id,permission) SELECT DISTINCT role_id,'broken.permission' FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+      )
+      .run(principal.id);
+    expect(corrupted.changes).toBeGreaterThan(0);
+  } finally {
+    harness.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+  }
   const before = effects();
   const failure = await harness
     .publicCommands()
-    .runWithin(fixture.projectId, principal, [], {
+    .runWithin(fixture.workPackageId, principal, [], {
+      principal: { id: principal.id },
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id },
     })
     .then(
       () => null,
       (cause: unknown) => cause,
     );
   expect(failure).toBeInstanceOf(Error);
-  expect(String(failure)).toContain('malformed role');
+  expect(String(failure)).toContain('not in the permission vocabulary');
   expect(effects()).toEqual(before);
 });
 
@@ -372,8 +424,9 @@ test('direct runner refuses a scoped expectation while current authority is lega
   const principal = await harness.authenticatedCommandPrincipal('ada', '');
   expect(
     await harness.publicCommands().runDirectoryWithin(principal, [], {
+      principal: { id: principal.id },
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id },
     }),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
 });
@@ -386,16 +439,22 @@ test('direct authenticated runner entries refuse read-only principals before ope
     scopes: ['read'] as const,
   };
   const access = {
+    principal: { id: principal.id },
     kind: 'scoped' as const,
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+    scope: {
+      cap: null,
+      organizationId: 'org-a',
+      userId: principal.id,
+      role: 'super_admin' as const,
+    },
   };
   const runner = harness.publicCommands();
   const before = effects();
   for (const pending of [
-    runner.runWithin(fixture.projectId, principal, [], access),
+    runner.runWithin(fixture.workPackageId, principal, [], access),
     runner.runDirectoryWithin(principal, [], access),
     runner.runAfterWithin(
-      fixture.projectId,
+      fixture.workPackageId,
       principal,
       () => {
         throw new Error('read-only prelude was reached');
@@ -403,14 +462,14 @@ test('direct authenticated runner entries refuse read-only principals before ope
       [],
       access,
     ),
-    runner.undoWithin(fixture.projectId, principal, access),
-    runner.redoWithin(fixture.projectId, principal, access),
+    runner.undoWithin(fixture.workPackageId, principal, access),
+    runner.redoWithin(fixture.workPackageId, principal, access),
   ])
     expect(await pending).toEqual({ ok: false, error: 'insufficient_scope' });
   expect(effects()).toEqual(before);
 });
 
-for (const operation of ['project update', 'bare step removal', 'recovery write'] as const) {
+for (const operation of ['work package update', 'bare step removal', 'recovery write'] as const) {
   test(`direct ${operation} refuses read-only scope before opening its SQLite UoW`, async () => {
     const fixture = await open();
     const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
@@ -419,15 +478,26 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
       scopes: ['read'] as const,
     };
     const access = {
+      principal: { id: principal.id },
       kind: 'scoped' as const,
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' as const },
+      scope: {
+        cap: null,
+        organizationId: 'org-a',
+        userId: principal.id,
+        role: 'super_admin' as const,
+      },
     };
     if (operation !== 'bare step removal') {
       await harness.register('owner');
-      harness.member('org-a', 'owner', 'member');
-      harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
+      harness.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
+      harness.grantPermissions('org-a', 'owner', ['organization.create_project']);
+      harness.sqlite.run(
+        "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND origin='creation' AND subject_id=?",
+        [harness.userId('owner'), fixture.workPackageId, principal.id],
+      );
+      harness.sqlite.run('UPDATE work_package SET created_by=?, restricted=1 WHERE id=?', [
         harness.userId('owner'),
-        fixture.projectId,
+        fixture.workPackageId,
       ]);
     }
     const boundary = harness.publicWrites();
@@ -436,24 +506,30 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
     const capturesBefore = observedCaptures;
     const pushesBefore = observedPushes;
     const outcome =
-      operation === 'project update'
-        ? await createAdmittedWrites(boundary).updateProjectWithin(
-            fixture.projectId,
+      operation === 'work package update'
+        ? await createAdmittedWrites(boundary).updateWorkPackageWithin(
+            fixture.workPackageId,
             principal,
             { name: 'Must not write' },
             access,
           )
         : operation === 'bare step removal'
-          ? await harness.removeBareStep(fixture.projectId, fixture.stepId, principal, true, access)
+          ? await harness.removeBareStep(
+              fixture.workPackageId,
+              fixture.stepId,
+              principal,
+              true,
+              access,
+            )
           : await runRecoveryWrite(
               boundary,
               access,
-              fixture.projectId,
+              fixture.workPackageId,
               principal,
               { step: 'remove' },
               (services, freshAccess) =>
                 services.steps.removeWithin(
-                  fixture.projectId,
+                  fixture.workPackageId,
                   fixture.stepId,
                   principal.id,
                   true,
@@ -467,7 +543,7 @@ for (const operation of ['project update', 'bare step removal', 'recovery write'
     expect(observedPushes).toBe(pushesBefore);
     expect(effects()).toEqual(before);
     expect(
-      harness.sqlite.query('SELECT id FROM step WHERE id=?').get(fixture.stepId),
+      harness.sqlite.query('SELECT id FROM step_definition WHERE id=?').get(fixture.stepId),
     ).not.toBeNull();
   });
 }
@@ -497,6 +573,14 @@ for (const kind of ['machine', 'consent'] as const)
         personId: 'agent',
         issuedBy: harness.userId('ada'),
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        credential.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const authenticated = await harness.authenticatedMachinePrincipal(credential.key);
       const principal =
         kind === 'machine'
@@ -575,9 +659,14 @@ for (const kind of ['machine', 'consent'] as const)
       const before = effects();
       refusingObservations = true;
       expect(
-        await harness.publicCommands().runWithin(fixture.projectId, principal, [], {
+        await harness.publicCommands().runWithin(fixture.workPackageId, principal, [], {
+          principal: { id: principal.id },
           kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+          scope: {
+            cap: CONTRIBUTOR_CAP,
+            organizationId: 'org-a',
+            userId: principal.id,
+          },
         }),
       ).toEqual({ ok: false, refusal: 'organization_context_changed' });
       expect(effects()).toEqual(before);
@@ -601,6 +690,14 @@ for (const operation of [
       personId: 'agent',
       issuedBy: harness.userId('ada'),
     });
+    grantCredential(
+      harness.sqlite,
+      'org-a',
+      credential.id,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const issued = await requestGrant(
       harness,
       { kind: 'api_key', key: credential.key },
@@ -626,29 +723,27 @@ for (const operation of [
     };
     const pending = harness.callWith(
       grant,
-      operation === 'prelude' || operation === 'ordinary'
+      operation === 'prelude' || operation === 'ordinary' || operation === 'recovery'
         ? 'PATCH'
-        : operation === 'recovery'
-          ? 'DELETE'
-          : 'POST',
+        : 'POST',
       operation === 'directory'
         ? '/api/directory/commands'
-        : operation === 'prelude'
+        : operation === 'prelude' || operation === 'recovery'
           ? `${fixture.path}/steps/${fixture.stepId}`
           : operation === 'ordinary'
             ? fixture.path
-            : operation === 'recovery'
-              ? `${fixture.path}/steps/${fixture.stepId}?cascade=true`
-              : `${fixture.path}/${operation === 'batch' ? 'commands' : operation}`,
+            : `${fixture.path}/${operation === 'batch' ? 'commands' : operation}`,
       operation === 'batch'
         ? { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Queued' }] }
         : operation === 'directory'
           ? { commands: [{ kind: 'createTeam', name: 'Queued' }] }
           : operation === 'prelude'
-            ? { name: 'Queued', allowancePercent: 10 }
+            ? { estimateUnit: 'minutes', allowanceBps: 1000 }
             : operation === 'ordinary'
               ? { name: 'Queued' }
-              : undefined,
+              : operation === 'recovery'
+                ? { estimateUnit: 'minutes' }
+                : undefined,
       {
         [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
         [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
@@ -682,6 +777,14 @@ for (const kind of ['machine', 'consent'] as const)
         personId: 'agent',
         issuedBy: harness.userId('ada'),
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        credential.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const principal = await harness.authenticatedMachinePrincipal(credential.key);
       if (kind === 'consent') {
         harness.sqlite.run(
@@ -703,11 +806,17 @@ for (const kind of ['machine', 'consent'] as const)
         };
       }
       const access = {
+        principal: { id: principal.id },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: principal.id,
+          role: 'member' as const,
+        },
       };
       const runner = harness.publicCommands();
-      expect(await runner.runWithin(fixture.projectId, principal, [], access)).toMatchObject({
+      expect(await runner.runWithin(fixture.workPackageId, principal, [], access)).toMatchObject({
         ok: true,
       });
       let release!: () => void;
@@ -726,12 +835,12 @@ for (const kind of ['machine', 'consent'] as const)
         operation === 'directory'
           ? runner.runDirectoryWithin(principal, [], access)
           : operation === 'undo'
-            ? runner.undoWithin(fixture.projectId, principal, access)
+            ? runner.undoWithin(fixture.workPackageId, principal, access)
             : operation === 'redo'
-              ? runner.redoWithin(fixture.projectId, principal, access)
+              ? runner.redoWithin(fixture.workPackageId, principal, access)
               : operation === 'prelude'
                 ? runner.runAfterWithin(
-                    fixture.projectId,
+                    fixture.workPackageId,
                     principal,
                     () => {
                       throw new Error('revoked credential reached prelude');
@@ -739,7 +848,7 @@ for (const kind of ['machine', 'consent'] as const)
                     [],
                     access,
                   )
-                : runner.runWithin(fixture.projectId, principal, [], access);
+                : runner.runWithin(fixture.workPackageId, principal, [], access);
       try {
         harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [
           credential.id,
@@ -766,6 +875,14 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
       personId: 'agent',
       issuedBy: harness.userId('ada'),
     });
+    grantCredential(
+      harness.sqlite,
+      'org-a',
+      credential.id,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
     const principal = await harness.authenticatedMachinePrincipal(credential.key);
     harness.sqlite.run('PRAGMA ignore_check_constraints=ON');
     if (fault === 'absent-table')
@@ -779,9 +896,14 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
     const before = effects();
     const failure = await harness
       .publicCommands()
-      .runWithin(fixture.projectId, principal, [], {
+      .runWithin(fixture.workPackageId, principal, [], {
+        principal: { id: principal.id },
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: principal.id,
+        },
       })
       .then(
         () => null,
@@ -795,42 +917,47 @@ for (const fault of ['membership', 'revocation'] as const)
   test(`qualified address lookup then queued external command refuses current ${fault}`, async () => {
     const fixture = await open();
     expect(
-      (await fixture.request('POST', '/api/projects', { name: 'Remote', abbreviation: 'REMOTE' }))
-        .status,
+      (
+        await fixture.request('POST', '/api/work-packages', {
+          name: 'Remote',
+          projectId: fixture.projectId,
+          abbreviation: 'REMOTE',
+        })
+      ).status,
     ).toBe(200);
     const remote = harness.sqlite
-      .query<{ id: string }, []>("SELECT id FROM project WHERE name='Remote'")
+      .query<{ id: string }, []>("SELECT id FROM work_package WHERE name='Remote'")
       .get();
-    if (remote === null) throw new Error('remote project absent');
+    if (remote === null) throw new Error('remote work package absent');
     expect(
       (
-        await fixture.request('POST', `/api/projects/${remote.id}/commands`, {
+        await fixture.request('POST', `/api/work-packages/${remote.id}/commands`, {
           commands: [{ kind: 'createWorkItem', name: 'Prerequisite' }],
         })
       ).status,
     ).toBe(200);
     const candidates = await fixture.request(
       'GET',
-      `/api/projects/${remote.id}/address-candidates`,
+      `/api/work-packages/${remote.id}/address-candidates`,
     );
     expect(candidates.status).toBe(200);
     const page = (await candidates.json()) as { addressRevision: string };
     const lookup = await fixture.request(
       'GET',
-      `/api/projects/${remote.id}/address-references?reference=REMOTE.010&revision=${page.addressRevision}`,
+      `/api/work-packages/${remote.id}/address-references?reference=REMOTE.010&revision=${page.addressRevision}`,
     );
     expect(lookup.status).toBe(200);
     const resolved = (await lookup.json()) as {
-      projectId: string;
+      workPackageId: string;
       endpoint: { scope: 'whole'; workItemId: string };
     };
     const successor = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-      .get(fixture.projectId);
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+      .get(fixture.workPackageId);
     if (successor === null) throw new Error('successor absent');
     const command = {
       kind: 'addTypedDependency',
-      predecessor: { projectId: resolved.projectId, ...resolved.endpoint },
+      predecessor: { workPackageId: resolved.workPackageId, ...resolved.endpoint },
       successor: { scope: 'whole', workItemId: successor.id },
       type: 'FS',
     };
@@ -946,16 +1073,38 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
         personId: 'original-agent',
         issuedBy: accountId,
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        original.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const replacement = await issueApiKey(harness.sqlite, {
         organizationId: 'org-a',
         personId: 'replacement-agent',
         issuedBy: accountId,
       });
+      grantCredential(
+        harness.sqlite,
+        'org-a',
+        replacement.id,
+        'project-contributor',
+        'organization',
+        'org-a',
+      );
       const principal = await harness.authenticatedMachinePrincipal(original.key);
       const replacementPrincipal = await harness.authenticatedMachinePrincipal(replacement.key);
       const access = {
+        principal: { id: accountId },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: accountId, role: 'member' as const },
+        scope: {
+          cap: CONTRIBUTOR_CAP,
+          organizationId: 'org-a',
+          userId: accountId,
+          role: 'member' as const,
+        },
       };
       const runner = harness.publicCommands();
       const commands = [
@@ -966,11 +1115,13 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
           name: 'Original agent row',
         },
       ];
-      expect(await runner.runWithin(fixture.projectId, principal, commands, access)).toMatchObject({
+      expect(
+        await runner.runWithin(fixture.workPackageId, principal, commands, access),
+      ).toMatchObject({
         ok: true,
       });
       if (operation === 'redo')
-        expect(await runner.undoWithin(fixture.projectId, principal, access)).toMatchObject({
+        expect(await runner.undoWithin(fixture.workPackageId, principal, access)).toMatchObject({
           ok: true,
         });
       let release!: () => void;
@@ -988,12 +1139,12 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
       let preludes = 0;
       const pending =
         operation === 'undo'
-          ? runner.undoWithin(fixture.projectId, principal, access)
+          ? runner.undoWithin(fixture.workPackageId, principal, access)
           : operation === 'redo'
-            ? runner.redoWithin(fixture.projectId, principal, access)
+            ? runner.redoWithin(fixture.workPackageId, principal, access)
             : operation === 'prelude'
               ? runner.runAfterWithin(
-                  fixture.projectId,
+                  fixture.workPackageId,
                   principal,
                   () => {
                     preludes += 1;
@@ -1002,7 +1153,7 @@ for (const operation of ['batch', 'prelude', 'undo', 'redo'] as const)
                   commands,
                   access,
                 )
-              : runner.runWithin(fixture.projectId, principal, commands, access);
+              : runner.runWithin(fixture.workPackageId, principal, commands, access);
       // Mutate nested evidence before replacing the original authentication entirely.
       if (principal.authentication === undefined)
         throw new Error('fixture machine authentication missing');

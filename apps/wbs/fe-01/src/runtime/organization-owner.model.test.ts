@@ -1,6 +1,6 @@
 import {
   type ClientReply,
-  createProject,
+  createWorkPackage,
   type readActiveOrganization,
   type selectActiveOrganization,
 } from '@wbs/contracts';
@@ -8,7 +8,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 import { browserClient } from '@/lib/http';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
@@ -35,7 +35,7 @@ const selected = (organizationId: string): ClientReply<typeof selectActiveOrgani
 const sessions = () =>
   createSessionOwner({
     clientFor: () => fakeDirectoryApi(),
-    projectClientFor: () => fakeProjectApi(),
+    workPackageClientFor: () => fakeWorkPackageApi(),
     streamDeps: SILENT_STREAM,
   });
 afterEach(() => vi.unstubAllGlobals());
@@ -178,8 +178,8 @@ it('membership loss clears the whole organization runtime without retry', async 
   await owner.refresh();
   const runtime = sessionOwner.snapshot();
   if (runtime.status !== 'live') throw new Error('runtime missing');
-  const client = browserClient([createProject], runtime.services.resourceScope);
-  await client.postApiProjects({ body: { name: 'refused' } });
+  const client = browserClient([createWorkPackage], runtime.services.resourceScope);
+  await client.postApiWorkPackages({ body: { projectId: 'fixture-project', name: 'refused' } });
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(owner.snapshot().kind).toBe('lost');
   expect(runtime.services.isCurrent()).toBe(false);

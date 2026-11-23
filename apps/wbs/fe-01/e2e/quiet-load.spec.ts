@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { readPasswordSession, validateSchema } from '@wbs/contracts';
 
 /**
  * A healthy page load in local mode asks only what the deployment can answer.
@@ -29,7 +30,23 @@ async function loadQuietly(page: Page, path: string): Promise<LoadNoise> {
         `${response.request().method()} ${new URL(response.url()).pathname} ${String(response.status())}`,
       );
   });
-  await page.goto(path);
+  const sessionResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === readPasswordSession.path,
+  );
+  const [, response] = await Promise.all([page.goto(path), sessionResponse]);
+  expect(response.status()).toBe(200);
+  const session = await validateSchema(
+    readPasswordSession.responses[0].schema,
+    await response.json(),
+  );
+  if (session.issues !== undefined)
+    throw new Error('Local quiet-load session does not match its public response', {
+      cause: session.issues,
+    });
+  expect(session.value.user).toMatchObject({ id: 'local-dev', username: 'local-dev' });
+  expect(session.value.features).toEqual({ onboarding: false, organizations: false });
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   // Every read the page starts is settled before the lists are judged.
   await page.waitForLoadState('networkidle');
@@ -48,3 +65,31 @@ for (const path of PAGES) {
     expect(noise).toEqual({ console: [], refused: [] });
   });
 }
+
+test('Organization says what local mode means and offers somewhere to go', async ({ page }) => {
+  await loadQuietly(page, '/');
+  await page.goto('/organization');
+  const state = page.getByRole('main');
+  await expect(state.getByRole('alert')).toBeVisible();
+  // Proof: on main at 16eaa121f this failed on the link: the page said only
+  // `No organization is selected for this session.` Watched 2026-10-13.
+  const action = state.getByRole('link', { name: 'Open the plan' });
+  await expect(action).toBeVisible();
+  await action.click();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test('Spaces says what local mode means and offers All projects', async ({ page }) => {
+  await loadQuietly(page, '/');
+  await page.goto('/spaces');
+  const state = page.getByRole('main');
+  await expect(state.getByRole('alert')).toBeVisible();
+  // Proof: on main at 16eaa121f this failed on `not.toContainText('deployment')`:
+  // the page read `Until this deployment has one, only All projects is
+  // available.` Watched 2026-10-13.
+  await expect(state).not.toContainText('deployment');
+  const action = state.getByRole('link', { name: 'Open All projects' });
+  await expect(action).toBeVisible();
+  await action.click();
+  await expect(page).toHaveURL(/\/spaces\/all$/);
+});

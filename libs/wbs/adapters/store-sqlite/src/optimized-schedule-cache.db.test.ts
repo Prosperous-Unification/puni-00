@@ -18,32 +18,35 @@ import {
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { type Drizzle, openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { allocateGeneration } from './optimization-generation';
 import { storeOptimizedOutcome } from './optimized-schedule-cache';
 import { toOptimizedScheduleCacheRow } from './optimizer-rows';
 import { optimizedScheduleCache } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
-/** The migration under test; `PROJECT_SETTINGS` below it is now the newest. */
+/** The migration under test; `WORK_PACKAGE_SETTINGS` below it is now the newest. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 
 /**
  * The migration that lands immediately after this one: slice 3b.1's three
- * project settings columns. Named here only so the ordering and rollback claims
+ * work package settings columns. Named here only so the ordering and rollback claims
  * below stay about *this* migration's position rather than about whichever
  * folder happens to be last.
  */
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
- * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * The newest: the `(work_package_id, id)` index that serves
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -90,7 +93,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -170,14 +173,40 @@ const ALSO_ROLLED_BACK = [
 ] as const;
 
 const ADDED_INDEX = 'solver_queue_dequeue_order';
-const ADDED_PROJECT_COLUMN = 'optimization_delete_pending_at';
+const ADDED_WORK_PACKAGE_COLUMN = 'optimization_delete_pending_at';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimizer-cache-'));
   return {
+    directory: dir,
     path: join(dir, 'test.db'),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+function historicalDb() {
+  const db = tempDb();
+  return {
+    ...db,
+    folder: copyRecoveryPrefix(db.directory, '20261103110000_add_initial_access_offers'),
+  };
+}
+
+function currentDb() {
+  const db = tempDb();
+  migrateEmptyCatalogueFixture(
+    { path: db.path, directory: db.directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
+  const connection = openConnection(db.path);
+  return {
+    path: db.path,
+    drizzle: connection.db,
+    cleanup() {
+      connection.close();
+      db.cleanup();
     },
   };
 }
@@ -231,15 +260,16 @@ function refusal(path: string, sql: string): string | null {
   }
 }
 
-function seedProject(path: string, id: string): void {
+function seedWorkPackage(path: string, id: string): void {
+  seedLegacyPackageParent(path, 'org', 'parent');
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('${id}', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('${id}', 'parent', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     db.close();
@@ -247,7 +277,7 @@ function seedProject(path: string, id: string): void {
 }
 
 /**
- * The seat a writer must hold, plus the project switch, per contract version.
+ * The seat a writer must hold, plus the work package switch, per contract version.
  *
  * `storeOptimizedOutcome` re-reads all four of its fences inside the write
  * transaction, and `optimization_enabled` defaults to `false`, so a fixture
@@ -259,14 +289,14 @@ function reserveSlot(path: string, contractVersion: string, budgetMs: number): v
   try {
     db.run(
       `INSERT INTO solver_slot
-         (project_id, contract_version, generation, objective, budget_ms,
+         (work_package_id, contract_version, generation, objective, budget_ms,
           owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
           cancel_requested_at, admitted_deadline_at)
        VALUES ('p-1', '${contractVersion}', 1, 'pri', ${String(budgetMs)},
                'coordinator-a', 'tok-${contractVersion}-${String(budgetMs)}', 'running',
                4242, 1, 1, NULL, 99)`,
     );
-    db.run(`UPDATE project SET optimization_enabled = 1 WHERE id = 'p-1'`);
+    db.run(`UPDATE work_package SET optimization_enabled = 1 WHERE id = 'p-1'`);
   } finally {
     db.close();
   }
@@ -274,27 +304,27 @@ function reserveSlot(path: string, contractVersion: string, budgetMs: number): v
 
 function cacheRow(status: string, resultJson: string, failureReason: string): string {
   return `INSERT INTO optimized_schedule_cache
-    (project_id, input_hash, objective, contract_version, budget_ms,
+    (work_package_id, input_hash, objective, contract_version, budget_ms,
      generation, status, result_json, failure_reason, created_at)
     VALUES ('p-1', 'h1', 'pri', '7+1.0.0', 60000, 1, '${status}', ${resultJson}, ${failureReason}, 1)`;
 }
 
 describe('the optimizer migration', () => {
-  it('creates the four tables, the dequeue index and the project fence', () => {
-    const db = tempDb();
+  it('creates the four tables, the dequeue index and the work package fence', () => {
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
 
       for (const table of ADDED_TABLES) expect(tables(db.path)).toContain(table);
       expect(indexes(db.path)).toContain(ADDED_INDEX);
-      expect(projectColumns(db.path)).toContain(ADDED_PROJECT_COLUMN);
+      expect(projectColumns(db.path)).toContain(ADDED_WORK_PACKAGE_COLUMN);
     } finally {
       db.cleanup();
     }
   });
 
   /**
-   * The position claim, rewritten when 3b.1's project-settings migration landed
+   * The position claim, rewritten when 3b.1's work-package-settings migration landed
    * after this one: this migration is no longer last in the folder, so "newest"
    * is the wrong assertion and would have to be rewritten again by the next
    * slice. What actually matters to this file is the **adjacency** — that
@@ -302,28 +332,28 @@ describe('the optimizer migration', () => {
    * because a folder ordered any other way would apply the four tables after
    * the columns that steer them.
    */
-  it('is applied immediately before the project-settings migration', () => {
+  it('is applied immediately before the work-package-settings migration', () => {
     const names = readMigrationFolders(FOLDER).map((folder) => folder.name);
 
     // The adjacency itself, not `at(-1)`/`at(-2)`. Those were true while
-    // project-settings was the newest folder, and they made every later
+    // work-package-settings was the newest folder, and they made every later
     // migration a failure of this file — which is not what it is about.
     // Two folders have landed above it since: `calendar_marker` on 2026-09-05
     // and the read-order index on 2026-09-06.
-    const settings = names.indexOf(PROJECT_SETTINGS);
+    const settings = names.indexOf(WORK_PACKAGE_SETTINGS);
     expect(settings).toBeGreaterThan(0);
     expect(names[settings - 1]).toBe(OPTIMIZER_TABLES);
   });
 
   it('is idempotent on an already-migrated file', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
       const before = [...tables(db.path), ...indexes(db.path)];
 
       // The second run applies nothing: every folder is already stamped, and
       // `CREATE TABLE` without `IF NOT EXISTS` would throw if it ran again.
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
 
       expect([...tables(db.path), ...indexes(db.path)]).toEqual(before);
     } finally {
@@ -338,14 +368,16 @@ describe('the optimizer migration', () => {
    * blue/green deploy, reproduced.
    */
   it('rolls back everything it added and leaves every pre-existing table intact', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
       const migrated = tables(db.path);
 
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
-      expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      expect(rollbackTo(db.path, db.folder, LOOKUP_INDEXES)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -415,7 +447,7 @@ describe('the optimizer migration', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -424,14 +456,13 @@ describe('the optimizer migration', () => {
       const rolledBack = tables(db.path);
       for (const table of ADDED_TABLES) expect(rolledBack).not.toContain(table);
       expect(indexes(db.path)).not.toContain(ADDED_INDEX);
-      expect(projectColumns(db.path)).not.toContain(ADDED_PROJECT_COLUMN);
+      expect(projectColumns(db.path)).not.toContain(ADDED_WORK_PACKAGE_COLUMN);
 
       // Everything else is untouched: the rollback took the tables this
       // migration and later migrations add, and none of the earlier tables.
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
-            name !== 'optimization_boundary_certificate' &&
             name !== 'optimization_boundary_certificate' &&
             name !== 'cross_project_dependency_activation' &&
             name !== 'cross_project_dependency_activation_receipt' &&
@@ -496,13 +527,13 @@ describe('the optimizer migration', () => {
   });
 
   it('re-applies onto the rolled-back file and lands the same schema', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
       const first = [...tables(db.path), ...indexes(db.path), ...projectColumns(db.path)];
 
-      rollbackTo(db.path, FOLDER, LOOKUP_INDEXES);
-      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, db.folder, LOOKUP_INDEXES);
+      runMigrations(db.path, db.folder);
 
       expect([...tables(db.path), ...indexes(db.path), ...projectColumns(db.path)]).toEqual(first);
     } finally {
@@ -511,17 +542,27 @@ describe('the optimizer migration', () => {
   });
 
   /**
-   * The blue/green half: the outgoing release reads and writes `project`
+   * The blue/green half: the outgoing release reads and writes `workPackage`
    * knowing nothing about the new column, and the migration must not make its
    * statements invalid. A column-less `INSERT` is exactly what that release
    * runs, and it fails against a `NOT NULL` addition without a default —
    * which is why the fence is nullable.
    */
-  it('leaves the outgoing release’s project writes running', () => {
-    const db = tempDb();
+  it('leaves the outgoing release’s work package writes running', () => {
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      runMigrations(db.path, db.folder);
+      const outgoing = openDatabase(db.path);
+      try {
+        outgoing.run(
+          "INSERT INTO users(id,username,password_hash,created_at) VALUES('u-1','u','h',1)",
+        );
+        outgoing.run(
+          "INSERT INTO project(id,name,owner_id,restricted,revision,created_at) VALUES('p-1','Rewire the shed','u-1',0,0,1)",
+        );
+      } finally {
+        outgoing.close();
+      }
 
       const read = openDatabase(db.path);
       try {
@@ -547,10 +588,9 @@ describe('what the cache table refuses', () => {
    * (2026-09-04).
    */
   it('refuses an ok row with no result and a failed row with one', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', 'NULL', 'NULL'))).toContain('CHECK');
       expect(refusal(db.path, cacheRow('failed', `'{}'`, `'timeout'`))).toContain('CHECK');
@@ -562,10 +602,9 @@ describe('what the cache table refuses', () => {
   });
 
   it('accepts the three well-formed shapes', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', `'{"dtoVersion":1}'`, 'NULL'))).toBeNull();
       expect(
@@ -586,10 +625,9 @@ describe('what the cache table refuses', () => {
   });
 
   it('refuses an unknown objective, status and failure reason', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', `'{}'`, 'NULL').replace(`'pri'`, `'prio'`))).toContain(
         'CHECK',
@@ -601,17 +639,18 @@ describe('what the cache table refuses', () => {
     }
   });
 
-  it('takes its rows with the project, by the cascade and nothing else', () => {
-    const db = tempDb();
+  it('takes its rows with the work package, by the cascade and nothing else', () => {
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
       expect(refusal(db.path, cacheRow('ok', `'{"dtoVersion":1}'`, 'NULL'))).toBeNull();
 
       const db2 = openDatabase(db.path);
       try {
-        db2.run(`DELETE FROM project WHERE id = 'p-1'`);
-        expect(db2.query(`SELECT project_id FROM optimized_schedule_cache`).all()).toHaveLength(0);
+        db2.run(`DELETE FROM work_package WHERE id = 'p-1'`);
+        expect(
+          db2.query(`SELECT work_package_id FROM optimized_schedule_cache`).all(),
+        ).toHaveLength(0);
       } finally {
         db2.close();
       }
@@ -659,11 +698,10 @@ describe('a plan through the column it is stored in', () => {
     return schedule(rows, [], slices, new Map(), new Map([[PLATFORM, 1]]));
   }
 
-  function storeAndRead(path: string, resultJson: string): Schedule {
-    const db = openDrizzle(path);
+  function storeAndRead(db: Drizzle, resultJson: string): Schedule {
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: 'h1',
         objective: 'pri',
         contractVersion: '7+1.0.0',
@@ -686,10 +724,9 @@ describe('a plan through the column it is stored in', () => {
   }
 
   it('reloads a real plan out of result_json with both maps intact', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
       const plan = realPlan();
 
       // Load-bearing: over an empty plan every assertion below is vacuous.
@@ -697,7 +734,7 @@ describe('a plan through the column it is stored in', () => {
       expect(plan.waitingForCapacity).toBeGreaterThan(0);
       expect(plan.eventsVisited).toBeGreaterThan(0);
 
-      const reloaded = storeAndRead(db.path, JSON.stringify(encodeSchedule(plan)));
+      const reloaded = storeAndRead(db.drizzle, JSON.stringify(encodeSchedule(plan)));
 
       expect(reloaded).toEqual(plan);
       expect(reloaded.slices.get(sliceKey('a', DEV))).toEqual(plan.slices.get(sliceKey('a', DEV)));
@@ -719,11 +756,10 @@ describe('a plan through the column it is stored in', () => {
    * half has to call could not be named from `apps/wbs/be-01` by anything but a
    * relative climb out of the app's own root.
    */
-  function storeAndReadResult(path: string, resultJson: string): OptimizedResult {
-    const db = openDrizzle(path);
+  function storeAndReadResult(db: Drizzle, resultJson: string): OptimizedResult {
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: 'h1',
         objective: 'pri',
         contractVersion: '7+1.0.0',
@@ -753,14 +789,16 @@ describe('a plan through the column it is stored in', () => {
   });
 
   it('reloads an OptimizedResult out of result_json, objectiveValues included', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
       const plan = realPlan();
       const source = solverResult(plan);
 
-      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(source)));
+      const reloaded = storeAndReadResult(
+        db.drizzle,
+        JSON.stringify(encodeOptimizedResult(source)),
+      );
 
       expect(reloaded.publication).toBe('solver');
       expect(reloaded.objectiveValues).toEqual(source.objectiveValues);
@@ -779,10 +817,9 @@ describe('a plan through the column it is stored in', () => {
    * read.
    */
   it("keeps a quantisation-floor row's real-domain value bit-equal through the column", () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
       const fractional = 0.2 + 0.2 + 0.2;
       const floor: OptimizedResult = {
         publication: 'quantisation-floor',
@@ -794,7 +831,7 @@ describe('a plan through the column it is stored in', () => {
         schedule: realPlan(),
       };
 
-      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(floor)));
+      const reloaded = storeAndReadResult(db.drizzle, JSON.stringify(encodeOptimizedResult(floor)));
 
       expect(reloaded.publication).toBe('quantisation-floor');
       expect(reloaded.objectiveValues.makespan.value).toBe(fractional);
@@ -823,17 +860,18 @@ describe('a plan through the column it is stored in', () => {
         },
       ],
     ] as [string, (row: Record<string, unknown>) => void][]) {
-      const db = tempDb();
+      const db = currentDb();
       try {
-        runMigrations(db.path, FOLDER);
-        seedProject(db.path, 'p-1');
+        seedWorkPackage(db.path, 'p-1');
         const payload = JSON.parse(
           JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
         ) as Record<string, unknown>;
         corrupt(payload);
         const text = JSON.stringify(payload);
 
-        expect(() => storeAndReadResult(db.path, text)).toThrow(new RegExp(defect.split('.')[0]));
+        expect(() => storeAndReadResult(db.drizzle, text)).toThrow(
+          new RegExp(defect.split('.')[0]),
+        );
         const row = openDatabase(db.path)
           .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
           .get() as { n: number } | null;
@@ -858,9 +896,8 @@ describe('a plan through the column it is stored in', () => {
    * column inside a `CHECK` is a NULL test and nothing else.
    */
   it("constrains only result_json's nullity, never its contents", () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       const ddl = openDatabase(db.path)
         .query(
           `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'optimized_schedule_cache'`,
@@ -885,16 +922,15 @@ describe('a plan through the column it is stored in', () => {
   });
 
   it('stores a truncated payload without complaint, so the decode is the only guard', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
+      seedWorkPackage(db.path, 'p-1');
       const whole = JSON.stringify(encodeSchedule(realPlan()));
 
       // No `CHECK` covers `result_json`'s contents (4.8), which is deliberate:
       // corruption must surface as `corrupt` on the read and be retryable,
       // rather than failing the write of a solve that already happened.
-      expect(() => storeAndRead(db.path, whole.slice(0, whole.length - 20))).toThrow();
+      expect(() => storeAndRead(db.drizzle, whole.slice(0, whole.length - 20))).toThrow();
       const row = openDatabase(db.path)
         .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
         .get() as { n: number } | null;
@@ -913,7 +949,7 @@ describe('a plan through the column it is stored in', () => {
  * which the canonical input already carries it into as its seventh entry
  * (`canonical-schedule-input.ts`, slice 7.1). Nothing about it is a deployment
  * fact, so nothing about it belongs in the key beside `contract_version` and
- * `budget_ms`. Adding it would key every project's cache on a column the plan
+ * `budget_ms`. Adding it would key every work package's cache on a column the plan
  * read cannot supply.
  */
 describe('what the deadline change must not do to the cache key', () => {
@@ -939,12 +975,10 @@ describe('what the deadline change must not do to the cache key', () => {
    * a running deployment is this one.
    */
   it('leaves the key columns exactly as they were, deadline included in none of them', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-
       expect(primaryKeyColumns(db.path, 'optimized_schedule_cache')).toEqual([
-        'project_id',
+        'work_package_id',
         'input_hash',
         'objective',
         'contract_version',
@@ -968,7 +1002,7 @@ describe('what the deadline change must not do to the cache key', () => {
    *
    * The retention requirement already reads "for that contract version" and
    * `enforceLiveBudgetBound` already scopes its `DELETE` to one
-   * `(projectId, objective, contractVersion, inputHash)`. What this pins is
+   * `(workPackageId, objective, contractVersion, inputHash)`. What this pins is
    * that a store on **either** side of a blue/green swap leaves the other
    * side's rows standing — the symmetric claim
    * `optimization-generation.db.test.ts` does not make, since its two-release
@@ -999,11 +1033,10 @@ describe('what the deadline change must not do to the cache key', () => {
    * from both, each reds this case and nothing else.
    */
   it('keeps both contract versions’ rows through a store on each side', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedProject(db.path, 'p-1');
-      const handle = openDrizzle(db.path);
+      seedWorkPackage(db.path, 'p-1');
+      const handle = db.drizzle;
 
       for (const contractVersion of [BLUE, GREEN]) {
         expect(allocateGeneration(handle, 'p-1', contractVersion, 'h1', 1)).toBe(1);
@@ -1018,7 +1051,7 @@ describe('what the deadline change must not do to the cache key', () => {
       const store = (contractVersion: string, budgetMs: number, now: number): unknown =>
         storeOptimizedOutcome(handle, {
           claim: {
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             contractVersion,
             generation: 1,
             objective: 'pri',

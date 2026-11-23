@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
+import ts from 'typescript';
 
 import { EXCLUDED_PATHS, PROTECTED_LINES } from './allow-list';
 import { renameText } from './rename-text';
@@ -18,10 +19,6 @@ const NEW_SENSE_WITNESSES: readonly { readonly path: string; readonly line: stri
   {
     path: 'CONTEXT-MAP.md',
     line: '  development and client projects. Client content and authority remain isolated.',
-  },
-  {
-    path: 'libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts',
-    line: "  it('[PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested project', async () => {",
   },
 ];
 
@@ -58,4 +55,100 @@ describe('the allow-list', () => {
       expect(renameText(line, path)).toBe(line);
     }
   });
+});
+
+describe('permission-era rename boundaries', () => {
+  it('preserves a catalogue permission while renaming an old package argument on the same line', () => {
+    const source = "authorize(principal, 'project.manage_budgets', projectId);";
+    expect(renameText(source, 'libs/wbs/application/core/src/service/authorize.ts')).toBe(
+      "authorize(principal, 'project.manage_budgets', workPackageId);",
+    );
+  });
+
+  it('does not let a new package kind hide an unrelated old package argument', () => {
+    const source = "authorize({kind: 'work_package', chain}, projectId);";
+    expect(renameText(source, 'libs/wbs/application/core/src/service/authorize.ts')).toBe(
+      "authorize({kind: 'work_package', chain}, workPackageId);",
+    );
+  });
+
+  it('keeps the actual future ProjectChain parent field distinct from the current package id', () => {
+    const path = 'libs/wbs/domain/domain/src/access-role.ts';
+    const source = readFileSync(join(REPO, path), 'utf8');
+    const renamed = renameText(source, path);
+    expect(renamed.includes('export interface ProjectChain {')).toBe(true);
+    expect(renamed.includes('export interface WorkPackageChain {')).toBe(true);
+    const chain = /export interface WorkPackageChain \{([^}]+)\}/.exec(renamed)?.[1];
+    expect(chain).toBeDefined();
+    expect(chain).toContain('readonly projectId: string;');
+    expect(chain).toContain('readonly workPackageId: string;');
+  });
+
+  it('renames the actual unrelated captured planning chain field', () => {
+    const path = 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts';
+    const old = 'projectId: captured.chain.projectId,';
+    const renamed = 'workPackageId: captured.chain.workPackageId,';
+    const witnesses = readFileSync(join(REPO, path), 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line === old || line === renamed);
+    expect(witnesses).toHaveLength(1);
+    const current = witnesses.at(0);
+    if (current === undefined) throw new Error('actual planning-chain witness absent');
+    expect(renameText(old, path)).toBe(renamed);
+    expect(renameText(current, path)).toBe(renamed);
+  });
+});
+
+it('the actual renamed ScopeChain compiles distinct parent and package identities', () => {
+  const path = 'libs/wbs/domain/domain/src/access-role.ts';
+  const renamed = renameText(readFileSync(join(REPO, path), 'utf8'), path);
+  const begin = renamed.indexOf('export type ScopeChain =');
+  const end = renamed.indexOf('export interface InterimPackageChain');
+  expect(begin).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(begin);
+  const contents =
+    renamed.slice(begin, end) +
+    '\n' +
+    [
+      "const parent: ProjectChain = {level: 'project', organizationId: 'org', spaceId: null, projectId: 'engagement'};",
+      "const child: WorkPackageChain = {level: 'work_package', organizationId: 'org', spaceId: null, projectId: parent.projectId, workPackageId: 'package'};",
+      'const parentIdentity: string = child.projectId;',
+      'const packageIdentity: string = child.workPackageId;',
+    ].join('\n');
+  const filename = '/scope-chain-rename-proof.ts';
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true, strict: true };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (requested) =>
+    requested === filename
+      ? ts.createSourceFile(filename, contents, ts.ScriptTarget.Latest, true)
+      : undefined;
+  const program = ts.createProgram([filename], options, host);
+  const compiled = program.getSourceFile(filename);
+  if (compiled === undefined) throw new Error('actual ScopeChain compiler source absent');
+  expect(
+    program.getSemanticDiagnostics(compiled).map((diagnostic) => ({
+      code: diagnostic.code,
+      message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+    })),
+  ).toEqual([]);
+});
+
+it('closed catalogue spans do not treat punctuation as a permission wildcard', () => {
+  expect(renameText("read('projectXread', projectId);", 'a.ts')).toBe(
+    "read('workPackageXread', workPackageId);",
+  );
+  expect(renameText("read('project.read.extra', projectId);", 'a.ts')).toBe(
+    "read('workPackage.read.extra', workPackageId);",
+  );
+});
+
+it('keeps exact permission-model bytes while still rewriting an injected old planning field', () => {
+  const path = 'libs/wbs/domain/domain/src/access-role.ts';
+  const source = readFileSync(join(REPO, path), 'utf8');
+  expect(renameText(source, path) === source).toBe(true);
+  const injected = '\nconst legacyProjectId = captured.chain.projectId;\n';
+  expect(renameText(source + injected, path)).toBe(
+    source + '\nconst legacyWorkPackageId = captured.chain.workPackageId;\n',
+  );
 });

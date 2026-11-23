@@ -1,0 +1,780 @@
+{
+  "schema": "puni-genuine-memory-history-v3",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "kind": "progress",
+  "chronology": [
+    {
+      "phase": "before-prior",
+      "facts": {
+        "rows": [
+          {
+            "id": "parent",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "destination",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "moving",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": "parent",
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          }
+        ],
+        "progress": [
+          {
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "state": "done",
+            "statedAt": 1
+          },
+          {
+            "workItemId": "destination",
+            "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+            "state": "done",
+            "statedAt": 123
+          }
+        ],
+        "blockages": [
+          {
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -20
+          },
+          {
+            "workItemId": "moving",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -10
+          }
+        ]
+      },
+      "journal": []
+    },
+    {
+      "phase": "after-move",
+      "facts": {
+        "rows": [
+          {
+            "id": "parent",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "destination",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "moving",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": "destination",
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          }
+        ],
+        "progress": [],
+        "blockages": [
+          {
+            "workItemId": "moving",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -10
+          },
+          {
+            "workItemId": "parent",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -10
+          }
+        ]
+      },
+      "journal": [
+        {
+          "id": "1d7795d0-4fde-4091-9d58-072348258b0f",
+          "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+          "userId": "plan-command-owner",
+          "personId": null,
+          "kind": "progress",
+          "payload": {
+            "label": "start work on “Rewire the shed”",
+            "forward": {
+              "do": "set_progress",
+              "workItemId": "destination",
+              "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+              "state": "in_progress"
+            },
+            "authorization": {
+              "version": 1,
+              "requirements": [
+                {
+                  "permission": "package.write",
+                  "target": {
+                    "kind": "work_package",
+                    "workPackageId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d"
+                  }
+                }
+              ]
+            }
+          },
+          "inverse": {
+            "do": "set_progress",
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "state": "done"
+          },
+          "preconditions": {
+            "estimateUnits": {},
+            "expected": {
+              "destination": 0
+            },
+            "from": {
+              "destination": 0
+            }
+          },
+          "createdAt": 1795129291375,
+          "seq": 1,
+          "undone": false
+        },
+        {
+          "id": "7be86619-7154-4b37-b845-8592e1e7fcdc",
+          "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+          "userId": "plan-command-owner",
+          "personId": null,
+          "kind": "move",
+          "payload": {
+            "label": "move “Rewire the shed”",
+            "forward": {
+              "do": "batch",
+              "steps": [
+                {
+                  "do": "clear_progress",
+                  "workItemId": "destination",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e"
+                },
+                {
+                  "do": "clear_progress",
+                  "workItemId": "destination",
+                  "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8"
+                },
+                {
+                  "do": "replace_blockage",
+                  "workItemId": "destination",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                  "expectedBlockedAt": -20,
+                  "replacementBlockedAt": null
+                },
+                {
+                  "do": "move",
+                  "workItemId": "moving",
+                  "parentId": "destination",
+                  "afterId": null
+                },
+                {
+                  "do": "replace_blockage",
+                  "workItemId": "parent",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                  "expectedBlockedAt": null,
+                  "replacementBlockedAt": -10
+                }
+              ]
+            },
+            "authorization": {
+              "version": 1,
+              "requirements": [
+                {
+                  "permission": "package.write",
+                  "target": {
+                    "kind": "work_package",
+                    "workPackageId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d"
+                  }
+                }
+              ]
+            }
+          },
+          "inverse": {
+            "do": "batch",
+            "steps": [
+              {
+                "do": "replace_blockage",
+                "workItemId": "parent",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "expectedBlockedAt": -10,
+                "replacementBlockedAt": null
+              },
+              {
+                "do": "move",
+                "workItemId": "moving",
+                "parentId": "parent",
+                "afterId": null,
+                "expectedProgress": []
+              },
+              {
+                "do": "set_progress",
+                "workItemId": "destination",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "state": "in_progress"
+              },
+              {
+                "do": "set_progress",
+                "workItemId": "destination",
+                "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+                "state": "done"
+              },
+              {
+                "do": "replace_blockage",
+                "workItemId": "destination",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "expectedBlockedAt": null,
+                "replacementBlockedAt": -20
+              }
+            ]
+          },
+          "preconditions": {
+            "estimateUnits": {},
+            "moveProgress": {
+              "destination": []
+            },
+            "expected": {
+              "moving": 0,
+              "destination": 0,
+              "parent": 0
+            },
+            "from": {
+              "moving": 0,
+              "destination": 0,
+              "parent": 0
+            }
+          },
+          "createdAt": 1795129291380,
+          "seq": 2,
+          "undone": false
+        }
+      ]
+    },
+    {
+      "phase": "before-final-redo",
+      "facts": {
+        "rows": [
+          {
+            "id": "parent",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "destination",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": null,
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          },
+          {
+            "id": "moving",
+            "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+            "parentId": "parent",
+            "position": 10,
+            "name": "Rewire the shed",
+            "notes": "",
+            "frozenNumber": null,
+            "startNoEarlierThan": null,
+            "startNoEarlierThanReason": null,
+            "deadline": null,
+            "factStart": null,
+            "factEnd": null,
+            "readiness": null,
+            "hold": null,
+            "priority": null,
+            "serviceTeamId": null,
+            "serviceId": null,
+            "maxParallel": 1,
+            "revision": 0,
+            "teamIds": [],
+            "tagIds": [],
+            "serviceIds": [],
+            "typeIds": [],
+            "externalRefs": []
+          }
+        ],
+        "progress": [
+          {
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "state": "in_progress",
+            "statedAt": 1795129291390
+          },
+          {
+            "workItemId": "destination",
+            "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+            "state": "in_progress",
+            "statedAt": 456
+          }
+        ],
+        "blockages": [
+          {
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -20
+          },
+          {
+            "workItemId": "moving",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "blockedAt": -10
+          }
+        ]
+      },
+      "journal": [
+        {
+          "id": "1d7795d0-4fde-4091-9d58-072348258b0f",
+          "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+          "userId": "plan-command-owner",
+          "personId": null,
+          "kind": "progress",
+          "payload": {
+            "label": "start work on “Rewire the shed”",
+            "forward": {
+              "do": "set_progress",
+              "workItemId": "destination",
+              "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+              "state": "in_progress"
+            },
+            "authorization": {
+              "version": 1,
+              "requirements": [
+                {
+                  "permission": "package.write",
+                  "target": {
+                    "kind": "work_package",
+                    "workPackageId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d"
+                  }
+                }
+              ]
+            }
+          },
+          "inverse": {
+            "do": "set_progress",
+            "workItemId": "destination",
+            "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+            "state": "done"
+          },
+          "preconditions": {
+            "expected": {
+              "destination": 0
+            },
+            "from": {
+              "destination": 0
+            },
+            "estimateUnits": {}
+          },
+          "createdAt": 1795129291375,
+          "seq": 1,
+          "undone": false
+        },
+        {
+          "id": "7be86619-7154-4b37-b845-8592e1e7fcdc",
+          "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+          "userId": "plan-command-owner",
+          "personId": null,
+          "kind": "move",
+          "payload": {
+            "label": "move “Rewire the shed”",
+            "forward": {
+              "do": "batch",
+              "steps": [
+                {
+                  "do": "clear_progress",
+                  "workItemId": "destination",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e"
+                },
+                {
+                  "do": "clear_progress",
+                  "workItemId": "destination",
+                  "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8"
+                },
+                {
+                  "do": "replace_blockage",
+                  "workItemId": "destination",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                  "expectedBlockedAt": -20,
+                  "replacementBlockedAt": null
+                },
+                {
+                  "do": "move",
+                  "workItemId": "moving",
+                  "parentId": "destination",
+                  "afterId": null
+                },
+                {
+                  "do": "replace_blockage",
+                  "workItemId": "parent",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                  "expectedBlockedAt": null,
+                  "replacementBlockedAt": -10
+                }
+              ]
+            },
+            "authorization": {
+              "version": 1,
+              "requirements": [
+                {
+                  "permission": "package.write",
+                  "target": {
+                    "kind": "work_package",
+                    "workPackageId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d"
+                  }
+                }
+              ]
+            }
+          },
+          "inverse": {
+            "do": "batch",
+            "steps": [
+              {
+                "do": "replace_blockage",
+                "workItemId": "parent",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "expectedBlockedAt": -10,
+                "replacementBlockedAt": null
+              },
+              {
+                "do": "move",
+                "workItemId": "moving",
+                "parentId": "parent",
+                "afterId": null,
+                "expectedProgress": []
+              },
+              {
+                "do": "set_progress",
+                "workItemId": "destination",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "state": "in_progress"
+              },
+              {
+                "do": "set_progress",
+                "workItemId": "destination",
+                "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+                "state": "done"
+              },
+              {
+                "do": "replace_blockage",
+                "workItemId": "destination",
+                "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                "expectedBlockedAt": null,
+                "replacementBlockedAt": -20
+              }
+            ]
+          },
+          "preconditions": {
+            "expected": {
+              "parent": 0,
+              "moving": 0,
+              "destination": 0
+            },
+            "from": {
+              "moving": 0,
+              "destination": 0,
+              "parent": 0
+            },
+            "moveProgress": {
+              "destination": [
+                {
+                  "workItemId": "destination",
+                  "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+                  "state": "in_progress",
+                  "statedAt": 1795129291383
+                },
+                {
+                  "workItemId": "destination",
+                  "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+                  "state": "done",
+                  "statedAt": 1795129291383
+                }
+              ]
+            },
+            "estimateUnits": {}
+          },
+          "createdAt": 1795129291380,
+          "seq": 2,
+          "undone": true
+        }
+      ]
+    }
+  ],
+  "outcome": {
+    "ok": false,
+    "reason": "stale_undo",
+    "detail": "progress on a guarded work item changed since this command.",
+    "entryId": "7be86619-7154-4b37-b845-8592e1e7fcdc"
+  },
+  "after": {
+    "rows": [
+      {
+        "id": "parent",
+        "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+        "parentId": null,
+        "position": 10,
+        "name": "Rewire the shed",
+        "notes": "",
+        "frozenNumber": null,
+        "startNoEarlierThan": null,
+        "startNoEarlierThanReason": null,
+        "deadline": null,
+        "factStart": null,
+        "factEnd": null,
+        "readiness": null,
+        "hold": null,
+        "priority": null,
+        "serviceTeamId": null,
+        "serviceId": null,
+        "maxParallel": 1,
+        "revision": 0,
+        "teamIds": [],
+        "tagIds": [],
+        "serviceIds": [],
+        "typeIds": [],
+        "externalRefs": []
+      },
+      {
+        "id": "destination",
+        "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+        "parentId": null,
+        "position": 10,
+        "name": "Rewire the shed",
+        "notes": "",
+        "frozenNumber": null,
+        "startNoEarlierThan": null,
+        "startNoEarlierThanReason": null,
+        "deadline": null,
+        "factStart": null,
+        "factEnd": null,
+        "readiness": null,
+        "hold": null,
+        "priority": null,
+        "serviceTeamId": null,
+        "serviceId": null,
+        "maxParallel": 1,
+        "revision": 0,
+        "teamIds": [],
+        "tagIds": [],
+        "serviceIds": [],
+        "typeIds": [],
+        "externalRefs": []
+      },
+      {
+        "id": "moving",
+        "projectId": "ec0ce9d9-6fbc-4d4c-a2ac-b5b20ffd6e1d",
+        "parentId": "parent",
+        "position": 10,
+        "name": "Rewire the shed",
+        "notes": "",
+        "frozenNumber": null,
+        "startNoEarlierThan": null,
+        "startNoEarlierThanReason": null,
+        "deadline": null,
+        "factStart": null,
+        "factEnd": null,
+        "readiness": null,
+        "hold": null,
+        "priority": null,
+        "serviceTeamId": null,
+        "serviceId": null,
+        "maxParallel": 1,
+        "revision": 0,
+        "teamIds": [],
+        "tagIds": [],
+        "serviceIds": [],
+        "typeIds": [],
+        "externalRefs": []
+      }
+    ],
+    "progress": [
+      {
+        "workItemId": "destination",
+        "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+        "state": "in_progress",
+        "statedAt": 1795129291390
+      },
+      {
+        "workItemId": "destination",
+        "stepId": "a38f8fa3-6461-4c62-8b8b-940caca1ecb8",
+        "state": "in_progress",
+        "statedAt": 456
+      }
+    ],
+    "blockages": [
+      {
+        "workItemId": "destination",
+        "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+        "blockedAt": -20
+      },
+      {
+        "workItemId": "moving",
+        "stepId": "a6f66223-da45-4fb5-8a67-7740fecde42e",
+        "blockedAt": -10
+      }
+    ]
+  },
+  "qualification": "Actual immutable old Memory Source and command runner; genuine in-memory journal values serialized as evidence, not a SQLite database or migration admission."
+}

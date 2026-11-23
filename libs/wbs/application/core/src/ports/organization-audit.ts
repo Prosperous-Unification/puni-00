@@ -5,7 +5,11 @@ import type { WriteStamp } from './write-stamp';
  * CHECK holds the same list; an act outside it is refused by the store.
  */
 export const ORGANIZATION_AUDIT_ACTIONS = [
-  'restricted_project_recovery',
+  'restricted_work_package_recovery',
+  'project_created',
+  'project_renamed',
+  'project_deleted',
+  'work_package_moved',
   'sso_connection_created',
   'sso_connection_updated',
   'sso_connection_deleted',
@@ -34,12 +38,21 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'agent_pool_revoked',
   'agent_pool_rekeyed',
   'directory_capacity_changed',
+  'access_granted',
+  'access_revoked',
+  'access_group_created',
+  'access_group_renamed',
+  'access_group_deleted',
+  'access_group_member_added',
+  'access_group_member_removed',
+  'organization_member_removed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
 
 /** What an audit row is about; the table's CHECK holds the same list. */
 export const ORGANIZATION_AUDIT_SUBJECT_KINDS = [
+  'work_package',
   'project',
   'sso_connection',
   'provisioning_token',
@@ -51,6 +64,9 @@ export const ORGANIZATION_AUDIT_SUBJECT_KINDS = [
   'compute_provider',
   'agent_pool',
   'resource',
+  'access_grant',
+  'access_group',
+  'organization_member',
 ] as const;
 
 export type OrganizationAuditSubjectKind = (typeof ORGANIZATION_AUDIT_SUBJECT_KINDS)[number];

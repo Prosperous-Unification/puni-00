@@ -13,10 +13,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
-
-const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 
 /**
  * The event log survives an unrelated batch's rollback.
@@ -36,7 +34,7 @@ const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
  * because the whole defect is a property of the connection those three share.
  * `recordingBroadcaster` has no transaction at all, so no fixture can see this.
  */
-describe('the durable record of a project event', () => {
+describe('the durable record of a work package event', () => {
   const dirs: string[] = [];
   let db: ReturnType<typeof openDrizzle>;
 
@@ -44,7 +42,7 @@ describe('the durable record of a project event', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-broadcast-durability-'));
     dirs.push(dir);
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     db = openDrizzle(path);
   });
 
@@ -126,15 +124,15 @@ describe('the durable record of a project event', () => {
 
   it('survives an unrelated batch refusing while the publish is in flight', async () => {
     const { broadcaster, eventLog, lock, buffer } = bootstrap();
-    const projectId = 'p-1';
-    const subscription = subscriptionFor(projectId);
+    const workPackageId = 'p-1';
+    const subscription = subscriptionFor(workPackageId);
     expect(await eventLog.latestSeq(subscription)).toBe(-1);
 
     const batch = openBatch(lock, 'refuses');
     await batch.open;
     // Issued while the batch's transaction is open — the window the defect
     // lived in. It queues behind the lock rather than recording into it.
-    const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
+    const published = broadcaster.publish(workPackageId, { type: 'saved_plans_changed' });
     batch.settle();
     await batch.done;
     await published;
@@ -153,12 +151,12 @@ describe('the durable record of a project event', () => {
 
   it('records after the batch commits too, so the two orders agree', async () => {
     const { broadcaster, eventLog, lock } = bootstrap();
-    const projectId = 'p-2';
-    const subscription = subscriptionFor(projectId);
+    const workPackageId = 'p-2';
+    const subscription = subscriptionFor(workPackageId);
 
     const batch = openBatch(lock, 'commits');
     await batch.open;
-    const published = broadcaster.publish(projectId, { type: 'saved_plans_changed' });
+    const published = broadcaster.publish(workPackageId, { type: 'saved_plans_changed' });
 
     // The assertion that gives this case teeth, and it has to come first.
     // Gemini's Important on this head: a commit keeps the savepoint, so the
@@ -253,7 +251,7 @@ describe('the durable record of a project event', () => {
     });
     let settled = false;
     const published = broadcaster
-      .publish('deadline-project', { type: 'saved_plans_changed' })
+      .publish('deadline-work-package', { type: 'saved_plans_changed' })
       .then(() => {
         settled = true;
       });
@@ -266,7 +264,7 @@ describe('the durable record of a project event', () => {
     await timers.flush();
     expect(entered).toBe(true);
     expect(settled).toBe(false);
-    expect(await eventLog.latestSeq(subscriptionFor('deadline-project'))).toBe(0);
+    expect(await eventLog.latestSeq(subscriptionFor('deadline-work-package'))).toBe(0);
     await timers.advance(250);
     expect(aborted).toBe(true);
     expect(settled).toBe(true);
@@ -274,10 +272,10 @@ describe('the durable record of a project event', () => {
     await second;
     expect(failures).toHaveLength(1);
     expect(
-      (await eventLog.rangeSince(subscriptionFor('deadline-project'), -1)).map(
+      (await eventLog.rangeSince(subscriptionFor('deadline-work-package'), -1)).map(
         (event) => event.message,
       ),
     ).toEqual([{ type: 'saved_plans_changed' }]);
-    expect(buffer.since(subscriptionFor('deadline-project'), -1)).toHaveLength(1);
+    expect(buffer.since(subscriptionFor('deadline-work-package'), -1)).toHaveLength(1);
   });
 });

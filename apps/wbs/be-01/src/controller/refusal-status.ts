@@ -20,14 +20,14 @@ const CONFLICTS = new Set([
   'ancestor',
   'self_node',
   'not_a_parent',
-  'project_deleting',
+  'work_package_deleting',
   'duplicate_dependency',
   'dependency_cycle',
   'referenced_by_dependency',
   'too_large',
   'taken',
   'in_use',
-  // Switching a project on to an optimizer this deployment has not got. It is
+  // Switching a work package on to an optimizer this deployment has not got. It is
   // the family's own definition rather than a stretch of it: the request is
   // well formed, nothing about it is wrong, and the same body is accepted the
   // moment a release wires the optimized reader in. A 422 would tell a settings
@@ -45,17 +45,17 @@ const CONFLICTS = new Set([
  * body was malformed, and a caller that fixed the syntax would send the same
  * request again; 422 says the syntax was fine and the value is the problem.
  *
- * `deadline_before_project_start` is the first: a deadline falling before the
- * project's day zero, so no placement of the work could meet it. It is what
+ * `deadline_before_work_package_start` is the first: a deadline falling before the
+ * work package's day zero, so no placement of the work could meet it. It is what
  * `work-item-deadline` 6.1 names as the only deadline-specific rejection, and it
  * is decided in `WorkItemService.patch` rather than at the controller, which
- * holds the payload but not the project. It is not a {@link CONFLICTS} member — nothing about it is a state
+ * holds the payload but not the work package. It is not a {@link CONFLICTS} member — nothing about it is a state
  * that may pass on its own, and the same body sent an hour later is refused
- * identically unless somebody moves the project.
+ * identically unless somebody moves the work package.
  */
 const UNPROCESSABLE = new Set([
   'calendar_range',
-  'deadline_before_project_start',
+  'deadline_before_work_package_start',
   'unsupported_relationship_type',
 ]);
 
@@ -65,13 +65,13 @@ const UNPROCESSABLE = new Set([
  *
  * Four arms are shared by every route that refuses anything, and were written
  * out five times: as a ladder of `if`s in `statusForBatch`, as a three-deep
- * ternary in `step.routes.ts`, as another in `project.routes.ts`'s
+ * ternary in `step.routes.ts`, as another in `work-package.routes.ts`'s
  * PATCH, and twice inline. What each route does **not** share is its default,
  * which is why that is the argument: a malformed step body is 422, a batch with
  * a step nothing can parse is 400, an undo of an empty stack is 409, and a
- * patch of an absent project is 404.
+ * patch of an absent work package is 404.
  *
- * - `forbidden` is 403 rather than 404 for a restricted project: the caller may
+ * - `forbidden` is 403 rather than 404 for a restricted work package: the caller may
  *   read it, so pretending it is absent would contradict the next GET.
  * - `unknown_ref` is 400 and not 404, and it is the one exception in the
  *   family: a `ref` naming nothing is a mistake **inside the batch the caller

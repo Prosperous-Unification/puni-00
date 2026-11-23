@@ -8,13 +8,13 @@ import { offeredDeclaration, passingRegistrations } from './source-declaration.t
 describe('source declarations', () => {
   it('rejects a duplicated gap', async () => {
     const baseline = offeredDeclaration();
-    const caseId = CASE_MANIFEST.projects[0];
+    const caseId = CASE_MANIFEST.workPackages[0];
     const gap = {
       caseId,
       reason: 'observed source lag',
       evidence: {
         sourceRevision: 'revision',
-        assertion: 'expected exact project',
+        assertion: 'expected exact work package',
         observedFailure: 'received null',
       },
     };
@@ -22,7 +22,7 @@ describe('source declarations', () => {
       ...baseline,
       capabilities: {
         ...baseline.capabilities,
-        projects: { ...baseline.capabilities.projects, gaps: [gap, gap] },
+        workPackages: { ...baseline.capabilities.workPackages, gaps: [gap, gap] },
       },
     };
     const registrations = passingRegistrations(declaration);
@@ -41,21 +41,21 @@ describe('source declarations', () => {
 
   it('reports a declared gap as not offered without invoking its body', async () => {
     const baseline = offeredDeclaration();
-    const caseId = CASE_MANIFEST.projects[0];
+    const caseId = CASE_MANIFEST.workPackages[0];
     let bodyRan = false;
     const declaration = {
       ...baseline,
       capabilities: {
         ...baseline.capabilities,
-        projects: {
-          ...baseline.capabilities.projects,
+        workPackages: {
+          ...baseline.capabilities.workPackages,
           gaps: [
             {
               caseId,
               reason: 'observed source lag',
               evidence: {
                 sourceRevision: 'revision',
-                assertion: 'expected exact project',
+                assertion: 'expected exact work package',
                 observedFailure: 'received null',
               },
             },
@@ -64,7 +64,7 @@ describe('source declarations', () => {
       },
     };
     const selectedRegistration = {
-      family: 'projects' as const,
+      family: 'workPackages' as const,
       caseId,
       openAndRun: () =>
         Promise.resolve({
@@ -99,11 +99,11 @@ describe('source declarations', () => {
     const baseline = offeredDeclaration();
     let bodyRan = false;
     const selectedRegistration = {
-      family: 'projects' as const,
-      caseId: CASE_MANIFEST.projects[0],
+      family: 'workPackages' as const,
+      caseId: CASE_MANIFEST.workPackages[0],
       openAndRun: () =>
         Promise.resolve({
-          fixtureId: 'fixture:projects',
+          fixtureId: 'fixture:workPackages',
           assert: () => {
             bodyRan = true;
             return Promise.resolve();
@@ -120,11 +120,11 @@ describe('source declarations', () => {
       ...baseline,
       capabilities: {
         ...baseline.capabilities,
-        projects: {
-          ...baseline.capabilities.projects,
+        workPackages: {
+          ...baseline.capabilities.workPackages,
           gaps: [
             {
-              caseId: 'projects.unknown:gap' as CaseId,
+              caseId: 'workPackages.unknown:gap' as CaseId,
               reason: 'injected unknown gap',
               evidence: {
                 sourceRevision: 'fault',

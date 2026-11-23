@@ -69,11 +69,15 @@ const claimReceipt: ClaimReceipt = {
   },
 };
 const state: RuntimeState = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   ledgerId: 'ledger',
-  scope,
+  scope: {
+    organizationId: scope.organizationId,
+    workPackageId: scope.projectId,
+    personId: scope.personId,
+  },
   basis: 'rb1:' + 'a'.repeat(64),
-  facts: { projectRevision: 0, workItems: [], steps: [] },
+  facts: { workPackageRevision: 0, workItems: [], steps: [] },
   authority: { kind: 'held', ...authority },
   claims: [],
 };

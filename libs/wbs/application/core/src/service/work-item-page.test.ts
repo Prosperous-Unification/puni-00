@@ -19,7 +19,7 @@ function workItem(
 ): TreeWorkItem {
   return {
     id,
-    projectId: 'p',
+    workPackageId: 'p',
     parentId,
     position: 0,
     name: id,
@@ -74,7 +74,7 @@ function sliceOf(workItemId: string): TreeSlice {
     workItemId,
     stepId: null,
     personId: null,
-    boundBy: 'projectStart',
+    boundBy: 'workPackageStart',
     resourcePredecessorId: null,
     capacityPredecessorIds: [],
     capacityTeamId: null,
@@ -146,7 +146,7 @@ describe('pageWorkItems', () => {
         'name',
         'number',
         'parentId',
-        'projectId',
+        'workPackageId',
         'revision',
         'status',
         'updatedAt',
@@ -193,6 +193,46 @@ describe('pageWorkItems', () => {
     if (!labelled.ok) throw new Error(labelled.refusal);
     expect(Object.keys(labelled.rows[0] ?? {})).toContain('assignees');
     expect(Object.keys(labelled.rows[0] ?? {})).not.toContain('notes');
+  });
+
+  test('includes resolved steps only in constraints and preserves absent legacy fields', () => {
+    const steps: NonNullable<TreeWorkItem['steps']> = [
+      {
+        stepId: 'dev',
+        code: 'dev',
+        name: 'Development',
+        via: [
+          {
+            bindingId: 'org-dev',
+            scopeKind: 'organization',
+            scopeId: 'org-a',
+            workItemTypeId: null,
+          },
+        ],
+      },
+    ];
+    const current = {
+      workItems: [
+        workItem('parent', null),
+        workItem('leaf', 'parent', { steps }),
+        workItem('empty', null, { steps: [] }),
+        workItem('legacy', null),
+      ],
+      slices: [],
+    };
+    const modified = new Map(current.workItems.map(({ id }) => [id, 100]));
+    const requested = queryOf('fields=constraints');
+    const outline = queryOf('');
+    if (requested === null || outline === null) throw new Error('refused valid page fields');
+    const included = pageWorkItems(current, modified, requested);
+    const omitted = pageWorkItems(current, modified, outline);
+    if (!included.ok || !omitted.ok) throw new Error('refused current page rows');
+    expect(included.rows.find(({ id }) => id === 'leaf')).toHaveProperty('steps', steps);
+    expect(included.rows.find(({ id }) => id === 'empty')).toHaveProperty('steps', []);
+    expect(included.rows.find(({ id }) => id === 'parent')).not.toHaveProperty('steps');
+    expect(included.rows.find(({ id }) => id === 'legacy')).not.toHaveProperty('steps');
+    expect(omitted.rows).toHaveLength(4);
+    for (const row of omitted.rows) expect(row).not.toHaveProperty('steps');
   });
 
   test('refuses a stale cursor and an unknown parent', () => {
@@ -262,6 +302,6 @@ describe('workItemPageQueryOf', () => {
 test('depthIn throws for an id its tree does not hold', () => {
   expect(depthIn(new Map([['a', 1]]), 'a')).toBe(1);
   expect(() => depthIn(new Map([['a', 1]]), 'gone')).toThrow(
-    'work item "gone" has no depth in its project\'s tree',
+    'work item "gone" has no depth in its work package\'s tree',
   );
 });

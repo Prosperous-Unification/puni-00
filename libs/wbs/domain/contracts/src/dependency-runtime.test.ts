@@ -58,16 +58,17 @@ const capability = {
   role: 'backend',
   semantics: [],
 } as const;
-it('accepts explicit incapable and supported immutable runtime observations', () => {
+it('accepts explicit incapable and complete detached published V1 runtime observations', () => {
   expect(parseDependencyRuntimeCapability(capability)).toEqual(capability);
-  for (const role of ['backend', 'gateway', 'mcp'] as const)
-    expect(
-      parseDependencyRuntimeCapability({
-        ...capability,
-        role,
-        semantics: ['cross-project-dependencies-v1'],
-      }).role,
-    ).toBe(role);
+  for (const role of ['backend', 'gateway', 'mcp'] as const) {
+    const supplied = { ...capability, role, semantics: ['cross-project-dependencies-v1'] };
+    const decoded = parseDependencyRuntimeCapability(supplied);
+    expect(decoded).toEqual({ ...capability, role, semantics: ['cross-project-dependencies-v1'] });
+    expect(decoded).not.toBe(supplied);
+    expect(decoded.semantics).not.toBe(supplied.semantics);
+    supplied.semantics[0] = 'unknown';
+    expect(decoded).toEqual({ ...capability, role, semantics: ['cross-project-dependencies-v1'] });
+  }
 });
 for (const malformed of [
   null,
@@ -82,7 +83,11 @@ for (const malformed of [
   { ...capability, version: 2 },
   { ...capability, role: 'frontend' },
   { ...capability, semantics: ['unknown'] },
-  { ...capability, semantics: ['cross-project-dependencies-v1', 'cross-project-dependencies-v1'] },
+  { ...capability, semantics: ['cross-work-package-dependencies-v1'] },
+  {
+    ...capability,
+    semantics: ['cross-project-dependencies-v1', 'cross-project-dependencies-v1'],
+  },
   { ...capability, semantics: null },
   { ...capability, extra: true },
 ])

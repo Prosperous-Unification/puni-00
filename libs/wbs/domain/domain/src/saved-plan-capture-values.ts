@@ -2,6 +2,7 @@ import type { Assignment } from './assignment';
 import type { StoredBudget } from './budget';
 import type { DependencyReach } from './dependency-reach';
 import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
+import type { LeafStepOrder } from './leaf-step-order';
 import type { MeasureDefinition } from './measure-definition';
 import type { StoredMeasureEstimate } from './measure-estimate';
 import type { PriorityBand } from './priority-band';
@@ -15,10 +16,10 @@ import type { ScheduleEngine, SolverObjectiveName } from './stored-vocabularies'
 import type { TypedDependency } from './typed-dependency';
 import type { IsoDate } from './workday';
 
-export interface CapturedProject {
+export interface CapturedWorkPackage {
   readonly id: string;
   readonly name: string;
-  readonly ownerId: string;
+  readonly projectId: string;
   readonly restricted: boolean;
   readonly estimateMethod: EstimateMethod;
   readonly depReach: DependencyReach;
@@ -30,7 +31,7 @@ export interface CapturedProject {
   readonly optimizationEnabled: boolean;
   readonly solutionRef: { readonly slug: string; readonly url: string } | null;
   /**
-   * The IANA zone the project reads instants as days in (`step-node-attempts`
+   * The IANA zone the work package reads instants as days in (`step-node-attempts`
    * D3). Captured as a setting; no engine reads it.
    */
   readonly timezone: string;
@@ -51,7 +52,7 @@ export interface CapturedStep {
 
 export interface CapturedWorkItem {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly parentId: string | null;
   readonly position: number;
   readonly name: string;
@@ -98,7 +99,7 @@ export interface CapturedTeam extends CapturedNamedValue {
 
 /** Every detached row used to build one canonical saved-plan input. */
 export interface PlanInputReads {
-  readonly project: CapturedProject;
+  readonly workPackage: CapturedWorkPackage;
   readonly steps: readonly CapturedStep[];
   readonly workItems: readonly CapturedWorkItem[];
   readonly estimates: readonly StoredEstimate[];
@@ -107,11 +108,11 @@ export interface PlanInputReads {
   readonly stepBlockages: readonly StoredStepBlockage[];
   readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly StoredMeasure[];
-  /** Definitions read on the same snapshot; null models an unowned project. */
+  /** Definitions read on the same snapshot; null models an unowned work package. */
   readonly measureDefinitions: readonly MeasureDefinition[] | null;
-  /** Every trio of the project in measures other than time, read on the snapshot. */
+  /** Every trio of the work package in measures other than time, read on the snapshot. */
   readonly measureEstimates: readonly StoredMeasureEstimate[];
-  /** Every stated budget of the project, read on the snapshot. */
+  /** Every stated budget of the work package, read on the snapshot. */
   readonly budgets: readonly StoredBudget[];
   readonly dependencies: readonly CapturedDependency[];
   /** Detached relationship identities and endpoints from the capture snapshot. */
@@ -119,7 +120,7 @@ export interface PlanInputReads {
   readonly assignments: readonly Assignment[];
   readonly capacity: ReadonlyMap<string, number>;
   /**
-   * Every demand on a work item of the project and the project's stated
+   * Every demand on a work item of the work package and the work package's stated
    * resource capacities, read on the same snapshot (`wbs-resources` R5): the
    * captured schedule levels them exactly as the live one does.
    */
@@ -139,4 +140,9 @@ export interface PlanInputReads {
   readonly tags: readonly CapturedNamedValue[];
   readonly workItemTypes: readonly CapturedNamedValue[];
   readonly externalSystems: readonly CapturedNamedValue[];
+}
+
+/** Current Source capture requires a complete resolved inventory beside its ordinary stored rows. */
+export interface ResolvedPlanInputReads extends PlanInputReads {
+  readonly leafSteps: readonly LeafStepOrder[];
 }

@@ -1,3 +1,4 @@
+import { retainSecurityPrincipal, type SecurityPrincipal } from '@wbs/core';
 import {
   type AuditedAct,
   carriesSubjectPrefix,
@@ -22,8 +23,6 @@ import { canonicalOidcEmail } from './canonical-oidc-email';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import { linkIdentityWithin } from './external-identity';
 import type { Gate } from './gate';
-import { type ImmediateTransaction, writeImmediately } from './immediate-write';
-import { roleIn } from './organization';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -31,24 +30,11 @@ import {
   organizationScimToken,
   organizationSsoConnection,
 } from './schema';
+import { readSecurityRefusal, runSecurityTransaction } from './security-transaction';
 import { readSessionPolicy } from './session-policy';
 
-type Transaction = ImmediateTransaction;
+type Transaction = SQLiteBunDatabase;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
-
-/**
- * Whether `actorId` may administer `organizationId`'s enterprise SSO now:
- * `inactive` before activation, `forbidden` for anyone but a current
- * super-admin, null when permitted. Read inside the caller's transaction.
- */
-export function superAdminRefusal(
-  tx: Transaction,
-  organizationId: string,
-  actorId: string,
-): 'inactive' | 'forbidden' | null {
-  if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-  return roleIn(tx, organizationId, actorId) === 'super_admin' ? null : 'forbidden';
-}
 
 const COLUMNS = {
   id: organizationSsoConnection.id,
@@ -147,7 +133,10 @@ export function hasLiveProvisioningToken(db: Reader, organizationId: string, at:
   );
 }
 
-/** {@link EnterpriseConnections} over the shared database. */
+/** {@link EnterpriseConnections} over the shared database.
+ * Proof: retired-helper-superAdminRefusal; reintroduced the retired callable.
+ * 'does not expose the retired server role helper superAdminRefusal' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
+ */
 export class EnterpriseConnectionRepository implements EnterpriseConnections {
   constructor(
     private readonly db: SQLiteBunDatabase,
@@ -156,11 +145,14 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
 
   async list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly EnterpriseConnection[] | 'inactive' | 'forbidden'> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-sso-list) failed `retains the actual queued security principal and current grant at sso-list`; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-sso-list) failed `encodes a current grant denial before effects at sso-list`; restored GREEN.
       if (refusal !== null) return refusal;
       return selectConnections(tx)
         .where(eq(organizationSsoConnection.organizationId, organizationId))
@@ -181,13 +173,21 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
    */
   create(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: EnterpriseConnectionDraft,
     id: string,
     act: AuditedAct,
   ): ReturnType<EnterpriseConnections['create']> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-sso-create) failed `retains the actual queued security principal and current grant at sso-create`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-sso-create) failed `retains detached queued security stamps and audit actors at sso-create`; restored GREEN.
+    act = structuredClone(act);
+    // Proof: dropping this detached snapshot (snapshot-payload-create-draft) failed `retains an enterprise create draft before its writer queue`; restored GREEN.
+    draft = structuredClone(draft);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-sso-create) failed `encodes a current grant denial before effects at sso-create`; restored GREEN.
       if (refusal !== null) return { kind: refusal };
       const claim = tx
         .select({ status: organizationDomainClaim.status })
@@ -243,13 +243,21 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
 
   update(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     change: EnterpriseConnectionChange,
     act: AuditedAct,
   ): ReturnType<EnterpriseConnections['update']> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-sso-update) failed `retains the actual queued security principal and current grant at sso-update`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-sso-update) failed `retains detached queued security stamps and audit actors at sso-update`; restored GREEN.
+    act = structuredClone(act);
+    // Proof: dropping this detached snapshot (snapshot-payload-update-change) failed `retains an enterprise update change before its writer queue`; restored GREEN.
+    change = structuredClone(change);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-sso-update) failed `encodes a current grant denial before effects at sso-update`; restored GREEN.
       if (refusal !== null) return { kind: refusal };
       const current = connectionIn(tx, organizationId, connectionId);
       if (current === null) return { kind: 'not_found' };
@@ -301,14 +309,20 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
    */
   setEnforced(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     enforced: boolean,
     actorSubject: string | null,
     act: AuditedAct,
   ): ReturnType<EnterpriseConnections['setEnforced']> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-sso-enforcement) failed `retains the actual queued security principal and current grant at sso-enforcement`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-sso-enforcement) failed `retains detached queued security stamps and audit actors at sso-enforcement`; restored GREEN.
+    act = structuredClone(act);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-sso-enforcement) failed `encodes a current grant denial before effects at sso-enforcement`; restored GREEN.
       if (refusal !== null) return { kind: refusal };
       const current = connectionIn(tx, organizationId, connectionId);
       if (current === null) return { kind: 'not_found' };
@@ -336,12 +350,18 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
 
   remove(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     act: AuditedAct,
   ): Promise<'deleted' | ConnectionAuthorityRefusal | 'provisioning_active'> {
-    return this.write((tx) => {
-      const refusal = superAdminRefusal(tx, organizationId, actorId);
+    // Proof: dropping this detached snapshot (snapshot-principal-sso-remove) failed `retains the actual queued security principal and current grant at sso-remove`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-act-sso-remove) failed `retains detached queued security stamps and audit actors at sso-remove`; restored GREEN.
+    act = structuredClone(act);
+
+    return this.write(async (tx) => {
+      const refusal = await readSecurityRefusal(tx, organizationId, principal);
+      // Proof: bypassing this current permission check (permission-sso-remove) failed `encodes a current grant denial before effects at sso-remove`; restored GREEN.
       if (refusal !== null) return refusal;
       const current = connectionIn(tx, organizationId, connectionId);
       if (current === null) return 'not_found';
@@ -420,13 +440,19 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
   }
 
   async linkThroughConnection(
-    userId: string,
+    principal: SecurityPrincipal,
     connectionId: string,
     identity: RoutedIdentity,
     act: AuditedAct,
   ): Promise<RoutedLink> {
+    // Proof: dropping this detached snapshot (snapshot-proof-principal) failed `retains the actual enterprise proof account identity and audited evidence before its writer queue`; restored GREEN.
+    principal = retainSecurityPrincipal(principal, act.actor, act.stamp.by);
+    // Proof: dropping this detached snapshot (snapshot-proof-act) failed `retains the actual enterprise proof account identity and audited evidence before its writer queue`; restored GREEN.
+    act = structuredClone(act);
+    // Proof: dropping this detached snapshot (snapshot-proof-identity) failed `retains the actual enterprise proof account identity and audited evidence before its writer queue`; restored GREEN.
+    identity = structuredClone(identity);
     try {
-      return await this.write((tx): RoutedLink => {
+      return await this.write(async (tx): Promise<RoutedLink> => {
         if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
         const row = selectConnections(tx)
           .where(eq(organizationSsoConnection.id, connectionId))
@@ -456,12 +482,14 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
           // Proof: 2026-10-12, proving for any member made mounted `links a
           // non-super-admin matching pair without proving or trusting its
           // email` in `enterprise-link.controller.db.test.ts` prove it.
-          roleIn(tx, connection.organizationId, userId) === 'super_admin';
+          // Proof: evaluating the proof grant in another organization (fence-enterprise-proof-organization) failed `uses the addressed connection organization for its current proof grant`; restored GREEN.
+          // Proof: bypassing this current permission check (permission-enterprise-proof) failed `keeps a role-only super-admin link ordinary when its security grant is absent`; restored GREEN.
+          (await readSecurityRefusal(tx, connection.organizationId, principal)) === null;
         if (proves) {
           // The partial unique index lets one proven record name an Auth0
           // connection; a second organization's proof throws here.
           tx.update(organizationSsoConnection)
-            .set({ provenAt: act.stamp.at, provenBy: userId, ...auditOnUpdate(act.stamp) })
+            .set({ provenAt: act.stamp.at, provenBy: principal.id, ...auditOnUpdate(act.stamp) })
             .where(eq(organizationSsoConnection.id, connectionId))
             .run();
           appendOrganizationAudit(tx, {
@@ -475,9 +503,10 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
             at: act.stamp.at,
           });
         }
+        // Proof: substituting the public owner for this borrowed writer (borrowed-identity-body) failed `uses the borrowed identity writer for audited enterprise proof`; restored GREEN.
         const { kind } = linkIdentityWithin(
           tx,
-          userId,
+          principal.id,
           {
             ...identity,
             emailVerified:
@@ -507,8 +536,8 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
     }
   }
 
-  private write<T>(work: (tx: Transaction) => T): Promise<T> {
-    return writeImmediately(this.db, this.gate, work);
+  private write<T>(work: (tx: Transaction) => T | Promise<T>): Promise<T> {
+    return runSecurityTransaction(this.db, this.gate, async (tx) => work(tx));
   }
 }
 

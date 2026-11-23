@@ -180,7 +180,7 @@ export function delegationVerifier(
         return { kind: 'refused' };
     }
     // Proof (2026-09-28): removing this await made `consumes an MCP delegation
-    // once even when the project is missing` answer 404 twice. The store's
+    // once even when the work package is missing` answer 404 twice. The store's
     // conflict mutation separately failed the two-connection race test.
     if (
       claims.kind !== 'first_party' &&

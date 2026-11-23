@@ -67,7 +67,16 @@ describe('the optimized materialiser is Fast with its starts pinned', () => {
       const notBefore = each.notBefore ?? new Map<string, number>();
       const poolSizes: PoolSizes = each.poolSizes ?? new Map();
       const reach = each.reach ?? 'whole-item';
-      const fast = schedule(each.rows, each.edges, each.slices, notBefore, poolSizes, reach);
+      const fast = schedule(
+        each.rows,
+        each.edges,
+        each.slices,
+        notBefore,
+        poolSizes,
+        reach,
+        undefined,
+        each.typed ?? [],
+      );
 
       const replayed = schedule(
         each.rows,
@@ -77,7 +86,7 @@ describe('the optimized materialiser is Fast with its starts pinned', () => {
         poolSizes,
         reach,
         new Map(),
-        [],
+        each.typed ?? [],
         startsOf(fast),
       );
 
@@ -161,7 +170,7 @@ describe("a start no floor of the plan explains is the optimizer's", () => {
     expect(only?.earliestStart).toBe(5);
     expect(only?.boundBy).toBe('optimizer');
     // The render invariant, additively: `'optimizer'` is not a resource, so it
-    // names none — the same rule `projectStart` already takes. A pool bound at
+    // names none — the same rule `workPackageStart` already takes. A pool bound at
     // its own pinned instant would name a team here, and `annotateCapacity`
     // throws rather than let that reach a bar.
     expect(only?.resourcePredecessorId).toBeNull();
@@ -213,7 +222,7 @@ describe('the two rules the corpus cannot see, because it pins Fast onto Fast', 
     expect(produced.slices.get(sliceKey('a', null))?.earliestStart).toBe(3);
     // `b` went first, so it is nobody's successor and `a` is behind it. The edge
     // is the pass's own `busyUntil`, which is why the drain order decides it.
-    expect(produced.slices.get(sliceKey('b', null))?.boundBy).toBe('projectStart');
+    expect(produced.slices.get(sliceKey('b', null))?.boundBy).toBe('workPackageStart');
     expect(produced.slices.get(sliceKey('a', null))?.boundBy).toBe('optimizer');
   });
 

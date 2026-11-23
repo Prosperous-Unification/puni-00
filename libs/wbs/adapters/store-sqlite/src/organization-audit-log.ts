@@ -11,9 +11,8 @@ import {
 import { asc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import type { Drizzle } from './db';
 import { organizationAudit } from './schema';
-
-type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
 /**
  * Appends one row to `tx`, so it commits or rolls back with the act it
@@ -28,7 +27,7 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  * is a programming fault, and the act rolls back with it.
  */
 export function appendOrganizationAudit(
-  tx: Transaction,
+  tx: Pick<Drizzle, 'insert'>,
   row: {
     readonly id: string;
     readonly organizationId: string;

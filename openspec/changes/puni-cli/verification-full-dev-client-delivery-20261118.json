@@ -1,0 +1,789 @@
+{
+  "schemaVersion": 1,
+  "purpose": "bounded local installed PUNI development caller observations",
+  "sourceEpochs": {
+    "sourceQuality": {
+      "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/source-pins.json",
+      "sha256": "7ffabd27836191f38a895deb9c909c74da71113a0e903de7c7e0f840828ba72b",
+      "bytes": 250708,
+      "mode": 384
+    },
+    "installedOriginal": {
+      "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/source-pins.json",
+      "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+      "bytes": 250708,
+      "mode": 384
+    },
+    "installedTmpfs": {
+      "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/source-pins.json",
+      "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+      "bytes": 250708,
+      "mode": 384
+    },
+    "documentationPreimage": {
+      "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/formatted-source-pins.json",
+      "sha256": "8607fb6756737fab5412be582f748aa369890ad246b8e8fe74e7f7805ecd2c34",
+      "bytes": 250708,
+      "mode": 384
+    }
+  },
+  "sourceQuality": [
+    {
+      "phase": "binTypes",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/binTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/binTypes/native.receipt.json",
+          "sha256": "2cf48d88554f33a7a7d99a2de28c95da09837495b023d4f7943e94791edc8d66",
+          "bytes": 1360,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/binTypes/native.validation.json",
+          "sha256": "8890a6acc4680964a6056ed6e592f7775df3e05630939ce41b10a0b9bd328526",
+          "bytes": 1620,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "bin/tsconfig.json",
+          "--noEmit"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/binTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "types",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/types/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/types/native.receipt.json",
+          "sha256": "549bd89defd6cab531804f64163cbb5336410b487a88171aa6e45d7cbe3bbb28",
+          "bytes": 1426,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/types/native.validation.json",
+          "sha256": "1608a4b7bc7d1909204875f5e8f52c846e57dfd2dd029d117612b3a83f1034de",
+          "bytes": 1611,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/puni/cli/tsconfig.json",
+          "apps/twilight-structure/twilight-dash/cli/tsconfig.json"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/types/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "lint",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/lint/native.log",
+          "sha256": "26b5d97ba5fd9cd69d8fa1bc3a9e90a72f229ec5f7156f7b514490c236e8298d",
+          "bytes": 6890,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/lint/native.receipt.json",
+          "sha256": "b59ba76a3679093bc9cc27dac81e778e31ea1a2495cd8e8b5c5e1ebc58f5f500",
+          "bytes": 2510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/lint/native.validation.json",
+          "sha256": "fe9ccfe6e31376a9bd5c751933021355840bc8d436f89e5682f6a7ddb495f1b8",
+          "bytes": 1611,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--no-cache",
+          "--max-warnings",
+          "0",
+          "--format",
+          "json",
+          "apps/puni/cli/src/cli.test.ts",
+          "apps/puni/cli/src/development/adapter.test.ts",
+          "apps/puni/cli/src/development/callers.test.ts",
+          "apps/puni/cli/src/development/executable-output.test.ts",
+          "apps/puni/cli/src/development/ports.test.ts",
+          "apps/puni/cli/src/development/ports.ts",
+          "apps/puni/cli/src/development/start-adapter.test.ts",
+          "apps/puni/cli/src/development/start-callers.test.ts",
+          "apps/puni/cli/src/development/start.test.ts",
+          "apps/puni/cli/src/entrypoint.ts",
+          "apps/puni/cli/src/execute-command.ts",
+          "apps/puni/cli/src/leaf-discovery.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development-channel.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development-failures.fixture.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+          "bin/dev-ports.ts",
+          "bin/dev.ts"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/lint/native.log",
+        "sha256": "26b5d97ba5fd9cd69d8fa1bc3a9e90a72f229ec5f7156f7b514490c236e8298d",
+        "bytes": 6890
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "startCallers",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startCallers/native.log",
+          "sha256": "af0b8944b320860efeb65668b14a453aedf7526dbad01507b717b08251ec9518",
+          "bytes": 389,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startCallers/native.receipt.json",
+          "sha256": "ce7e84ce80497f3ee22b1b364f673660133371064c5489195baeada2f44275ef",
+          "bytes": 1357,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startCallers/native.validation.json",
+          "sha256": "6ccd2d3bb5e608a83a7dda113e2541d31f995f1cea42d5199b3c50c0bdd5b217",
+          "bytes": 1634,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "apps/puni/cli/src/development/start-callers.test.ts",
+          "--timeout=45000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startCallers/native.log",
+        "sha256": "af0b8944b320860efeb65668b14a453aedf7526dbad01507b717b08251ec9518",
+        "bytes": 389
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "startABI",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startABI/native.log",
+          "sha256": "83e847341fb8367751f022b1afa18f6179ca8e58bed02e2d0c5f320f8a69960b",
+          "bytes": 1499,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startABI/native.receipt.json",
+          "sha256": "aadcfd125ce5cab983cb5810778ab5621d32a3ef57adbc224b500f46365ad4b4",
+          "bytes": 1350,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startABI/native.validation.json",
+          "sha256": "d3883624586419717053e6f07abb63cbddd473b7b9fa9f07f3407f382f76b99f",
+          "bytes": 1623,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "apps/puni/cli/src/development/start-adapter.test.ts",
+          "--timeout=15000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/startABI/native.log",
+        "sha256": "83e847341fb8367751f022b1afa18f6179ca8e58bed02e2d0c5f320f8a69960b",
+        "bytes": 1499
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "executableIO",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/executableIO/native.log",
+          "sha256": "694e19f97e5c170b7a7e77156f030a4b0c3b37d05b0e0280655ebc7bb4c98320",
+          "bytes": 491,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/executableIO/native.receipt.json",
+          "sha256": "13e396e2985119c0289b66723d4e17efb2076b3fb903b65a688551e121b9bde1",
+          "bytes": 1361,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/executableIO/native.validation.json",
+          "sha256": "66ba46d677a049a5caedb157575ea4de8aa710325e2ffdb6202b4f903e89064d",
+          "bytes": 1634,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "apps/puni/cli/src/development/executable-output.test.ts",
+          "--timeout=60000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/executableIO/native.log",
+        "sha256": "694e19f97e5c170b7a7e77156f030a4b0c3b37d05b0e0280655ebc7bb4c98320",
+        "bytes": 491
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "formatCheck",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/formatCheck/native.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/formatCheck/native.receipt.json",
+          "sha256": "92b3dbaf1e6d0b5efe2611658546565e1ccbf4a5a8368636ca4d5de943e8a586",
+          "bytes": 3177,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/formatCheck/native.validation.json",
+          "sha256": "08787c2e392a304715d594c0e5e5f4105d4793feca6ab940b79b42fa8c348c67",
+          "bytes": 1630,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "README.md",
+          "apps/puni/cli/README.md",
+          "apps/puni/cli/src/cli.test.ts",
+          "apps/puni/cli/src/development/adapter.test.ts",
+          "apps/puni/cli/src/development/callers.test.ts",
+          "apps/puni/cli/src/development/executable-output.test.ts",
+          "apps/puni/cli/src/development/ports.test.ts",
+          "apps/puni/cli/src/development/ports.ts",
+          "apps/puni/cli/src/development/start-adapter.test.ts",
+          "apps/puni/cli/src/development/start-callers.test.ts",
+          "apps/puni/cli/src/development/start.test.ts",
+          "apps/puni/cli/src/entrypoint.ts",
+          "apps/puni/cli/src/execute-command.ts",
+          "apps/puni/cli/src/leaf-discovery.test.ts",
+          "apps/puni/cli/tsconfig.spec.json",
+          "apps/twilight-structure/twilight-dash/cli/src/development-channel.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development-failures.fixture.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development-failures.test.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/development.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+          "apps/twilight-structure/twilight-dash/cli/src/runtime-facade.ts",
+          "bin/dev-ports.ts",
+          "bin/dev.ts",
+          "bin/tsconfig.json",
+          "deploy/dev-src/compose.yml",
+          "docs/local-dev.md",
+          "docs/runbook-dev-deploy.md",
+          "openspec/changes/bun-scripts/design.md",
+          "openspec/changes/bun-scripts/tasks.md",
+          "openspec/changes/puni-cli/specs/puni-cli/spec.md",
+          "openspec/changes/puni-cli/tasks.md",
+          "openspec/changes/puni-cli/verification-dev-ports-20261118.json",
+          "openspec/changes/puni-cli/verification-full-dev-source-20261118.json",
+          "openspec/changes/puni-cli/verification-private-full-dev-owners-20261118.json",
+          "openspec/changes/puni-cli/verify.md",
+          "package.json"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/formatCheck/native.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    },
+    {
+      "phase": "specValidate",
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/specValidate/native.log",
+          "sha256": "1e5af9ffad669f125754db264b9deb54cff2e750b276c9b567553c9b24c66290",
+          "bytes": 335644,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/specValidate/native.receipt.json",
+          "sha256": "a33ff2c7d74f405c05b272c89b0e822cf51ba96d210c85974509b857ef555b66",
+          "bytes": 1345,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/specValidate/native.validation.json",
+          "sha256": "bc563c8b7290d8f2daf7e82aa1fd8d845d56e05c1e507f0ab4bd0ca14add7b71",
+          "bytes": 1637,
+          "mode": 384
+        }
+      ],
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "node_modules/.bin/openspec",
+          "validate",
+          "--all",
+          "--json"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 180000
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-client-adapter-quality-live-v3/specValidate/native.log",
+        "sha256": "1e5af9ffad669f125754db264b9deb54cff2e750b276c9b567553c9b24c66290",
+        "bytes": 335644
+      },
+      "exitCode": 0,
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed"
+    }
+  ],
+  "setupFailure": {
+    "counts": {
+      "pass": 0,
+      "fail": 1,
+      "filtered": 3,
+      "expects": 4,
+      "durationSeconds": 15.2
+    },
+    "originals": [
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.log",
+        "sha256": "611a0b63e086882fe88fe619861fb1dd986e82d7895a039e2f7211d226aac160",
+        "bytes": 3532,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.receipt.json",
+        "sha256": "8d17fafae1b1ca291ac7dbadffb9d2738ec2720aa8d7c6aa7f36413198105d0d",
+        "bytes": 1492,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.validation.json",
+        "sha256": "b96b66f171bc8cda551b079c1e41b9e345d215188190cfb69f8602b1dc7a6ce2",
+        "bytes": 1618,
+        "mode": 384
+      }
+    ],
+    "raw": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/packaging/build.test.ts:\n175 |     const retained =\n176 |       settled.cause instanceof ToolkitBuildFailure\n177 |         ? // Proof: c28-assembly-nested-retention; injected fault failed `preserves producer-release failures and all retained package roots`; restoration passed.\n178 |           [...new Set([...ownedDirectories, ...settled.cause.ownedDirectories])]\n179 |         : [...ownedDirectories];\n180 |     throw new ToolkitBuildFailure(\n                ^\nToolkitBuildFailure: Bun toolkit build failed; retained directories: /tmp/puni captured package integration SU13Sg/build work, /tmp/puni captured package integration SU13Sg/package output\n ownedDirectories: [ \"/tmp/puni captured package integration SU13Sg/build work\", \"/tmp/puni captured package integration SU13Sg/package output\" ],\n\n      at buildPackage (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/packaging/build.ts:180:11)\n      at async <anonymous> (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/packaging/build.test.ts:112:23)\n\n307 |     unsubscribe();\n308 |   } catch (cause) {\n309 |     release = { cause };\n310 |   }\n311 |   if (settled.kind === 'rejected')\n312 |     throw new ToolkitBuildFailure(\n                ^\nToolkitBuildFailure: Bun toolkit build failed; retained directories: /tmp/puni captured package integration SU13Sg/build work, /tmp/puni captured package integration SU13Sg/package output\n ownedDirectories: [ \"/tmp/puni captured package integration SU13Sg/build work\", \"/tmp/puni captured package integration SU13Sg/package output\" ],\n\n      at buildAssets (/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/policy/build-bun-toolkit.ts:312:11)\n      at async assemble (/home/df/.codex/worktrees/6ce4/puni-00/apps/puni/cli/src/packaging/build.ts:114:25)\n\n252 |       syscall: \"cp\",\n253 |       errno: EEXIST,\n254 |       code: \"EEXIST\"\n255 |     });\n256 | }\n257 |   if (copyFileSync(src, dest, opts.mode), opts.preserveTimestamps)\n                        ^\nENOSPC: no space left on device, copyfile '/home/df/.codex/worktrees/6ce4/puni-00/node_modules/stringify-entities/package.json' -> '/tmp/puni captured package integration SU13Sg/build work/source/node_modules/stringify-entities/package.json'\n    path: \"/home/df/.codex/worktrees/6ce4/puni-00/node_modules/stringify-entities/package.json\",\n    dest: \"/tmp/puni captured package integration SU13Sg/build work/source/node_modules/stringify-entities/package.json\",\n syscall: \"copyfile\",\n   errno: -28,\n    code: \"ENOSPC\"\n\n      at copyFile (internal:fs/cp-sync:257:19)\n      at copyDir (internal:fs/cp-sync:299:15)\n      at mkDirAndCopy (internal:fs/cp-sync:293:34)\n      at copyTrustedModules (/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts:285:5)\n      at buildRoles (/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts:345:5)\n      at buildSelectedRoles (/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/policy/preparation-roles.ts:761:25)\n      at produce (/home/df/.codex/worktrees/6ce4/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/policy/build-bun-toolkit.ts:187:15)\n(fail) packs and installs the captured PUNI package outside its checkout with protected startup and all three providers [14223.20ms]\n\n 0 pass\n 3 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [15.20s]\n",
+    "receipt": {
+      "schema": "activation-protected-native-v1",
+      "prefix": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "apps/puni/cli/src/packaging/build.test.ts",
+          "--test-name-pattern",
+          "^packs and installs the captured PUNI package outside its checkout with protected startup and all three providers$",
+          "--timeout=300000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 360000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "startedAt": "2026-11-18T04:45:01.525Z",
+      "endedAt": "2026-11-18T04:45:16.777Z",
+      "exitCode": 1,
+      "signal": null,
+      "originalObserved": true,
+      "launched": true,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "output": {
+        "state": "acquired",
+        "stdoutFd": 5,
+        "stderrFd": 5,
+        "sameNumericFd": true
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.log",
+        "sha256": "611a0b63e086882fe88fe619861fb1dd986e82d7895a039e2f7211d226aac160",
+        "bytes": 3532
+      },
+      "settled": true
+    },
+    "validation": {
+      "phase": "installed",
+      "snapshots": [
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/source-pins.json",
+          "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+          "bytes": 250708,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/native-io-immutable-support-pins.json",
+          "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+          "bytes": 704,
+          "mode": 384
+        }
+      ],
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.log",
+          "sha256": "611a0b63e086882fe88fe619861fb1dd986e82d7895a039e2f7211d226aac160",
+          "bytes": 3532,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.receipt.json",
+          "sha256": "8d17fafae1b1ca291ac7dbadffb9d2738ec2720aa8d7c6aa7f36413198105d0d",
+          "bytes": 1492,
+          "mode": 384
+        }
+      ],
+      "formatted": null,
+      "allOtherInputsMatched": true,
+      "originalExitCode": 1,
+      "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+    }
+  },
+  "installed": {
+    "counts": {
+      "pass": 1,
+      "fail": 0,
+      "filtered": 3,
+      "expects": 269,
+      "durationSeconds": 74.98
+    },
+    "originals": [
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.log",
+        "sha256": "98f524978d0d164a07638939e4d1c45468fcf4a1193d23953c646a2f239b4930",
+        "bytes": 293,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.receipt.json",
+        "sha256": "78227047f9ec8142bc8ced7f8e2aa4ced45049812baf89ef4efe3f748c9ca8a5",
+        "bytes": 1573,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.validation.json",
+        "sha256": "13cbc48f7210ed44a790fb74cceeeeb85cc653e49ebaec31b63a0d3facd89d8b",
+        "bytes": 1617,
+        "mode": 384
+      }
+    ],
+    "raw": "bun test v1.4.4 (38afee6c8)\n\napps/puni/cli/src/packaging/build.test.ts:\n(pass) packs and installs the captured PUNI package outside its checkout with protected startup and all three providers [74232.27ms]\n\n 1 pass\n 3 filtered out\n 0 fail\n 269 expect() calls\nRan 1 test across 1 file. [74.98s]\n",
+    "receipt": {
+      "schema": "activation-protected-native-v1",
+      "prefix": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "TMPDIR=/dev/shm/puni-installed-runtime-20261118-v1",
+          "/home/df/.bun/bin/bun",
+          "test",
+          "apps/puni/cli/src/packaging/build.test.ts",
+          "--test-name-pattern",
+          "^packs and installs the captured PUNI package outside its checkout with protected startup and all three providers$",
+          "--timeout=300000"
+        ],
+        "cwd": "/home/df/.codex/worktrees/6ce4/puni-00",
+        "deadlineMs": 360000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "startedAt": "2026-11-18T04:48:53.053Z",
+      "endedAt": "2026-11-18T04:50:08.074Z",
+      "exitCode": 0,
+      "signal": null,
+      "originalObserved": true,
+      "launched": true,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "output": {
+        "state": "acquired",
+        "stdoutFd": 5,
+        "stderrFd": 5,
+        "sameNumericFd": true
+      },
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.log",
+        "sha256": "98f524978d0d164a07638939e4d1c45468fcf4a1193d23953c646a2f239b4930",
+        "bytes": 293
+      },
+      "settled": true
+    },
+    "validation": {
+      "phase": "installed",
+      "snapshots": [
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/source-pins.json",
+          "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+          "bytes": 250708,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/native-io-immutable-support-pins.json",
+          "sha256": "69d3dc620b8b0a5162bbcbe3f0a7e20d3eda3287ea7b595bc03bf8631c9d01ef",
+          "bytes": 704,
+          "mode": 384
+        }
+      ],
+      "originals": [
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.log",
+          "sha256": "98f524978d0d164a07638939e4d1c45468fcf4a1193d23953c646a2f239b4930",
+          "bytes": 293,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/installed/native.receipt.json",
+          "sha256": "78227047f9ec8142bc8ced7f8e2aa4ced45049812baf89ef4efe3f748c9ca8a5",
+          "bytes": 1573,
+          "mode": 384
+        }
+      ],
+      "formatted": null,
+      "allOtherInputsMatched": true,
+      "originalExitCode": 0,
+      "qualification": "Scoped currentCLI sourcechecks, notinstalled/caller/default/fullgoal completion."
+    }
+  },
+  "storageBridge": {
+    "descriptor": {
+      "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/storage-bridge.json",
+      "sha256": "d1323e1898b5f3dc94e5f01cc9d308cfe27728dcf0e282dfeab6e7d173e9a14a",
+      "bytes": 1990,
+      "mode": 384
+    },
+    "contents": {
+      "previous": {
+        "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/source-pins.json",
+        "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+        "bytes": 250708,
+        "mode": 384
+      },
+      "source": {
+        "path": "/tmp/puni-cli-full-dev-installed-join-tmpfs-live-v1/source-pins.json",
+        "sha256": "d04e1524f4559575415012d94c14d0eeae2f2b4982e77386d01cc9f8fb0c16a3",
+        "bytes": 250708,
+        "mode": 384
+      },
+      "preflight": {
+        "path": "/tmp/puni-installed-tmpfs-preflight-v1.json",
+        "sha256": "bf8eedae6996fea49048ab324f11995a23bd76e0afe67695e77c2f95dc3ec446",
+        "bytes": 503,
+        "mode": 384
+      },
+      "originalFailure": {
+        "log": {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.log",
+          "sha256": "611a0b63e086882fe88fe619861fb1dd986e82d7895a039e2f7211d226aac160",
+          "bytes": 3532,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-cli-full-dev-installed-join-first-live-v1/installed/native.receipt.json",
+          "sha256": "8d17fafae1b1ca291ac7dbadffb9d2738ec2720aa8d7c6aa7f36413198105d0d",
+          "bytes": 1492,
+          "mode": 384
+        }
+      },
+      "effectiveCommand": [
+        "/usr/bin/env",
+        "TMPDIR=/dev/shm/puni-installed-runtime-20261118-v1",
+        "/home/df/.bun/bin/bun",
+        "test",
+        "apps/puni/cli/src/packaging/build.test.ts",
+        "--test-name-pattern",
+        "^packs and installs the captured PUNI package outside its checkout with protected startup and all three providers$",
+        "--timeout=300000"
+      ],
+      "effectiveTMPDIR": "/dev/shm/puni-installed-runtime-20261118-v1",
+      "qualification": "Source and all test bodies unchanged. Explicit env launcher changes only initial test TMPDIR after actual ext4 ENOSPC before any new installed join. Helper env remains recorded unchanged; actual test TMPDIR is the explicit argv override. Native owner budgets unchanged300s/360s. Existing evidence/source files retained; original fixture already removed by its existing afterAll."
+    },
+    "preflight": {
+      "descriptor": {
+        "path": "/tmp/puni-installed-tmpfs-preflight-v1.json",
+        "sha256": "bf8eedae6996fea49048ab324f11995a23bd76e0afe67695e77c2f95dc3ec446",
+        "bytes": 503,
+        "mode": 384
+      },
+      "contents": {
+        "directory": "/dev/shm/puni-installed-runtime-20261118-v1",
+        "mode": 448,
+        "owner": 1000,
+        "availableBytes": 16246992896,
+        "availableMemoryBytes": 18124369920,
+        "probe": {
+          "nativeExitCode": 0,
+          "signal": null,
+          "stdout": "PUNI_TMPFS_EXECUTABLE_OK\n",
+          "stderrBytes": 0,
+          "fsyncedReadbackBytes": 1048576
+        },
+        "qualification": "Private temporary storage and executable capability only; no package/application behavior or installed readiness claim. No existing files removed."
+      }
+    }
+  },
+  "reviews": [
+    {
+      "path": "/tmp/puni-cli-full-dev-installed-join-first-astra-v1.md",
+      "sha256": "6888171f5f1320644c421e17c64b5f60eee76efc5b2ae84f12c73d1100deffa3",
+      "bytes": 2423,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-cli-full-dev-client-adapter-astra-v2.md",
+      "sha256": "2475f9ad1390b43deb7ac4065954b69e0de3f0d30db6cfc3ac3a5b094a624f74",
+      "bytes": 1667,
+      "mode": 384
+    }
+  ],
+  "qualification": [
+    "Source7ff quality predates test-only installed extensiond04e; no source-body change between ext4 setup failure and tmpfs success.",
+    "Explicit /usr/bin/env TMPDIR=/dev/shm/... argv changes the test temporary root; helper environment still records TMPDIR=/tmp.",
+    "All original and added assertions were reached in the one selected passing Bun case; raw log does not print each new native observation or individual assertion.",
+    "Initial package-manager launch explicitly erases startup environment before Bun; bare bun run is not claimed to sanitize pre-start inputs.",
+    "Original captured checkout/output removed, operator workspace remains for actual client helper copy and existing Navigator fixture.",
+    "Existing afterAll removed the failed original fixture and successful tmpfs child root; no general cleanup, descendant absence or prior-path deletion certificate.",
+    "No package-run TTY/signal, actual container/mount/selection refusal, public provenance/default registry pin, new guard R5, frozen-profile migration, host/gate or parent completion claim.",
+    "Formatting later changed test bytes; final new build-test types/lint/format and any behavior bridge remain distinct pending observations."
+  ]
+}

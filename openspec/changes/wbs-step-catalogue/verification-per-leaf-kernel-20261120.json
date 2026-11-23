@@ -1,0 +1,935 @@
+{
+  "schema": "puni-per-leaf-scheduling-kernel-v1",
+  "recordedAt": "2026-11-20T15:35:44.040Z",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts",
+      "sha256": "0a06c7781e0935b1cc3290711f30038ee07b022098c515aece6f296ae5639477",
+      "bytes": 33497,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/dependency-graph.ts",
+      "sha256": "7ce0c1b836b03e197a409723728644100f39a74ddab554a4e85bd17239c9ebbc",
+      "bytes": 11531,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+      "sha256": "b85e92db72d7bd828fc80466159b529a9337335e6c3e93151f83fd292a8f8c37",
+      "bytes": 2812,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/schedule-parts.ts",
+      "sha256": "643e0b511c4f81226ee5b5871a01f8019a12bf1bf56007a52edac694a65c5c8a",
+      "bytes": 5453,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/schedule-slices.ts",
+      "sha256": "cbb1fdea5efa7cccfa3752b8cbfea0c37b2227798378386bab450daff0e97e9a",
+      "bytes": 7650,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-fractional-width.json",
+      "sha256": "a1d7df9d171905e46e348247232645c1a965644ed322dd049966ef4a7a174572",
+      "bytes": 1234,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-missing-work-item-key.json",
+      "sha256": "5e130130daf2d52577c0f881a6c7525dbe94d9311ea5cc10242befa68958f95b",
+      "bytes": 1203,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-positional-edge.json",
+      "sha256": "eaba7fc046b8e1282dfbd9fcdc30eb19e0d39784d50baaea0c18e9de9cf0069e",
+      "bytes": 1152,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-unknown-key.json",
+      "sha256": "56867c16faa0b34cc2c7c945716eef5d684c06a78c8f2551e78b20934870f150",
+      "bytes": 1246,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-zero-demand-units.json",
+      "sha256": "1bd515a10d770bc56de5b15f04760ce16547eab1cd441f6f3691d20cc07f85cc",
+      "bytes": 1264,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-zero-pool-size.json",
+      "sha256": "3c935d6106a321c01a54f7a6a46a1403c04800acef1a5e5a0f30b4f6aadf91f2",
+      "bytes": 1232,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/invalid-zero-width.json",
+      "sha256": "4f6bc852b54f0a6c9f63fbdad7061b57fdd3115846f732157dcca6badff537ca",
+      "bytes": 1232,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/negative-printable-key.json",
+      "sha256": "5054b657b106a531e92acea315d5c73c16cb17d43707520bf07b66bc96fd92dd",
+      "bytes": 1228,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-all-zero-milestone.json",
+      "sha256": "ed9e7402cc037290443833bd17b644db95cf120eb8ef82d3829e014fa33cf1cb",
+      "bytes": 1255,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-divisible-resource.json",
+      "sha256": "6449ef0967e2c86d69e5487681e78e59d8417ea55bc06e7ba25d474c8ca7c397",
+      "bytes": 1685,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-ff-quantization.json",
+      "sha256": "fc82bfc527f96570758c2293c92a83f89e927c4638a9a6cce5f04225cb0971ef",
+      "bytes": 1162,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-positive-with-zero-steps.json",
+      "sha256": "976a0e3189587a79a37f532a6a938056e7eb13da0d7742c714cca25e1b21e831",
+      "bytes": 2652,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json",
+      "sha256": "5fe7fd6b23744aae7aba50fbcf2e010eb55aedf750f4bd8942c4d62fa70e30ff",
+      "bytes": 1615,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-staging-resource.json",
+      "sha256": "02f24be7a490c46bea8fd6a0399920ce1420071f2becbf1118af49b3fd7ba90e",
+      "bytes": 1264,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/fixtures/request/valid-two-slices.json",
+      "sha256": "0fd70de68694a3e4f19289c84bdaaf5806ae7770db5eec78797e31e4f131e822",
+      "bytes": 1249,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/src/connected-durable.test.ts",
+      "sha256": "62d826bdb124bf909aa926af41d56c18cc5f171f8e85c830d9d33d5103300583",
+      "bytes": 15944,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/src/materialise-optimized.test.ts",
+      "sha256": "09006a8013704845eaa3a200c18aa4be488fc3e47aa11cb61687355c3c206031",
+      "bytes": 16051,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/solver/src/wire-contract-version.test.ts",
+      "sha256": "564c3604f9b0400d8f9e7a65dda5a46b75940d69a26adfe6ee96463d974866bb",
+      "bytes": 2634,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/fixtures/fast-golden-corpus.json",
+      "sha256": "4dea9a59f2faf710751d9106ef121087def7cde4c19e894f180b8f640c9a5249",
+      "bytes": 36493,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/fixtures/solver-quantum-golden-corpus.json",
+      "sha256": "2357bf0c41f7a226afa4f1d8ac8c4a976c60d1c2c7f60a2409c1596655ff750e",
+      "bytes": 633,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/arrange-siblings.property.test.ts",
+      "sha256": "4583c8d36193e73cfc2c4a496d36cf83e7eb57985290946b73defcfeaef5b933",
+      "bytes": 5167,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/contract-version.test.ts",
+      "sha256": "0fca722d1fe1af03ced1d5fc0100932354ce199debfeea05550d16c4ccebd516",
+      "bytes": 1863,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/contract-version.ts",
+      "sha256": "8a3de1e8fb74a20449406678283f56264782b3af49a7128f434068ea23c7b004",
+      "bytes": 10907,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/fast-golden-corpus.test.ts",
+      "sha256": "a7cbde031694aedbee41ab62aaa8078847212942d2f33d82842abebbb42b6cbf",
+      "bytes": 11238,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/fast-golden-corpus.ts",
+      "sha256": "24327851c9b54a79d2f9eea50f8fba2a8924f56874fe9aefe51247ae20b1807e",
+      "bytes": 13194,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/schedule-annotate.test.ts",
+      "sha256": "66661c87a7de90c92a50ac6df59b1bf8e8f7d88d65a8205f72f98e768bb0ad19",
+      "bytes": 15028,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/schedule-elsewhere.test.ts",
+      "sha256": "2ec4f690c46cc41d3adb9bfdafbbccd999d20714fb12196508b7f5403640ed31",
+      "bytes": 15966,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/schedule-resources.test.ts",
+      "sha256": "fe6ccbd51bb4e3ab36d80ddfdffb1771ecca52afd95524511f709db4fecd2c7a",
+      "bytes": 11810,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/slice-edges.test.ts",
+      "sha256": "cad73ee302f706dd40b91206fffbfae38db6df3772daeea6c21fc46e3339edc9",
+      "bytes": 25709,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/slice-edges.ts",
+      "sha256": "272a603f1cff8f99bba6e962c7a53b8b283cb908d79968fb70a401f729087b68",
+      "bytes": 27617,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/domain/src/without-held-subtrees.ts",
+      "sha256": "68ad10c5c3348bb3b1de013a81d12aa3f56bfd8cbe677264cd2a7d72ee60d770",
+      "bytes": 4256,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+      "sha256": "f9c8381dfe16db9223ffd9e852022177d6cbf1acf2db36396495d5e5fdda0ed9",
+      "bytes": 10417,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts",
+      "sha256": "a4035706d3fc52843365ad1ee00c3775c9f38339a14cdb6aabee661b16f2d593",
+      "bytes": 33766,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.ts",
+      "sha256": "e5b8c185d5a26d6448f81b345a6b2670cd4ab216858a98dec55a62e1ebf99e52",
+      "bytes": 12879,
+      "mode": 436
+    }
+  ],
+  "qualification": "SC16kernel progress only. Current live/captured/connected/cycle consumers explicitly retain package-wide slicing until SC9 versioned capture cutover; no complete Source, saved13, actual CP-SAT, original15history or all13fact certificate. Solver request/baseline agreement is not Python execution.",
+  "changes": [
+    "Required SliceStepOrder selects complete own inventories or explicit uniform interpretation; no missing-list fallback.",
+    "Own order, empty boundary, policy/duplicate/estimate membership checks retain resource arithmetic.",
+    "Descendant selectors expand only matching leaves and name exact no-match context; node/whole rules and cycles remain.",
+    "Held reduction filters original matching leaves, preserves authored input, rejects original no-match and absent owner/slice evidence.",
+    "Scheduler contract20,15request fixture headers,12Fast cases and7quantum cases; original11Fast/all7quantum values unchanged.",
+    "Cache fixture uses actual empty-catalogue migration custody and current-schema minimum FK rows; contracts18/19 excluded before decoding, same-contract corruption retained."
+  ],
+  "verification": {
+    "core": {
+      "phase": "current-core-source-only-v24",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v24.receipt.json",
+        "sha256": "962d0380ab8d81f3b5248b5f9866b6c0ba6168fe0058d7946da8471f766cd547",
+        "bytes": 14751,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v24.log",
+        "sha256": "c820f446fb912c1d7bcee402a96c7fca07a9464149af7fe1612a035af24582ab",
+        "bytes": 264009,
+        "mode": 384
+      },
+      "seconds": 78.767,
+      "pass": 2084,
+      "fail": 27,
+      "assertions": 9507,
+      "tests": 2111,
+      "files": 170,
+      "elapsed": "78.53s",
+      "baselineComparison": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-core-baseline-comparison-v1.json",
+        "sha256": "c8850f596bd8e3743d85b5b810977e7d96f6d0076b3a9d80bff2333e32c879f8",
+        "bytes": 3409,
+        "mode": 384
+      }
+    },
+    "kernel": {
+      "phase": "per-leaf-kernel-final-regression-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-regression-v1.receipt.json",
+        "sha256": "8ea5a7a459262174764f0f9e3fa64850214ab0e823e5715955c1760fe79b2154",
+        "bytes": 2409,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-regression-v1.log",
+        "sha256": "b31d000f3cf99b7038e3422e936f845e842aec5c09f76f7eb782c984df1904e6",
+        "bytes": 33022,
+        "mode": 384
+      },
+      "seconds": 46.781,
+      "pass": 293,
+      "fail": 0,
+      "assertions": 16952,
+      "tests": 293,
+      "files": 16,
+      "elapsed": "46.74s"
+    },
+    "api": {
+      "phase": "per-leaf-kernel-api-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-api-mcp-v1.receipt.json",
+        "sha256": "6e868a1df7dcd030e8fac9c32c94eb51f7f2a8a3fa32149e60b449d68a841250",
+        "bytes": 2571,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-api-mcp-v1.log",
+        "sha256": "09c485e457e3d3ff0b760e46044e232e88059285a12f087f7f1bb425a1baf23b",
+        "bytes": 33188,
+        "mode": 384
+      },
+      "seconds": 222.778,
+      "pass": 238,
+      "fail": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "elapsed": "222.72s"
+    },
+    "frontend": {
+      "phase": "per-leaf-kernel-frontend-regression-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-regression-v1.receipt.json",
+        "sha256": "14fd986efbb467bd0b3ebf1e21f5bc80f0a12315e50f712c82be308f8f37d400",
+        "bytes": 1435,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-regression-v1.log",
+        "sha256": "3d17765170ee66a6b31962a1714546b421e936e3b4afad781f3d4198acceeef2",
+        "bytes": 6892,
+        "mode": 384
+      },
+      "seconds": 17.532,
+      "pass": 39,
+      "files": 2,
+      "elapsed": "17.08s",
+      "qualification": "Selected connected browser regressions with private config/cache; full E2E not run."
+    },
+    "types": {
+      "backendEntries": 45,
+      "backend": {
+        "phase": "per-leaf-kernel-final-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-types-v1.receipt.json",
+          "sha256": "b448df1c58d8adc43d42d28f5090d5b0406412347f55351c45215e7b776a1916",
+          "bytes": 1343,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 7.248
+      },
+      "frontend": {
+        "phase": "per-leaf-kernel-frontend-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-types-v1.receipt.json",
+          "sha256": "a72201bde8c94a4e9e46ad422f8b230357619ef0bb5e363d1b3a643689b6b12d",
+          "bytes": 1354,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 4.59
+      }
+    },
+    "lint": {
+      "phase": "per-leaf-kernel-final-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-lint-v1.receipt.json",
+        "sha256": "7673f27cd91da1571a36e04b46e507125b10e5bdf5ce394f7077a92ff0227311",
+        "bytes": 1288,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "seconds": 9.087
+    },
+    "checks": [
+      {
+        "phase": "per-leaf-kernel-final-regression-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-regression-v1.receipt.json",
+          "sha256": "8ea5a7a459262174764f0f9e3fa64850214ab0e823e5715955c1760fe79b2154",
+          "bytes": 2409,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-regression-v1.log",
+          "sha256": "b31d000f3cf99b7038e3422e936f845e842aec5c09f76f7eb782c984df1904e6",
+          "bytes": 33022,
+          "mode": 384
+        },
+        "seconds": 46.781
+      },
+      {
+        "phase": "per-leaf-kernel-api-mcp-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-api-mcp-v1.receipt.json",
+          "sha256": "6e868a1df7dcd030e8fac9c32c94eb51f7f2a8a3fa32149e60b449d68a841250",
+          "bytes": 2571,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-api-mcp-v1.log",
+          "sha256": "09c485e457e3d3ff0b760e46044e232e88059285a12f087f7f1bb425a1baf23b",
+          "bytes": 33188,
+          "mode": 384
+        },
+        "seconds": 222.778
+      },
+      {
+        "phase": "per-leaf-kernel-frontend-regression-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-regression-v1.receipt.json",
+          "sha256": "14fd986efbb467bd0b3ebf1e21f5bc80f0a12315e50f712c82be308f8f37d400",
+          "bytes": 1435,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-regression-v1.log",
+          "sha256": "3d17765170ee66a6b31962a1714546b421e936e3b4afad781f3d4198acceeef2",
+          "bytes": 6892,
+          "mode": 384
+        },
+        "seconds": 17.532
+      },
+      {
+        "phase": "per-leaf-kernel-final-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-types-v1.receipt.json",
+          "sha256": "b448df1c58d8adc43d42d28f5090d5b0406412347f55351c45215e7b776a1916",
+          "bytes": 1343,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 7.248
+      },
+      {
+        "phase": "per-leaf-kernel-frontend-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-types-v1.receipt.json",
+          "sha256": "a72201bde8c94a4e9e46ad422f8b230357619ef0bb5e363d1b3a643689b6b12d",
+          "bytes": 1354,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-frontend-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 4.59
+      },
+      {
+        "phase": "per-leaf-kernel-final-lint-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-lint-v1.receipt.json",
+          "sha256": "7673f27cd91da1571a36e04b46e507125b10e5bdf5ce394f7077a92ff0227311",
+          "bytes": 1288,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "seconds": 9.087
+      },
+      {
+        "phase": "per-leaf-kernel-proofs-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-proofs-v1.receipt.json",
+          "sha256": "80f53182b1276fe9b68a4bb038e35cd727c142b92748f3fdd4e793323136c527",
+          "bytes": 1266,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-proofs-v1.log",
+          "sha256": "af858efb35dbfb915cf27dbc2abcb130ae436b3fbcf1862f3e3249cb3213bc01",
+          "bytes": 916,
+          "mode": 384
+        },
+        "seconds": 13.172
+      },
+      {
+        "phase": "per-leaf-kernel-retirement-audit-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-retirement-audit-v1.receipt.json",
+          "sha256": "fe5edc38ee9830515703fcd8a9717a29dc2494b0f83af9274be3033768fc6e03",
+          "bytes": 1293,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-retirement-audit-v1.log",
+          "sha256": "30cf8e6d8d82bae04083e1ef101cb013c38366817356e8af57b95a3017aba447",
+          "bytes": 275,
+          "mode": 384
+        },
+        "seconds": 6.373
+      }
+    ]
+  },
+  "effects": {
+    "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-effects-v1.json",
+    "sha256": "355c4c17efae8a81017dfc59475f0ed526022d5e5eece3f9251414ac4bf918c9",
+    "bytes": 8123,
+    "mode": 384
+  },
+  "emissionComparison": {
+    "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-proof-comments-emission-v1.json",
+    "sha256": "1153d5d502fb5a4e98e7b43ceb96410854e57119151053526a470bba00c28fbc",
+    "bytes": 373,
+    "mode": 384
+  },
+  "corpusComparison": {
+    "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-corpus-comparison-v1.json",
+    "sha256": "0db4f4768e64e25cdf55603a44e7fc5a6a7ae73d553496f2706032c224a06d5a",
+    "bytes": 473,
+    "mode": 384
+  },
+  "requestHeaderComparison": {
+    "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-request-fixtures-v1.json",
+    "sha256": "c4f5941832ed5f453278ccb183f666b5b717de731eeb0316e0633d727c76546c",
+    "bytes": 3241,
+    "mode": 384
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v12.json",
+    "sha256": "6906edd9996a7d57fab556fa3d812507d084baac71aac657f6fb9136fd6b172e",
+    "bytes": 1856187,
+    "mode": 384
+  },
+  "retainedAttempts": [
+    {
+      "phase": "per-leaf-descendant-graph-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-descendant-graph-red-v1.receipt.json",
+        "sha256": "89831a04bf59d1a04f8b7e6f04ba4de4d6d7990cae7af64613adda93749808ef",
+        "bytes": 1306,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-descendant-graph-red-v1.log",
+        "sha256": "8902ed6ccfb1955f0d4c6755ba7a3d374277a62744ca02d6bc870b208f947520",
+        "bytes": 10011,
+        "mode": 384
+      },
+      "seconds": 0.037,
+      "qualification": "Expected new mixed graph tests failed before implementation."
+    },
+    {
+      "phase": "per-leaf-descendant-graph-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-descendant-graph-green-v1.receipt.json",
+        "sha256": "9de26cd6e391423f6095a079f3c2172dbfaa17cbf9fa890e66d8c72aa76baf19",
+        "bytes": 1371,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-descendant-graph-green-v1.log",
+        "sha256": "6630ecc37466d658b6781e86aa839208f52ab8e957d475992968d2203fdf7f00",
+        "bytes": 4719,
+        "mode": 384
+      },
+      "seconds": 0.029,
+      "qualification": "Only42graph tests ran; the additional nonexistent schedule-golden filter matched nothing. This is not golden-corpus evidence."
+    },
+    {
+      "phase": "per-leaf-slicing-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-slicing-red-v1.receipt.json",
+        "sha256": "9214d7e23a77760d09655545e0e18908da34e46f376cc079f8f5c93fe19bc5d3",
+        "bytes": 1303,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-slicing-red-v1.log",
+        "sha256": "f713077369b3f7fdcacc62f3cb1fb9ba7b6c8999a4217ea6505c7be7b69e6af8",
+        "bytes": 13076,
+        "mode": 384
+      },
+      "seconds": 0.313,
+      "qualification": "Expected new own-order/refusal tests failed before implementation."
+    },
+    {
+      "phase": "per-leaf-slicing-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-slicing-green-v1.receipt.json",
+        "sha256": "6b0eb3b6910ce83c390e3a68733c1359a061f2c804146eeec404b83c15496305",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-slicing-green-v1.log",
+        "sha256": "dd6a56f4461ac3beba3d363d6a0188e52f7b9775381a4b229de94c3bd6a8d455",
+        "bytes": 7333,
+        "mode": 384
+      },
+      "seconds": 0.355,
+      "qualification": "New slice and graph tests passed; combined run failed existing corpus18 versus engine19 mismatch."
+    },
+    {
+      "phase": "per-leaf-typed-corpus-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-typed-corpus-red-v1.receipt.json",
+        "sha256": "06a1775ee44ad01ddb59911cccd83c57d1c0740f7df923055a395546e245daed",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-typed-corpus-red-v1.log",
+        "sha256": "3ead088f86177568b587e6fb57b93d6f9ed015023e9345a5e23a9e0789189fd9",
+        "bytes": 17279,
+        "mode": 384
+      },
+      "seconds": 1.026,
+      "qualification": "New typed case and version pin failed before deliberate corpus regeneration."
+    },
+    {
+      "phase": "per-leaf-cache-baseline-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-baseline-v1.receipt.json",
+        "sha256": "8de7a11a1b2ce41f5a81430a10e5228016d4fd67e1070c81ed6ca34ad42663f6",
+        "bytes": 1403,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-baseline-v1.log",
+        "sha256": "c6a398ed4d51a923163aea438708acbb97f01c0739ad1bb638acc18c678a8051",
+        "bytes": 4069,
+        "mode": 384
+      },
+      "seconds": 0.476,
+      "qualification": "Old fixture refused migration117 without atomic owner before tests could reach cache behavior."
+    },
+    {
+      "phase": "per-leaf-cache-migration-control-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v1.receipt.json",
+        "sha256": "b64e35fe640ec23fb6efff1a3a2eec601cc86f5cbe3f6ae81d7fef248a82e49c",
+        "bytes": 1421,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v1.log",
+        "sha256": "486b1c94ec0728625831e5fd8ca35bf53f0bc941bb1f883f56a96e2839033438",
+        "bytes": 3510,
+        "mode": 384
+      },
+      "seconds": 5.713,
+      "qualification": "Fixture reached current schema; obsolete owner_id seed failed."
+    },
+    {
+      "phase": "per-leaf-cache-migration-control-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v2.receipt.json",
+        "sha256": "b873d0d5dc0a0468737462027354422b1fc4590962dcdc42fcdc3d4155362987",
+        "bytes": 1421,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v2.log",
+        "sha256": "3be44766adb80c627aa032ae6854892890bef2e2ad5389371d86c0cfdc2dca72",
+        "bytes": 3530,
+        "mode": 384
+      },
+      "seconds": 5.925,
+      "qualification": "Fixture then failed missing required project_id seed."
+    },
+    {
+      "phase": "per-leaf-cache-migration-control-v3",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v3.receipt.json",
+        "sha256": "32b3f02ee8b39f27e028a5800b2c5eed77feed23eacfd282ed2dbb5ef3d95972",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-cache-migration-control-v3.log",
+        "sha256": "c1a391c1445a7fdc10d9b294a22a6fa1e0bf20e89a038680877ca429ad32a90e",
+        "bytes": 719,
+        "mode": 384
+      },
+      "seconds": 6.42,
+      "qualification": "Five original current19 cache controls pass with minimal current-schema FK rows; no Source birth certificate claimed."
+    },
+    {
+      "phase": "per-leaf-held-selector-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-selector-red-v1.receipt.json",
+        "sha256": "1d79e97a60ddc4b6b407d670da535d6ca7a89ccf7aab394d039b96c32bac1b39",
+        "bytes": 1315,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-selector-red-v1.log",
+        "sha256": "13891203534bae5d084c9c7f7a7977cb65b5032584f11873064cd6bf9cede7c1",
+        "bytes": 10022,
+        "mode": 384
+      },
+      "seconds": 0.32,
+      "qualification": "Three intended held/no-match/owner tests failed before reduction correction."
+    },
+    {
+      "phase": "per-leaf-held-selector-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-selector-green-v1.receipt.json",
+        "sha256": "f9ac37e089651f36dd3120b14f0fcc2965fcb8a99942af0fdb1dcd6ab7456647",
+        "bytes": 1444,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-selector-green-v1.log",
+        "sha256": "e735b328ba0dae447325075d2cad13de4c668f52118e4fbcb01195e2439abb04",
+        "bytes": 6834,
+        "mode": 384
+      },
+      "seconds": 0.343,
+      "qualification": "63tests pass across slicing, graph and original held suite."
+    },
+    {
+      "phase": "per-leaf-contract20-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-red-v1.receipt.json",
+        "sha256": "74340a76d5ca304276776d82146f0fc79da32f0313a664d536f489e9478a1c93",
+        "bytes": 1298,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-red-v1.log",
+        "sha256": "dd0feb94630e567b653ad0318dbb624a93369f731b879ea0f0abb32117f3ee7c",
+        "bytes": 2536,
+        "mode": 384
+      },
+      "seconds": 0.025,
+      "qualification": "All3version20 assertions failed against19."
+    },
+    {
+      "phase": "per-leaf-contract20-cache-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-red-v1.receipt.json",
+        "sha256": "d0f2725969bd0f29ebc26061c04f86894a51548482f2c3c642a842234b44d4cb",
+        "bytes": 1415,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-red-v1.log",
+        "sha256": "3386ded443a4f09ee60e0a1eec711a0ee616f84f52b33c52786bad08a411aee5",
+        "bytes": 4561,
+        "mode": 384
+      },
+      "seconds": 8.39,
+      "qualification": "Six namespace assertions failed against19; two same-contract corruption controls passed."
+    },
+    {
+      "phase": "per-leaf-held-slice-absence-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-slice-absence-red-v1.receipt.json",
+        "sha256": "d2e222d756b106bd186f2f89e7acf9196b6d158b07ffe5f056cafde62163b8c2",
+        "bytes": 1410,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-held-slice-absence-red-v1.log",
+        "sha256": "040e1b363e5124a1a992b27648b12fad947d81a80a8a65202bb865352f103046",
+        "bytes": 3819,
+        "mode": 384
+      },
+      "seconds": 0.311,
+      "qualification": "Missing descendant slice evidence was silently ignored before the required lookup."
+    },
+    {
+      "phase": "per-leaf-kernel-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-types-v1.receipt.json",
+        "sha256": "3499b9f035af0f7418ae0ac9400f808d7c2c2aee86f56ade83174138b0c91e1a",
+        "bytes": 1317,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-types-v1.log",
+        "sha256": "82fc1edaa95a286bf058a9e87cbbfbed57c8554b3d99781c7f759635878508fa",
+        "bytes": 58,
+        "mode": 384
+      },
+      "seconds": 0.053,
+      "qualification": "Incorrect compiler path: no compilation ran. Correct native compiler and43then45entry configs pass."
+    },
+    {
+      "phase": "per-leaf-kernel-cohort-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-cohort-v1.receipt.json",
+        "sha256": "264a97c4a05529d92ceac379b29fc1079e51d2a849f7b0ed6af40406fc22cba4",
+        "bytes": 2384,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-cohort-v1.log",
+        "sha256": "be69f03b50ce4a5fb4b5bf9812620125eaa78b2ae477b03e3d85f0700aec3754",
+        "bytes": 29201,
+        "mode": 384
+      },
+      "seconds": 1.707,
+      "qualification": "237pass1fail; identical pre-existing uniform schedule hash failure confirmed against V78. Retained in full core, excluded only from separate green kernel/cache cohort."
+    },
+    {
+      "phase": "per-leaf-contract20-cache-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-green-v1.receipt.json",
+        "sha256": "d1f6cd747303badbdf8147f436df2c2e1a545abc4b64996129897201518da2fb",
+        "bytes": 1371,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-green-v1.log",
+        "sha256": "6e1dd5e00a0b7d13d06c9f30697e1ab0c3a321b26c64047f964d3ba63b74d5bb",
+        "bytes": 9853,
+        "mode": 384
+      },
+      "seconds": 40.921,
+      "qualification": "48pass8fail: remaining Other package FK seed still used owner_id; corrected without weakening isolation cases."
+    },
+    {
+      "phase": "per-leaf-contract20-cache-green-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-green-v2.receipt.json",
+        "sha256": "885fd44b06285a4493a486a3f33b5f7a488bb9d06376b9e78cdd18ea5b3d7827",
+        "bytes": 1371,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-contract20-cache-green-v2.log",
+        "sha256": "d3c959d200d9b3a81168420636b14e147ebc7cf9c5e5ef84c6ade9ff23c4d222",
+        "bytes": 4961,
+        "mode": 384
+      },
+      "seconds": 37.763,
+      "qualification": "All56cache cases pass; final293cohort reruns after string-typed previous versions and proof comments."
+    },
+    {
+      "phase": "per-leaf-kernel-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-lint-v1.receipt.json",
+        "sha256": "c3b665e6dfd7b5a5b307eb6fb55415db4adb9af54b993d9d6f6f42e0329f5cfa",
+        "bytes": 1278,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-lint-v1.log",
+        "sha256": "4d45036ee653b3f3299e0f82aa37f251a6851cb6c9abe2dc539bffa8fc356a38",
+        "bytes": 920,
+        "mode": 384
+      },
+      "seconds": 5.939,
+      "qualification": "Import order and numeric template literals failed; corrected; final lint passes."
+    },
+    {
+      "phase": "per-leaf-kernel-core-v23",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-core-v23.receipt.json",
+        "sha256": "78b6da3c7bbf0d6ec79092908b38c4893efd27d64037be6949ccb63d2a007eea",
+        "bytes": 1297,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/per-leaf-kernel-core-v23.log",
+        "sha256": "7a155a60fbf9446e9ee276929bb6a19f447c4ffa1c630040a6003e13d9d9c23e",
+        "bytes": 474,
+        "mode": 384
+      },
+      "seconds": 0.04,
+      "qualification": "Runner could not discover tests: rg absent from bounded PATH. Despite expected exit1 this is not a core test result; no source tests ran. Replaced with exact executable path and actual170file run."
+    }
+  ],
+  "archive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  },
+  "originalCapture": {
+    "path": "/tmp/puni-combined-snapshot-trees-v1/report.json",
+    "sha256": "cbd4342cff479d2ec6bcb9d046b41533bd8a57fa39b6114007fbf1821ccda897",
+    "bytes": 9797,
+    "mode": 384
+  },
+  "remaining": [
+    "Wire actual Source live/captured/connected/cycle consumers to complete per-leaf inventories; current explicit uniform callers remain open.",
+    "Add versioned saved-plan input13 and new local/external document versions with strict current decoding, explicit old uniform interpretation and immutable historical bytes; complete SC24 import reconciliation.",
+    "Execute actual CP-SAT agreement for the mixed subtree, plus saved-plan replay and activation-backed connected scheduling/labels.",
+    "Complete per-leaf node readings, resources and frontend fake/demo/rendered behavior; actual settings/type warnings and full browser flows.",
+    "Complete Source/fact/access ownership and direct-service atomicity; all13 protected fact families, native/direct/aggregate/replay/concurrency/lifetimes; preserve all15 genuine predecessor guarantees.",
+    "Repair the retained27 core failure identities and old raw-owner/qualified HTTP fixtures without weakening their original guarantees.",
+    "Complete every original PUNI Optique aliases/Bun client-script inventory/embedding/installed/toolchain/exact-SHA host/integration/release requirement.",
+    "Obtain requested Astra review when quota is available; recorded reset Nov22,2026 10:09AM timezone unspecified. No retry/spawn/substitute this turn."
+  ],
+  "unverified": [
+    "Actual Python CP-SAT execution",
+    "Saved13/document version cutover and replay",
+    "Complete Source/adaptor integration",
+    "Full browser E2E",
+    "Exact-SHA host gate/build",
+    "Installed CLI/toolchain",
+    "Astra review",
+    "Release/integration"
+  ],
+  "operations": {
+    "noMutantsInstalled": true,
+    "protectedArchiveUnexecuted": true,
+    "noNodeModulesWrites": true,
+    "noActivation": true,
+    "noPublicCommitPushPrMergeDeployInstall": true
+  }
+}

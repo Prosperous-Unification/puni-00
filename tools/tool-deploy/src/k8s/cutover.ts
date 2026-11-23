@@ -44,7 +44,7 @@ const REPORT_MARKER = 'PUNI_SQLITE_REPORT ';
  * Runs inside the backend image (`bun -e`), on either side. With `PUNI_EXPORT` set it first takes
  * the consistent export (`wal_checkpoint(TRUNCATE)`, then `VACUUM INTO`) and reports on the copy;
  * otherwise it reports on `PUNI_DB` itself. It never creates a database: an absent file throws.
- * `PUNI_KNOWN` is a JSON array of project names whose presence is reported; `counts` covers
+ * `PUNI_KNOWN` is a JSON array of work-package names whose presence is reported; `counts` covers
  * every table, so any row lost in transit shows up as a count difference.
  */
 export const SQLITE_REPORT_SCRIPT =
@@ -76,7 +76,7 @@ const migrations = db.query('SELECT name FROM __drizzle_migrations ORDER BY crea
 const tables = db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
 const counts = {};
 for (const t of tables) counts[t] = db.query('SELECT count(*) AS n FROM "' + t + '"').get().n;
-const names = new Set(db.query('SELECT name FROM project').all().map((r) => r.name));
+const names = new Set(db.query('SELECT name FROM work_package').all().map((r) => r.name));
 db.close();
 const stat = fs.statSync(target);
 const sha256 = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');

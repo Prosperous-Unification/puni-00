@@ -260,7 +260,7 @@ function handlersOf(opened: { handlers: PlanFeedStreamHandlers }[]): PlanFeedStr
 
 const ANCHORED_SNAPSHOT = snapshotOf({ baseline: ANCHORED, acknowledged: 7 });
 
-describe('one project’s reading', () => {
+describe('one work package’s reading', () => {
   it('reads the plan as soon as it is built', () => {
     const fake = fakeOwner();
     const recorded = portsOver(fake.owner);

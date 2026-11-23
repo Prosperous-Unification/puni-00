@@ -38,6 +38,17 @@ import { Database } from 'bun:sqlite';
 import type { WallClock } from '../clock';
 import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
 import { type ToolAnswer, type WbsTools, WbsUnreachable } from '../mcp/wbs-tools';
+import { guardHoldFile, resolveReadyFile } from './hold-paths';
+import { readReadiness } from './hold-readiness';
+import {
+  createDecision,
+  formatIdentity,
+  type Hold,
+  readDecision,
+  releaseHold,
+  verifyHold,
+} from './hold-token';
+import type { HostHold } from './host-lock';
 import {
   chooseWaiter,
   EXCLUSIVE_ID,
@@ -1147,6 +1158,16 @@ function sameProcess(identity: ProcessIdentity | null, recorded: ProcessIdentity
     identity.start === recorded.start
   );
 }
+/**
+ * Qualify the complete original process birth as ended. A reused PID is not the original birth;
+ * a missing/zombie leader still requires thread-group qualification before any cleanup authority.
+ */
+export function hasProcessEnded(identity: ProcessIdentity): boolean {
+  const current = identifyProcess(identity.pid);
+  if (current !== null) return !sameProcess(current, identity);
+  // Proof: accepting a zombie leader as ended failed the live-thread guard test in leaving-holds.test.ts.
+  return processGone(String(identity.pid));
+}
 /** Whether the process `identity` names still runs (pid, boot and start all match). */
 export function processAlive(identity: ProcessIdentity): boolean {
   return alive(identity);
@@ -1987,7 +2008,7 @@ export class ResourceRuntime {
   private declaration(use: ResourceUse): ResourceRuntimeAdmission['use'] {
     const attribution = use.request;
     return {
-      projectId: attribution.projectId,
+      workPackageId: attribution.projectId,
       resourceId: attribution.resourceId,
       workItemId: attribution.workItemId,
       agentRun: attribution.agentRun,
@@ -3650,7 +3671,12 @@ export class ResourceRuntime {
         );
       // Proof: without it `without the guard a job waits, then is refused 75`
       // (host-pool-mode.test.ts) saw the job admitted with no guard holding the flock (2026-11-02, Slice 6b).
-      if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder)) {
+      if (
+        pool.mode === 'concurrent' &&
+        pool.guard === 'on' &&
+        // Proof: continuity-only admission admitted without Ready in guard-admission.test.ts.
+        !this.isGuardReady(pool.guardHolder)
+      ) {
         if (now >= Math.max(mine.deadline, mine.arrived_at + GUARD_WAIT_MS))
           return refuse(
             `${named}: the singleton guard is not held (resources watch holds the canonical flock as ${GUARD_LABEL} while host jobs run; is it running?); ahead: ${aheadText()}`,
@@ -3885,7 +3911,8 @@ export class ResourceRuntime {
       const pool = this.poolRow();
       // Proof: without it `a guard lost between admission and launch refuses 75`
       // (host-pool-mode.test.ts) prepared and launched the job (2026-11-02, review H5).
-      if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.guardHeld(pool.guardHolder))
+      // Proof: continuity-only preparation failed the Ready-withdrawn-before-prepare control.
+      if (pool.mode === 'concurrent' && pool.guard === 'on' && !this.isGuardReady(pool.guardHolder))
         throw new HostPoolModeRefusal(
           75,
           `host job ${job.id} ${job.label}: the singleton guard was lost between admission and launch`,
@@ -4320,17 +4347,19 @@ export class ResourceRuntime {
    * launcher may have run beside it. Returns the job ids marked now; a job already marked stays
    * marked with its first instant.
    */
+  private markGuardLoss(holderPid: number): string[] {
+    const marked: string[] = [];
+    for (const job of this.listHostJobs()) {
+      if (job.compute.state === 'released' || job.guardLost !== undefined) continue;
+      job.guardLost = { at: this.clock.read(), holderPid };
+      this.saveHostJob(job);
+      marked.push(job.id);
+    }
+    return marked;
+  }
+  /** Attribute loss under the ledger fence without releasing charged resources. */
   recordGuardLost(holderPid: number): string[] {
-    return this.transaction(() => {
-      const marked: string[] = [];
-      for (const job of this.listHostJobs()) {
-        if (job.compute.state === 'released' || job.guardLost !== undefined) continue;
-        job.guardLost = { at: this.clock.read(), holderPid };
-        this.saveHostJob(job);
-        marked.push(job.id);
-      }
-      return marked;
-    });
+    return this.transaction(() => this.markGuardLoss(holderPid));
   }
   /**
    * Whether `holder` holds the canonical flock now: its process runs, and the shell lock's
@@ -4353,6 +4382,12 @@ export class ResourceRuntime {
     // Proof: trusting the identity alone made `a guard whose holder record names another pid
     // is not held` (host-pool-mode.test.ts) admit a job (2026-11-02, Slice 6b).
     return recorded('holder') === String(holder.pid) && recorded('label') === GUARD_LABEL;
+  }
+  /** Current admission requires complete immutable Ready evidence; legacy continuity stays separate. */
+  private isGuardReady(holder: GuardHolder | null): boolean {
+    if (!this.guardHeld(holder)) return false;
+    if (holder === null) throw new Error('held singleton guard identity is missing');
+    return readReadiness(guardHoldFile(this.configuration.root), holder).kind === 'ready';
   }
   /** The live fence of a `switch-mode` in progress, or null; a dead switcher's fence is void. */
   private liveSwitch(): ModeSwitch | null {
@@ -4438,32 +4473,194 @@ export class ResourceRuntime {
   guardObligation(): {
     required: boolean;
     demand: boolean;
+    hasUnreleasedCompute: boolean;
     holder: (GuardHolder & { live: boolean }) | null;
   } {
     const transition = this.hostPoolTransition();
     return {
       required: transition.mode === 'concurrent' && transition.guard === 'on',
       demand: this.undrained().length > 0,
+      hasUnreleasedCompute: this.listHostJobs().some((job) => job.compute.state !== 'released'),
       holder: transition.guardHolder,
     };
   }
   /**
-   * Record `pid`, whose shell holder now holds the flock at `lockPath` as {@link GUARD_LABEL},
-   * as the singleton guard. Returns false, recording nothing, when the guard is no longer
-   * required or a live holder is already recorded; the caller then releases its hold.
+   * Record the admitted holder's complete birth and mutex as the singleton guard. Repeating
+   * the exact live identity/path succeeds without changing its original since time, so another
+   * watcher cannot release the same adopted holder. A different live holder/path or a guard
+   * no longer required refuses without writing; the caller may release only its distinct hold.
    * @throws when `pid` has no readable identity.
    */
   recordGuardHolder(pid: number, lockPath: string): boolean {
     const identity = identifyProcess(pid);
     if (identity === null) throw new Error(`singleton guard holder ${String(pid)} is gone`);
+    return this.transaction(() => this.recordGuardIdentity(identity, lockPath));
+  }
+  /** Recheck admission evidence under the same write transaction that serializes retirement. */
+  private recordGuardIdentity(identity: ProcessIdentity, lockPath: string): boolean {
+    const pool = this.poolRow();
+    if (pool.mode !== 'concurrent' || pool.guard !== 'on') return false;
+    if (pool.guardHolder !== null) {
+      // Proof: refusing this same-birth record failed the idempotent since-time test.
+      if (alive(pool.guardHolder))
+        return sameProcess(identity, pool.guardHolder) && pool.guardHolder.lockPath === lockPath;
+      if (!hasProcessEnded(pool.guardHolder)) return false;
+      // Proof: removing attribution lost guardLost while the replacement kept compute charged.
+      this.markGuardLoss(pool.guardHolder.pid);
+    }
+    const decision = readDecision(resolveReadyFile(guardHoldFile(this.configuration.root)));
+    if (decision !== undefined && decision.kind !== 'ready') return false;
+    const holder: GuardHolder = { ...identity, lockPath, since: this.clock.read() };
+    // Proof: bypassing Ready accepted a fresh record after its child hold was removed.
+    if (!this.isGuardReady(holder)) return false;
+    this.db
+      .query('UPDATE host_pool SET guard_holder=? WHERE id=1')
+      .run(JSON.stringify(GuardHolderShape.assert(holder)));
+    return true;
+  }
+  /**
+   * Record a just-admitted owned helper or retire its distinct unneeded token within one ledger
+   * write transaction. A second watcher cannot adopt it between refusal and token removal.
+   * An outstanding-compute conflict is retained and thrown rather than released by inference.
+   */
+  adoptGuardHold(hold: HostHold, lockPath: string): boolean {
     return this.transaction(() => {
-      const pool = this.poolRow();
-      if (pool.mode !== 'concurrent' || pool.guard !== 'on') return false;
-      if (pool.guardHolder !== null && alive(pool.guardHolder)) return false;
-      const holder: GuardHolder = { ...identity, lockPath, since: this.clock.read() };
-      this.db
-        .query('UPDATE host_pool SET guard_holder=? WHERE id=1')
-        .run(JSON.stringify(GuardHolderShape.assert(holder)));
+      const identity = identifyProcess(hold.pid);
+      if (!sameProcess(identity, hold.identity))
+        throw new Error('singleton guard handoff lost its complete live identity');
+      if (identity === null) throw new Error('singleton guard handoff identity is missing');
+      if (this.recordGuardIdentity(identity, lockPath)) return true;
+      const pool = this.poolRow(),
+        required = pool.mode === 'concurrent' && pool.guard === 'on';
+      // Proof: removing the charge fence released the conflicting handoff in guard-record.test.ts.
+      if (required && this.listHostJobs().some((job) => job.compute.state !== 'released'))
+        throw new Error(
+          'singleton guard handoff conflicts with outstanding compute; hold retained',
+        );
+      hold.release();
+      return false;
+    });
+  }
+  /**
+   * Retire one exact guard token while admission is excluded by the ledger transaction. Unready
+   * retirement ignores queued demand only after all existing compute settles; settled release
+   * also waits for queued demand while the guard remains required. A Ready race wins unchanged.
+   * The immutable retired decision is published before removing an unready token, retaining a
+   * full helper witness across interruption, SQL rollback and subsequent generation cleanup.
+   */
+  retireGuardHold(hold: Hold, policy: 'unready' | 'settled'): 'needed' | 'ready' | 'retired' {
+    const file = guardHoldFile(this.configuration.root);
+    if (hold.path !== file || hold.bytes !== formatIdentity(hold.identity))
+      throw new Error('singleton retirement token does not name its guard path and birth');
+    return this.transaction(() => {
+      const pool = this.poolRow(),
+        required = pool.mode === 'concurrent' && pool.guard === 'on';
+      // Proof: removing this check retired an unready guard beside charged compute.
+      if (
+        policy === 'unready' &&
+        this.listHostJobs().some((job) => job.compute.state !== 'released')
+      )
+        return 'needed';
+      // Proof: removing the demand recheck retired a qualified idle guard beside a new ticket.
+      if (policy === 'settled' && required && this.undrained().length > 0) return 'needed';
+      const recorded = pool.guardHolder;
+      if (recorded !== null && !sameProcess(hold.identity, recorded) && alive(recorded))
+        throw new Error('singleton retirement conflicts with another live recorded birth');
+      verifyHold(hold);
+      const path = resolveReadyFile(file),
+        read = () => {
+          const decision = readDecision(path);
+          if (
+            decision !== undefined &&
+            decision.kind !== 'cancelled' &&
+            formatIdentity(decision.identity) !== hold.bytes
+          )
+            throw new Error('singleton retirement decision names another birth');
+          return decision;
+        };
+      let decision = read();
+      if (decision?.kind === 'cancelled') return 'needed';
+      // Proof: bypassing this winner retired Ready in the retirement-race control.
+      if (policy === 'unready' && decision?.kind === 'ready') return 'ready';
+      if (decision === undefined) {
+        try {
+          decision = createDecision(path, 'retired', hold.identity);
+        } catch (cause) {
+          if (!(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST')) throw cause;
+          decision = read();
+          if (decision === undefined)
+            throw new Error('singleton retirement decision disappeared', { cause });
+          if (decision.kind === 'cancelled') return 'needed';
+          if (policy === 'unready' && decision.kind === 'ready') return 'ready';
+        }
+      }
+      if (decision.kind !== 'ready' && decision.kind !== 'retired')
+        throw new Error('singleton retirement lacks a helper identity witness');
+      verifyHold(decision);
+      releaseHold(hold);
+      if (recorded !== null && (sameProcess(hold.identity, recorded) || !alive(recorded)))
+        this.db.query('UPDATE host_pool SET guard_holder=NULL WHERE id=1').run();
+      return 'retired';
+    });
+  }
+  /**
+   * Attribute qualified loss to every charged job before cleaning its dead guard generation.
+   * Keep the matching guard record through physical cleanup so restart can repeat attribution;
+   * this never releases compute, reservations or capacities, and preserves first loss attribution.
+   */
+  recordLostGuard(holder: GuardHolder): string[] {
+    return this.transaction(() => {
+      const pool = this.poolRow(),
+        recorded = pool.guardHolder;
+      if (
+        recorded === null ||
+        !sameProcess(holder, recorded) ||
+        recorded.lockPath !== holder.lockPath
+      )
+        return [];
+      if (!hasProcessEnded(holder))
+        throw new Error('singleton guard loss requires complete original process termination');
+      if (pool.mode !== 'concurrent' || pool.guard !== 'on') return [];
+      return this.markGuardLoss(holder.pid);
+    });
+  }
+  /**
+   * Keep the full recorded dead birth as the final witness while a legacy log-only generation
+   * is cleaned. The same write fence prevents a replacement from adopting during that cleanup.
+   * Loss attribution must already be durably committed; cleanup failure retains this record.
+   */
+  cleanupDeadGuard(holder: GuardHolder, cleanup: () => void): boolean {
+    // Proof: without this write fence, the second SQLite connection replaced the cleanup witness.
+    return this.transaction(() => {
+      const recorded = this.poolRow().guardHolder;
+      // Proof: removing exact birth/path matching let stale cleanup run and erase a replacement.
+      if (
+        recorded === null ||
+        !sameProcess(holder, recorded) ||
+        recorded.lockPath !== holder.lockPath
+      )
+        return false;
+      // Proof: removing full termination qualification cleaned the still-live recorded helper.
+      if (!hasProcessEnded(holder))
+        throw new Error('singleton guard cleanup requires complete original process termination');
+      cleanup();
+      this.db.query('UPDATE host_pool SET guard_holder=NULL WHERE id=1').run();
+      return true;
+    });
+  }
+  /** Clear only this qualified dead birth after its physical generation has been cleaned. */
+  forgetDeadGuard(holder: GuardHolder): boolean {
+    return this.transaction(() => {
+      const recorded = this.poolRow().guardHolder;
+      if (
+        recorded === null ||
+        !sameProcess(holder, recorded) ||
+        recorded.lockPath !== holder.lockPath
+      )
+        return false;
+      if (!hasProcessEnded(holder))
+        throw new Error('singleton guard cleanup requires complete original process termination');
+      this.db.query('UPDATE host_pool SET guard_holder=NULL WHERE id=1').run();
       return true;
     });
   }

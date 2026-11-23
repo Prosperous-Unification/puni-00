@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
@@ -171,6 +172,7 @@ test('the pre-relocation controller opens a Dash-written v10 store and continues
     clock,
     monotonic: { now: () => 0 },
     planEnrollment: () => Promise.reject(new Error('the rollback never plans enrollment')),
+    helperPrefix: createLaunch(process.execPath, join(import.meta.dir, '../entrypoint.ts')),
     stdout: {
       write: (text: string) => {
         output.push(text);

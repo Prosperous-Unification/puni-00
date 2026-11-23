@@ -1,3 +1,7 @@
+import type { Permission, ScopeChain } from '@wbs/domain/access-role';
+import type { NearestSettingKey } from '@wbs/domain/settings/catalogue';
+import type { StepFactKind } from '@wbs/domain/step-fact';
+
 import type { PlanCommandKind } from '../commands/definitions';
 import type { mixedBases } from './work-item-response';
 
@@ -117,16 +121,18 @@ export type ParserRefusalCode =
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
+  | 'step_nodes_in_use'
   // Proof: omission failed the closed command compiler fixture (mutation-closed-command-registry.txt).
   | 'referenced_by_step_parallel'
   | 'too_many_commands'
-  | 'project_required'
+  | 'work_package_required'
   | 'unknown_ref'
   | 'missing_id'
   | 'duplicate_ref'
   | 'name_required'
   | 'not_found'
   | 'forbidden'
+  | 'last_super_admin'
   | 'strategy_required'
   | 'cycle'
   | 'calendar_range'
@@ -143,7 +149,7 @@ export type CommandRefusalCode =
    */
   | 'frozen'
   /**
-   * `arrangeBySchedule` on a project whose selected engine is `optimized` and
+   * `arrangeBySchedule` on a work package whose selected engine is `optimized` and
    * whose displayed variant has not finished solving.
    *
    * A conflict rather than a fault: the same request is accepted the moment
@@ -184,14 +190,16 @@ export type CommandRefusalCode =
   | 'referenced_by_external_dependency'
   | 'unknown_dependency'
   | 'external_dependencies_inactive'
-  | 'project_deleting'
+  | 'work_package_deleting'
   | 'duplicate_dependency'
   | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
+  | 'step_not_resolved'
+  | 'type_conflict'
   /** Retired by `wbs-measure-budgets` slice 2; an outgoing be-01 still answers it mid-swap. */
   | 'unknown_metric'
-  /** A metric naming no measure definition of the project's organization. */
+  /** A metric naming no measure definition of the work package's organization. */
   | 'unknown_measure'
   | 'unknown_person'
   /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
@@ -216,12 +224,12 @@ export type CommandRefusalCode =
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
-  | 'deadline_before_project_start'
+  | 'deadline_before_work_package_start'
   /** `setStatus` `ready` or `draft` once a step has spoken (`add-work-item-statuses`). */
   | 'readiness_after_progress'
   /** `setStatus` `on_hold` or `blocked` on a row reading done. */
   | 'cannot_hold_done'
-  /** `setStatus` `in_progress` or `done` in a project with no steps. */
+  /** `setStatus` `in_progress` or `done` in a work package with no steps. */
   | 'no_steps'
   /** `startAttempt` on a node whose statement is `done` (`step-node-attempts` D2). */
   | 'node_done'
@@ -290,9 +298,9 @@ export type CommandRefusalCode =
    */
   | 'claim_limit'
   /**
-   * `setResourceCapacity` raising a project's units of a resource past the
-   * organization's cap on the sum over its projects (`wbs-organization-limits`
-   * L2, L9); names the resource, cap, the other projects' units and the asked.
+   * `setResourceCapacity` raising a work package's units of a resource past the
+   * organization's cap on the sum over its work packages (`wbs-organization-limits`
+   * L2, L9); names the resource, cap, the other work packages' units and the asked.
    */
   | 'capacity_limit'
   /**
@@ -363,8 +371,8 @@ export interface ClaimRefusalHolder {
 
 /** One holder `resources_exhausted` names: a claimant and run on one leaf. */
 export interface OccupancyRefusalHolder {
-  /** A holder in another project of the organization names it (`wbs-shared-occupancy` S5). */
-  projectId?: string;
+  /** A holder in another work package of the organization names it (`wbs-shared-occupancy` S5). */
+  workPackageId?: string;
   personId: string;
   name: string;
   runId: string | null;
@@ -384,9 +392,9 @@ export interface ResourceShortageDetail {
   holders: OccupancyRefusalHolder[];
   /**
    * The check that bound it (`wbs-shared-occupancy` S3): present only for a
-   * resource with a stated directory capacity; absent, the project's.
+   * resource with a stated directory capacity; absent, the work package's.
    */
-  scope?: 'project' | 'organization';
+  scope?: 'work_package' | 'organization';
 }
 
 /**
@@ -431,9 +439,9 @@ export interface ResourceUsageCounts {
   directoryCapacity?: number | null;
 }
 
-/** Both affected-project and directory-member lists are present, including when empty. */
+/** Both affected-work-package and directory-member lists are present, including when empty. */
 export interface DirectoryUsage {
-  projects: {
+  workPackages: {
     id: string;
     name: string;
     workItems: { id: string; number: string; name: string; effects: DirectoryEffect[] }[];
@@ -472,7 +480,7 @@ export interface StepInUse {
 }
 
 export interface Quota {
-  limit: 'body_bytes' | 'plan_count' | 'project_bytes';
+  limit: 'body_bytes' | 'plan_count' | 'work_package_bytes';
   asked: number;
   allowed: number;
 }
@@ -504,57 +512,59 @@ export type Integrity = { savedPlanId: string } & (
 /** Command-specific fields are finite; at/kind are required independently of the refusal code. */
 export type CommandRefusalDetail = {
   [C in CommandRefusalCode]: CommandContext &
-    // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
-    (C extends 'deadline_before_project_start'
-      ? { workItemId: string; projectDayZero: string }
-      : // Proof: optional nodes made the missing-detail compiler negative unused (mutation-optional-command-nodes.txt).
-        C extends 'referenced_by_step_parallel'
-        ? { nodes: { workItemId: string; stepId: string }[] }
-        : C extends
-              'node_on_parent' | 'descendant_step_on_leaf' | 'referenced_by_external_dependency'
-          ? { dependencyIds: string[] }
-          : C extends 'in_use'
-            ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
-            : C extends 'taken'
-              ? { name?: string }
-              : C extends 'not_startable'
-                ? { status: string }
-                : C extends 'prerequisites_unmet'
-                  ? {
-                      stepIds: string[];
-                      blockers: {
-                        workItemId: string;
-                        stepId: string | null;
-                        type: 'FS' | 'SS' | 'FF';
-                        provenance: 'workflow' | 'legacy' | 'authored';
-                        relationshipId: string | null;
-                      }[];
-                    }
-                  : C extends 'step_done'
-                    ? { stepIds: string[] }
-                    : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
-                      ? { holders: ClaimRefusalHolder[] }
-                      : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
-                        ? { holder: ClaimRefusalHolder }
-                        : C extends 'below_declared_demand'
-                          ? { resourceId: string; asked: number; declared: number }
-                          : C extends 'below_held_occupancy'
-                            ? { resourceId: string; asked: number; held: number }
-                            : C extends 'resources_exhausted'
-                              ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
-                              : C extends 'agent_person_limit'
-                                ? LimitRefusalDetail
-                                : C extends 'claim_limit'
-                                  ? ClaimLimitRefusalDetail
-                                  : C extends 'capacity_limit'
-                                    ? CapacityLimitRefusalDetail
-                                    : C extends 'budget_exhausted'
-                                      ? BudgetExhaustedRefusalDetail
-                                      : // Proof (type boundary only): omitting this arm produced TS2353 for bases
-                                        // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
-                                        C extends 'mixed_rate_cards'
-                                        ? { bases: typeof mixedBases.infer }
-                                        : Record<never, never>);
+    // Proof: making workPackageDayZero optional caused TS2578 in the deadline refusal type fixture.
+    (C extends 'step_nodes_in_use'
+      ? StepNodesInUseDetails
+      : C extends 'deadline_before_work_package_start'
+        ? { workItemId: string; workPackageDayZero: string }
+        : // Proof: optional nodes made the missing-detail compiler negative unused (mutation-optional-command-nodes.txt).
+          C extends 'referenced_by_step_parallel'
+          ? { nodes: { workItemId: string; stepId: string }[] }
+          : C extends
+                'node_on_parent' | 'descendant_step_on_leaf' | 'referenced_by_external_dependency'
+            ? { dependencyIds: string[] }
+            : C extends 'in_use'
+              ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
+              : C extends 'taken'
+                ? { name?: string }
+                : C extends 'not_startable'
+                  ? { status: string }
+                  : C extends 'prerequisites_unmet'
+                    ? {
+                        stepIds: string[];
+                        blockers: {
+                          workItemId: string;
+                          stepId: string | null;
+                          type: 'FS' | 'SS' | 'FF';
+                          provenance: 'workflow' | 'legacy' | 'authored';
+                          relationshipId: string | null;
+                        }[];
+                      }
+                    : C extends 'step_done'
+                      ? { stepIds: string[] }
+                      : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
+                        ? { holders: ClaimRefusalHolder[] }
+                        : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                          ? { holder: ClaimRefusalHolder }
+                          : C extends 'below_declared_demand'
+                            ? { resourceId: string; asked: number; declared: number }
+                            : C extends 'below_held_occupancy'
+                              ? { resourceId: string; asked: number; held: number }
+                              : C extends 'resources_exhausted'
+                                ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
+                                : C extends 'agent_person_limit'
+                                  ? LimitRefusalDetail
+                                  : C extends 'claim_limit'
+                                    ? ClaimLimitRefusalDetail
+                                    : C extends 'capacity_limit'
+                                      ? CapacityLimitRefusalDetail
+                                      : C extends 'budget_exhausted'
+                                        ? BudgetExhaustedRefusalDetail
+                                        : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                          // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                          C extends 'mixed_rate_cards'
+                                          ? { bases: typeof mixedBases.infer }
+                                          : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -634,16 +644,17 @@ type BareRefusalCode =
    */
   | 'unknown_identity'
   | 'invalid_body'
+  | 'project_required'
   | 'invalid_allowance'
   | 'invalid_estimate_unit'
   | 'invalid_query'
   | 'unsupported_format'
   | 'bad_start_date'
   | 'bad_pert_weights'
-  /** A project budget factor that is not finite, above 0 and at most 1000. */
+  /** A work package budget factor that is not finite, above 0 and at most 1000. */
   | 'bad_budget_factor'
   | 'optimizer_unavailable'
-  /** Another of the organization's projects holds the requested solution slug. */
+  /** Another of the organization's work packages holds the requested solution slug. */
   | 'solution_taken'
   | 'abbreviation_taken'
   | 'abbreviation_exhausted'
@@ -665,10 +676,15 @@ type BareRefusalCode =
   | 'refresh_in_progress'
   | 'oidc_identity_conflict'
   // A step's chosen code (ADR 0031): breaks the grammar, lies in the ordinal
-  // alias's namespace, or is already held in the project.
+  // alias's namespace, or is already held in the work package.
   | 'invalid_code'
   | 'reserved_code'
   | 'code_taken'
+  /** An identical scope/type binding already exists in the active catalogue. */
+  | 'duplicate_binding'
+  | 'stale_order'
+  /** A definition cannot retire while an actual binding still names it. */
+  | 'step_bound'
   // Why a step reference does not resolve to a step node now.
   | 'malformed_reference'
   | 'stale_reference'
@@ -678,25 +694,24 @@ type BareRefusalCode =
   | 'alias_mismatch'
   // A membership change that would leave the organization without a
   // super-admin (task 3.7).
-  | 'last_super_admin'
-  // A project reach change or a step removal that would close a step-node
+  // A work package reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle'
   // Spaces (`add-spaces`): a space name the organization already holds; a
-  // project already in the space; a write addressed to the virtual All
-  // projects. `organization_required` is a shared command code below.
+  // work package already in the space; a write addressed to the virtual All
+  // work packages. `organization_required` is a shared command code below.
   | 'name_taken'
   | 'already_in_space'
   | 'virtual_space'
   // Work-item pages (`list-search-and-paging`): a cursor whose work item has
-  // left the project; a `parentId` naming no work item of the project.
+  // left the work package; a `parentId` naming no work item of the work package.
   | 'stale_cursor'
   | 'unknown_parent'
-  // Capacity mode (`share-people-across-projects` 8.1): a mode this release
+  // Capacity mode (`share-people-across-work-packages` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
   | 'capacity_mode_unsupported'
   | 'restore_approval_conflict'
-  // A project PATCH naming a zone the server runtime does not support
+  // A work package PATCH naming a zone the server runtime does not support
   // (`step-node-attempts` D3).
   | 'invalid_timezone'
   // Enterprise SSO (`organization-sso`): connection administration refusals,
@@ -757,11 +772,13 @@ type BareRefusalCode =
   | 'delivery_busy';
 
 type SharedCommandCode =
+  | 'step_nodes_in_use'
   | 'external_dependencies_inactive'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
+  | 'last_super_admin'
   | 'name_required'
   | 'taken'
   | 'in_use'
@@ -793,8 +810,26 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     [C in Exclude<CommandRefusalCode, SharedCommandCode>]: CommandRefusalDetail[C];
   } & {
     not_found: { savedPlanId?: string } | { field?: 'markerId' } | CommandContext;
-    forbidden: undefined | CommandContext;
+    forbidden:
+      undefined | { permission?: Permission } | (CommandContext & { permission?: Permission });
     name_required: undefined | CommandContext;
+    /** Project deletion discloses only child identities readable in the same write owner. */
+    not_empty: { workPackageIds: string[] };
+    /** A readable admitted move names only its actual incident dependency blockers. */
+    dependency_crosses_project: { dependencyIds: string[] };
+    /** Import compares the admitted project's factor without disclosing either value. */
+    import_settings_conflict: { key: 'budgetFactor' };
+    /** Import codes absent from the active catalogue, in semantic file order. */
+    unknown_step_codes: { codes: string[] };
+    /** Retired import identities never become active definitions again. */
+    retired_step_codes: { codes: string[] };
+    /** A catalogue write cannot move a value to a level where that key is not writable. */
+    not_overridable_here: { key: NearestSettingKey; level: ScopeChain['level'] };
+    /** A recognized setting key whose supplied value fails its catalogue contract. */
+    invalid_value: { key: NearestSettingKey };
+    /** A readable project already belongs to this other real space. */
+    project_in_other_space: { spaceId: string };
+    last_super_admin: undefined | CommandContext;
     /** Bare from a step PATCH's allowance; with its command context from a batch. */
     calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
@@ -847,10 +882,13 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
      * ended before the refusal.
      */
-    persons_not_removed: { poolId: string; revokedCredentials: number };
+    persons_not_removed:
+      | { poolId: string; revokedCredentials: number; cause?: 'last_super_admin' }
+      | { poolId: string; revokedCredentials: number; cause: 'forbidden'; permission: Permission };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.
+    step_nodes_in_use: StepNodesInUseDetails | CommandRefusalDetail['step_nodes_in_use'];
     referenced_by_step_parallel:
       | { nodes: { workItemId: string; stepId: string }[] }
       | CommandRefusalDetail['referenced_by_step_parallel'];
@@ -858,10 +896,11 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     external_dependencies_inactive:
       { detail: string | null } | CommandRefusalDetail['external_dependencies_inactive'];
     nothing_to_undo: { detail: string | null };
+    replay_provenance_unavailable: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
     /**
-     * A plan export of a project holding steps an older writer left uncoded:
+     * A plan export of a work package holding steps an older writer left uncoded:
      * each such step, and the be-01 backfill command that codes them.
      */
     uncoded_steps: { steps: { id: string; name: string }[]; command: string };
@@ -911,9 +950,12 @@ export interface ImportRefusal {
     | 'unknown_ref'
     | 'cycle'
     | 'ancestor'
-    | 'deadline_before_project_start'
+    | 'deadline_before_work_package_start'
     | 'engine_unavailable'
     | 'source_refused'
+    | 'unknown_step'
+    | 'step_not_resolved'
+    | 'type_conflict'
     | 'abbreviation_taken'
     | 'abbreviation_exhausted'
     /** A row with several types; `detail` lists every such row's file id. */
@@ -958,14 +1000,14 @@ export type OptimizerRetryRefusal =
   | {
       code: 'schedule-input-unavailable';
       reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
-      projectId: string;
+      workPackageId: string;
     }
   | {
       code: 'schedule-input-unavailable';
       reason: 'dependency_calendar_missing';
-      projectId: string;
-      projects: readonly {
-        readonly projectId: string;
+      workPackageId: string;
+      workPackages: readonly {
+        readonly workPackageId: string;
         readonly abbreviation: string;
         readonly name: string;
       }[];
@@ -977,3 +1019,15 @@ export type Refusal<C extends RefusalCode = RefusalCode> = ErrorRefusal<C> | Opt
 export type CommandRefusal<C extends CommandRefusalCode = CommandRefusalCode> = {
   [K in C]: { error: K } & CommandRefusalDetail[K];
 }[C];
+
+/** Bounded structural refusal addresses; allocator reservations may name a parent, while ordinary point facts name leaves. */
+export interface StepNodesInUseDetails {
+  readonly count: number;
+  readonly pairs: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly workPackageId: string;
+    readonly stepId: string;
+    readonly facts: readonly StepFactKind[];
+  }[];
+}

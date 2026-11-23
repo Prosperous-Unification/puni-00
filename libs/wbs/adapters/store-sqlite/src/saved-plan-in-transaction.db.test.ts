@@ -3,29 +3,32 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildStores } from './build-stores';
 import type { Connection } from './db';
 import { openConnection, refuseToWaitForWriteLock } from './db';
 import { OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import type { SavedPlanHoldingRow, SavedPlanWrite, SavedPlanWriteOutcome } from './saved-plan';
 import { SavedPlanRepository } from './saved-plan';
 import { savedPlan } from './schema';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
-import { UserRepository } from './user';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+function readerDb(reader: Connection | undefined): Connection['db'] {
+  if (reader === undefined) throw new Error('saved-plan fixture reader was not acquired');
+  return reader.db;
+}
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 /** A plausible header and one small body. The bytes are not the subject here. */
 const record = (id: string): SavedPlanWrite => ({
   id,
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: id,
   createdBy: 'Ada Lovelace',
   createdById: null,
@@ -37,45 +40,55 @@ const record = (id: string): SavedPlanWrite => ({
 describe('the quota is read inside the transaction that would write', () => {
   let dir: string;
   let path: string;
-  let reader: Connection;
+  let reader: Connection | undefined;
+  let custody: { hasUnknownOwner: boolean };
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-in-tx-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+        ],
+      },
+      custody,
     );
-    await new ProjectRepository(seed.db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    const seed = openConnection(path);
+    const created = await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+      [],
       wrote,
     );
     seed.close();
+    if (typeof created === 'string')
+      throw new Error('saved plan fixture package refused: ' + created);
     reader = openConnection(path);
   });
 
   afterEach(() => {
-    reader.close();
-    rmSync(dir, { recursive: true, force: true });
+    reader?.close();
+    reader = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true });
   });
 
   const plans = (): SavedPlanRepository =>
     new SavedPlanRepository({ openConnection: () => openConnection(path) });
 
-  const headers = () => reader.db.select().from(savedPlan);
+  const headers = () => readerDb(reader).select().from(savedPlan);
 
   /**
    * A rival save's commit, attempted from a **second** connection.
@@ -103,7 +116,7 @@ describe('the quota is read inside the transaction that would write', () => {
         .insert(savedPlan)
         .values({
           id,
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: id,
           createdBy: 'Rival',
           createdById: null,
@@ -182,43 +195,53 @@ describe('the quota is read inside the transaction that would write', () => {
 describe('a saved plan is independent of the batch beside it', () => {
   let dir: string;
   let path: string;
-  let reader: Connection;
+  let reader: Connection | undefined;
+  let custody: { hasUnknownOwner: boolean };
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-independent-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+        ],
+      },
+      custody,
     );
-    await new ProjectRepository(seed.db, OPEN).create(
-      projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [
-        {
-          id: 'st-1',
-          projectId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    const seed = openConnection(path);
+    const created = await new WorkPackageRepository(seed.db, OPEN).create(
+      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+      [],
       wrote,
     );
     seed.close();
+    if (typeof created === 'string')
+      throw new Error('saved plan fixture package refused: ' + created);
     reader = openConnection(path);
   });
 
   afterEach(() => {
-    reader.close();
-    rmSync(dir, { recursive: true, force: true });
+    reader?.close();
+    reader = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true });
   });
 
   const savedNames = async (): Promise<string[]> =>
-    (await reader.db.select().from(savedPlan)).map((row) => row.name);
+    (await readerDb(reader).select().from(savedPlan)).map((row) => row.name);
 
   for (const outcome of ['commit', 'rollback'] as const) {
     it(`survives a batch that ends in ${outcome}`, async () => {
@@ -236,14 +259,9 @@ describe('a saved plan is independent of the batch beside it', () => {
       const saved: SavedPlanWriteOutcome<null>[] = [];
       try {
         await uow.run<'done'>(async (scope) => {
-          await scope.stores.steps.add(
-            {
-              id: 'st-2',
-              projectId: 'p1',
-              name: 'QA',
-              allowancePercent: 0,
-              estimateUnit: 'workdays' as const,
-            },
+          await scope.stores.workItems.insert(
+            workItemRow({ id: 'wi-1', workPackageId: 'p1' }),
+            [],
             wrote,
           );
           // Inside the batch's own turn, from outside the batch: a save that

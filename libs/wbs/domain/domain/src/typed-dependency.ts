@@ -47,7 +47,7 @@ export function isDependencyEndpointScope(value: unknown): value is DependencyEn
  *   FF joins sinks to sinks (last to last); a parent means every descendant leaf.
  * - `node`: one leaf's step node, held as the pair the store keys it by. The
  *   wire spells it as a step node ID (`formatStepNodeId`).
- * - `descendant-step`: one project step in every leaf beneath a parent.
+ * - `descendant-step`: one work package step in every leaf beneath a parent.
  *
  * Whether the work item is a leaf or a parent is the tree's answer, not this
  * value's; {@link findTypedEndpointDefect} asks it at the write boundary.
@@ -65,39 +65,39 @@ export interface TypedDependency {
   readonly type: RelationshipType;
 }
 
-/** An endpoint whose owning project is explicit at persistence and capture boundaries. */
-export type ScopedDependencyEndpoint = DependencyEndpoint & { readonly projectId: string };
+/** An endpoint whose owning work package is explicit at persistence and capture boundaries. */
+export type ScopedDependencyEndpoint = DependencyEndpoint & { readonly workPackageId: string };
 
-/** A relationship carrying stable project identities at both endpoints. */
+/** A relationship carrying stable work package identities at both endpoints. */
 export interface ScopedTypedDependency extends TypedDependency {
   readonly predecessor: ScopedDependencyEndpoint;
   readonly successor: ScopedDependencyEndpoint;
 }
 
-/** Why an endpoint cannot be written against a project's tree and steps. */
+/** Why an endpoint cannot be written against a work package's tree and steps. */
 export type TypedEndpointDefect =
   'not_found' | 'unknown_step' | 'node_on_parent' | 'descendant_step_on_leaf';
 
 /**
  * The tree and step facts an endpoint is checked against: whether a work item
- * of this project exists and is a leaf, and whether a step belongs to it.
+ * of this work package exists and is a leaf, and whether a step belongs to it.
  */
 export interface EndpointContext {
-  /** `undefined` for a work item outside this project. */
+  /** `undefined` for a work item outside this work package. */
   readonly isLeaf: (workItemId: string) => boolean | undefined;
   readonly hasStep: (stepId: string) => boolean;
 }
 
 /**
- * Why `endpoint` cannot be stored in this project, or `null` when it can.
+ * Why `endpoint` cannot be stored in this work package, or `null` when it can.
  *
- * Leafhood and project-step membership need the tree, so a caller writing a
+ * Leafhood and work-package-step membership need the tree, so a caller writing a
  * typed dependency asks this at its validated write boundary before
- * persisting. A stepless project has no step to name, so every step-scoped
+ * persisting. A stepless work package has no step to name, so every step-scoped
  * endpoint in it is `unknown_step` and only `whole` remains.
  *
  * Proof: the `not_found` line deleted made `refuses an unknown work item and a
- * step outside the project` fail on `Expected: "not_found", Received: null`,
+ * step outside the workPackage` fail on `Expected: "not_found", Received: null`,
  * and the `unknown_step` line deleted failed it on `Expected: "unknown_step",
  * Received: null`; watched 2026-09-27.
  *

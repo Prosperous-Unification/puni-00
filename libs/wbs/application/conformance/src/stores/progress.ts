@@ -38,14 +38,20 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
       );
       const groups = [
         ...new Set(
-          (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+          (await port.listByWorkPackage(seed.workPackageIds[0])).map(
+            ({ workItemId }) => workItemId,
+          ),
         ),
       ];
-      expect(await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId])).toEqual(
+      expect(
+        await port.listPlacements(seed.workPackageIds[0], [secondId, 'missing', firstId]),
+      ).toEqual(
         groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
       );
-      expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
-      expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listPlacements(seed.workPackageIds[0], [seed.workItemIds[1][0]])).toEqual(
+        [],
+      );
+      expect(await port.listPlacements(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('progress', 'progress.listByWorkItems:scope-order', open, async ({ port, seed }) => {
       const targetId = seed.workItemIds[0][0];
@@ -69,17 +75,19 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
           seed.stamps[0],
         );
       }
-      const complete = await port.listByProject(seed.projectIds[0]);
+      const complete = await port.listByWorkPackage(seed.workPackageIds[0]);
       expect(
-        (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+        (await port.listByWorkItems(seed.workPackageIds[0], [targetId])).map(
+          ({ stepId }) => stepId,
+        ),
       ).toEqual([firstStep, secondStep]);
-      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
-      // Proof: validating ownership before project filtering made the memory
-      // adapter throw for this valid project-B progress row instead of returning [].
+      const foreign = await port.listByWorkItems(seed.workPackageIds[0], [foreignId]);
+      // Proof: validating ownership before work package filtering made the memory
+      // adapter throw for this valid work-package-B progress row instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
       const mixedCase = await port.listByWorkItems(
-        seed.projectIds[0],
+        seed.workPackageIds[0],
         TARGETED_ORDER_WORK_ITEM_IDS,
       );
       // Proof: SQLite's old localeCompare post-sort returned work-a before
@@ -89,7 +97,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
           TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
         ),
       );
-      expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+      expect(await port.listByWorkItems(seed.workPackageIds[0], [])).toEqual([]);
     }),
     storeCase('progress', 'progress.set:replace', open, async ({ port, readers, seed }) => {
       const [firstId, secondId] = seed.workItemIds[0];
@@ -116,12 +124,12 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, state: 'in_progress', statedAt: 101 },
         { workItemId: firstId, stepId: qaId, state: 'done', statedAt: 102 },
         { workItemId: secondId, stepId: devId, state: 'in_progress', statedAt: 103 },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -135,12 +143,12 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, state: 'done', statedAt: 201 },
         { workItemId: firstId, stepId: qaId, state: 'done', statedAt: 102 },
         { workItemId: secondId, stepId: devId, state: 'in_progress', statedAt: 103 },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -174,12 +182,12 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: devId, state: 'done', statedAt: 101 },
         { workItemId: firstId, stepId: qaId, state: 'in_progress', statedAt: 102 },
         { workItemId: secondId, stepId: devId, state: 'done', statedAt: 103 },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -190,11 +198,11 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
 
       await port.remove(firstId, devId, seed.stamps[1]);
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: qaId, state: 'in_progress', statedAt: 102 },
         { workItemId: secondId, stepId: devId, state: 'done', statedAt: 103 },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -205,11 +213,11 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
 
       await port.remove(firstId, devId, seed.stamps[1]);
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: firstId, stepId: qaId, state: 'in_progress', statedAt: 102 },
         { workItemId: secondId, stepId: devId, state: 'done', statedAt: 103 },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -248,7 +256,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: sourceId, stepId: devId, state: 'done', statedAt: 101 },
         { workItemId: sourceId, stepId: qaId, state: 'in_progress', statedAt: 102 },
         {
@@ -258,7 +266,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
           statedAt: 103,
         },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -269,7 +277,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
 
       await port.moveAll(sourceId, targetId, seed.stamps[1]);
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         { workItemId: targetId, stepId: devId, state: 'done', statedAt: 101 },
         { workItemId: targetId, stepId: qaId, state: 'in_progress', statedAt: 102 },
         {
@@ -279,7 +287,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
           statedAt: 103,
         },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -308,7 +316,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         seed.stamps[1],
       );
 
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[0]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]))).toEqual([
         {
           workItemId: seed.workItemIds[0][1],
           stepId: seed.stepIds[0][1],
@@ -316,7 +324,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
           statedAt: 102,
         },
       ]);
-      expect(byKey(await readers.progress.listByProject(seed.projectIds[1]))).toEqual([
+      expect(byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]))).toEqual([
         {
           workItemId: seed.workItemIds[1][0],
           stepId: seed.stepIds[1][0],
@@ -334,12 +342,12 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         },
         seed.stamps[1],
       );
-      const projectA = byKey(await readers.progress.listByProject(seed.projectIds[0]));
-      const projectB = byKey(await readers.progress.listByProject(seed.projectIds[1]));
+      const workPackageA = byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[0]));
+      const workPackageB = byKey(await readers.progress.listByWorkPackage(seed.workPackageIds[1]));
 
-      expect({ outcome, projectA, projectB }).toEqual({
+      expect({ outcome, workPackageA, workPackageB }).toEqual({
         outcome: 'unknown_step',
-        projectA: [
+        workPackageA: [
           {
             workItemId: seed.workItemIds[0][1],
             stepId: seed.stepIds[0][1],
@@ -347,7 +355,7 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
             statedAt: 102,
           },
         ],
-        projectB: [
+        workPackageB: [
           {
             workItemId: seed.workItemIds[1][0],
             stepId: seed.stepIds[1][0],

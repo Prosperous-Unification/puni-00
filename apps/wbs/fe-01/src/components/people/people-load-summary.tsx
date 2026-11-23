@@ -26,7 +26,7 @@ export type PeopleLoadView =
       kind: 'ready';
       totals: ReadonlyMap<string, { booked: number; overlapping: number }>;
       /**
-       * Readable projects whose bookings could not be read, for anybody. The
+       * Readable work packages whose bookings could not be read, for anybody. The
        * organization read does not say whom they name, so every line carries
        * the caveat rather than a figure that reads as complete.
        */
@@ -118,8 +118,8 @@ function days(workdays: number): string {
  * The words of one directory row's load line.
  *
  * Proof: the `unavailable` caveat dropped made `says the load is partly
- * unknown when a project could not be read` (`people-load-summary.test.tsx`)
- * read `0 d booked, 0 d overlapping` for a person whose only project was
+ * unknown when a workPackage could not be read` (`people-load-summary.test.tsx`)
+ * read `0 d booked, 0 d overlapping` for a person whose only work package was
  * unreadable; watched 2026-09-29.
  */
 export function loadLineOf(view: PeopleLoadView, personId: string): string {
@@ -134,9 +134,9 @@ export function loadLineOf(view: PeopleLoadView, personId: string): string {
       if (total === undefined) return 'Load not read yet';
       const figures = `${days(total.booked)} booked, ${days(total.overlapping)} overlapping`;
       if (view.unavailable === 0) return figures;
-      const projects =
-        view.unavailable === 1 ? '1 project' : `${String(view.unavailable)} projects`;
-      return `${figures}; partly unknown: ${projects} unavailable`;
+      const workPackages =
+        view.unavailable === 1 ? '1 work package' : `${String(view.unavailable)} work packages`;
+      return `${figures}; partly unknown: ${workPackages} unavailable`;
     }
     default:
       return unreachable(view);

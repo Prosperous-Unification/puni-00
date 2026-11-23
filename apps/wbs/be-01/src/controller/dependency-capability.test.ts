@@ -5,7 +5,7 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { testApp } from '../testing/app-fixture';
 
 const environment = {
-  CROSS_PROJECT_DEPENDENCIES: process.env['CROSS_PROJECT_DEPENDENCIES'],
+  CROSS_WORK_PACKAGE_DEPENDENCIES: process.env['CROSS_WORK_PACKAGE_DEPENDENCIES'],
   DEPENDENCY_ACTIVATION: process.env['DEPENDENCY_ACTIVATION'],
 };
 afterEach(() => {
@@ -22,13 +22,13 @@ test('mounted dependency capability equals DB-free CLI and ignores readiness con
   const execution = Bun.spawnSync([process.execPath, cli], {
     env: {
       PATH: process.env['PATH'],
-      CROSS_PROJECT_DEPENDENCIES: 'enabled',
+      CROSS_WORK_PACKAGE_DEPENDENCIES: 'enabled',
       DEPENDENCY_ACTIVATION: 'ENABLED',
     },
   });
   expect(execution.exitCode).toBe(0);
   expect(execution.stderr.toString()).toBe('');
-  process.env['CROSS_PROJECT_DEPENDENCIES'] = 'enabled';
+  process.env['CROSS_WORK_PACKAGE_DEPENDENCIES'] = 'enabled';
   process.env['DEPENDENCY_ACTIVATION'] = 'ENABLED';
   const app = testApp({
     migrationsApplied: false,

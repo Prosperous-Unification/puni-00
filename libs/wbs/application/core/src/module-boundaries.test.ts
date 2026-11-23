@@ -231,7 +231,7 @@ function reachesRepositoryCapability(checker: ts.TypeChecker, symbol: ts.Symbol)
  * Inspect every production file, reserving store access for resource and wiring files.
  * Proof: a real ReviewPortAlias declaration in plan-history.feature.ts made the
  * production audit fail with that declaration (0 pass, 1 fail).
- * Proof: a real wildcard export from project-store in the same feature also
+ * Proof: a real wildcard export from work-package-store in the same feature also
  * failed, naming that file (0 pass, 1 fail).
  */
 function findViolations(program: ts.Program, moduleName: string): string[] {
@@ -286,7 +286,7 @@ function findViolations(program: ts.Program, moduleName: string): string[] {
             ts.sys,
           ).resolvedModule?.resolvedFileName;
           // Proof: disabling this branch let a named PlanEvent import and a
-          // wildcard ProjectStore export escape (0 pass, 1 fail each).
+          // wildcard WorkPackageStore export escape (0 pass, 1 fail each).
           if (path !== undefined && /\/ports\/(?:[^/]+-store|stores)\.ts$/.test(path))
             report(node, specifier.getText(source));
         }
@@ -381,11 +381,11 @@ test('closed feature modules do not reference repository ports and debt stays li
     if (debt.has(moduleName) && found.length === 0) failed.push(`${moduleName}: stale debt ledger`);
     if (!debt.has(moduleName)) failed.push(...found);
   }
-  // Proof (2026-09-27): injecting an import() type reference to ProjectStore into
+  // Proof (2026-09-27): injecting an import() type reference to WorkPackageStore into
   // plan-history.feature.ts made this assertion report that resolved declaration
   // with 0 pass and 1 fail; removing the import restored 1 pass.
   // Proof (2026-09-27): injecting aliased, namespace, and index-barrel
-  // ProjectStore type references into plan-history.feature.ts separately made
+  // WorkPackageStore type references into plan-history.feature.ts separately made
   // this assertion fail (0 pass, 1 fail for each injected reference).
   // Proof (2026-09-27): adding the clean plan-history module to the debt
   // ledger made this assertion report stale debt (0 pass, 1 fail).
@@ -441,7 +441,7 @@ async function createProgramWith(
 test('resolved alias type from a repository port is refused', async () => {
   const program = await createProgramWith(
     'module/plan-history/plan-history.feature.ts',
-    "export type EscapedHistoryStore = import('../../ports/project-store').ProjectStore;",
+    "export type EscapedHistoryStore = import('../../ports/work-package-store').WorkPackageStore;",
   );
   expect(
     findViolations(program, 'plan-history').some((violation) =>
@@ -496,10 +496,10 @@ test('public resource surfaces cannot pass raw repository authority to a feature
       {
         path: 'module/plan-import/imported-plan.resource.ts',
         addition:
-          "export class PublicScopeEscape { expose<T>(act: (admitted: Scope) => T): T { throw new Error('fixture'); } } export class ReturnedScopeEscape { get pending(): Promise<Scope> { throw new Error('fixture'); } } export class UnitEscape { expose(unit: import('../../ports/unit-of-work').UnitOfWork): void { throw new Error('fixture'); } } export class StoreEscape { expose(store: import('../../ports/project-store').ProjectStore): void { throw new Error('fixture'); } } export class AggregateEscape { expose(stores: import('../../ports/stores').PlanTransactionalStores): void { throw new Error('fixture'); } } export class ConstraintEscape { expose<T extends Scope>(value: T): void { throw new Error('fixture'); } } export class UnionEscape { read(): {kind:'empty'} | {kind:'scope'; scope: Scope} { throw new Error('fixture'); } } export class MethodEscape { get find(): import('../../ports/project-store').ProjectStore['findById'] { throw new Error('fixture'); } } export class CallablePropertyEscape { get find(): import('../../ports/project-store').SyntheticCallableRepository['find'] { throw new Error('fixture'); } } export class PrivateDtoResource { readonly #scope: Scope; constructor(scope: Scope) { this.#scope = scope; } private hidden(): Scope { throw new Error('fixture'); } createProject(steps: Step[], callback: (step: Step) => CalendarMarker): CalendarMarker { throw new Error('fixture'); } } export class DtoUnionResource { read(): {kind:'marker'; marker: CalendarMarker} | {kind:'steps'; steps: Step[]} { throw new Error('fixture'); } }",
+          "export class PublicScopeEscape { expose<T>(act: (admitted: Scope) => T): T { throw new Error('fixture'); } } export class ReturnedScopeEscape { get pending(): Promise<Scope> { throw new Error('fixture'); } } export class UnitEscape { expose(unit: import('../../ports/unit-of-work').UnitOfWork): void { throw new Error('fixture'); } } export class StoreEscape { expose(store: import('../../ports/work-package-store').WorkPackageStore): void { throw new Error('fixture'); } } export class AggregateEscape { expose(stores: import('../../ports/stores').PlanTransactionalStores): void { throw new Error('fixture'); } } export class ConstraintEscape { expose<T extends Scope>(value: T): void { throw new Error('fixture'); } } export class UnionEscape { read(): {kind:'empty'} | {kind:'scope'; scope: Scope} { throw new Error('fixture'); } } export class MethodEscape { get find(): import('../../ports/work-package-store').WorkPackageStore['findById'] { throw new Error('fixture'); } } export class CallablePropertyEscape { get find(): import('../../ports/work-package-store').SyntheticCallableRepository['find'] { throw new Error('fixture'); } } export class PrivateDtoResource { readonly #scope: Scope; constructor(scope: Scope) { this.#scope = scope; } private hidden(): Scope { throw new Error('fixture'); } createWorkPackage(steps: Step[], callback: (step: Step) => CalendarMarker): CalendarMarker { throw new Error('fixture'); } } export class DtoUnionResource { read(): {kind:'marker'; marker: CalendarMarker} | {kind:'steps'; steps: Step[]} { throw new Error('fixture'); } }",
       },
       {
-        path: 'ports/project-store.ts',
+        path: 'ports/work-package-store.ts',
         addition:
           'export interface SyntheticCallableRepository { find: (id: string) => Promise<void>; }',
       },
@@ -605,11 +605,11 @@ test('named value import from a repository port is refused', async () => {
 test('wildcard export of a repository port is refused', async () => {
   const program = await createProgramWith(
     'module/plan-history/plan-history.feature.ts',
-    "export * from '../../ports/project-store';",
+    "export * from '../../ports/work-package-store';",
   );
   expect(
     findViolations(program, 'plan-history').some((violation) =>
-      violation.includes('project-store'),
+      violation.includes('work-package-store'),
     ),
   ).toBe(true);
 }, 120_000);
@@ -617,7 +617,7 @@ test('wildcard export of a repository port is refused', async () => {
 test('malformed import type cannot silently leave the audit', async () => {
   const program = await createProgramWith(
     'module/plan-history/plan-history.feature.ts',
-    'type BrokenImport = import(ProjectStore).ProjectStore;',
+    'type BrokenImport = import(WorkPackageStore).WorkPackageStore;',
   );
   expect(() => findViolations(program, 'plan-history')).toThrow('Missing import specifier');
 }, 120_000);

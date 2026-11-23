@@ -1,10 +1,13 @@
 import { JwksTokenVerifier } from '@wbs/auth';
 import type { SqliteSource } from '@wbs/store-sqlite';
+import { AccessGrantRepository } from '@wbs/store-sqlite/access-grant';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
 import { FakeOidcProvider } from './fake-oidc-provider';
+import { grantCredential } from './machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
 import { writeMcpStoreFixture } from './mcp-store-fixture';
 
@@ -59,10 +62,32 @@ const backend = await BootedBrowserProcess.open(
   },
 );
 if (source === undefined) throw new Error('boot did not expose its source');
+// Scoped and public gates enter the same physical FIFO through different wrappers. Capture
+// this source's coordinator during a single synchronous enqueue before the server starts.
 const gate = source.gate;
-const enter = gate.enter.bind(gate);
-gate.enter = (work) => {
-  const pending = enter(work);
+const descriptor = Object.getOwnPropertyDescriptor(WriteCoordinator.prototype, 'enter');
+if (descriptor === undefined) throw new Error('delegation fixture writer method absent');
+// The descriptor belongs to the concrete class; each invocation binds its actual receiver.
+const originalEnter = descriptor.value as WriteCoordinator['enter'];
+const capture: { writer?: WriteCoordinator } = {};
+let probe: Promise<void>;
+try {
+  WriteCoordinator.prototype.enter = function <T>(this: WriteCoordinator, work: () => Promise<T>) {
+    capture.writer = this;
+    return originalEnter.bind(this)(work);
+  };
+  probe = gate.enter(() => Promise.resolve());
+} finally {
+  WriteCoordinator.prototype.enter = originalEnter;
+}
+await probe;
+const writer = capture.writer;
+if (writer === undefined) throw new Error('delegation fixture did not observe its writer');
+const enqueue = writer.enter.bind(writer);
+// Proof: watching only source.gate.enter missed the scoped command enqueue and timed out all
+// six queued consent cases. Observing the shared FIFO reached all six actual authority assertions.
+writer.enter = (work) => {
+  const pending = enqueue(work);
   observeQueued?.();
   observeQueued = undefined;
   return pending;
@@ -79,7 +104,7 @@ backend.options.organizations.resolve = async (principal) => {
     const released = new Promise<void>((resolve) => {
       releaseWriter = resolve;
     });
-    heldWriter = enter(() => released);
+    heldWriter = gate.enter(() => released);
     observeQueued = markQueued;
   }
   return resolution;
@@ -87,9 +112,9 @@ backend.options.organizations.resolve = async (principal) => {
 const publish = backend.options.writes.announcements.publish.bind(
   backend.options.writes.announcements,
 );
-backend.options.writes.announcements.publish = (projectId, event) => {
+backend.options.writes.announcements.publish = (workPackageId, event) => {
   publications += 1;
-  return publish(projectId, event);
+  return publish(workPackageId, event);
 };
 
 /**
@@ -211,15 +236,199 @@ const server = Bun.serve({
       backend.sqlite.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-grace', 'member', 1)",
       );
+      const primary = backend.sqlite
+        .query<{ organization_id: string }, []>(
+          "SELECT organization_id FROM organization_membership WHERE user_id='u-dany'",
+        )
+        .get();
+      if (primary === null) throw new Error('activated fixture account has no organization');
+      for (const [organizationId, userId, roleId] of [
+        [primary.organization_id, 'u-dany', 'org-super-admin'],
+        [primary.organization_id, 'u-ada', 'project-contributor'],
+        ['org-b', 'u-grace', 'org-admin'],
+      ])
+        backend.sqlite.run(
+          "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+          [crypto.randomUUID(), organizationId, organizationId, userId, roleId],
+        );
       return new Response(run.stdout.toString(), { status: 200 });
     }
-    if (request.method === 'POST' && path === '/__fixture/restrict-project') {
+    if (
+      request.method === 'POST' &&
+      (path === '/__fixture/create-work-package' || path === '/__fixture/create-project')
+    ) {
+      const { username, name, token, projectId } = (await request.json()) as {
+        username: string;
+        name: string;
+        token: string;
+        projectId?: string;
+      };
+      const target = backend.sqlite
+        .query<{ organization_id: string }, [string]>(
+          'SELECT organization_id FROM organization_membership WHERE user_id=?',
+        )
+        .get(`u-${username}`);
+      if (target === null) throw new Error('fixture work package account has no organization');
+      const authorization = `Bearer ${token}`;
+      const selected = await backend.app.handle(
+        new Request(`${BOOTED_ORIGIN}/api/organization/active`, {
+          method: 'POST',
+          headers: { authorization, origin: BOOTED_ORIGIN, 'content-type': 'application/json' },
+          body: JSON.stringify({ organizationId: target.organization_id }),
+        }),
+      );
+      if (selected.status !== 200)
+        throw new Error(
+          `fixture native selection refused: ${String(selected.status)} ${await selected.text()}`,
+        );
+      const cookie = selected.headers.get('set-cookie')?.split(';')[0];
+      if (cookie === undefined) throw new Error('fixture native selection set no cookie');
+      const nativePost = (path: string, body: unknown) =>
+        backend.app.handle(
+          new Request(BOOTED_ORIGIN + path, {
+            method: 'POST',
+            headers: {
+              authorization,
+              cookie,
+              origin: BOOTED_ORIGIN,
+              'X-WBS-Expected-Organization': target.organization_id,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }),
+        );
+      if (path === '/__fixture/create-project') {
+        const parent = await nativePost('/api/projects', { name });
+        if (parent.status !== 201)
+          throw new Error('fixture project refused: ' + (await parent.text()));
+        const { project } = (await parent.json()) as { project: { id: string } };
+        for (const [position, step] of ['Dev', 'QA'].entries()) {
+          const binding = await nativePost('/api/organization/step-bindings', {
+            scopeKind: 'project',
+            scopeId: project.id,
+            workItemTypeId: null,
+            position,
+            define: {
+              name: step,
+              code: step.toLowerCase(),
+              position,
+              defaultEstimateUnit: 'workdays',
+              defaultAllowanceBps: 0,
+            },
+          });
+          if (binding.status !== 201)
+            throw new Error('fixture binding refused: ' + (await binding.text()));
+        }
+        return Response.json(project);
+      }
+      const created = await nativePost('/api/work-packages', { name, projectId });
+      const body: unknown = await created.json();
+      return Response.json({ status: created.status, body });
+    }
+    if (request.method === 'POST' && path === '/__fixture/cp14-consent') {
+      const { familyId, action } = (await request.json()) as {
+        familyId: string;
+        action: 'clear' | 'repair' | 'state';
+      };
+      const credential = backend.sqlite
+        .query<
+          { id: string; organization_id: string; issued_by: string; person_id: string },
+          [string]
+        >(
+          'SELECT id,organization_id,issued_by,person_id FROM machine_credential WHERE mcp_family_id=?',
+        )
+        .get(familyId);
+      if (credential === null) throw new Error('CP14 fixture family has no credential');
+      if (action === 'clear')
+        backend.sqlite.run(
+          "DELETE FROM access_grant WHERE organization_id=? AND scope_kind='organization' AND subject_kind='user' AND role_id='org-super-admin'",
+          [credential.organization_id],
+        );
+      if (action === 'repair') {
+        if (source === undefined) throw new Error('CP14 fixture source missing');
+        const granted = await new AccessGrantRepository(source.db, source.gate).grant(
+          credential.organization_id,
+          {
+            id: crypto.randomUUID(),
+            scope: { kind: 'organization' },
+            subject: { kind: 'user', userId: credential.issued_by },
+            roleId: 'org-super-admin',
+            origin: 'operator',
+          },
+          {
+            actor: { kind: 'operator', login: 'cp14-repair' },
+            at: Date.now(),
+            auditId: crypto.randomUUID(),
+          },
+        );
+        if (typeof granted === 'string')
+          throw new Error('operator CP14 repair refused: ' + granted);
+      }
+      const holders = backend.sqlite
+        .query<{ n: number }, [string]>(
+          "SELECT count(*) AS n FROM access_grant g JOIN organization_membership m ON m.organization_id=g.organization_id AND m.user_id=g.subject_id WHERE g.organization_id=? AND g.scope_kind='organization' AND g.scope_id=g.organization_id AND g.subject_kind='user' AND g.role_id='org-super-admin'",
+        )
+        .get(credential.organization_id);
+      if (holders === null) throw new Error('CP14 fixture count missing');
+      if (action === 'repair' && holders.n < 1)
+        throw new Error('audited CP14 repair did not establish a direct holder');
+      return Response.json({
+        directHolders: holders.n,
+        credential: backend.sqlite
+          .query('SELECT id,revoked_at FROM machine_credential WHERE id=?')
+          .get(credential.id),
+        grants: backend.sqlite
+          .query(
+            "SELECT id,role_id FROM access_grant WHERE subject_kind='machine_credential' AND subject_id=? ORDER BY id",
+          )
+          .all(credential.id),
+        claims: backend.sqlite
+          .query('SELECT * FROM claim WHERE person_id=? ORDER BY id')
+          .all(credential.person_id),
+        revoked: backend.sqlite
+          .query(
+            "SELECT action,actor_id,subject_id FROM organization_audit WHERE (action='machine_credential_revoked' AND subject_id=?) OR (action='access_revoked' AND json_extract(detail,'$.subjectId')=?) ORDER BY rowid",
+          )
+          .all(credential.id, credential.id),
+      });
+    }
+    if (request.method === 'POST' && path === '/__fixture/grant-consent') {
+      const { familyId, roleId, scope } = (await request.json()) as {
+        familyId: string;
+        roleId: string;
+        scope: { kind: 'organization' } | { kind: 'work_package'; id: string };
+      };
+      const credentials = backend.sqlite
+        .query<{ id: string; organization_id: string }, [string]>(
+          'SELECT id,organization_id FROM machine_credential WHERE mcp_family_id=? AND revoked_at IS NULL',
+        )
+        .all(familyId);
+      const credential = credentials.at(0);
+      if (credentials.length !== 1 || credential === undefined)
+        throw new Error('fixture consent family must name exactly one live credential');
+      grantCredential(
+        backend.sqlite,
+        credential.organization_id,
+        credential.id,
+        roleId,
+        scope.kind,
+        scope.kind === 'organization' ? credential.organization_id : scope.id,
+      );
+      return Response.json({ granted: true });
+    }
+    if (request.method === 'POST' && path === '/__fixture/restrict-work-package') {
       const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
-      backend.sqlite.run('UPDATE project SET restricted = ?, owner_id = ? WHERE id = ?', [
-        restricted ? 1 : 0,
-        restricted ? 'u-grace' : 'u-dany',
-        id,
-      ]);
+      backend.sqlite.transaction(() => {
+        backend.sqlite.run('UPDATE work_package SET restricted=? WHERE id=?', [
+          restricted ? 1 : 0,
+          id,
+        ]);
+        const changed = backend.sqlite.run(
+          "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND subject_kind='user' AND subject_id=? AND role_id='package-manager' AND origin='creation'",
+          [restricted ? 'u-ada' : 'u-dany', id, restricted ? 'u-dany' : 'u-ada'],
+        );
+        if (changed.changes !== 1) throw new Error('fixture direct package grant absent');
+      })();
       return Response.json({ id, restricted });
     }
     if (request.method === 'POST' && path === '/__fixture/typed-dependencies')
@@ -244,12 +453,12 @@ const server = Bun.serve({
       );
     if (request.method === 'POST' && path === '/__fixture/write-state') {
       const tables = [
-        'project',
+        'work_package',
         'work_item',
         'dependency',
         'typed_dependency',
         'external_dependency',
-        'step',
+        'work_package_step',
         'calendar_marker',
         'command_journal',
         'saved_plan',
@@ -257,6 +466,8 @@ const server = Bun.serve({
         'organization_audit',
         'event_log',
         'event_sequencer',
+        'step_definition',
+        'step_binding',
       ];
       return Response.json(
         tables.map((table) => backend.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
