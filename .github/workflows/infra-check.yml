@@ -13,6 +13,8 @@ on:
       - 'tools/tool-fleet/**'
       - 'tools/tool-deploy/**'
       - 'tools/tool-remote-scripts/**'
+      # tool-fleet:check judges every tracked executable; most live here (#993).
+      - 'bin/**'
       - 'bin/publish-release.sh'
       # Proof: removing this exact helper route failed actual-event glob selection in toolchain-pins.test.ts.
       - 'bin/registry-source-test-prerequisites.sh'
@@ -28,6 +30,7 @@ on:
       - 'deploy/**'
       - 'tools/tool-fleet/**'
       - 'tools/tool-deploy/**'
+      - 'bin/**'
       # Proof: removing this exact helper route failed actual-event glob selection in toolchain-pins.test.ts.
       - 'bin/registry-source-test-prerequisites.sh'
       - 'apps/wbs/be-01/drizzle/**'
