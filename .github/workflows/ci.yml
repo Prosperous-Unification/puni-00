@@ -1910,7 +1910,7 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.backend == 'run' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 135
+    timeout-minutes: 165
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -2000,9 +2000,10 @@ jobs:
           phase_started=$SECONDS
           printf 'runtime phase start partition=backend head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
           set +e
-          # Run 45081960543 reached 105m while wbs-be-01:test was still progressing.
-          # Completed cases accounted for 104m20s. The job allows 15m for setup and diagnostics.
-          timeout --signal=TERM --kill-after=30s 120m \
+          # Run 45092559956 reached 120m with 99.39% of test time spent in completed cases.
+          # Matching cases to the earlier run projects about 141m for the loaded suite.
+          # The job allows 15m for setup and diagnostics.
+          timeout --signal=TERM --kill-after=30s 150m \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts backend "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?
