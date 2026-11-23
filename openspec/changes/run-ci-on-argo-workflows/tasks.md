@@ -190,7 +190,7 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 They are stage 2 of the core change's build order and replace its A10.
 
 - [ ] CI-A1 Bootstrap the CI cluster, after the core change's A9 has created the server at
-      12 vCPUs and 24 GiB (CI13), CI-S1, CI-S2 with its inventory revision for that server,
+      16 vCPUs and 32 GiB (CI13), CI-S1, CI-S2 with its inventory revision for that server,
       and the receipt CI-S5/A2. Who: operator. Commands: `playbooks/firewall.yml` limited
       to the platform node, so that it and the CI server admit each other's private
       address for the two paths of design decision 1;

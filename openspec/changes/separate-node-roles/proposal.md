@@ -33,13 +33,13 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 ## Non-Goals
 
 No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or build tools. No delivery of dev: a follow-up. No PostgreSQL, agents host or CI orchestration: the other
-three changes. Workers clusters and labs stay on Flux. No SQLite replication, no high
+three changes. Workers clusters and labs move to `puni-01` separately. No SQLite replication, no high
 availability. No tenant onboarding, no adapter. No host or cluster changes.
 
 ## Constraints
 
 The repository is public: no prices, provider ids or public addresses. SQLite stays one
-writer on a node-local `Retain` volume. No path the old cluster, a workers cluster or a
+writer on an attached `Retain` volume. No path the old cluster, a workers cluster or a
 lab reconciles is edited. Website registry routing, the fleet's
 website pins and `release-pin.ts` are untouched. Gates never stop. Staging never receives
 production data nor shares a node with production.

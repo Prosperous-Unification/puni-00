@@ -77,7 +77,7 @@ which they extend.
       window, a nightly `ScheduledBackup` with the method `plugin`, a PodMonitor, the
       databases `canary-a` and `canary-b` with one `DatabaseRole` each, and ExternalSecrets
       for the object storage key and the two role passwords; the namespaces `postgres`
-      (environment `platform`) and `postgres-nonproduction` (environment `staging`) in the
+      (environment `platform`) and `postgres-nonproduction` (environment `stag`) in the
       `namespaces` unit; a SecretStore for each in `secret-sync`; a clause in slice 2.10's
       placement policy that a pod in `postgres` selects `database`, which the instances,
       the dump job and the drill's throwaway cluster all do; NetworkPolicies in each
@@ -97,7 +97,7 @@ which they extend.
       carry it, during PG-A2, the schedule stays suspended and one attended drill
       pinned to the destination is run); any `Cluster` with superuser access on; an `ObjectStore` of one cluster that reads the credential
       of the other; a `Database` whose owner role owns another database; a `Cluster`, a
-      `Database` or a `DatabaseRole` in a `staging` or `production` Application; a Velero
+      `Database` or a `DatabaseRole` in a `stag` or `prod` Application; a Velero
       schedule that includes a database namespace. Rule 2.4(n)'s exemption table gains the
       claims the operator makes for a `Cluster`, with their backup named. Test: both units
       render and pass the `delivery` check; on disposable k3d with the operator, an object
@@ -106,7 +106,7 @@ which they extend.
       one per refusal above, each with its own row in `check-faults.ts` whose fault is that
       clause removed; on k3d, the role of `canary-a` is refused a connection to `canary-b`
       (fault: leave `public` its connect privilege); a pod applied to `postgres` with the
-      `product` selector is denied (fault: bind the clause to `staging` namespaces only).
+      `product` selector is denied (fault: bind the clause to `stag` namespaces only).
 - [ ] PG-S4 Alerts, logs and query statistics. A PrometheusRule in each cluster unit: the
       instance's volume and its node's filesystem above 80% and above 90%; WAL not archived for 10 minutes; no base backup for
       26 hours; instance not ready; connections above 80% of the limit; a transaction open
@@ -196,8 +196,10 @@ which they extend.
 
 - [ ] PG-S6 A bounded claim for a database on the server (design decision 2, PG8). Extend
       the `registry_storage` role, or add a role beside it that shares its code, so that a
-      node that carries both `control-plane` and `database` gets one preallocated
-      filesystem of 30 GiB, mounted under the role's directory, and a static `local`
+      node that carries both `control-plane` and `database` gets one bounded filesystem of
+      30 GiB, mounted under the role's directory: the volume of its own that the core's
+      slice 1.11 attaches (core R9), or a preallocated filesystem on the root disk where
+      the core's A29 ruled volumes out, and a static `local`
       PersistentVolume on it with a class of its own that no provisioner serves. The
       `platform-db` unit names that class when the inventory says the server carries
       `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
@@ -238,12 +240,13 @@ start when the owner says so (PG8). PG-A1 and PG-A2 are the growth step to a dat
 server (design decision 4) and are not run before its trigger.
 
 - [ ] PG-A1 Growth step only. Create the database server. Who: owner, at the trigger of design decision 4, as A1,
-      with 8 vCPUs, 16 GiB and a root disk of at least 140 GiB (PG2). Receipt:
-      as A1. Stop: `df -h /` shows less, or as A1. Rollback: delete the server.
+      with 8 vCPUs, 16 GiB, a root disk of at least 38 GiB and a volume of at least 93
+      GiB, or a root disk of at least 140 GiB where the core's A29 ruled volumes out (PG2,
+      core R9). Receipt: as A1. Stop: `df -h /` or the volume shows less, or as A1. Rollback: delete the server.
 - [ ] PG-A2 Growth step only. Join it, after its 1.3 revision and slice PG-S1, then move
       the instance as design decision 4 states. Who: operator. Commands: as A13 for
       `h10db`, with `playbooks/firewall.yml` limited to the nodes already joined first.
-      Receipt: `h10db` Ready with `puni.dev/capability-database=true` and
+      Receipt: `h10db` Ready with `puni.dev/capability-database-pv1=true` and
       no other capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
       only pods on it are the three node agents; then one of two paths, chosen before the
       move and recorded. The replica path: the inventory sets it for `h10db`, PG-S6's

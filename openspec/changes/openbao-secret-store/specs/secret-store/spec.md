@@ -49,7 +49,7 @@ labels. Every role SHALL carry `token_bound_cidrs`.
 
 #### Scenario: Cross-environment read
 
-- **WHEN** the reader of a staging namespace requests a path under `kv/tenants/puni/production/`
+- **WHEN** the reader of a staging namespace requests a path under `kv/tenants/puni/prod/`
 - **THEN** the store denies the request and records it in the audit log
 
 #### Scenario: Another account in the same namespace
@@ -144,7 +144,7 @@ that need `secret-sync`, and `OpenBaoSealed` or `ExternalSecretSyncFailed` SHALL
 ### Requirement: The store's pods run only on the platform server
 
 Every pod template that the `openbao` and `external-secrets` units render, the Jobs included,
-SHALL select `puni.dev/capability-platform-services` and tolerate
+SHALL select `puni.dev/capability-platform-services-pv1` and tolerate
 `CriticalAddonsOnly=true:NoSchedule`.
 
 #### Scenario: A chart-rendered pod lacks the toleration

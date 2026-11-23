@@ -29,7 +29,8 @@ What the plan fixes, and this design takes as given:
 - **Tenancy** (plan decision 13, R48). A tenant is a path prefix and a policy in the store,
   driven through OpenBao's API; `puni` is the first.
 
-The old cluster, its workers clusters and the labs stay on Flux and are not touched (plan R27):
+The old cluster, its workers clusters and the labs stay on Flux until they move to `puni-01`
+and are not touched (plan R27):
 this change adds nothing to them.
 
 ## Goals / Non-Goals
@@ -69,7 +70,7 @@ which a check holds (task 1.5).
 
 The store runs in the namespace `puni-secrets` and ESO in `external-secrets`, both objects of
 the plan's `namespaces` unit, so the bootstrap playbook can create them before the seal key.
-Both, and every Job of this change, select `puni.dev/capability-platform-services` and
+Both, and every Job of this change, select `puni.dev/capability-platform-services-pv1` and
 tolerate `CriticalAddonsOnly=true:NoSchedule`; the plan's rule 2.4(f) admits that toleration
 only with that selector. Every pod template that the two charts render is covered: the OpenBao
 server, ESO's controller, webhook and certificate controller, and the snapshot, drill and drift
@@ -187,7 +188,7 @@ reader cannot read a production path and one tenant cannot read another's.
 **Database grants.** `host-postgres` keeps an owner role's password at a path of its app and
 environment and reads it from two namespaces: the app's, and the database namespace whose
 `DatabaseRole` names it. Its database namespaces are platform-labelled or staging-labelled
-(`postgres` is `platform` and serves production; `postgres-nonproduction` is `staging` and
+(`postgres` is `platform` and serves production; `postgres-nonproduction` is `stag` and
 serves staging, and dev once that follow-up exists), so a grant cannot be "same environment".
 Instead:
 
@@ -195,14 +196,14 @@ Instead:
   because a KV v2 grant is per path, not per field: a grant to the app's runtime path would
   hand the database namespace every runtime credential of the app.
 - The declaration names, for each database namespace, the tenants and environments it serves.
-  `postgres` serves `puni`'s `production`; `postgres-nonproduction` serves `puni`'s `staging`.
+  `postgres` serves `puni`'s `prod`; `postgres-nonproduction` serves `puni`'s `stag`.
 - Each grant is a read of one app's `database-owner` path. The planner refuses a grant to a
   path that does not end in `database-owner`, one to an app whose tenant or environment the
   database namespace does not serve, and one whose app is not declared.
 - `postgres` carries `puni.dev/tenant: puni`, as the plan's rule 2.4(r) requires of a database
   unit's namespace, and `puni.dev/environment: platform`; the environment decides the prefix,
   so its own values (its backup key) are at `kv/platform/postgres/`, and `postgres-nonproduction`'s at
-  `kv/tenants/puni/staging/postgres-nonproduction/`, as its labels give.
+  `kv/tenants/puni/stag/postgres-nonproduction/`, as its labels give.
 
 ### D6 Paths and tenancy
 
@@ -216,7 +217,7 @@ One KV v2 mount per cluster that reads the store, in the root namespace; no Open
 
 A platform namespace is one whose `puni.dev/environment` is `platform`, such as `puni-secrets`,
 `cattle-system` and `postgres`, whatever tenant label it also carries. An app, database or CI
-namespace carries `puni.dev/tenant`, and the environment (`production`, `staging`, `dev`) sits below the tenant,
+namespace carries `puni.dev/tenant`, and the environment (`prod`, `stag`, `dev0`) sits below the tenant,
 so a tenant is a prefix and a policy (plan decision 13). `puni` is the first tenant and is built
 in the form any later tenant takes; onboarding another is a follow-up.
 
@@ -470,20 +471,24 @@ only at 0. Its reading is part of the receipt of A7 and of every plan step after
 A14. The second device is
 removed in the revision that proves the collector ships the records (plan A14).
 
-The claim requests 2 GiB and counts inside the 10 GiB the plan's decision 2 budgets for the
-store and the local etcd snapshots, beside a Raft database of a few MiB. A node-local claim is
-not bounded by its request: it shares the root filesystem, so the sidecar's rotation and
-`PlatformRootDiskLow`, not the claim size, keep it in bounds.
+The claim requests 2 GiB and counts inside the 5 GiB the plan's decision 2 budgets for the
+store on the platform node's volume (plan R9), beside a Raft database of a few MiB. A
+local-path claim is not bounded by its request: it shares the volume's filesystem, or the
+root filesystem on R9's fallback, so the sidecar's rotation and the disk alert on that
+filesystem (`PlatformRootDiskLow` on the fallback), not the claim size, keep it in bounds.
 
 **Backup.** OpenBao has no snapshot scheduler, so a CronJob runs `bao operator raft snapshot
 save` every 6 h to the platform backup bucket, 30-day retention by lifecycle (D10). The
 snapshot Job logs in through Kubernetes auth (D7) with a policy that also reads the canary.
 
-**Loss mode, stated.** There is no off-region copy: neither this change nor the plan owns one.
-A loss of the object store's region loses every snapshot. What remains is the escrowed seal
-key and shares and a cold rebuild with an empty store, into which every escrowed value is
-written again and every generated value is generated anew. A later change owns the off-region
-copy (follow-up `openbao-offsite-snapshots`); until it lands, that loss is accepted.
+**Loss mode, stated.** The platform backup bucket is in AWS S3 (plan R6, decided by the owner
+on 2026-11-24), and the plan gives the off-region copy an owner: a second S3 bucket in a
+region other than the servers', which the plan's R6 plans and the owner creates. Copying the
+snapshots into it is still separate work, the follow-up `openbao-offsite-snapshots`, with a
+key of its own that can write that bucket and cannot delete. Until it lands, a loss of the
+backup bucket's region loses every snapshot, and what remains is the escrowed seal key and
+shares and a cold rebuild with an empty store, into which every escrowed value is written
+again and every generated value is generated anew; that loss is accepted until then.
 
 **Drill.** A monthly Job starts its own OpenBao instance in its pod, listening on `127.0.0.1`
 only, restores the latest snapshot into it with the cluster seal key and `-force`, reads the
@@ -525,20 +530,20 @@ scrape) and the alert observed firing.
 The new cluster starts with store-sourced Secrets: nothing migrates on it. Taken from the plan
 and the changes it names, not invented here:
 
-| Value                                                                                                 | Consumer                                                  | Path prefix                               | Written in   |
-| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------- | ------------ |
-| Canary                                                                                                | `puni-secrets`                                            | `kv/platform/puni-secrets/`               | A7           |
-| Registry CA key pair                                                                                  | `issuers`                                                 | `kv/platform/<namespace>/`                | A7           |
-| `velero-credentials`, `velero-repo-credentials`                                                       | `velero`                                                  | `kv/platform/<namespace>/`                | A14          |
-| `elastic-s3-credentials`, `alertmanager-puni`, `otel-server-ca`, `otel-client-trust`, nine `signal-*` | observability units                                       | `kv/platform/<namespace>/`                | A14          |
-| MLflow backup credentials                                                                             | `mlflow`                                                  | `kv/platform/<namespace>/`                | A15          |
-| Rancher's `bootstrapPassword`                                                                         | the Secret `bootstrap-secret` in `cattle-system`          | `kv/platform/cattle-system/`              | A27          |
-| Harbor's Secrets and robot credentials                                                                | Harbor and its consumers                                  | as the Harbor change states               | its steps    |
-| Staging app Secrets: runtime, pull and backup credentials                                             | staging namespaces                                        | `kv/tenants/puni/staging/<namespace>/`    | A18          |
-| Production app Secrets                                                                                | production namespaces                                     | `kv/tenants/puni/production/<namespace>/` | A19, A20     |
-| Database backup keys                                                                                  | `postgres`, `postgres-nonproduction`                      | their own prefixes (D5)                   | PG-A3, PG-A4 |
-| Owner-role passwords                                                                                  | the app's namespace and the database namespace serving it | `<app prefix>/database-owner` (D5)        | PG-A3, PG-A4 |
-| Harbor push robot, staging pins App key, status App key                                               | the CI cluster's `ci-<tenant>` namespace                  | `ci/<tenant>/`                            | CI-A3        |
+| Value                                                                                                 | Consumer                                                  | Path prefix                         | Written in   |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------- | ------------ |
+| Canary                                                                                                | `puni-secrets`                                            | `kv/platform/puni-secrets/`         | A7           |
+| Registry CA key pair                                                                                  | `issuers`                                                 | `kv/platform/<namespace>/`          | A7           |
+| `velero-credentials`, `velero-repo-credentials`                                                       | `velero`                                                  | `kv/platform/<namespace>/`          | A14          |
+| `elastic-s3-credentials`, `alertmanager-puni`, `otel-server-ca`, `otel-client-trust`, nine `signal-*` | observability units                                       | `kv/platform/<namespace>/`          | A14          |
+| MLflow backup credentials                                                                             | `mlflow`                                                  | `kv/platform/<namespace>/`          | A15          |
+| Rancher's `bootstrapPassword`                                                                         | the Secret `bootstrap-secret` in `cattle-system`          | `kv/platform/cattle-system/`        | A27          |
+| Harbor's Secrets and robot credentials                                                                | Harbor and its consumers                                  | as the Harbor change states         | its steps    |
+| Staging app Secrets: runtime, pull and backup credentials                                             | staging namespaces                                        | `kv/tenants/puni/stag/<namespace>/` | A18          |
+| Production app Secrets                                                                                | production namespaces                                     | `kv/tenants/puni/prod/<namespace>/` | A19, A20     |
+| Database backup keys                                                                                  | `postgres`, `postgres-nonproduction`                      | their own prefixes (D5)             | PG-A3, PG-A4 |
+| Owner-role passwords                                                                                  | the app's namespace and the database namespace serving it | `<app prefix>/database-owner` (D5)  | PG-A3, PG-A4 |
+| Harbor push robot, staging pins App key, status App key                                               | the CI cluster's `ci-<tenant>` namespace                  | `ci/<tenant>/`                      | CI-A3        |
 
 Each namespace that reads gets its `secret-reader`, its SecretStore in `secret-sync` and its
 role (D5) in the revision that adds its first ExternalSecret. The old cluster's Secrets,
@@ -668,18 +673,18 @@ initialisation is per cluster.
 
 ## Owner inputs
 
-| Input                         | Assumed                                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Recovery shares               | three, threshold two, all in both escrow places, which splits nothing; seal keys kept 30 days after rotation |
-| Operator login                | an Auth0 application in the existing tenant with MFA, its callback on the operator's own machine             |
-| Break-glass                   | the legacy generate-root endpoints on an in-pod unix socket only (D3)                                        |
-| Path scheme                   | `kv/platform/…`, `kv/tenants/<tenant>/<environment>/…`, and a mount `ci` for the CI cluster                  |
-| Database grants               | `<app prefix>/database-owner` paths, read by the database namespace that serves the app's environment (D5)   |
-| Store modes                   | `first-init`, `steady`, `restore`, with the marker refusal in `steady` and closed listeners otherwise        |
-| Platform interface            | values through a tenant-scoped token, configuration through Git and `apply` (D6)                             |
-| Off-region copy               | none; a region loss of the object store loses the snapshots (D11), owned by a later change                   |
-| Operator subject              | the owner's Auth0 user id, held in the private fleet repository (D7)                                         |
-| Bootstrap ciphertext location | the private fleet repository, because this one is public                                                     |
+| Input                         | Assumed                                                                                                                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery shares               | three, threshold two, all in both escrow places, which splits nothing; seal keys kept 30 days after rotation                                                                                                     |
+| Operator login                | an Auth0 application in the existing tenant with MFA, its callback on the operator's own machine                                                                                                                 |
+| Break-glass                   | the legacy generate-root endpoints on an in-pod unix socket only (D3)                                                                                                                                            |
+| Path scheme                   | `kv/platform/…`, `kv/tenants/<tenant>/<environment>/…`, and a mount `ci` for the CI cluster                                                                                                                      |
+| Database grants               | `<app prefix>/database-owner` paths, read by the database namespace that serves the app's environment (D5)                                                                                                       |
+| Store modes                   | `first-init`, `steady`, `restore`, with the marker refusal in `steady` and closed listeners otherwise                                                                                                            |
+| Platform interface            | values through a tenant-scoped token, configuration through Git and `apply` (D6)                                                                                                                                 |
+| Off-region copy               | a second S3 bucket in a region other than the servers' (plan R6); the copy into it is the follow-up `openbao-offsite-snapshots`, and until it lands a region loss of the backup bucket loses the snapshots (D11) |
+| Operator subject              | the owner's Auth0 user id, held in the private fleet repository (D7)                                                                                                                                             |
+| Bootstrap ciphertext location | the private fleet repository, because this one is public                                                                                                                                                         |
 
 ## Risks / Trade-offs
 
@@ -698,7 +703,8 @@ initialisation is per cluster.
 - Root on the CI server reads every `ci/<tenant>/` path (D7).
 - Revocation covers store access, not synced copies: a revoked reader keeps the Secret it has
   until the value is rotated; an orphaned Secret stays until the runbook removes it (D4).
-- A loss of the object store's region loses every snapshot; the escrowed material and a cold
+- Until the follow-up `openbao-offsite-snapshots` copies them to the off-region bucket, a loss
+  of the backup bucket's region loses every snapshot; the escrowed material and a cold
   rebuild with an empty store remain (D11).
 - Audit completeness is bounded by the log pipeline and its retention, and before stage 3 by
   the pod log and a 2 GiB claim on one node.

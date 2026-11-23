@@ -22,17 +22,13 @@ step's receipt also includes `tool-fleet:health`'s reading of the store's audit 
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35 and R45 to R55 in design.md and overrules by id.
-      This change has no open question. He may overrule R34 (dev is delivered by a
-      follow-up change), R35 (the CI cluster is one trust zone), and R49 to R53, which the
-      planning session set on 2026-11-22 while he was away: no public SSH rule, the CI
-      server's size, no public webhook, Tailnet Lock with `sshd`, the schema hook for
-      WBS staging; R55, the bastion as the SSH path with Tailscale kept as the target for
-      the interfaces; and the controller on
-      his laptop only (design decision 10). Rows marked decided record his
-      answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated, as decisions in verify.md. Until then only
-      slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
-      follows them.
+- [x] 0.1 Owner reads assumptions R1 to R35 and R45 to R55 in design.md and overrules by id.
+      Done on 2026-11-24: the decisions are in [verify.md](verify.md#owner-decisions), dated,
+      and each row of design.md that he named is marked decided. He overruled R9 (storage
+      off the root disk) and R19 (an ApplicationSet), added to R6 (an S3 object store), R8
+      (a naming rule), R27 (workers clusters and labs to `puni-01`), R34 (environment names
+      `prod`, `stag` and `dev0`), R35 (its rationale) and R50 (16 vCPUs and 32 GiB), and
+      confirmed the rest as written. The slices they add are 1.10, 1.11 and the step A29.
 - [ ] 0.2 File the three decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
@@ -379,6 +375,44 @@ step's receipt also includes `tool-fleet:health`'s reading of the store's audit 
       `puni_bastion_private_interface`, is assumed `enp8s0` and the role refuses it unless the
       facts show it carrying 10.10.1.12.
 
+- [ ] 1.10 Scoped names (design decision 1, R8, R34), before A3 and before any other slice
+      writes a capability label. The owner's rule of 2026-11-24: a name PUNI defines carries
+      `puni-` and `-pv<N>`. Pull request #988 merged the short names; this slice renames
+      them for the new cluster. First it lists every old and new name it will change, each
+      with the files and the live objects that read it, and stops if a live object of the
+      old cluster is among them. Then: the capabilities of design decision 1's table in
+      `tools/tool-fleet/src/contracts.ts` (`CapabilitySchema`, `fleetCapabilities`,
+      `purposeCapabilities`, `RequiredCapabilitiesSchema`) and the CI change's `ci`, for
+      the cluster `platform-2`, its inventory `infra/ansible/inventory/production-hosts.yml`
+      and the CI cluster; the k3s templates write the label `puni.dev/capability-<rest>=true`,
+      where `<rest>` is the scoped name without its `puni-` prefix; the other names PUNI defines that the new tree reads (keys under
+      `puni.dev/`, the taint `puni.dev/role`) as the list states; the environment names in
+      merged code the new tree reads, the WBS overlay `deploy/k8s/wbs/overlays/staging`
+      becoming `stag` in the copy slice 3.5 makes. The old cluster `platform`, its live
+      labels and namespaces, the workers clusters and the labs keep their names until they
+      are retired (3.4) or move to `puni-01` (R27). Test: `contracts.test.ts`,
+      `infra/ansible/tests/node-roles.test.ts`. Negatives, each with its own fault: a node
+      of `platform-2` that carries an unscoped capability is refused (fault: accept both
+      forms for every cluster); the template renders `puni.dev/capability-platform-services-pv1`
+      and not `puni.dev/capability-puni-platform-services-pv1` (fault: keep the prefix in
+      the key); the old cluster's entry still decodes with its short names (fault: apply
+      the scoped names to every cluster).
+- [ ] 1.11 Attached volumes (R9, design decision 2), before A3. A host role `volumes`: the
+      inventory names each node's volumes with the size of design decision 2, a stable
+      device id and, once formatted, the filesystem UUID. The role formats a device only
+      when the inventory marks it new and it carries no filesystem; mounts by UUID under
+      `/var/lib/puni/volumes/<name>`; sets k3s's `default-local-storage-path` to the node
+      volume, so every claim of the `Retain` class lands there; gives a store with a bound
+      of its own (`platform-db`) its own volume with a static PersistentVolume; and adds
+      each volume's filesystem to the disk alerts that read the root filesystem. Where A29
+      has ruled volumes out for a node, the inventory says so and the role leaves its claims
+      on the root disk. Test: `infra/ansible/tests` with loop devices standing in for
+      volumes. Negatives, each with its own fault: an inventory volume that is absent on the
+      host is refused before k3s starts (fault: skip the presence read); a device whose
+      filesystem UUID differs from the inventory's is refused and not formatted (fault:
+      format when the UUIDs differ); a local storage path that is not on the mounted volume
+      is refused (fault: compare the path string only); a second run changes nothing.
+
 ## 2. Argo CD delivery (agent slices)
 
 Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 before stage 3;
@@ -388,17 +422,20 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `infra/argocd/install` with its SHA-256 under `manifests.argocdInstall` in
       `infra/versions/toolchain.json`, lock the `argocd` CLI of the same version under
       `binaries`, and add a schema variant that keeps retained locks readable. The
-      kustomization removes Dex, the notifications controller and the ApplicationSet
-      controller; pins every image by digest; sets the selector, toleration and the limits of
-      R24; sets `kustomize.buildOptions: --enable-helm`, `policy.default: role:readonly`,
+      kustomization removes Dex and the notifications controller; keeps the ApplicationSet
+      controller (R19) with its policy `create-update` and per-ApplicationSet overrides off,
+      reading those settings' names in the vendored manifest and the v3.6.2 documentation;
+      pins every image by digest; sets the selector, toleration and the limits of
+      R24, the ApplicationSet controller's 256 MiB among them; sets `kustomize.buildOptions: --enable-helm`, `policy.default: role:readonly`,
       `application.sync.requireOverridePrivilegeForRevisionSync: "true"`,
       `server.rbac.rollback.enforce.enable: "true"`, the local account with the one grant of
       R23 and `admin.enabled: "false"`; adds the NetworkPolicy. Test:
-      `contracts.test.ts` accepts the lock and the render has four workloads. Negatives, each
-      with its own fault: changed manifest bytes are refused (fault: drop the digest
+      `contracts.test.ts` accepts the lock and the render has five workloads. Negatives, each
+      with its own fault: a render whose ApplicationSet controller policy is not
+      `create-update`, or allows overrides, is refused (fault: drop the policy read); changed manifest bytes are refused (fault: drop the digest
       comparison); a rendered image without a digest is refused; a render with an Ingress,
       with `admin` enabled or with a default role other than `role:readonly` is refused; a
-      policy that grants the account `sync` outside `production/*`, or `override` or
+      policy that grants the account `sync` outside `prod/*`, or `override` or
       `rollback` anywhere, is refused (fault: widen the grant to `*/*`); a render without the
       override setting is refused; a render without the rollback setting is refused (fault:
       drop the key); a render with the health customization for `argoproj.io/Application` is
@@ -434,32 +471,33 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       ignore rule and `RespectIgnoreDifferences=true` fails the `delivery` check (fault:
       remove the rule).
 - [ ] 2.4 Application graph and the `delivery` check family. Add the root Application and the
-      `root` AppProject under `infra/argocd/root`; the `platform`, `staging` and `production`
-      AppProjects and one Application file per unit of orders 0 to 3 under
-      `infra/argocd/clusters/platform-production`; and `tools/tool-fleet/src/argocd.ts`,
+      `root` AppProject under `infra/argocd/root`; the `platform`, `stag` and `prod`
+      AppProjects and one ApplicationSet per project (R19) under
+      `infra/argocd/clusters/platform-production`, and one Application file per unit of
+      orders 0 to 3 under `infra/argocd/apps`; and `tools/tool-fleet/src/argocd.ts`,
       wired into `tool-fleet:check`. The check refuses each of the following. Each letter has
       its own negative and its own row in `check-faults.ts`, whose fault is that rule removed.
       (a) An Application outside its project's sources or destinations, one of a project
       other than `ci` with a destination other than the in-cluster API (a `ci`
       Application names the CI cluster only, by the CI change's rule), or one with a
-      `targetRevision` other than `main` in its file. A `staging` or `production` project whose destinations are not exactly the
+      `targetRevision` other than `main` in its file. A `stag` or `prod` project whose destinations are not exactly the
       namespaces the `namespaces` unit declares for it, named one by one: a wildcard,
       `argocd`, the store's namespace or any namespace outside that list is refused; one
       that admits a cluster-scoped kind or a Namespace; one without a
       `namespaceResourceWhitelist`, or whose list names a kind its overlays do not render. A
-      `staging` project with a source other than the staging pins repository and, until
+      `stag` project with a source other than the staging pins repository and, until
       their owner moves them, the fleet repository's staging overlays of the website and
-      the request app; a `production` project that names the pins repository. A
+      the request app; a `prod` project that names the pins repository. A
       `platform` Application whose objects land in an app namespace, unless it is
       `namespaces`, `policy` or `secret-sync`, which write there by design (design decision
       3). A fleet-sourced Application in `platform` other than `public-issuers` at its one
-      path. Three negatives of its own: a `staging` project widened to `argocd`; one widened
+      path. Three negatives of its own: a `stag` project widened to `argocd`; one widened
       to the store's namespace (fault: refuse only a namespace of the other environment, as
       an earlier draft did); and a platform unit other than those three that renders into a
       staging namespace (fault: exempt the whole `platform` project). (b) Automation in the
-      wrong place: a `staging`
+      wrong place: a `stag`
       Application without automated `prune`, `selfHeal` and a retry policy, or with
-      `allowEmpty`; a `production`
+      `allowEmpty`; a `prod`
       or `platform` Application with automated sync; a root without automated self-heal, or with
       prune; any Application with the resources finalizer. (c) A `puni.dev/sync-order`,
       `puni.dev/needs` or project that is missing or differs from the table of design
@@ -480,18 +518,22 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       without `Prune=false` and `Delete=false`. (h) A Distribution workload. (i) A Job that
       carried Flux's `force` annotation without `Force=true,Replace=true`. (j) A kustomize
       unit that inflates a chart whose archive has a `crds/` directory at any depth without
-      `includeCRDs: true`, or a Helm source of such a chart with `skipCrds`. (k) A `staging`
+      `includeCRDs: true`, or a Helm source of such a chart with `skipCrds`. (k) A `stag`
       Application whose source is a production overlay, or the reverse; an ExternalSecret
-      in one environment whose store path names the other; a pod template of a `staging`
+      in one environment whose store path names the other; a pod template of a `stag`
       Application that does not select the capability `nonproduction`, or one of a
-      `production` Application that does not select `product`; a rendered object of a
+      `prod` Application that does not select `product`; a rendered object of a
       staging or production Application (an environment value, a ConfigMap value, a
       NetworkPolicy peer, an ExternalName) that names a namespace of the other or a
       Service in one; and an egress allow in a non-production namespace, from the `policy`
       unit or an overlay, that covers the bastion's address, read from the inventory's
       `bastion` group: an egress rule with no `to`, or an `ipBlock` whose CIDR contains
       that address and whose `except` does not exclude it. (l) Anything in the root's source path
-      that is not an Application or an AppProject; a `root` project that admits another kind
+      that is not an ApplicationSet or an AppProject;
+      an ApplicationSet with a generator other than the Git files generator on this
+      repository at `main`, with `templatePatch`, with a progressive sync, without
+      `preserveResourcesOnDeletion: true`, or whose template sets automated sync outside
+      the `stag` project; an Application file that holds a sync policy; a `root` project that admits another kind
       or a destination other than the `argocd` namespace; an Application file with an
       `operation` block; an Application in the `root` project other than the root; an
       AppProject file with `roles` or `syncWindows`; a file in the root's path that defines
@@ -521,7 +563,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       request #935 gives it; negatives: one of each kind (fault: check Ingress only), a
       NodePort Service in a staging overlay (fault: read the `platform` and `ci`
       projects only), and an Ingress of the operator's class passes. (r) The tenant label (design decision 13):
-      a namespace of a `staging`, `production`, CI or database unit without
+      a namespace of a `stag`, `prod`, CI or database unit without
       `puni.dev/tenant`, and an object in such a namespace that carries another tenant's
       label; negatives: one of each (fault: read namespaces only).
 - [ ] 2.5 Bootstrap and sync playbooks, and the controller that runs them.
@@ -598,7 +640,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Application's, and refused a rollback; a manual edit reverted on staging and left in
       place and reported OutOfSync on production; a merge left unapplied on production until a
       sync; automation switched on in the cluster for a production Application and switched
-      off again by the root; an Application file removed and its object left in place; an
+      off again by the ApplicationSet controller; an Application file removed and its
+      object left in place under `create-update`; an
       `operation` block refused by the check; a deleted manifest whose claim survived; a unit
       reduced to its marker and synced with prune losing its workloads and keeping its claim,
       then removed by the removal mode; (j) the playbook refusing a unit whose need is
@@ -687,8 +730,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       has a solver, which carries `warn` and `audit` as `wbs-solver` does today and is held
       by slice 3.8's trusted-hostpath policy; an admission policy, in the form the
       trusted-workload policies use (`ValidatingAdmissionPolicy`), that denies a pod in a
-      `staging` or `dev` namespace without the `nonproduction` selector and one in a
-      `production` namespace without `product`, with no exemption; an admission policy
+      `stag` or `dev0` namespace without the `nonproduction` selector and one in a
+      `prod` namespace without `product`, with no exemption; an admission policy
       that denies an Ingress, a Traefik `IngressRoute` or `IngressRouteTCP`, or a
       Certificate whose host is not in its namespace's list, or that names no host, a
       wildcard or a host pattern; the lists as one ConfigMap in a platform namespace,
@@ -698,18 +741,18 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       default-deny NetworkPolicy, ingress and egress, in every non-production namespace,
       the three dev ones included, whose egress allows never cover the bastion's address
       (rule 2.4(k)), the quotas summing to no more than the non-production rows of design
-      decision 2; an admission policy that denies a pod in a `staging` or `dev` namespace
+      decision 2; an admission policy that denies a pod in a `stag` or `dev0` namespace
       that names a `priorityClassName`, so that none can take the class slice 2.8 gives
       the observability units, with which they share a node in the minimal profile; in every app namespace an allow, by `ipBlock`, for Traefik, which runs on
       the host network, to reach pods that carry cert-manager's HTTP-01 solver label, with
       the addresses the k3d case below shows; the `namespaceResourceWhitelist` of the
-      `staging` project. Test: the policy suite on disposable k3d and the `delivery`
+      `stag` project. Test: the policy suite on disposable k3d and the `delivery`
       check; on k3d also a solver-shaped pod under the default-deny, reached from a
       host-network pod on its own node and from one on another node, with the source
       address each shows recorded in verify.md. Negatives, each with its own fault and
       `Proof:` comment: a pod in a staging namespace that selects `product` is denied
       (fault: match the namespace's name, not its label); a pod in a dev namespace with no
-      selector is denied (fault: bind the policy to `staging` alone); a pod in a staging
+      selector is denied (fault: bind the policy to `stag` alone); a pod in a staging
       namespace that names `puni-observability`, or any class, is denied (fault: deny that
       one name only); a privileged pod,
       and one with a `hostPath`, applied to a staging namespace is refused by Pod Security
@@ -801,7 +844,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `metadata.name` alone); a pod applied to `cattle-system` with a selector for another
       capability is admitted with the namespace's selector added and is never scheduled
       off the platform node (fault: leave the annotation off the namespace); a pod there
-      with `puni.dev/capability-platform-services: "false"` is refused (fault: leave the
+      with `puni.dev/capability-platform-services-pv1: "false"` is refused (fault: leave the
       annotation off the namespace); `IMPERATIVE_API_DIRECT` patched to "false" fails rule (y) (fault: read
       only the variables the values set). Rehearsal, part **2.7/A27** of slice 2.7, before A27, in two passes on the k3d
       lab. First on a cluster of the tainted server alone, with no agent: `rancher` Synced
@@ -865,8 +908,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       record. The Flux paths of the old cluster are removed by a later change. Test:
       `bunx nx run tool-fleet:check`.
 - [ ] 3.5 Before A18's WBS part and A20. Owner: the WBS deploy tooling's owner; this change
-      states what the overlays have to hold and checks it. The `staging` overlay renders namespaces of its own, the solver
-      one being `wbs-solver-staging` (slice 3.8), and carries that namespace's parameter
+      states what the overlays have to hold and checks it. The `stag` overlay renders namespaces of its own, the solver
+      one being `wbs-solver-stag` (slice 3.8), and carries that namespace's parameter
       ConfigMap, whose backend digest the staging build sets when it renders the overlay
       (design decision 1), and renders without a cluster; both
       overlays carry the selector patches of design decision 1, a backup prefix per decision
@@ -911,7 +954,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       revision as unknown); the unit without its backup CronJob fails rule 2.4(n)
       (fault: add `mlflow` to that rule's exemption table). Stop: on a copy of the real
       store, taken read-only, `alembic_version` is absent or holds more than one row.
-      Then the slice reports before A15.
+      Then the slice reports before A15. The artifact root moves to an S3 prefix (R9) by a
+      later revision of the unit, after A15 has crossed the store as read.
 - [ ] 3.7 Before A23, which A18's WBS part waits for (R20, R31, R35, design decision 9).
       Owners: the WBS deploy tooling's owner for the build entrypoint and a staging
       overlay that renders at a commit; the release bootstrap's owner for whether the
@@ -966,13 +1010,13 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       alone.
 - [ ] 3.8 Before A17's solver step and A18's WBS part (R32, R29). The solver bound per
       environment, with one pod caller on a node each. In `tools/tool-remote-scripts`: the
-      supervisor's closed caller list gains `k8s_wbs-solver-staging_backend`; in
+      supervisor's closed caller list gains `k8s_wbs-solver-stag_backend`; in
       `solver-supervisor-image-map.ts` the decoder accepts a null caller image for that name,
       as it does for `wbs-dev-src`, and keeps throwing for `k8s_wbs-solver_backend` and every
       other pod caller, with the existing `Proof:` comment and test kept and a new pair
       beside them. In the new tree's `policy` unit only (the Flux copy is not edited): the
       trusted-hostpath policy admits, per environment, one namespace and one selector
-      (`wbs-solver` with `product`; `wbs-solver-staging` with `nonproduction`) and the one
+      (`wbs-solver` with `product`; `wbs-solver-stag` with `nonproduction`) and the one
       host directory, and no dev namespace; the namespace-label policy reserves both names;
       each environment has its own parameter ConfigMap and binding, production's left out of
       the tree as today and staging's read from the staging overlay. In the `solver` role:
@@ -1011,7 +1055,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `trusted-issuer-audience-check-cli.ts` on the live store with the candidate's
       environment, as the release coordinator does before its snapshot, and fails on
       either refusal or on a candidate that lacks either file; runs
-      `migrate-status-cli.ts --capture` with target `staging`, the source commit as
+      `migrate-status-cli.ts --capture` with target `stag`, the source commit as
       attempt and the image digest as candidate; exits 0 when the pending set is empty,
       having written nothing; otherwise requires free space on the claim of at least
       twice the store's size plus 1 GiB, takes a
@@ -1164,16 +1208,21 @@ this change reserves is step A25, so those namespaces are not an open end.
       in part on 2026-11-22: m1plat1 exists at 8 vCPUs, 32 GB and 200 GB, Ubuntu 26.04.1,
       10.10.1.11, with its public SSH closed in the panel firewall and reached through the
       bastion; its receipt is still to be read, through the bastion, and its `free -m`
-      replaces the assumed 31,204 MiB of design decision 2 by a commit. Receipt: `/etc/machine-id`, the SSH host key fingerprint, the private address and
-      interface and its MTU, `nproc`, `free -m`, `df -h /` and `df -B1 --output=size /`; for
+      replaces the assumed 31,204 MiB of design decision 2 by a commit. The owner also
+      creates its volumes in the provider console and attaches them to it (R9): 94 GiB for
+      its claims and 30 GiB for `platform-db` (design decision 2). Receipt: `/etc/machine-id`, the SSH host key fingerprint, the private address and
+      interface and its MTU, `nproc`, `free -m`, `df -h /`, `df -B1 --output=size /` and
+      `lsblk -b` for the attached volumes and their stable ids; for
       each server, that the panel firewall allows outbound traffic explicitly, admits
       Tailscale's UDP port inbound so that connections are direct, and holds no other
       inbound public rule but what the role serves, read as yes or no, with no address.
       Stop: the host is not on the private network, answers on any public port, or its root
-      filesystem's size in bytes is under its role's minimum, 182 × 2³⁰ bytes here (design
-      decision 2). For m1plat1 the exit is already decided: under that floor and at or above
-      169 × 2³⁰ bytes, the drill's row of design decision 2 shrinks to 20 GiB by a commit and
-      the step goes on; under 169, it stops; the same stop holds for every server this
+      filesystem's size in bytes is under its role's minimum, 50 × 2³⁰ bytes here, or a
+      volume is missing or smaller than design decision 2 names. Where A29 rules volumes
+      out, the fallback minimum applies, 182 × 2³⁰ bytes here, and for m1plat1 the exit is
+      already decided: under that floor and at or above 169 × 2³⁰ bytes, the drill's row of
+      design decision 2 shrinks to 20 GiB by a commit and the step goes on; under 169, it
+      stops; the same stop holds for every server this
       plan creates, each against its own minimum, whatever provider it comes from. Rollback: delete the server. A server used
       for the rehearsal of 2.7 is deleted first; this receipt is of the server that stays.
       If the rehearsal runs on m1plat1, its system is reinstalled afterwards and this
@@ -1192,7 +1241,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       a copy of each original into both escrow places. Receipt: "escrowed" per secret beside
       its escrow entry, and "restored on a second machine" for the age identity. Stop: an
       escrow place is unavailable. Rollback: discard the files; nothing uses them yet.
-- [ ] A3 Bootstrap the server, after 1.1, 1.2, the first 1.3, A26 and the receipt 2.7/A3. Who:
+- [ ] A3 Bootstrap the server, after 1.1, 1.2, the first 1.3, 1.10, 1.11, A26 and the receipt 2.7/A3. Who:
       operator. Commands:
       `fleet_ansible --limit m1plat1 --extra-vars puni_preflight_stage=before-enrollment playbooks/preflight.yml`,
       `fleet_ansible --limit m1plat1 playbooks/bootstrap.yml` twice (the second prints
@@ -1201,7 +1250,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       Receipt: the device is tagged `tag:platform` and its key does not expire; SSH answers
       through the bastion and not on the tailnet address, and no public port answers; `kubectl get nodes -o wide` shows m1plat1 Ready with roles `control-plane,etcd` and the internal address 10.10.1.11,
       `flannel.1` with an MTU of 1392,
-      the label `puni.dev/capability-platform-services=true`, the taint
+      the label `puni.dev/capability-platform-services-pv1=true`, its volumes mounted by
+      UUID and k3s's local storage path on the node volume, the taint
       `CriticalAddonsOnly=true:NoSchedule` and no enrollment taint; CoreDNS, the metrics
       server and the volume provisioner Ready; CoreDNS still tolerates `CriticalAddonsOnly`.
       Stop: validation fails or the second bootstrap changes anything.
@@ -1216,7 +1266,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       on its tailnet name and on no public address; the local account logs in and is refused a sync of a
       platform unit; `admin` cannot log in; no Service of type LoadBalancer or Ingress exists
       in `argocd`. Stop: a unit is not Healthy after 20 minutes. Rollback: delete the server.
-- [ ] A5 etcd snapshots. Who: operator. Commands: create the new snapshot bucket with
+- [ ] A5 etcd snapshots. Who: operator; owner for the S3 account. Commands: create the new
+      S3 snapshot bucket (R6) with
       versioning and the one lifecycle rule of
       [recovery](../../../docs/infra/recovery.md#bucket-lifecycle), and read both back;
       `playbooks/backup.yml` with that bucket and the token fingerprint;
@@ -1254,10 +1305,23 @@ this change reserves is step A25, so those namespaces are not an open end.
       three units to their markers, revert the store's Issuer and Certificate in `cert-manager`,
       and sync both, then remove the bootstrap Secrets; the store's
       claim stays until the owner removes it.
-- [ ] A8 Measure Argo CD (R24). Who: operator. After 24 hours and one merge that changes the
-      tree, read each container's working set and `memory.stat`. Receipt: the per-container
+- [ ] A8 Measure Argo CD (R24), the ApplicationSet controller included (R19). Who: operator.
+      After 24 hours and one merge that changes the tree, read each container's working set
+      and `memory.stat`. Receipt: the per-container
       table in verify.md and the limits kept or changed by a commit. Stop: a container was
       killed for memory. Rollback: raise that limit in Git and sync `argocd`.
+- [ ] A29 Volume checks (R9), after A3 and with A6's temporary server, before A7 puts the
+      first store on a volume. Who: operator; owner for the console. Commands: in the provider
+      console, create a scratch volume and attach it to m1plat1; write a file of known
+      SHA-256 to it; detach it and attach it to the temporary server, read the SHA-256 back
+      there, and attach it to m1plat1 again; on the scratch volume and on the root disk,
+      measure sequential write throughput and the latency of synchronous 4 KiB writes with
+      the tool slice 1.11 locks; delete the scratch volume. Receipt: re-attach yes or no
+      with the read-back SHA-256, both readings for the volume and the root disk, and the
+      owner's yes or no on using volumes with those figures, in verify.md. Stop: re-attach
+      fails, or the owner says no; then each role's claims stay on the root disk, its
+      fallback minimum of design decision 2 applies to every server created afterwards, and
+      m1plat1 is read against its fallback. Rollback: detach and delete the scratch volume.
 - [ ] A24 Break-glass drill (R49), after A3. Who: owner. Commands: on his device, turn
       Tailscale off; confirm that m1plat1 answers on no public port; log in to m1plat1
       through the bastion, which needs no tailnet, and read `kubectl get nodes` there; then,
@@ -1356,9 +1420,10 @@ this change reserves is step A25, so those namespaces are not an open end.
 
 ### Stage 2: continuous integration
 
-- [ ] A9 Create the CI server. Who: owner creates as in A1, at 12
-      vCPUs and 24 GiB (R50): design decision 5 of the change `run-ci-on-argo-workflows`
-      shows that one gate does not fit 16 GiB on paper. Receipt:
+- [ ] A9 Create the CI server. Who: owner creates as in A1, at 16
+      vCPUs and 32 GiB (R50, decided 2026-11-24; the provider has no 12 vCPU and 24 GiB
+      class): design decision 5 of the change `run-ci-on-argo-workflows` shows that one gate
+      does not fit 16 GiB on paper. It has no volume: nothing on it is data kept (R9). Receipt:
       the server's memory and its disk, at or above 150 GiB. Stop: a smaller disk.
       Rollback: delete the server. The gate-host role is not applied: the server is not
       enrolled in the host pool (R31). Its identity is recorded afterwards, by slice
@@ -1376,12 +1441,13 @@ this change reserves is step A25, so those namespaces are not an open end.
 
 ### Stage 3: observability
 
-- [ ] A12 Create the observability server. Who: owner, as A1, with at least 24 GiB (R2: 12
-      vCPUs and 24 GiB assumed, 16 and 32 if the provider has no such class with the
-      disk), a root disk of at least 233 GiB and a public IPv4 address for ports 80
+- [ ] A12 Create the observability server. Who: owner, as A1, at 16 vCPUs and 32 GiB (R2;
+      the provider has no 12 vCPU and 24 GiB class, R50), a root disk of at least 38 GiB
+      and an attached volume of at least 195 GiB, or a root disk of at least 233 GiB where
+      A29 ruled volumes out (design decision 2), and a public IPv4 address for ports 80
       and 443, because it carries the non-production environments in the minimal profile.
-      Receipt: as A1. Stop: `free -m` or `df -h /` shows less, or the host has no public
-      IPv4 address. Rollback: delete the server.
+      Receipt: as A1. Stop: `free -m`, `df -h /` or the volume shows less, or the host has
+      no public IPv4 address. Rollback: delete the server.
 - [ ] A13 Join it, after its 1.3 revision, 1.4, 1.5, 2.8 and the receipt 2.7/A14. Who: operator. Commands:
       `fleet_ansible --limit m1plat1 playbooks/firewall.yml`, so the server admits the new
       address; preflight limited to h7obs; `fleet_ansible --limit h7obs playbooks/join.yml`
@@ -1389,7 +1455,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       are the bootstrap servers; then a ping with do-not-fragment set at the pod MTU, 1392
       bytes in all (`ping -M do -s 1364`), from a pod on m1plat1 to a pod on h7obs and back;
       then `tool-fleet:health`. Receipt: h7obs Ready with
-      `puni.dev/capability-observability=true`, no enrollment taint; both pings answered and
+      `puni.dev/capability-observability-pv1=true`, no enrollment taint; both pings answered and
       one of 1393 bytes refused as too large; health passing with no Rancher pod on h7obs,
       the first reading of that check that could fail. Stop: validation fails, a ping at
       1392 is lost, or a Rancher pod runs on h7obs.
@@ -1408,7 +1474,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       refused (the receipt the CI change's CI-A2 cannot take, because the receiver
       first exists here); the per-pod memory
       table; disk used and its growth per day; the test alert seen in Alertmanager and in
-      `#puni-alerts-dev`; the node's allocatable as read, which replaces the assumed 21,608
+      `#puni-alerts-dev`; the node's allocatable as read, which replaces the assumed 29,412
       in design.md by a commit. The placement sum of design decision 2 is written out
       after A15, when MLflow runs, with `O` measured over the 24 hours that follow; it is
       written again a day after A18 and a day after A20, when the apps' telemetry arrives.
@@ -1448,10 +1514,12 @@ this change reserves is step A25, so those namespaces are not an open end.
 
 - [ ] A16 Create the production apps server (minimal profile, R45). Who: owner, as A1, at 4
       vCPUs and 8 GiB as the trial of R2,
-      with a root disk of at least 50 GiB (design decision 2). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
+      with a root disk of at least 38 GiB and a volume of at least 10 GiB, or a root disk of
+      at least 50 GiB where A29 ruled volumes out (design decision 2). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
       80 and 443. Rollback: delete the server. If the sum of design decision 2 did not hold
       and the owner chose a non-production server of its own, it is created here too, as
-      the first growth step of design decision 11, with a root disk of at least 90 GiB.
+      the first growth step of design decision 11, with a root disk of at least 38 GiB and a
+      volume of at least 53 GiB, or a root disk of 90 GiB on the fallback.
 - [ ] A17 Join h6apps and give h7obs the non-production capabilities, after the 1.3
       revisions for both, slices 1.7 and 2.10, the receipt 2.7/A18, and the sum of design
       decision 2 holding for this node at the reading after A15. Who: operator. Commands: `playbooks/firewall.yml` limited to
@@ -1663,7 +1731,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       namespaces. Numbered last so that the other steps keep their ids; it follows A18
       and waits for nothing in stage 5. Precondition: the change `add-dev-environment`
       is merged and its slices have landed. Who: operator, with that change's owner.
-      Commands: that change's own steps for its `dev` project and its first
+      Commands: that change's own steps for its `dev0` project and its first
       Application, at a ref a person names. Receipt: one app answering on its dev name
       from that ref, in a namespace this change reserved, with every policy of slice
       2.10 in force and none relaxed; the dev account refused a sync of a staging or
