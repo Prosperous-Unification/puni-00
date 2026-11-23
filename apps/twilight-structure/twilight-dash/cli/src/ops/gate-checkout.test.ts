@@ -692,26 +692,77 @@ it('recovers saved detached commit when original branch moves during attachment'
   expect(git(f.tree, 'rev-parse', 'HEAD')).toBe(f.original);
   expect(git(f.tree, 'rev-parse', 'refs/heads/original')).toBe(f.candidate);
 });
+// Proof: rebinding the released number to /dev/null failed the deferred fstat witness.
+// The identity check at close passed the same reuse. Skipping native close while
+// retaining both injected causes still reported the original descriptor open.
 it('preserves repair observation and actual descriptor-close causes independently', () => {
   const f = fixture();
   git(f.tree, 'checkout', '--detach', '-q', f.candidate);
   chmodSync(join(f.tree, 'nested', 'tracked'), 0o600);
   const path = join(f.tree, 'nested', 'tracked');
-  const program = [
-    'import{mock}from"bun:test";const fs=await import("node:fs"),open=fs.openSync,chmod=fs.fchmodSync,close=fs.closeSync;let selected;',
-    'mock.module("node:fs",()=>({...fs,openSync(path,...rest){const descriptor=open(path,...rest);if(path===' +
-      JSON.stringify(path) +
-      ')selected=descriptor;return descriptor;},fchmodSync(descriptor,mode){chmod(descriptor,mode);if(descriptor===selected)throw Error("controlled chmod observation failure");},closeSync(descriptor){close(descriptor);if(descriptor===selected)throw Error("controlled close observation failure");}}));',
-    'const{runCheckout}=await import(' +
-      JSON.stringify(new URL('./gate-checkout.ts', import.meta.url).href) +
-      ');const outcome=await runCheckout(' +
-      JSON.stringify({ ...request(f), repairModes: true }) +
-      ',{path:' +
-      JSON.stringify(f.path) +
-      ',label:"repair causes",waitSeconds:0,pollSeconds:1,gitExecutable:' +
-      JSON.stringify(gitExecutable) +
-      ',lookupPath:"/usr/bin:/bin",signal:new AbortController().signal,reportAdmission:()=>Promise.resolve(),reportHead:()=>Promise.resolve(),reportFailure:()=>Promise.resolve(),reportUnconfirmed:()=>Promise.resolve(),work:()=>Promise.resolve(0)});let descriptor;try{fs.fstatSync(selected);descriptor="open";}catch(cause){if(cause.code!=="EBADF")throw cause;descriptor="closed";}const cause=outcome.value.failures.at(0)?.cause;process.stdout.write(JSON.stringify({status:outcome.value.status,descriptor,causes:cause instanceof AggregateError?cause.errors.map(failure=>failure.message):[cause?.message]}));',
-  ].join('\n');
+  const program = `
+    import { mock } from "bun:test";
+
+    const fs = await import("node:fs");
+    const { openSync: open, fchmodSync: chmod, closeSync: close, fstatSync: stat } = fs;
+    let selected;
+    let descriptorState = "unobserved";
+    mock.module("node:fs", () => ({
+      ...fs,
+      openSync(path, ...args) {
+        const descriptor = open(path, ...args);
+        if (path === ${JSON.stringify(path)}) {
+          const { dev, ino } = stat(descriptor);
+          selected = { descriptor, dev, ino };
+        }
+        return descriptor;
+      },
+      fchmodSync(descriptor, mode) {
+        chmod(descriptor, mode);
+        if (descriptor === selected?.descriptor) {
+          throw Error("controlled chmod observation failure");
+        }
+      },
+      closeSync(descriptor) {
+        const opened = selected;
+        close(descriptor);
+        if (opened === undefined || descriptor !== opened.descriptor) return;
+        selected = undefined;
+        try {
+          const occupying = stat(descriptor);
+          descriptorState = occupying.dev === opened.dev && occupying.ino === opened.ino
+            ? "open"
+            : "closed";
+        } catch (cause) {
+          if (cause.code !== "EBADF") throw cause;
+          descriptorState = "closed";
+        }
+        throw Error("controlled close observation failure");
+      },
+    }));
+
+    const { runCheckout } = await import(${JSON.stringify(new URL('./gate-checkout.ts', import.meta.url).href)});
+    const outcome = await runCheckout(${JSON.stringify({ ...request(f), repairModes: true })}, {
+      path: ${JSON.stringify(f.path)},
+      label: "repair causes",
+      waitSeconds: 0,
+      pollSeconds: 1,
+      gitExecutable: ${JSON.stringify(gitExecutable)},
+      lookupPath: "/usr/bin:/bin",
+      signal: new AbortController().signal,
+      reportAdmission: () => Promise.resolve(),
+      reportHead: () => Promise.resolve(),
+      reportFailure: () => Promise.resolve(),
+      reportUnconfirmed: () => Promise.resolve(),
+      work: () => Promise.resolve(0),
+    });
+    const cause = outcome.value.failures.at(0)?.cause;
+    process.stdout.write(JSON.stringify({
+      status: outcome.value.status,
+      descriptor: descriptorState,
+      causes: cause instanceof AggregateError ? cause.errors.map(failure => failure.message) : [cause?.message],
+    }));
+  `;
   const capture = process.env['PUNI_GATE_R5_CAPTURE'];
   if (capture !== undefined) {
     const name = randomUUID();
