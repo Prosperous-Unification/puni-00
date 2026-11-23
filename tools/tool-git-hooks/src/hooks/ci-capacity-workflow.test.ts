@@ -79,11 +79,13 @@ test('Python jobs pin the Fleet and standard hosted runtime tuples', () => {
 });
 
 // Proof: restoring the workspace 75m phase failed this workflow test.
-// Restoring the backend 90m job or 75m phase independently failed it too.
+// Proof: after run 45081960543 timed out, the old 120m backend job failed the
+// 135m assertion. Keeping the new job limit with the old 105m phase failed
+// the production timeout-command assertion.
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
   for (const [partition, title, jobMinutes, phaseMinutes] of [
     ['workspace', 'Gate', 120, 105],
-    ['backend', 'Backend', 120, 105],
+    ['backend', 'Backend', 135, 120],
     ['frontend', 'Frontend', 90, 75],
   ] as const) {
     const runtime = job(`gate_${partition}`);
