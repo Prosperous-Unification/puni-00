@@ -281,6 +281,10 @@
           },
           {
             "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-cleaned-capture.json"
+          },
+          {
+            "kind": "path",
             "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-database1.txt"
           },
           {
@@ -399,6 +403,10 @@
           {
             "kind": "suffix",
             "value": ".test.sh"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/tests/controller-run.sh"
           },
           {
             "kind": "path",
@@ -532,6 +540,10 @@
           {
             "kind": "suffix",
             "value": ".tf"
+          },
+          {
+            "kind": "path",
+            "value": "infra/access/policy.hujson"
           },
           {
             "kind": "path",
@@ -1399,6 +1411,15 @@
         "regenerationAuthority": {
           "kind": "external",
           "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-cleaned1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "apps/wbs/be-01/src/controller/resource-legacy-rename.controller.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Outgoing runtime cleanup capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-cleaned-capture.json at source 1816f5848e11c40786f7919388f98abeb330ebeb. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
         }
       },
       {

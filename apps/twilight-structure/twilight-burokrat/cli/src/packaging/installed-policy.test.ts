@@ -48,10 +48,13 @@ beforeAll(async () => {
 afterEach(() => {
   for (const path of scratchPaths.splice(0)) rmSync(path, { recursive: true, force: true });
 });
+// Proof: hosted Twilight 45081960543 removed relocation and installed toolkit trees in 73.22s and
+// failed the inherited 60s hook. Copying this callback and delaying the first removal
+// by 62s reproduced the hook timeout with the named case still passing.
 afterAll(() => {
   disposeRelocationFixtures();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+}, 120_000);
 function bind(fixture: ReturnType<typeof createFixture>, path = validator) {
   const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
     validator: { artifacts: { path: string; sha256: string }[] };

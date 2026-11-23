@@ -1986,7 +1986,7 @@ describe('shipped current-PR raw SQLite fixture boundaries', () => {
   }
 });
 
-describe('shipped current-PR OpenSpec fixture class boundaries', () => {
+describe('shipped delivery fixture and fleet class boundaries', () => {
   // Proof: openspec-fixture-collision-real-red-v378 observed all123 exact path/policy
   // two-match refusals. openspec-fixture-collision-green-controls-v379 passed them as
   // fixtures, retained unreviewed/nested refusals and preserved neighboring classes.
@@ -2015,6 +2015,8 @@ describe('shipped current-PR OpenSpec fixture class boundaries', () => {
     'legacy-input10-local.txt',
     'legacy-input9-local.txt',
     'legacy-resource-capture.json',
+    // Proof: all three policies without this exact exclusion refused the capture with two matches.
+    'legacy-resource-cleaned-capture.json',
     'legacy-resource-database1.txt',
     'legacy-resource-terminal-capture.json',
     'legacy-resource-terminal1.txt',
@@ -2092,6 +2094,37 @@ describe('shipped current-PR OpenSpec fixture class boundaries', () => {
       );
     });
 
+    // Proof: without the exact rows, all three classifiers matched zero rules for HuJSON
+    // and both the script and test rules for the controller exercise.
+    test.each([
+      ['infra/access/policy.hujson', 'config', '100644'],
+      ['infra/ansible/tests/controller-run.sh', 'test', '100755'],
+    ] as const)(
+      'classifies merged fleet %s as %s with ' + policyPath,
+      async (path, contentClass, mode) => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(workspace, path)));
+        chmodSync(join(repository, path), mode === '100755' ? 0o755 : 0o644);
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, readPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        if (classified === null || typeof classified !== 'object' || !('entries' in classified))
+          throw new Error('CLI classification lacks its entries');
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode,
+            blob: hash(repository, path),
+            classification: { kind: 'content', contentClass },
+          },
+        ]);
+      },
+    );
+
     test.each([
       ['openspec/changes/wbs-work-packages/proposal.md', 'openspec'],
       ['libs/example/fixtures/command-json-duplicates.json', 'fixture'],
@@ -2144,6 +2177,14 @@ describe('shipped current-PR OpenSpec gzip fixture boundaries', () => {
           'Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
       },
     },
+    cleanedResource: {
+      consumer: 'apps/wbs/be-01/src/controller/resource-legacy-rename.controller.db.test.ts',
+      regenerationAuthority: {
+        kind: 'external',
+        authority:
+          'Outgoing runtime cleanup capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-cleaned-capture.json at source 1816f5848e11c40786f7919388f98abeb330ebeb. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority.',
+      },
+    },
     terminal: {
       consumer:
         'apps/wbs/be-01/src/controller/resource-terminal-legacy-rename.controller.db.test.ts',
@@ -2172,6 +2213,9 @@ describe('shipped current-PR OpenSpec gzip fixture boundaries', () => {
   };
   const archives = [
     ['legacy-dash-runtime6.sqlite.gz', 'dash'],
+    // Proof: all three policies without this declaration refused the exact archive as undeclared;
+    // the ordinary-text control also missed its required declared-binary refusal.
+    ['legacy-resource-cleaned1.sqlite.gz', 'cleanedResource'],
     ['legacy-resource-database1.sqlite.gz', 'resource'],
     ['legacy-resource-terminal1.sqlite.gz', 'terminal'],
     ['legacy-runtime-database1.sqlite.gz', 'runtime'],
@@ -2180,6 +2224,7 @@ describe('shipped current-PR OpenSpec gzip fixture boundaries', () => {
   ] as const;
   const representatives = [
     'legacy-dash-runtime6.sqlite.gz',
+    'legacy-resource-cleaned1.sqlite.gz',
     'legacy-resource-database1.sqlite.gz',
     'legacy-resource-terminal1.sqlite.gz',
     'legacy-runtime-database1.sqlite.gz',

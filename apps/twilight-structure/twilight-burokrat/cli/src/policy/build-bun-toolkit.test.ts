@@ -18,9 +18,12 @@ import { readBunToolkit } from './toolkit';
 import * as moduleCopy from './trusted-modules';
 
 const roots: string[] = [];
+// Proof: hosted Twilight 45081960543 removed accumulated toolkit trees in 66.25s and
+// failed the inherited 60s hook. Copying this callback and delaying the first removal
+// by 62s reproduced the hook timeout with the named case still passing.
 afterAll(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+}, 120_000);
 const workspace = resolve(import.meta.dir, '../../../../../..');
 const provider = 'apps/twilight-structure/twilight-burokrat/cli/src/';
 function git(repository: string, args: string[]) {
