@@ -1,0 +1,16 @@
+[Unit]
+Description=Load the bastion's nftables table
+# Shaped like Ubuntu's nftables.service: the rules are in place before any network is up and
+# before sshd accepts, and stay until shutdown.
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target ssh.service shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/puni-bastion.nft
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

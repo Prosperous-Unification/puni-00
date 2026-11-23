@@ -135,6 +135,48 @@ def run(argv, extra_env):
 
 
 K3S_GROUPS = ("k3s_bootstrap_servers", "k3s_join_servers", "k3s_agents")
+# Hosts outside the cluster that a static inventory may hold: the bastion and the hosts it
+# forwards to (roles/bastion). inventory-binding.ts refuses a bastion in a k3s group.
+OUTSIDE_GROUPS = ("gate_hosts", "bastion", "bastion_forward_hosts")
+
+
+def static_inventories():
+    return [inventory for inventory in sorted(glob.glob("inventory/*.yml", root_dir=ANSIBLE_ROOT))
+            if not inventory.endswith(".hcloud.yml")]
+
+
+def host_renders():
+    """Renders tests/render-hosts.yml for every host of each static inventory, on the controller.
+
+    Each host's files (the k3s server configuration, the fleet firewall, the bastion's sshd
+    drop-in and firewall) are reported with its groups and variables for node-access.ts to
+    judge. A failed render or listing is reported as an entry with an error, never dropped.
+    """
+    renders = []
+    for inventory in static_inventories():
+        name = os.path.basename(inventory).removesuffix(".yml")
+        root = os.path.join("/tmp", "renders", name)
+        code, stdout, stderr = run(["ansible-playbook", "-i", inventory, "tests/render-hosts.yml",
+                                    "-e", f"puni_render_root={root}"], {})
+        listed_code, listed_stdout, listed_stderr = run(
+            ["ansible-inventory", "-i", inventory, "--list"], {})
+        if code != 0 or listed_code != 0:
+            renders.append({"inventory": inventory, "host": None, "groups": [], "variables": {},
+                            "files": {}, "error": (stdout + stderr + listed_stderr)[-2000:]})
+            continue
+        listed = json.loads(listed_stdout)
+        for host, variables in sorted(listed.get("_meta", {}).get("hostvars", {}).items()):
+            groups = sorted(group for group, entry in listed.items()
+                            if group != "_meta" and host in entry.get("hosts", []))
+            directory = os.path.join(root, host)
+            files = {}
+            if os.path.isdir(directory):
+                for file_name in sorted(os.listdir(directory)):
+                    with open(os.path.join(directory, file_name)) as rendered:
+                        files[file_name] = rendered.read()
+            renders.append({"inventory": inventory, "host": host, "groups": groups,
+                            "variables": variables, "files": files, "error": None})
+    return renders
 
 
 def kernel_settings():
@@ -142,8 +184,9 @@ def kernel_settings():
 
     Strict undefined, as the template module fails on a missing variable; an inventory that does
     not list is reported with its error rather than dropped, so the judgement cannot go vacuous.
-    A host in no k3s group is skipped only when it is in `gate_hosts` (h2puni is a gate host and
-    never a node); any other such host is reported, so a node cannot leave its group unnoticed.
+    A host in no k3s group is skipped only when it is in one of OUTSIDE_GROUPS (h2puni is a gate
+    host and never a node; m2bast1 is the bastion); any other such host is reported, so a node
+    cannot leave its group unnoticed.
     """
     import jinja2
 
@@ -151,9 +194,7 @@ def kernel_settings():
         template = jinja2.Environment(undefined=jinja2.StrictUndefined,
                                       keep_trailing_newline=True).from_string(source.read())
     rendered = []
-    for inventory in sorted(glob.glob("inventory/*.yml", root_dir=ANSIBLE_ROOT)):
-        if inventory.endswith(".hcloud.yml"):
-            continue
+    for inventory in static_inventories():
         code, stdout, stderr = run(["ansible-inventory", "-i", inventory, "--list"], {})
         if code != 0:
             rendered.append({"inventory": inventory, "host": None, "capabilities": None,
@@ -170,10 +211,10 @@ def kernel_settings():
         # tool-fleet:check fail naming that host; refusing every non-k3s host failed it on h2puni.
         for host, variables in sorted(hostvars.items()):
             if host not in k3s_hosts:
-                if host not in members("gate_hosts"):
+                if not any(host in members(group) for group in OUTSIDE_GROUPS):
                     rendered.append({"inventory": inventory, "host": host, "capabilities": None,
                                      "rendered": None,
-                                     "error": "in no k3s group and not in gate_hosts"})
+                                     "error": "in no k3s group and not in " + ", ".join(OUTSIDE_GROUPS)})
                 continue
             entry = {"inventory": inventory, "host": host,
                      "capabilities": variables.get("puni_node_capabilities"),
@@ -216,6 +257,7 @@ def main():
         })
     server_thread.shutdown()
     report["kernelSettings"] = kernel_settings()
+    report["hostRenders"] = host_renders()
     json.dump(report, sys.stdout)
 
 

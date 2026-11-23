@@ -453,8 +453,13 @@ describe('the Ansible host and k3s contract', () => {
     expect(joinPlaybook).toContain('k3s_join_servers');
     expect(joinPlaybook).toContain('puni_k3s_cluster_init: false');
     expect(joinPlaybook).toContain('k3s_agents');
-    expect(base).toContain('puni_operator_authorized_keys is defined');
-    expect(base).toContain('content: |');
+    const operator = await readFile(
+      join(root, 'infra/ansible/roles/base/tasks/operator.yml'),
+      'utf8',
+    );
+    expect(base).toContain('ansible.builtin.include_tasks: operator.yml');
+    expect(operator).toContain('puni_operator_authorized_keys is not string');
+    expect(operator).toContain('ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml');
     expect(base).toContain('puni_swap_file_mib is defined');
     expect(base).toContain("ansible_distribution_version in ['24.04', '26.04']");
     expect(base).toContain('- jq');
@@ -1088,9 +1093,75 @@ describe('the Ansible host and k3s contract', () => {
     expect(tasks).not.toMatch(/groups:.*sudo/);
   });
 
+  it('appends the enrollment toleration to CoreDNS and keeps the packaged ones', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const play = parse(
+      await readFile(join(root, 'infra/ansible/playbooks/validate-enrollment.yml'), 'utf8'),
+    ) as {
+      tasks: { name: string; when?: string; args?: { stdin?: string }; [key: string]: unknown }[];
+    }[];
+    const task = play[0].tasks.find(
+      ({ name }) => name === 'Allow CoreDNS to start while enrollment remains restricted',
+    );
+    // A strategic patch replaces `tolerations`, which has no merge key, and drops the packaged
+    // CriticalAddonsOnly toleration a platform-services server needs (slice 1.2).
+    expect(String(task?.['ansible.builtin.command'])).toContain('--type=json');
+    expect(JSON.parse(task?.args?.stdin ?? 'null')).toEqual([
+      {
+        op: 'add',
+        path: '/spec/template/spec/tolerations/-',
+        value: { key: 'puni.io/enrollment', operator: 'Exists', effect: 'NoSchedule' },
+      },
+    ]);
+    expect(task?.when).toContain("selectattr('key', 'equalto', 'puni.io/enrollment')");
+  });
+
+  it('creates the operator before the network role in firewall.yml', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const read = async (path: string) =>
+      parse(await readFile(join(root, 'infra/ansible', path), 'utf8')) as unknown;
+    const [play] = (await read('playbooks/firewall.yml')) as {
+      tasks: {
+        when?: string;
+        'ansible.builtin.include_role'?: { name: string; tasks_from?: string };
+      }[];
+    }[];
+    const included = play.tasks.map((task) => task['ansible.builtin.include_role']);
+    const operator = included.findIndex((role) => role?.tasks_from === 'operator.yml');
+    const network = included.findIndex((role) => role?.name === 'network');
+    // The fresh login that confirms a separated firewall logs in as this operator, and A26 runs
+    // before base (A3) creates it otherwise.
+    expect(operator).toBeGreaterThanOrEqual(0);
+    expect(operator).toBeLessThan(network);
+    expect(play.tasks[operator].when).toBe('puni_public_ports is defined');
+    // The key check compares against the very list operator.yml installs.
+    const installs = (
+      (await read('roles/base/tasks/operator.yml')) as { vars?: { puni_keys?: string } }[]
+    ).find((task) => task.vars?.puni_keys !== undefined)?.vars?.puni_keys;
+    const checks = (
+      (await read('roles/network/tasks/inputs.yml')) as {
+        vars?: { puni_fresh_authorized_keys?: string };
+      }[]
+    ).find((task) => task.vars?.puni_fresh_authorized_keys !== undefined)?.vars
+      ?.puni_fresh_authorized_keys;
+    expect(installs).toBe('{{ puni_operator_authorized_keys }}');
+    expect(checks).toBe(installs);
+  });
+
+  it("gives the bastion's jump user no login shell", async () => {
+    const root = join(import.meta.dir, '../../..');
+    const tasks = parse(
+      await readFile(join(root, 'infra/ansible/roles/bastion/tasks/main.yml'), 'utf8'),
+    ) as Record<string, { name?: string; shell?: string } | undefined>[];
+    const jump = tasks
+      .map((task) => task['ansible.builtin.user'])
+      .find((user) => user?.name === 'jump');
+    expect(jump?.shell).toBe('/usr/sbin/nologin');
+  });
+
   it('ships no role defaults for required security or identity state', async () => {
     const root = join(import.meta.dir, '../../..');
-    for (const role of ['base', 'network', 'storage', 'k3s_server', 'k3s_agent']) {
+    for (const role of ['base', 'network', 'storage', 'k3s_server', 'k3s_agent', 'bastion']) {
       const defaults = Bun.file(join(root, `infra/ansible/roles/${role}/defaults/main.yml`));
       expect(await defaults.exists()).toBe(false);
     }

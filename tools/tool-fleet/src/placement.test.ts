@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test';
 import { parse, stringify } from 'yaml';
 
 import { decodeFleet, type Fleet } from './contracts';
+import { bindInventory } from './inventory-binding';
 import {
   digestObservation,
   type FleetObservation,
@@ -35,7 +36,8 @@ async function resolvedFleet(): Promise<Fleet> {
   const input = await readDesiredInput();
   const nodes = input['nodes'] as { id: string; provider: Record<string, unknown> }[];
   for (const node of nodes) {
-    node.provider['machineId'] = node.id === 'h4claw' ? h4MachineId : h3MachineId;
+    if (node.id === 'h4claw') node.provider['machineId'] = h4MachineId;
+    if (node.id === 'h3mon') node.provider['machineId'] = h3MachineId;
   }
   return decodeFleet(input);
 }
@@ -104,7 +106,7 @@ describe('the committed production placement', () => {
       ['h3mon', ['observability']],
     ]);
     expect(
-      fleet.nodes.map(({ provider }) => (provider.kind === 'ssh' ? provider.address : '')),
+      platform.map(({ provider }) => (provider.kind === 'ssh' ? provider.address : '')),
     ).toEqual(['10.1.0.4', '10.1.0.2']);
     // h2puni (10.1.0.3) and h1claw are deliberately absent from every cluster.
     expect(fleet.nodes.map(({ id }) => id)).not.toContain('h2puni');
@@ -227,7 +229,8 @@ describe('tool-fleet plan for enrollment', () => {
     const observationPath = join(directory, 'observation.json');
     const input = await readDesiredInput();
     for (const node of input['nodes'] as { id: string; provider: Record<string, unknown> }[]) {
-      node.provider['machineId'] = node.id === 'h4claw' ? h4MachineId : h3MachineId;
+      if (node.id === 'h4claw') node.provider['machineId'] = h4MachineId;
+      if (node.id === 'h3mon') node.provider['machineId'] = h3MachineId;
     }
     await writeFile(fleetPath, stringify(input));
     await writeFile(observationPath, JSON.stringify(observation([h4Enrolled, target])));
@@ -291,7 +294,7 @@ describe('the existing-host inventory', () => {
     expect(Object.keys(groups.k3s_bootstrap_servers.hosts)).toEqual(['h4claw']);
     expect(Object.keys(groups.k3s_agents.hosts)).toEqual(['h3mon']);
     expect(Object.keys(groups.k3s_join_servers.hosts)).toEqual([]);
-    for (const node of fleet.nodes) {
+    for (const node of fleet.nodes.filter(({ cluster }) => cluster === 'platform')) {
       const host = hosts[node.id];
       if (host === undefined || node.provider.kind === 'hcloud') {
         throw new Error(`inventory lacks SSH host ${node.id}`);
@@ -305,5 +308,118 @@ describe('the existing-host inventory', () => {
         node.provider.machineId.startsWith('operator-input:') ? 'unread' : node.provider.machineId,
       );
     }
+  });
+});
+
+describe('the platform-2 inventory', () => {
+  async function readInventory(file: string): Promise<Record<string, unknown>> {
+    return parse(await readFile(join(root, 'infra/ansible/inventory', file), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+  }
+  type Groups = Record<string, { hosts: Record<string, Record<string, unknown> | null> }>;
+  const groupsOf = (inventory: Record<string, unknown>): Groups =>
+    (inventory['all'] as { children: Groups }).children;
+
+  it('binds production-hosts.yml to platform-2 beside the existing pair', async () => {
+    const fleet = decodeFleet(await readDesiredInput());
+    const bound = bindInventory(fleet, 'platform-2', await readInventory('production-hosts.yml'));
+    expect(bound.nodes).toEqual(['m1plat1']);
+    expect(bound.bastions).toEqual(['m2bast1']);
+    const legacy = bindInventory(
+      fleet,
+      'platform',
+      await readInventory('production-existing-hosts.yml'),
+    );
+    expect(legacy.nodes).toEqual(['h3mon', 'h4claw']);
+  });
+
+  it('refuses a machine id that differs between the two files', async () => {
+    // Proof: comparing node names only made this resolve instead of throw (2026-11-22).
+    const fleet = decodeFleet(await readDesiredInput());
+    const inventory = await readInventory('production-hosts.yml');
+    const server = groupsOf(inventory)['k3s_bootstrap_servers'].hosts['m1plat1'];
+    if (server === null) throw new Error('m1plat1 has no host variables');
+    server['puni_machine_id'] = 'f'.repeat(32);
+    expect(() => bindInventory(fleet, 'platform-2', inventory)).toThrow(
+      /m1plat1 machine id differs between desired\.yaml and the inventory/,
+    );
+  });
+
+  it('refuses a node present in one file only', async () => {
+    const fleet = decodeFleet(await readDesiredInput());
+    const extra = await readInventory('production-hosts.yml');
+    groupsOf(extra)['k3s_agents'].hosts['h7obs'] = {
+      ansible_host: '10.10.1.13',
+      puni_node_ip: '10.10.1.13',
+      puni_machine_id: '7'.repeat(32),
+      puni_node_capabilities: ['observability'],
+    };
+    expect(() => bindInventory(fleet, 'platform-2', extra)).toThrow(
+      /h7obs is in the inventory but not in desired\.yaml cluster platform-2/,
+    );
+    const missing = await readInventory('production-hosts.yml');
+    groupsOf(missing)['k3s_bootstrap_servers'].hosts = {};
+    expect(() => bindInventory(fleet, 'platform-2', missing)).toThrow(
+      /m1plat1 is in desired\.yaml cluster platform-2 but not in the inventory/,
+    );
+  });
+
+  it('refuses a gate host in a k3s group', async () => {
+    // Proof: skipping the gate-host comparison made this resolve instead of throw (2026-11-22).
+    const fleet = decodeFleet(await readDesiredInput());
+    const inventory = await readInventory('production-hosts.yml');
+    const groups = groupsOf(inventory);
+    groups['gate_hosts'] = { hosts: { m1plat1: {} } };
+    expect(() => bindInventory(fleet, 'platform-2', inventory)).toThrow(
+      /gate host m1plat1 is in k3s group k3s_bootstrap_servers/,
+    );
+  });
+
+  it('refuses the bastion in a k3s group or among the gate hosts', async () => {
+    // Proof: skipping the bastion group in the comparison made this fail (2026-11-22).
+    const fleet = decodeFleet(await readDesiredInput());
+    const agent = await readInventory('production-hosts.yml');
+    groupsOf(agent)['k3s_agents'].hosts['m2bast1'] = {};
+    expect(() => bindInventory(fleet, 'platform-2', agent)).toThrow(
+      /bastion m2bast1 is in k3s group k3s_agents/,
+    );
+    const gate = await readInventory('production-hosts.yml');
+    groupsOf(gate)['gate_hosts'] = { hosts: { m2bast1: {} } };
+    expect(() => bindInventory(fleet, 'platform-2', gate)).toThrow(
+      /bastion m2bast1 is in gate_hosts/,
+    );
+  });
+
+  it('refuses an enrolled address set that holds the bastion or misses a node', async () => {
+    const fleet = decodeFleet(await readDesiredInput());
+    const inventory = await readInventory('production-hosts.yml');
+    const vars = (inventory['all'] as { vars: Record<string, unknown> }).vars;
+    vars['puni_enrolled_private_addresses'] = ['10.10.1.11', '10.10.1.12'];
+    expect(() => bindInventory(fleet, 'platform-2', inventory)).toThrow(
+      /puni_enrolled_private_addresses must be exactly the node addresses 10\.10\.1\.11/,
+    );
+  });
+});
+
+describe('the otel-gateway NodePorts the separated firewall admits', () => {
+  it('are the NodePorts of the production otlp-ingress Service', async () => {
+    // Proof: changing one port in production-hosts.yml made this fail (2026-11-22).
+    const service = (
+      await readFile(
+        join(root, 'infra/platform/observability/production/otlp-ingress.yaml'),
+        'utf8',
+      )
+    )
+      .split(/^---$/m)
+      .map((document) => parse(document) as { kind?: string; spec?: { ports?: unknown } })
+      .find(({ kind }) => kind === 'Service')?.spec?.ports;
+    const nodePorts = (service as { nodePort: number }[]).map(({ nodePort }) => nodePort).sort();
+    const inventory = parse(
+      await readFile(join(root, 'infra/ansible/inventory/production-hosts.yml'), 'utf8'),
+    ) as { all: { vars: { puni_otel_gateway_node_ports: number[] } } };
+    expect([...inventory.all.vars.puni_otel_gateway_node_ports].sort()).toEqual(nodePorts);
+    expect(nodePorts).toHaveLength(2);
   });
 });

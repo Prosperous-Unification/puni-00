@@ -1,0 +1,32 @@
+---
+# Before anything changes, requires the controller's private key for the fresh login to belong
+# to one of the keys this run installs for that operator, so the confirming login can succeed
+# (tasks/fresh-connection.yml). Inputs: `puni_fresh_key_file` (on the controller) and
+# `puni_fresh_authorized_keys`.
+- name: Require the fresh login's private key file
+  ansible.builtin.assert:
+    that:
+      - puni_fresh_key_file is defined
+      - puni_fresh_key_file is match('^/')
+    fail_msg: The operator's private key file on the controller is required, from $OPS
+
+- name: Derive the public half of the fresh login's key
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    argv: [ssh-keygen, -y, -f, '{{ puni_fresh_key_file }}']
+  register: puni_fresh_public_key
+  changed_when: false
+
+- name: Require that key among the keys this run installs
+  # Proof: with this condition made true, node-roles.test.ts `refuses a fresh-login key the run
+  # does not install` failed (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - >-
+        (puni_fresh_public_key.stdout.split()[:2] | join(' '))
+        in (puni_fresh_authorized_keys | map('split') | map('batch', 2) | map('first')
+            | map('join', ' ') | list)
+    fail_msg: >-
+      {{ puni_fresh_key_file }} is not one of the authorized keys this run installs; the fresh
+      login that confirms the change would be refused

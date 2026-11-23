@@ -1,20 +1,6 @@
 ---
-- name: Require private-network inputs
-  ansible.builtin.assert:
-    that:
-      - puni_cluster_id is defined
-      - puni_cluster_id | length > 0
-      - puni_node_ip is defined
-      - puni_node_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
-      - puni_private_interface is defined
-      - puni_private_interface in ansible_interfaces
-      - puni_private_mtu is defined
-      - puni_private_mtu | int >= 1280
-      - puni_cluster_cidr is defined
-      - puni_cluster_cidr is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
-      - puni_enrolled_private_addresses is defined
-      - puni_enrolled_private_addresses | length > 0
-    fail_msg: Cluster, private address/interface/MTU, and enrolled peers are required
+- name: Require private-network inputs and the interface's MTU
+  ansible.builtin.include_tasks: inputs.yml
 
 - name: Create the fleet nftables directory
   ansible.builtin.file:
@@ -40,40 +26,81 @@
     enabled: true
     daemon_reload: true
 
-- name: Render the isolated k3s firewall candidate
-  # Proof: removing this notification made the changed-policy convergence contract test fail.
-  ansible.builtin.template:
-    src: k3s.nft.j2
-    dest: '/etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft'
-    owner: root
-    group: root
-    mode: '0600'
-  notify: Restart fleet firewall
+- name: Require the play to come through the bastion before SSH is limited to it
+  when: puni_public_ports is defined
+  ansible.builtin.include_tasks: ssh-source.yml
 
-- name: Validate the new firewall before changing active rules
-  # Proof: breaking the isolated transaction made the committed firewall contract test fail before activation.
-  ansible.builtin.command: >-
-    unshare --net nft -c -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
-  changed_when: false
+- name: Render and activate the firewall of an existing inventory
+  when: puni_public_ports is not defined
+  block:
+    - name: Render the isolated k3s firewall candidate
+      # Proof: removing this notification made the changed-policy convergence contract test fail.
+      ansible.builtin.template:
+        src: k3s.nft.j2
+        dest: '/etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft'
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Restart fleet firewall
 
-- name: Install the persistent isolated k3s firewall service
-  # Proof: removing multi-user enablement made the reboot-persistence contract test fail.
-  ansible.builtin.template:
-    src: puni-k3s-firewall.service.j2
-    dest: /etc/systemd/system/puni-k3s-firewall.service
-    owner: root
-    group: root
-    mode: '0644'
-  notify:
-    - Reload systemd for fleet firewall
-    - Restart fleet firewall
+    - name: Validate the new firewall before changing active rules
+      # Proof: breaking the isolated transaction made the committed firewall contract test fail before activation.
+      ansible.builtin.command: >-
+        unshare --net nft -c -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
+      changed_when: false
 
-- name: Start the persistent isolated k3s firewall
-  ansible.builtin.systemd_service:
-    name: puni-k3s-firewall
-    state: started
-    enabled: true
-    daemon_reload: true
+    - name: Install the persistent isolated k3s firewall service
+      # Proof: removing multi-user enablement made the reboot-persistence contract test fail.
+      ansible.builtin.template:
+        src: puni-k3s-firewall.service.j2
+        dest: /etc/systemd/system/puni-k3s-firewall.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify:
+        - Reload systemd for fleet firewall
+        - Restart fleet firewall
+
+    - name: Start the persistent isolated k3s firewall
+      ansible.builtin.systemd_service:
+        name: puni-k3s-firewall
+        state: started
+        enabled: true
+        daemon_reload: true
+
+- name: Render, load and confirm the firewall of a separated host
+  # Its rules limit SSH to the bastion, so it is kept only once a fresh login through them
+  # succeeds (tasks/confirmed-firewall.yml). New IPv6 on the private interface is dropped by the
+  # prerouting chain; IPv6 is not switched off by sysctl, which networkd resets when it
+  # configures the link.
+  when: puni_public_ports is defined
+  block:
+    - name: Install the persistent isolated k3s firewall service
+      ansible.builtin.template:
+        src: puni-k3s-firewall.service.j2
+        dest: /etc/systemd/system/puni-k3s-firewall.service
+        owner: root
+        group: root
+        mode: '0644'
+      register: puni_k3s_firewall_unit
+
+    - name: Enable the k3s firewall at boot
+      ansible.builtin.systemd_service:
+        name: puni-k3s-firewall
+        enabled: true
+        daemon_reload: true
+
+    - name: Render, load and confirm the rules
+      ansible.builtin.include_tasks: ../../../tasks/confirmed-firewall.yml
+      vars:
+        puni_fw_template: '{{ role_path }}/templates/k3s.nft.j2'
+        puni_fw_file: '/etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft'
+        puni_fw_table: inet puni_k3s
+        puni_fw_unit: puni-k3s-firewall
+        puni_fw_state_dir: /var/lib/puni/k3s-firewall
+        puni_fw_unit_changed: '{{ puni_k3s_firewall_unit is changed }}'
+        puni_fresh_user: '{{ puni_operator_name }}'
+        puni_fresh_key_file: '{{ puni_operator_private_key_file }}'
 
 - name: Verify private-path MTU without fragmentation
   ansible.builtin.command: >-

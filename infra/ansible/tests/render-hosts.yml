@@ -1,0 +1,70 @@
+---
+# Renders, on the controller and without contacting any host, the files the node and bastion
+# roles write for every host of one static inventory. `tool-fleet:check` (check-ansible.py) and
+# node-roles.test.ts judge what lands under `puni_render_root/<host>/`.
+- name: Render node and bastion files of every inventory host
+  hosts: all
+  gather_facts: false
+  connection: local
+  vars:
+    puni_render_host_root: '{{ puni_render_root }}/{{ inventory_hostname }}'
+    puni_render_server_hosts: >-
+      {{ groups.get('k3s_bootstrap_servers', []) + groups.get('k3s_join_servers', []) }}
+    puni_render_k3s_hosts: "{{ puni_render_server_hosts + groups.get('k3s_agents', []) }}"
+    puni_render_roles: '{{ playbook_dir }}/../roles'
+  tasks:
+    - name: Require the render directory
+      ansible.builtin.assert:
+        that:
+          - puni_render_root is defined
+          - puni_render_root is match('^/')
+        fail_msg: puni_render_root must name an absolute directory
+
+    - name: Create the host's render directory
+      ansible.builtin.file:
+        path: '{{ puni_render_host_root }}'
+        state: directory
+        mode: '0755'
+
+    - name: Render the k3s server configuration
+      ansible.builtin.template:
+        src: '{{ puni_render_roles }}/k3s_server/templates/config.yaml.j2'
+        dest: '{{ puni_render_host_root }}/k3s-server.yaml'
+        mode: '0644'
+      vars:
+        puni_k3s_cluster_init: "{{ inventory_hostname in groups.get('k3s_bootstrap_servers', []) }}"
+      when: inventory_hostname in puni_render_server_hosts
+
+    - name: Render the fleet firewall
+      ansible.builtin.template:
+        src: '{{ puni_render_roles }}/network/templates/k3s.nft.j2'
+        dest: '{{ puni_render_host_root }}/firewall.nft'
+        mode: '0644'
+      when: inventory_hostname in puni_render_k3s_hosts
+
+    - name: Render the sshd drop-in that refuses the console account
+      ansible.builtin.template:
+        src: '{{ puni_render_roles }}/base/templates/sshd-console.conf.j2'
+        dest: '{{ puni_render_host_root }}/sshd-console.conf'
+        mode: '0644'
+      when: inventory_hostname in puni_render_k3s_hosts and puni_console_account is defined
+
+    - name: Render the bastion's files
+      when: inventory_hostname in groups.get('bastion', [])
+      block:
+        - name: Compute the bastion's forwards as the role does
+          ansible.builtin.include_role:
+            name: '{{ puni_render_roles }}/bastion'
+            tasks_from: inputs.yml
+
+        - name: Render the bastion sshd drop-in
+          ansible.builtin.template:
+            src: '{{ puni_render_roles }}/bastion/templates/sshd.conf.j2'
+            dest: '{{ puni_render_host_root }}/bastion-sshd.conf'
+            mode: '0644'
+
+        - name: Render the bastion firewall
+          ansible.builtin.template:
+            src: '{{ puni_render_roles }}/bastion/templates/bastion.nft.j2'
+            dest: '{{ puni_render_host_root }}/bastion.nft'
+            mode: '0644'

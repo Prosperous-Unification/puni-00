@@ -1,0 +1,163 @@
+---
+# Renders a host firewall and keeps it only once a fresh controller login through it has
+# succeeded (separate-node-roles, slices 1.8 and 1.9). A marker holds the sha256 of the ruleset
+# file that login confirmed, and `confirmed.nft` a copy of it. Whenever the marker differs from
+# the file, or the table is not loaded, the run saves the live table, arms a timer that puts back
+# the last confirmed file (and loads it) or, with none, the saved table, loads the new rules, and
+# lets only the fresh login cancel the timer and write the marker. So a rerun after a failed
+# confirmation arms again rather than reporting `changed=0` with no rules, and a revert also
+# restores the file the unit loads at boot. Left open: a reboot before the timer fires loads the
+# unconfirmed file with no timer; the next run then finds no marker and arms again.
+#
+# Inputs: `puni_fw_template` (an absolute template path), `puni_fw_file`, `puni_fw_table`
+# (`<family> <name>`), `puni_fw_unit`, `puni_fw_state_dir`, `puni_fw_unit_changed`, and the
+# commands `puni_nft`, `puni_nft_check`, `puni_systemd_run` and `puni_systemctl`.
+- name: Require the firewall's inputs
+  ansible.builtin.assert:
+    that:
+      - puni_fw_template is match('^/')
+      - puni_fw_file is match('^/')
+      - puni_fw_table is match('^(inet|ip|ip6) [a-z0-9_]+$')
+      - puni_fw_unit | length > 0
+      - puni_fw_state_dir is match('^/')
+    fail_msg: The confirmed firewall needs its template, file, table, unit and state directory
+
+- name: Create the firewall's state directory
+  ansible.builtin.file:
+    path: '{{ puni_fw_state_dir }}'
+    state: directory
+    owner: '{{ puni_root_owner }}'
+    group: '{{ puni_root_group }}'
+    mode: '0700'
+
+- name: Render the ruleset
+  ansible.builtin.template:
+    src: '{{ puni_fw_template }}'
+    dest: '{{ puni_fw_file }}'
+    owner: '{{ puni_root_owner }}'
+    group: '{{ puni_root_group }}'
+    mode: '0600'
+
+- name: Validate the ruleset before changing active rules
+  # Proof: with the check replaced by `true`, node-roles.test.ts `stops on a ruleset nft
+  # refuses` failed: a broken ruleset reached the timer (2026-11-22).
+  ansible.builtin.command:
+    argv: '{{ puni_nft_check + [puni_fw_file] }}'
+  changed_when: false
+
+- name: Read the rendered ruleset's sha256
+  ansible.builtin.stat:
+    path: '{{ puni_fw_file }}'
+    checksum_algorithm: sha256
+  register: puni_fw_rendered
+
+- name: Read the marker of the last confirmed ruleset
+  ansible.builtin.slurp:
+    src: '{{ puni_fw_state_dir }}/confirmed.sha256'
+  register: puni_fw_marker
+  failed_when: false
+
+- name: Read whether the table is loaded
+  ansible.builtin.command:
+    argv: '{{ puni_nft + ["list", "table"] + (puni_fw_table | split) }}'
+  register: puni_fw_live
+  changed_when: false
+  failed_when: false
+
+- name: Load the ruleset behind a timer unless this exact file is confirmed and loaded
+  # Proof: arming on a unit change alone, and separately ignoring the table's absence, each made
+  # node-roles.test.ts `arms again on the run after a failed confirmation, and not once
+  # confirmed` fail (2026-11-22).
+  when: >-
+    puni_fw_unit_changed | bool
+    or puni_fw_live.rc != 0
+    or 'content' not in puni_fw_marker
+    or (puni_fw_marker.content | b64decode | trim) != puni_fw_rendered.stat.checksum
+  block:
+    - name: Read whether a revert of an earlier run is still pending
+      ansible.builtin.command:
+        argv: '{{ puni_systemctl + ["is-active", puni_fw_unit ~ "-revert.timer"] }}'
+      register: puni_fw_pending
+      changed_when: false
+      failed_when: false
+
+    - name: Stop while a revert is pending
+      # The live table is then the unconfirmed one: saving it would make the pending revert, and
+      # a later one, load those rules back. The run stops before it touches the saved table, the
+      # revert script or the marker; after the timer fires the next run starts afresh.
+      # Proof: with this stop removed, node-roles.test.ts `stops while a revert is pending`
+      # failed: the rerun overwrote saved-table.nft before failing to arm (2026-11-22).
+      when: puni_fw_pending.rc == 0
+      ansible.builtin.fail:
+        msg: >-
+          A revert is pending ({{ puni_fw_unit }}-revert.timer is active): an earlier run's rules
+          were not confirmed. Wait for the timer to fire, or stop it after checking the rules,
+          then run again.
+
+    - name: Save the live table for the revert
+      ansible.builtin.copy:
+        dest: '{{ puni_fw_state_dir }}/saved-table.nft'
+        content: "{{ (puni_fw_live.stdout ~ '\n') if puni_fw_live.rc == 0 else '' }}"
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0600'
+
+    - name: Write the revert, which puts back the previous file and the saved table
+      ansible.builtin.copy:
+        dest: '{{ puni_fw_state_dir }}/revert.sh'
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0700'
+        content: |
+          #!/bin/sh
+          # Armed by the fleet's confirmed firewall; a fresh login cancels it.
+          if [ -f {{ (puni_fw_state_dir ~ '/confirmed.nft') | quote }} ]; then
+            cp {{ (puni_fw_state_dir ~ '/confirmed.nft') | quote }} {{ puni_fw_file | quote }}
+            {{ puni_nft | map('quote') | join(' ') }} -f {{ puni_fw_file | quote }}
+          else
+            rm -f {{ puni_fw_file | quote }}
+            {{ puni_nft | map('quote') | join(' ') }} delete table {{ puni_fw_table }} 2>/dev/null
+            if [ -s {{ (puni_fw_state_dir ~ '/saved-table.nft') | quote }} ]; then
+              {{ puni_nft | map('quote') | join(' ') }} -f {{ (puni_fw_state_dir ~ '/saved-table.nft') | quote }}
+            fi
+          fi
+          rm -f {{ (puni_fw_state_dir ~ '/confirmed.sha256') | quote }}
+
+    - name: Drop the marker of the rules this run replaces
+      ansible.builtin.file:
+        path: '{{ puni_fw_state_dir }}/confirmed.sha256'
+        state: absent
+
+    - name: Arm the timer that reverts unless a fresh login cancels it
+      ansible.builtin.command:
+        argv: >-
+          {{ puni_systemd_run + ['--on-active=5min', '--unit=' ~ puni_fw_unit ~ '-revert',
+             '/bin/sh', puni_fw_state_dir ~ '/revert.sh'] }}
+      changed_when: true
+
+    - name: Load the new rules
+      ansible.builtin.command:
+        argv: '{{ puni_systemctl + ["restart", puni_fw_unit] }}'
+      changed_when: true
+
+    - name: Cancel the timer from a fresh login through the new rules
+      ansible.builtin.include_tasks: fresh-connection.yml
+      vars:
+        puni_fresh_command: [systemctl, stop, '{{ puni_fw_unit }}-revert.timer']
+
+    - name: Keep the confirmed ruleset for a later revert
+      ansible.builtin.copy:
+        src: '{{ puni_fw_file }}'
+        dest: '{{ puni_fw_state_dir }}/confirmed.nft'
+        remote_src: true
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0600'
+
+    - name: Record the confirmed ruleset
+      ansible.builtin.copy:
+        dest: '{{ puni_fw_state_dir }}/confirmed.sha256'
+        content: "{{ puni_fw_rendered.stat.checksum }}\n"
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0600'

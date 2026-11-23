@@ -1,0 +1,13 @@
+---
+- name: Read the installed Tailscale version
+  ansible.builtin.command: '{{ puni_tailscale }} version'
+  register: puni_tailscale_installed
+  changed_when: false
+
+- name: Require the locked Tailscale version
+  # Proof: with the version condition made always true, node-roles.test.ts `refuses an installed
+  # Tailscale other than the lock` failed (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_tailscale_installed.stdout_lines[0] == puni_tailscale_package_version
+    fail_msg: 'Tailscale {{ puni_tailscale_installed.stdout_lines[0] }} is not the locked {{ puni_tailscale_package_version }}'

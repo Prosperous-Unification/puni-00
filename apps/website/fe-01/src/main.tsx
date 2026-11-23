@@ -1,5 +1,6 @@
 import './style.css';
 
+import type { ProposalStatus, SubmissionView } from '@website/contracts';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -28,7 +29,7 @@ import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
-import { SubmissionFollowUps } from './submission-follow-ups';
+import { SubmissionInbox } from './submission-inbox';
 import {
   bindTestingReset,
   consumeChatReset,
@@ -36,15 +37,6 @@ import {
   executeChatReset,
 } from './testing-reset';
 
-interface Submission {
-  id: string;
-  description: string;
-  brief: string;
-  email: string;
-  status: string;
-  createdAt: string;
-  followUps: string[];
-}
 interface PendingProposal {
   version?: 1;
   email: string;
@@ -549,7 +541,7 @@ function ManualPage() {
 function OperatorPage() {
   const [password, setPassword] = useState('');
   const [csrf, setCsrf] = useState<string | null>(null);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionView[]>([]);
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
 
@@ -567,7 +559,7 @@ function OperatorPage() {
 
   async function loadInbox(): Promise<void> {
     try {
-      const answer = await requestJson<{ submissions: Submission[] }>('/operator/submissions');
+      const answer = await requestJson<{ submissions: SubmissionView[] }>('/operator/submissions');
       setSubmissions(answer.submissions);
       setCsrf((token) => token ?? '');
     } catch (error) {
@@ -594,13 +586,10 @@ function OperatorPage() {
     }
   }
 
-  async function advance(
-    submission: Submission,
-    status: 'reviewing' | 'contacted' | 'closed',
-  ): Promise<void> {
+  async function advance(id: string, status: Exclude<ProposalStatus, 'submitted'>): Promise<void> {
     if (!csrf) return;
     try {
-      await requestJson(`/operator/submissions/${submission.id}`, {
+      await requestJson(`/operator/submissions/${id}`, {
         method: 'PATCH',
         headers: { 'X-Puni-CSRF': csrf },
         body: JSON.stringify({ status }),
@@ -644,43 +633,11 @@ function OperatorPage() {
           <>
             <GuardrailsPanel csrf={csrf} />
             <FunnelPanel />
-            <div className="actions">
-              <button className="button secondary compact" onClick={() => void loadInbox()}>
-                Refresh inbox
-              </button>
-            </div>
-            {submissions.length === 0 && (
-              <p className="empty-state">No proposals have been submitted yet.</p>
-            )}
-            <div className="inbox">
-              {submissions.map((submission) => (
-                <article className="submission" key={submission.id}>
-                  <div className="submission-head">
-                    <span className="tag">{submission.status}</span>
-                    <time>{new Date(submission.createdAt).toLocaleString()}</time>
-                  </div>
-                  <h2>{submission.email}</h2>
-                  <p className="small">Original request</p>
-                  <p>{submission.description}</p>
-                  <p className="small">Submitted brief</p>
-                  <p className="submission-brief">{submission.brief}</p>
-                  <SubmissionFollowUps followUps={submission.followUps} />
-                  <div className="status-actions">
-                    {(['reviewing', 'contacted', 'closed'] as const).map((status) => (
-                      <button
-                        type="button"
-                        key={status}
-                        className="button secondary compact"
-                        disabled={submission.status === status}
-                        onClick={() => void advance(submission, status)}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
+            <SubmissionInbox
+              submissions={submissions}
+              refresh={() => void loadInbox()}
+              advance={(id, status) => void advance(id, status)}
+            />
           </>
         )}
         {message && (

@@ -1,0 +1,120 @@
+---
+# The SSH bastion m2bast1 (separate-node-roles, R55 and slice 1.9): the one SSH path to every
+# server. It holds no key, joins no tailnet and runs nothing but sshd. Every change that could
+# close the way in is confirmed from a fresh controller connection and undone when that fails.
+- name: Require the bastion's inventory inputs and compute its forwards
+  ansible.builtin.include_tasks: inputs.yml
+
+- name: Require the bastion's keys and console password from $OPS
+  ansible.builtin.include_tasks: keys-inputs.yml
+
+- name: Require the declared private interface to carry the bastion's private address
+  ansible.builtin.include_tasks: private-interface.yml
+
+- name: Install the bastion's packages
+  ansible.builtin.apt:
+    name: [nftables, openssh-server]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the jump user with no login shell
+  # Proof: dropping the shell line made ansible.test.ts `gives the bastion's jump user no login
+  # shell` fail (2026-11-22).
+  ansible.builtin.user:
+    name: jump
+    shell: /usr/sbin/nologin
+    password: '!'
+    create_home: true
+
+- name: Create the operator's login with a shell
+  ansible.builtin.user:
+    name: '{{ puni_operator_name }}'
+    shell: /bin/bash
+    create_home: true
+    groups: sudo
+    append: true
+
+- name: Create the SSH directories
+  ansible.builtin.file:
+    path: '/home/{{ item }}/.ssh'
+    state: directory
+    owner: '{{ item }}'
+    group: '{{ item }}'
+    mode: '0700'
+  loop: [jump, '{{ puni_operator_name }}']
+
+- name: Install the jump key alone
+  ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml
+  vars:
+    puni_keys: '{{ puni_bastion_jump_authorized_keys }}'
+    puni_keys_owner: jump
+    puni_keys_group: jump
+    puni_keys_file: /home/jump/.ssh/authorized_keys
+
+- name: Install the bastion's admin key for the operator
+  ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml
+  vars:
+    puni_keys: '{{ puni_bastion_admin_authorized_keys }}'
+    puni_keys_owner: '{{ puni_operator_name }}'
+    puni_keys_group: '{{ puni_operator_name }}'
+    puni_keys_file: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+
+- name: Install the operator sudo boundary
+  ansible.builtin.template:
+    src: ../../base/templates/operator-sudoers.j2
+    dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Change sshd, confirm a fresh login as the operator, or put the hand-made drop-in back
+  ansible.builtin.include_tasks: sshd.yml
+
+- name: Create the console account that sshd refuses
+  # The break-glass of R49: the provider's console, as this account; the drop-in above denies it
+  # and was read back before the account exists.
+  ansible.builtin.user:
+    name: '{{ puni_console_account }}'
+    shell: /bin/bash
+    password: '{{ puni_console_password_hash }}'
+    create_home: true
+    groups: sudo
+    append: true
+  no_log: true
+
+- name: Create the fleet nftables directory
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the persistent bastion firewall service
+  ansible.builtin.template:
+    src: puni-bastion-firewall.service.j2
+    dest: /etc/systemd/system/puni-bastion-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+  register: puni_bastion_unit
+
+- name: Enable the bastion firewall at boot
+  ansible.builtin.systemd_service:
+    name: puni-bastion-firewall
+    enabled: true
+    daemon_reload: true
+
+- name: Render, load and confirm the bastion firewall
+  ansible.builtin.include_tasks: ../../../tasks/confirmed-firewall.yml
+  vars:
+    puni_fw_template: '{{ role_path }}/templates/bastion.nft.j2'
+    puni_fw_file: /etc/nftables.d/puni-bastion.nft
+    puni_fw_table: inet puni_bastion
+    puni_fw_unit: puni-bastion-firewall
+    puni_fw_state_dir: /var/lib/puni/bastion-firewall
+    puni_fw_unit_changed: '{{ puni_bastion_unit is changed }}'
+    puni_fresh_user: '{{ puni_operator_name }}'
+    puni_fresh_key_file: '{{ puni_bastion_admin_private_key_file }}'

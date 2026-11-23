@@ -86,6 +86,9 @@ _Avoid_: Contract, order
 A per-UTC-day count of one funnel step — drafts, conversations started, briefs captured, exhausted conversations by reason, manual or from-chat proposal requests, ceiling-settled operations — derived only from stored funnel rows. It is shown on the operator overview and is never a browser event.
 _Avoid_: Analytics event, conversion beacon
 
+**Irrelevant proposal request**:
+A retained proposal request the operator has decided falls outside the work PUNI should pursue.
+
 **Operator inbox**:
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
 

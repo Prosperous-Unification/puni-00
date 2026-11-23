@@ -1,0 +1,39 @@
+---
+# The hosts the bastion forwards to: every k3s group and `bastion_forward_hosts`, the hosts this
+# inventory reaches outside the cluster. A group the inventory does not declare forwards nothing.
+puni_bastion_forwarded_hosts: >-
+  {{ (groups.get('k3s_bootstrap_servers', []) + groups.get('k3s_join_servers', [])
+      + groups.get('k3s_agents', []) + groups.get('bastion_forward_hosts', [])) | unique }}
+# The options `sshd -T -C user=jump,...` must report after the play, in sshd's lowercase spelling.
+puni_bastion_jump_effective_options:
+  - pubkeyauthentication yes
+  - passwordauthentication no
+  - kbdinteractiveauthentication no
+  - permitrootlogin no
+  - maxauthtries 6
+  - permittty no
+  - allowagentforwarding no
+  - x11forwarding no
+  - allowstreamlocalforwarding no
+  - permittunnel no
+  - allowtcpforwarding local
+  - "permitopen {{ puni_bastion_permit_open | join(' ') }}"
+puni_bastion_sshd: /usr/sbin/sshd
+# The AllowUsers and DenyUsers lines `sshd -T` prints, one per user, in the drop-in's order;
+# compared exactly, so an earlier or later drop-in that adds a user fails the read-back.
+puni_bastion_allowed_users:
+  - 'allowusers {{ puni_operator_name }}'
+  - allowusers jump
+puni_bastion_denied_users:
+  - 'denyusers {{ puni_console_account }}'
+puni_ssh_client: ssh
+# Run as root on the bastion: the candidate ruleset is parsed in a fresh network namespace.
+puni_nft_check: [unshare, --net, nft, -c, -f]
+puni_bastion_sshd_dir: /etc/ssh/sshd_config.d
+puni_bastion_backup_dir: /root
+puni_root_owner: root
+puni_root_group: root
+puni_sshd_reload: [systemctl, reload, ssh]
+puni_nft: [/usr/sbin/nft]
+puni_systemd_run: [systemd-run]
+puni_systemctl: [systemctl]

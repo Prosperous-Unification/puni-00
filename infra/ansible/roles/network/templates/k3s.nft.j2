@@ -1,3 +1,9 @@
+{#
+  `puni_public_ports` marks an inventory of the separated roles (separate-node-roles, slice 1.8):
+  SSH from the bastion alone, the API on the tailnet, and the prerouting chain below. Without it
+  the rendering is byte-equal to the earlier template (tools/tool-fleet/src/fixtures/firewall-existing-hosts).
+#}
+{% set puni_separated = puni_public_ports is defined %}
 destroy table inet puni_k3s
 table inet puni_k3s {
   set enrolled_ipv4 {
@@ -11,11 +17,36 @@ table inet puni_k3s {
     flags interval
     elements = { {{ puni_cluster_cidr }} }
   }
+{% if puni_separated %}
+
+  set service_ipv4 {
+    type ipv4_addr
+    flags interval
+    elements = { {{ puni_service_cidr }} }
+  }
+{% if puni_ci_private_addresses | length > 0 %}
+
+  set ci_ipv4 {
+    type ipv4_addr
+    flags interval
+    elements = { {{ puni_ci_private_addresses | join(', ') }} }
+  }
+{% endif %}
+{% endif %}
 
   chain input {
     type filter hook input priority -5; policy accept;
     iifname "lo" accept
+{% if puni_separated %}
+    iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ip daddr {{ puni_node_ip }} tcp dport 22 accept comment "SSH from the bastion alone"
+    tcp dport 22 drop
+    iifname "{{ puni_tailnet_interface }}" tcp dport 6443 accept comment "Kubernetes API over the tailnet"
+    iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport 2381 accept comment "etcd metrics"
+    iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 tcp dport 2381 accept
+    tcp dport 2381 reject with tcp reset
+{% else %}
     tcp dport 22 accept comment "retain SSH recovery"
+{% endif %}
     # Proof: removing this rule made the pod-to-API firewall contract test fail.
     # Proof: without 10250 the live QEMU lab metrics-server could not scrape its own node's
     # kubelet ("connection refused") and stayed unready after an agent retirement.
@@ -25,4 +56,32 @@ table inet puni_k3s {
     iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 udp dport 8472 accept
     udp dport 8472 drop
   }
+{% if puni_separated %}
+
+  # Before destination NAT (-100) and after connection tracking (-200), so a forwarded port such as
+  # a NodePort is covered and not only what the host listens on. Drops match new connections only:
+  # replies to the host's own connections arrive here too (design decision 12). The public side is
+  # the declared public interfaces; the network role refuses an interface no class names.
+  chain prerouting {
+    type filter hook prerouting priority -150; policy accept;
+    ct state established,related accept
+    icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+    iifname "{{ puni_private_interface }}" meta nfproto ipv6 ct state new drop comment "the private network is IPv4"
+    ct state invalid drop
+    iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ip daddr {{ puni_node_ip }} tcp dport 22 accept
+    iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ct state new drop comment "the bastion reaches sshd alone"
+{% if puni_ci_private_addresses | length > 0 %}
+    iifname "{{ puni_private_interface }}" ip saddr @ci_ipv4 ip daddr {{ puni_node_ip }} tcp dport { {{ puni_otel_gateway_node_ports | join(', ') }} } accept comment "otel-gateway from the CI server"
+{% endif %}
+    iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 ip daddr @cluster_ipv4 ct state new drop
+    iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 ip daddr @service_ipv4 ct state new drop
+    iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 tcp dport 30000-32767 ct state new drop
+    iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 udp dport 30000-32767 ct state new drop
+{% if puni_public_ports | length > 0 %}
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } tcp dport { {{ puni_public_ports | join(', ') }} } accept
+{% endif %}
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } udp dport 41641 accept comment "direct tailnet connections"
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } ct state new drop comment "public interface"
+  }
+{% endif %}
 }

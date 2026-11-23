@@ -2024,3 +2024,85 @@ test('declared body above byte cap is refused before parsing a valid intake', as
     api.close();
   }
 });
+
+test('an operator can mark any workflow status irrelevant while retaining the submission', async () => {
+  const { api, config } = fixture();
+  try {
+    const login = await api.fetch(
+      request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+    );
+    expect(login.status).toBe(201);
+    const operatorCookie = login.headers.get('set-cookie')?.split(';')[0];
+    const operatorCsrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+    const readInbox = async () => {
+      const response = await api.fetch(
+        request('/operator/submissions', 'GET', config.appOrigin, undefined, operatorCookie),
+      );
+      expect(response.status).toBe(200);
+      return (
+        (await response.json()) as {
+          submissions: { id: string; status: string; email: string; brief: string }[];
+        }
+      ).submissions;
+    };
+    const changeStatus = (id: string, status: string, csrf?: string) =>
+      api.fetch(
+        request(
+          `/operator/submissions/${id}`,
+          'PATCH',
+          config.appOrigin,
+          { status },
+          operatorCookie,
+          csrf,
+        ),
+      );
+
+    const progression = ['reviewing', 'contacted', 'closed'] as const;
+    for (let index = 0; index <= progression.length; index += 1) {
+      const email = `owner-${String(index)}@example.test`;
+      const { cookie, csrf } = await beginDraft(api);
+      const submission = await api.fetch(
+        request(
+          '/proposals',
+          'POST',
+          config.appOrigin,
+          {
+            email,
+            brief: 'Keep this submitted brief',
+            idempotencyKey: `mark-irrelevant-${String(index)}`,
+          },
+          cookie,
+          csrf,
+        ),
+      );
+      expect(submission.status).toBe(201);
+      const original = (await readInbox()).find((proposal) => proposal.email === email);
+      if (!original) throw new Error('Submission missing from the operator inbox');
+      for (const status of progression.slice(0, index))
+        expect((await changeStatus(original.id, status, operatorCsrf)).status).toBe(200);
+
+      using database = new Database(config.databasePath, { readonly: true });
+      const saved = database.query(
+        'SELECT status, email, brief, receipt FROM proposal_submission WHERE id = ?',
+      );
+      const before = saved.get(original.id);
+      expect(before).toMatchObject({ status: progression[index - 1] ?? 'submitted' });
+
+      expect((await changeStatus(original.id, 'irrelevant')).status).toBe(403);
+      expect((await changeStatus(original.id, 'irrelevant', operatorCsrf)).status).toBe(200);
+      expect((await changeStatus(original.id, 'irrelevant', operatorCsrf)).status).toBe(409);
+      expect(saved.get(original.id)).toEqual(before);
+      expect((await readInbox()).find((proposal) => proposal.id === original.id)).toMatchObject({
+        status: 'irrelevant',
+        email,
+        brief: original.brief,
+      });
+      expect(
+        (await changeStatus(original.id, progression[index] ?? 'closed', operatorCsrf)).status,
+      ).toBe(409);
+    }
+    expect(await readInbox()).toHaveLength(4);
+  } finally {
+    api.close();
+  }
+});

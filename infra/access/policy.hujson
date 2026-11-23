@@ -1,0 +1,40 @@
+// The tailnet policy (openspec/changes/separate-node-roles, design decision 12). It names tags
+// and the service's built-in groups only, never a person: this repository is public. Task 0.7
+// applies it through the vendor's API; access-policy.test.ts holds each row of the decision.
+{
+  "tagOwners": {
+    "tag:platform": ["autogroup:admin"],
+    "tag:apps": ["autogroup:admin"],
+    "tag:observability": ["autogroup:admin"],
+    "tag:ci": ["autogroup:admin"],
+    "tag:operator-host": ["autogroup:admin"],
+    "tag:ci-trigger": ["autogroup:admin"],
+    // Each cluster's Kubernetes operator owns the proxy devices it creates.
+    "tag:platform-operator": ["autogroup:admin"],
+    "tag:ci-operator": ["autogroup:admin"],
+    "tag:platform-proxy": ["tag:platform-operator"],
+    "tag:ci-proxy": ["tag:ci-operator"],
+    "tag:ci-api-proxy": ["tag:ci-operator"],
+  },
+  "grants": [
+    // The owner, as the tailnet's admins: both clusters' Kubernetes APIs and every exposed
+    // Service. No server's SSH: sshd is reached through the bastion alone (R55).
+    {
+      "src": ["autogroup:admin"],
+      "dst": ["tag:platform", "tag:ci"],
+      "ip": ["tcp:6443"],
+    },
+    {
+      "src": ["autogroup:admin"],
+      "dst": ["tag:platform-proxy", "tag:ci-proxy", "tag:ci-api-proxy"],
+      "ip": ["tcp:443"],
+    },
+    // The CI trigger and a session on the operator host start gates through the CI cluster's
+    // API server proxy, and reach nothing else.
+    {
+      "src": ["tag:ci-trigger", "tag:operator-host"],
+      "dst": ["tag:ci-api-proxy"],
+      "ip": ["tcp:443"],
+    },
+  ],
+}

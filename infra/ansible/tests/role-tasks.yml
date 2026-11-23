@@ -1,0 +1,17 @@
+---
+# Runs one task file of a role, or one shared task file, on the controller against the facts and
+# stand-ins node-roles.test.ts supplies, so each guard runs as the role runs it. Touches no host.
+- name: Run one role or shared task file on the controller
+  hosts: all
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Run the role's task file
+      when: puni_test_role is defined
+      ansible.builtin.include_role:
+        name: '{{ playbook_dir }}/../roles/{{ puni_test_role }}'
+        tasks_from: '{{ puni_test_tasks }}'
+
+    - name: Run the shared task file
+      when: puni_test_role is not defined
+      ansible.builtin.include_tasks: '{{ playbook_dir }}/../tasks/{{ puni_test_tasks }}'

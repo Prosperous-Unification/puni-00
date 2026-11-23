@@ -4876,17 +4876,17 @@ payload-agnostic, so `job-run.ts`'s `MemoryHigh` line is unchanged; the knowledg
 amendment of `design.md`, the scope-bound paragraph of `resources.md` and the measured-gate
 paragraph of `docs/infra/gate-hosts.md`.
 
-| Command                                                                                                                 | Result                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `bash bin/h2puni-gate.test.sh`                                                                                          | exit 0, `all cases passed` (case 48: 12 ok lines)                                           |
-| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                | 36 pass, 0 fail                                                                             |
-| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                 | 58 pass, 0 fail (bare `bun test` without that environment: 56 pass, 2 fail, also on `main`) |
-| `bash -n` on both changed scripts                                                                                       | exit 0                                                                                      |
-| `shellcheck -s bash bin/h2puni-gate-steps.sh bin/h2puni-gate.test.sh` (local 0.9.0; both are in `uncheckedExecutables`) | exit 0, no findings                                                                         |
-| `bunx prettier --check` on every changed Markdown file                                                                  | all matched files use Prettier code style (Prettier has no parser for the `.sh` files)      |
-| `bunx openspec validate --all --json`                                                                                   | exit 0; 346 items, 346 passed, 0 failed                                                     |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`          | exit 0 (review debt listed only for two unrelated pre-existing indexes)                     |
-| host gate                                                                                                               | not run: no host touched; the next gate on a launcher carrying this change is the proof     |
+| Command                                                                                                                 | Result                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash bin/h2puni-gate.test.sh`                                                                                          | exit 0, `all cases passed` (case 48: 12 ok lines)                                                                                                  |
+| `bun test tools/tool-devsync/src/toolchain-pins.test.ts`                                                                | 36 pass, 0 fail                                                                                                                                    |
+| `bun test ./src/policy/gate-entrypoints.test.ts` (Burokrat CLI, the project test command's environment)                 | 58 pass, 0 fail (bare `bun test` without that environment: 56 pass, 2 fail, also on `main`)                                                        |
+| `bash -n` on both changed scripts                                                                                       | exit 0                                                                                                                                             |
+| `shellcheck -s bash bin/h2puni-gate-steps.sh bin/h2puni-gate.test.sh` (local 0.9.0; both are in `uncheckedExecutables`) | exit 0, no findings                                                                                                                                |
+| `bunx prettier --check` on every changed Markdown file                                                                  | all matched files use Prettier code style (Prettier has no parser for the `.sh` files)                                                             |
+| `bunx openspec validate --all --json`                                                                                   | exit 0; 346 items, 346 passed, 0 failed                                                                                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`          | exit 0 (review debt listed only for two unrelated pre-existing indexes)                                                                            |
+| host gate                                                                                                               | run 2026-11-22 on h2puni (series 22b cold, job ad0a8150, launcher 9d5778028): the post-smoke prune printed `Total: 3.735GB` and warm1 was admitted |
 
 | Injected fault                                        | Observed                                                                                                                                                                                                |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -4998,9 +4998,10 @@ exact stdout check now drops the prune's `Total:` line.
   `keinos/sqlite3` backup still starts unlabelled containers (S21-A3, task 6.22), so a gate it
   overlaps stays attribution-incomplete until that backup carries the `puni.host-service` label
   and bounds.
-- **S27-A3** The host proof is the next calibration series on h2puni on a launcher carrying
-  this change: each run's log should end with Docker's `Total:` line, and `df` before the second
-  run should show the cache's 3.72 GB returned. The prune recovers only the cache; whether a
+- **S27-A3** The host proof is a calibration series on h2puni on a launcher carrying this
+  change: each run's log should end with Docker's `Total:` line, and `df` before the second run
+  should show the cache's 3.72 GB returned. Observed 2026-11-22: series 22b's cold run printed
+  `Total: 3.735GB` and warm1 was admitted (table above). The prune recovers only the cache; whether a
   whole three-run series then fits above 23.62 GB, given the images and whatever else a gate
   leaves, is not yet measured.
 
@@ -5131,7 +5132,7 @@ own.
 | `bunx prettier --check` on the changed files                                                                                   | all matched files use Prettier code style                                                                                                         |
 | `bunx openspec validate --all --json`                                                                                          | exit 0; 352 items, 352 passed, 0 failed                                                                                                           |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                 | exit 0                                                                                                                                            |
-| a `gate` calibration on h2puni across a backup hour                                                                            | not run: no host touched; follows the launcher refresh (S28-A2)                                                                                   |
+| a `gate` calibration on h2puni across a backup hour                                                                            | run 2026-11-22 (job ad0a8150, launcher 9d5778028): exit 0, record complete, see the host proof below                                              |
 
 | Injected fault                                                         | Observed                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -5165,8 +5166,8 @@ long-lived labelled container that was never bounded.
 - **S28-A2** The fix reaches the gate hosts only through the launcher tree: the hourly launcher
   refresh pulls `main` into `~/puni-00-gate-launcher`, from which Dash runs. A calibration
   series already running keeps the Dash it started with (h2puni's warm runs on launcher
-  b17861f83), so the series that excluded e1b18304 cannot pick it up; a new series after the
-  refresh is the host proof.
+  b17861f83), so the series that excluded e1b18304 could not pick it up; the new series after
+  the refresh (2026-11-22b, launcher 9d5778028) is the host proof recorded below.
 - **S28-A3** The threshold is a tolerance, not a proof. Dash accepts, without reading its
   bounds, a labelled host-service container that competed with the measured job for at most
   one sampling interval; its memory and CPU during that interval are unknown and unbounded by
@@ -5210,6 +5211,30 @@ long-lived labelled container that was never bounded.
 | the job's own removed container judged by lifetime | `a container labelled with this job removed before inspection stays unverified` failed: verdict `lifetime-bounded`                                                                                                |
 | the die-before-create check removed                | `a removed host-service container whose die precedes its create stays unverified` failed: verdict `lifetime-bounded`, lifetime -5.0 s                                                                             |
 | the earlier negatives rerun on the fixed code      | each still fails its test: the `No such container` branch 7, die times 5, the wait 1, the missing-die check 1, the lifetime comparison 1, the `Action` check 1, `isAttributed` 1, the shape 1, the audit branch 1 |
+
+### Host proof (h2puni, 2026-11-22)
+
+The first complete h2puni `gate` calibration record. Series `2026-11-22b` cold run, Dash job
+`ad0a8150-7fe0-4801-b1ec-242ad545bc28`, launcher `9d5778028` (carries #981), 17:32:15Z to
+22:52:24Z, `GATE_EXIT=0`, no failed Nx task. The hourly keinos/sqlite3 snapshot containers from
+claire #144 ran inside the job's window; the settlement printed, in this order:
+
+```
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 2 leftover processes in dash-job-ad0a8150-7fe0-4801-b1ec-242ad545bc28.scope after its session ended; SIGTERM
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 attributed 058694eb9e4a host-service=sqlite3-backup from its create event (ended before inspection, lifetime 0.2 s)
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 compute released: owned process group terminal and declared containers gone
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 tmp released: tmp directory removed and holds verified; uninspectable_outside_scope: 4025773 ((sd-pam)), 4025755 (systemd)
+```
+
+No `attribution incomplete` line. The Dash run record for `ad0a8150` (host-job-runs.sqlite,
+read-only) shows `attributionIncomplete` false over 109 containers: 59 host-service
+`sqlite3-backup`, 30 host-service `goaccess`, 19 bounded containers of the job's own, and the one
+`lifetime-bounded` `058694eb9e4a` (lifetime 239 ms against the 10 s sampling interval). The
+previous series (`2026-11-22a` cold, job `e1b18304`, launcher `b17861f83` without #981) ended
+with `GATE_EXIT=1` from the since-fixed `twilight-burokrat:test` fixture and with two
+`unverified: container ended or was unreadable before its bound was read` lines for the same
+backup containers, so the same host, backup and job type separate the two Dash versions. Log: `~/gate-calibrate-cold-2026-11-22b-h2.log` on
+h2puni; the record feeds `ops job propose --type gate` after the two warm runs of the series.
 
 ## Delivery integration with main, 2026-11-22
 

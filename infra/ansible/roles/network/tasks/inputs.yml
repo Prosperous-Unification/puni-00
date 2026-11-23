@@ -1,0 +1,96 @@
+---
+- name: Require private-network inputs
+  ansible.builtin.assert:
+    that:
+      - puni_cluster_id is defined
+      - puni_cluster_id | length > 0
+      - puni_node_ip is defined
+      - puni_node_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - puni_private_interface is defined
+      - puni_private_interface in ansible_interfaces
+      - puni_private_mtu is defined
+      - puni_private_mtu | int >= 1280
+      - puni_cluster_cidr is defined
+      - puni_cluster_cidr is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+      - puni_enrolled_private_addresses is defined
+      - puni_enrolled_private_addresses | length > 0
+    fail_msg: Cluster, private address/interface/MTU, and enrolled peers are required
+
+- name: Require the private interface to carry the private MTU before changing the link
+  # A VXLAN sized for the input must never ride a smaller link (separate-node-roles, slice 1.3).
+  # Proof: comparing against the 1280 minimum alone made node-roles.test.ts `refuses an interface
+  # that reports less than the private MTU` fail, 1442 passing against 1400 (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - >-
+        puni_private_mtu | int <=
+        hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))].mtu | int
+    fail_msg: >-
+      {{ puni_private_interface }} reports MTU
+      {{ hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))].mtu }},
+      below the private MTU {{ puni_private_mtu }}
+
+- name: Require the separated firewall's inputs
+  # Proof: with the ports-follow-ingress condition removed, node-roles.test.ts `refuses public
+  # web ports on a host without ingress` failed (2026-11-22).
+  # `puni_public_ports` marks an inventory of the separated roles (k3s.nft.j2); the others keep the
+  # earlier firewall. A host serves 80 and 443 exactly when it carries `ingress`, else nothing.
+  when: puni_public_ports is defined
+  ansible.builtin.assert:
+    that:
+      - puni_public_ports | map('int') | sort == ([80, 443] if 'ingress' in puni_node_capabilities else [])
+      - puni_bastion_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - puni_bastion_address not in puni_enrolled_private_addresses
+      - puni_tailnet_interface | length > 0
+      - puni_service_cidr is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+      - puni_ci_private_addresses is sequence
+      - puni_ci_private_addresses | intersect(puni_enrolled_private_addresses) | length == 0
+      - puni_otel_gateway_node_ports | length == 2
+      - puni_public_interfaces is sequence
+      - puni_public_interfaces is not string
+      - puni_public_interfaces | length > 0
+      - puni_private_interface not in puni_public_interfaces
+    fail_msg: >-
+      The separated firewall needs public ports that follow `ingress`, the bastion's address outside
+      the enrolled set, the tailnet interface, the service CIDR, the CI addresses and the two
+      otel-gateway NodePorts
+
+- name: Require every interface of a separated host to be classified
+  # The public side is the declared public interfaces; loopback, the private interface, the
+  # tailnet, the pod network (cni0, flannel.1, veth*) and container bridges (docker0, br-*), whose
+  # new outbound connections are allowed, are not. Any other interface stops the role, so a new
+  # one is never silently trusted or silently dropped.
+  # Proof: with the unclassified condition removed, node-roles.test.ts `refuses an interface no
+  # class names` failed: an unknown `eth9` passed (2026-11-22).
+  when: puni_public_ports is defined
+  ansible.builtin.assert:
+    that:
+      - puni_public_interfaces | difference(ansible_interfaces) | length == 0
+      - puni_network_unclassified | length == 0
+    fail_msg: >-
+      Declared public interfaces must exist, and no interface may be unclassified:
+      {{ puni_network_unclassified }}
+  vars:
+    puni_network_unclassified: >-
+      {{ ansible_interfaces
+         | reject('in', ['lo', puni_private_interface, puni_tailnet_interface, 'cni0', 'flannel.1',
+                         'docker0'] + puni_public_interfaces)
+         | reject('match', '^(veth|br-)') | list }}
+
+- name: Require the private interface to carry the node's address
+  # Proof: with this condition made always true, node-roles.test.ts `refuses a private interface
+  # without the node's address` failed (2026-11-22).
+  when: puni_public_ports is defined
+  ansible.builtin.assert:
+    that:
+      - >-
+        (hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))]
+        .ipv4.address | default('')) == puni_node_ip
+    fail_msg: '{{ puni_private_interface }} does not carry {{ puni_node_ip }}'
+
+- name: Require the controller's operator key to be one roles/base/tasks/operator.yml installs
+  when: puni_public_ports is defined
+  ansible.builtin.include_tasks: ../../../tasks/fresh-key.yml
+  vars:
+    puni_fresh_key_file: '{{ puni_operator_private_key_file }}'
+    puni_fresh_authorized_keys: '{{ puni_operator_authorized_keys }}'
