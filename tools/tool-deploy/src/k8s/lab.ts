@@ -12,6 +12,9 @@ import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { isMap, parseAllDocuments } from 'yaml';
+
+import { CATALOGUE_LAB_SEED, LAB_PROJECT_ID } from './catalogue-store.fixture';
 import { DependencyStatusImageMismatch } from './dependency-observation';
 import {
   backendTaskJob,
@@ -623,7 +626,7 @@ async function inBackend(script: string): Promise<string> {
 
 async function insertWorkPackage(name: string): Promise<void> {
   const out = await inBackend(
-    `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: ${JSON.stringify(name)} }) }); console.log(r.status); if (!r.ok) { console.log(await r.text()); process.exit(1); }`,
+    `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: ${JSON.stringify(JSON.stringify({ name, projectId: LAB_PROJECT_ID }))} }); console.log(r.status); if (!r.ok) { console.log(await r.text()); process.exit(1); }`,
   );
   log(`inserted work package ${name}: HTTP ${out.trim()}`);
 }
@@ -710,6 +713,39 @@ async function writesOpen(): Promise<boolean> {
   return selector === JSON.stringify({ 'app.kubernetes.io/name': 'wbs-backend' });
 }
 
+/** The first rehearsal apply starts exactly one declared backend Deployment at zero replicas. */
+export function prepareLabBootstrap(rendered: string): string {
+  const resources = parseAllDocuments(rendered);
+  let backendFound = false;
+  for (const resource of resources) {
+    const error = resource.errors.at(0);
+    // Proof: ignoring the parse error lost the malformed-stream diagnostic in lab-migration.test.
+    if (error !== undefined) throw error;
+    if (
+      resource.get('kind') !== 'Deployment' ||
+      resource.getIn(['metadata', 'name']) !== 'wbs-backend'
+    ) {
+      continue;
+    }
+    // Proof: dropping either condition accepted the duplicate or missing-spec input.
+    if (backendFound || !isMap(resource.get('spec', true)))
+      throw new Error('Rendered lab backend Deployment is duplicated or has no spec');
+    // Proof: omitting this assignment left one live backend replica in the initial apply.
+    resource.setIn(['spec', 'replicas'], 0);
+    backendFound = true;
+  }
+  // Proof: omitting this refusal accepted a ConfigMap-only initial apply.
+  if (!backendFound) throw new Error('Rendered lab backend Deployment is absent');
+  return JSON.stringify({
+    apiVersion: 'v1',
+    kind: 'List',
+    items: resources.map((resource) => {
+      const manifest: unknown = resource.toJS();
+      return manifest;
+    }),
+  });
+}
+
 async function bootstrap(
   v1: ReleaseIdentity,
   settings: Parameters<typeof kubectlEffects>[0],
@@ -717,15 +753,9 @@ async function bootstrap(
   const rendered = await renderOverlay(settings, v1);
   // First install is the F11 cutover: create everything with the backend stopped, seed and
   // migrate the database with the release's own image, then start the single writer.
-  await k(['apply', '-f', '-'], rendered);
-  await k(['-n', 'wbs-solver', 'scale', 'deployment', 'wbs-backend', '--replicas=0']);
-  const seed = backendTaskJob(settings, 'wbs-seed-lab', v1.images.backend, {});
-  const seedSpec = seed['spec'] as { template: { spec: { containers: { command: string[] }[] } } };
-  seedSpec.template.spec.containers[0].command = [
-    'bun',
-    '-e',
-    "new (require('bun:sqlite').Database)('/data/wbs.sqlite').close()",
-  ];
+  await k(['apply', '-f', '-'], prepareLabBootstrap(rendered));
+  await kubectlEffects(settings).stopWriter();
+  const seed = backendTaskJob(settings, 'wbs-seed-lab', v1.images.backend, {}, CATALOGUE_LAB_SEED);
   await k(['create', '-f', '-'], JSON.stringify(seed));
   await k([
     '-n',

@@ -11,6 +11,7 @@ import {
   LAB_MIGRATION,
   LAB_OLDER_MIGRATION,
   type LabSchema,
+  prepareLabBootstrap,
   SCHEMA_FACTS_SCRIPT,
   summarizeWriterObservation,
   watchWriters,
@@ -27,6 +28,29 @@ const BASELINE: LabSchema = {
     { id: 'package-2', name: 'f8-row-second' },
   ],
 };
+
+const LAB_BACKEND = 'kind: Deployment\nmetadata:\n  name: wbs-backend\nspec:\n  replicas: 1\n';
+
+it('applies the first k3s rehearsal backend at zero replicas', () => {
+  const mcp = 'kind: Deployment\nmetadata:\n  name: wbs-mcp\nspec:\n  replicas: 2\n';
+  expect(JSON.parse(prepareLabBootstrap(LAB_BACKEND + '---\n' + mcp))).toEqual({
+    apiVersion: 'v1',
+    kind: 'List',
+    items: [
+      { kind: 'Deployment', metadata: { name: 'wbs-backend' }, spec: { replicas: 0 } },
+      { kind: 'Deployment', metadata: { name: 'wbs-mcp' }, spec: { replicas: 2 } },
+    ],
+  });
+});
+
+it('refuses a missing, malformed or duplicated initial rehearsal backend', () => {
+  expect(() => prepareLabBootstrap('kind: ConfigMap\n')).toThrow('Deployment is absent');
+  expect(() => prepareLabBootstrap('kind: Deployment\nmetadata: [\n')).toThrow(/flow sequence/i);
+  expect(() => prepareLabBootstrap(LAB_BACKEND + '---\n' + LAB_BACKEND)).toThrow('duplicated');
+  expect(() => prepareLabBootstrap('kind: Deployment\nmetadata:\n  name: wbs-backend\n')).toThrow(
+    'has no spec',
+  );
+});
 
 it('executes the actual schema expression against current SQLite evidence with sorted sentinels', () => {
   const path = resolve(scratchSync('lab-schema-current-'), 'fixture.sqlite');

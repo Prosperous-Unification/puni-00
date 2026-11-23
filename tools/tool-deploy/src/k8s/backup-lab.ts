@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { parseAllDocuments } from 'yaml';
 
+import { CATALOGUE_LAB_SEED, LAB_PROJECT_ID } from './catalogue-store.fixture';
 import { parseSqliteReport, SQLITE_REPORT_SCRIPT } from './cutover';
 import { backendTaskJob, kubectlEffects, renderOverlay, run } from './execute';
 import type { ReleaseIdentity } from './release';
@@ -516,19 +517,21 @@ async function main(): Promise<void> {
       cronImage === identity.images.backend,
       'the rendered backup CronJob runs the release backend digest',
     );
-    for (const [name, env] of [
-      ['wbs-seed', { PUNI_TASK: 'none' }],
-      ['wbs-migrate', { PUNI_TASK: 'migrate' }],
+    await kubectlEffects(settings).stopWriter();
+    const seed = backendTaskJob(
+      settings,
+      'wbs-seed',
+      identity.images.backend,
+      {},
+      CATALOGUE_LAB_SEED,
+    );
+    const migrate = backendTaskJob(settings, 'wbs-migrate', identity.images.backend, {
+      PUNI_TASK: 'migrate',
+    });
+    for (const [name, job] of [
+      ['wbs-seed', seed],
+      ['wbs-migrate', migrate],
     ] as const) {
-      const job = backendTaskJob(settings, name, identity.images.backend, env);
-      if (name === 'wbs-seed') {
-        const spec = job['spec'] as { template: { spec: { containers: { command: string[] }[] } } };
-        spec.template.spec.containers[0].command = [
-          'bun',
-          '-e',
-          "new (require('bun:sqlite').Database)('/data/wbs.sqlite').close()",
-        ];
-      }
       await k(['create', '-f', '-'], JSON.stringify(job));
       await k([
         '-n',
@@ -550,7 +553,7 @@ async function main(): Promise<void> {
       '--',
       'bun',
       '-e',
-      `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: '${KNOWN}' }) }); console.log(r.status)`,
+      `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: ${JSON.stringify(JSON.stringify({ name: KNOWN, projectId: LAB_PROJECT_ID }))} }); console.log(r.status)`,
     ]);
     assert(inserted.trim() === '200', `known row ${KNOWN} written through the backend API`);
 

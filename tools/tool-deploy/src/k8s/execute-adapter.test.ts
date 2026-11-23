@@ -7,7 +7,11 @@ import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { migrateCatalogueStore } from './catalogue-store.fixture';
+import {
+  CATALOGUE_LAB_SEED,
+  LAB_PROJECT_ID,
+  migrateCatalogueStore,
+} from './catalogue-store.fixture';
 import type { DependencyBinaryObservation } from './dependency-observation';
 import {
   authorizationServerOfRendered,
@@ -72,6 +76,82 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  function seedLabDatabase(path: string | undefined) {
+    const env = { ...process.env };
+    if (path === undefined) delete env['DB_PATH'];
+    else env['DB_PATH'] = path;
+    return Bun.spawnSync([process.execPath, ...CATALOGUE_LAB_SEED.slice(1)], {
+      cwd: BACKEND,
+      env,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+  }
+
+  it('requires the explicit catalogue owner for a new k3s fixture before ordinary migration', () => {
+    const root = scratchSync('wbs-k3s-seed-catalogue-');
+    roots.push(root);
+    const bare = join(root, 'bare.sqlite');
+    const db = join(root, 'current.sqlite');
+    new Database(bare).close();
+    const ordinary = (path: string) => ({ DB_PATH: path, PUNI_TASK: 'migrate' });
+    expect(taskError(ordinary(bare), BACKEND)).toContain(
+      'requires the explicit atomic apply owner',
+    );
+    const before = new Database(bare, { readonly: true });
+    try {
+      expect(before.query("SELECT name FROM sqlite_schema WHERE type = 'table'").all()).toEqual([]);
+    } finally {
+      before.close();
+    }
+    const seeded = seedLabDatabase(db);
+    expect(seeded.exitCode, seeded.stderr.toString()).toBe(0);
+    const observed = new Database(db, { readonly: true });
+    let ledger;
+    try {
+      ledger = observed
+        .query<{ name: string; hash: string; created_at: number }, []>(
+          'SELECT name, hash, created_at FROM __drizzle_migrations ORDER BY created_at, name',
+        )
+        .all();
+      expect(
+        observed
+          .query(
+            'SELECT project.id, organization.legacy FROM project JOIN organization ON organization.id=project.organization_id',
+          )
+          .all(),
+      ).toEqual([{ id: LAB_PROJECT_ID, legacy: 1 }]);
+      expect(observed.query('SELECT id FROM work_package').all()).toEqual([]);
+    } finally {
+      observed.close();
+    }
+    expect(ledger).toHaveLength(119);
+    expect(task(ordinary(db)).applied).toEqual(ledger);
+  }, 30_000);
+
+  it('refuses an absent or empty k3s seed database path', () => {
+    for (const path of [undefined, '']) {
+      const refused = seedLabDatabase(path);
+      expect(refused.exitCode).toBe(1);
+      expect(refused.stderr.toString()).toContain('lab seed requires DB_PATH');
+    }
+  }, 30_000);
+
+  it('refuses to replace an existing k3s fixture database before any catalogue work', () => {
+    const root = scratchSync('wbs-k3s-seed-existing-');
+    roots.push(root);
+    const path = join(root, 'existing.sqlite');
+    const existing = new Database(path);
+    existing.run('CREATE TABLE already_owned (id INTEGER)');
+    existing.run('INSERT INTO already_owned VALUES (42)');
+    existing.close();
+    const before = readFileSync(path);
+    const refused = seedLabDatabase(path);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr.toString()).toContain('EEXIST');
+    expect(readFileSync(path)).toEqual(before);
+  });
+
   it('loads rollback admission below the schema Job memory limit', () => {
     // Proof: FORCE_COLOR=1 made numeric console.log output fail finite parsing (CI run 39935383258).
     const child = Bun.spawnSync({
