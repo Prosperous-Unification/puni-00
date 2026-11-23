@@ -98,9 +98,10 @@ volume is smaller, whatever provider or product the server comes from.
 ### Requirement: Persistent data is kept off the root disk where it can be
 
 Data SHALL go to S3 where its app supports it. Every other persistent claim SHALL land on a
-provider volume attached to its node and mounted by its filesystem UUID, with the policy
-`Retain`, unless the volume checks ruled volumes out for that node. The volume role MUST NOT
-format a device that carries a filesystem.
+provider volume attached to its node, mounted by its filesystem UUID at one claims path that
+is the same on every node and is the k3s server's one local storage path, with the policy
+`Retain`, unless the volume checks ruled volumes out for the whole cluster. The volume role
+MUST NOT format a device that carries a filesystem.
 
 #### Scenario: Volume absent on the host
 
@@ -114,8 +115,9 @@ format a device that carries a filesystem.
 
 #### Scenario: Claim on the root disk
 
-- **WHEN** k3s's local storage path on a node that has a volume is not on that volume
-- **THEN** the volume role fails and names the node
+- **WHEN** the k3s server's local storage path is not the claims path, or on any node the
+  claims path is not its volume's mountpoint when k3s would start
+- **THEN** the volume role fails before k3s starts and names the node
 
 ### Requirement: Monitoring outranks non-production on a shared node
 

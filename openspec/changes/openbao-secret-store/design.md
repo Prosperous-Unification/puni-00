@@ -86,11 +86,13 @@ tenants wait (D9).
 
 Raft data is a claim of the class the `storage` unit names for platform data, with
 `Prune=false` and `Delete=false` (plan rule 2.4(g)) and the StatefulSet's
-`persistentVolumeClaimRetentionPolicy` at `Retain` for deletion and scale-down. It shares the
-root filesystem with etcd; Harbor's data is on bounded filesystems of its own (plan decision
-2, which budgets 10 GiB for the store and the local etcd snapshots). The store runs at the
+`persistentVolumeClaimRetentionPolicy` at `Retain` for deletion and scale-down. It lies on
+the platform node's claims volume (plan R9), apart from etcd, which stays on the root disk;
+Harbor's data is on bounded filesystems of its own (plan decision 2, which budgets 5 GiB
+for the store on the volume). On R9's fallback it shares the root filesystem with etcd. The store runs at the
 default priority, 0, above Rancher's `puni-platform-interface` at −10, as the plan sets. A
-disk alert covers the root filesystem's free space (D11).
+disk alert covers the volume's free space, `PlatformVolumeDiskLow`, and on R9's fallback
+`PlatformRootDiskLow` the root filesystem's (D11).
 
 Memory: the plan assumes 1,024 MiB for the store and ESO together. Task 3.15 measures both and
 the drill instance and replaces the plan's row by a commit.
@@ -445,9 +447,10 @@ Rehearsal clusters take the same four from values made for the rehearsal (plan d
 **Snapshot storage rights.** `openbao-snapshot-storage` holds a key that can write and read
 the platform backup bucket's `openbao/` prefix and cannot delete; the bucket's lifecycle rule
 expires objects after 30 days, so retention needs no delete right and a stolen key cannot
-erase history. Not verified: that the object store issues a key scoped to one prefix without
-delete; task 4.1 reads the key's rights back, and if the provider cannot scope it, the key
-covers a bucket of its own.
+erase history. The key is an S3 key made by the owner in the plan's A2, limited to that
+prefix by its access policy. Not verified: that such a policy allows writes and reads and
+refuses deletes as written; task 4.1 reads the key's rights back, and if it cannot be
+scoped to the prefix, the key covers a bucket of its own.
 
 ### D11 Audit, backup and alerts
 
@@ -475,20 +478,20 @@ The claim requests 2 GiB and counts inside the 5 GiB the plan's decision 2 budge
 store on the platform node's volume (plan R9), beside a Raft database of a few MiB. A
 local-path claim is not bounded by its request: it shares the volume's filesystem, or the
 root filesystem on R9's fallback, so the sidecar's rotation and the disk alert on that
-filesystem (`PlatformRootDiskLow` on the fallback), not the claim size, keep it in bounds.
+filesystem (`PlatformVolumeDiskLow`, or `PlatformRootDiskLow` on the fallback), not the
+claim size, keep it in bounds.
 
 **Backup.** OpenBao has no snapshot scheduler, so a CronJob runs `bao operator raft snapshot
 save` every 6 h to the platform backup bucket, 30-day retention by lifecycle (D10). The
 snapshot Job logs in through Kubernetes auth (D7) with a policy that also reads the canary.
 
-**Loss mode, stated.** The platform backup bucket is in AWS S3 (plan R6, decided by the owner
-on 2026-11-24), and the plan gives the off-region copy an owner: a second S3 bucket in a
-region other than the servers', which the plan's R6 plans and the owner creates. Copying the
-snapshots into it is still separate work, the follow-up `openbao-offsite-snapshots`, with a
-key of its own that can write that bucket and cannot delete. Until it lands, a loss of the
-backup bucket's region loses every snapshot, and what remains is the escrowed seal key and
-shares and a cold rebuild with an empty store, into which every escrowed value is written
-again and every generated value is generated anew; that loss is accepted until then.
+**Loss mode, stated.** The platform backup bucket is an S3 bucket in a region other than the
+servers' (plan R6, decided by the owner on 2026-11-24), so every snapshot is off-region when
+it is written: that bucket is the off-region copy, and no follow-up is needed for one. A
+loss of the servers' region leaves every snapshot. A loss of the bucket's own region, or
+of the bucket, loses them; what remains then is the escrowed seal key and shares and a cold
+rebuild with an empty store, into which every escrowed value is written again and every
+generated value is generated anew. That loss is accepted.
 
 **Drill.** A monthly Job starts its own OpenBao instance in its pod, listening on `127.0.0.1`
 only, restores the latest snapshot into it with the cluster seal key and `-force`, reads the
@@ -506,18 +509,19 @@ the drill pod.
 **Alerts**, rules of the plan's `alerts` unit, each with its data source and an absent-series
 companion, so a missing scrape fires instead of staying silent:
 
-| Alert                          | Source                                                                                                       | Absent series                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| `OpenBaoSealed`                | OpenBao's `vault_core_unsealed`, scraped from the `metrics_only` listener on port 8210                       | fires after 10 minutes       |
-| `OpenBaoAuditFailing`          | `vault_audit_log_request_failure` and `vault_audit_log_response_failure`, same listener: every device failed | covered by `OpenBaoSealed`'s |
-| `OpenBaoAuditFileStalled`      | the sidecar's `openbao_audit_file_stalled`, scraped from the server pod                                      | fires after 10 minutes       |
-| `ExternalSecretSyncFailed`     | ESO's `externalsecret_status_condition{condition="Ready",status="False"}`                                    | fires after 10 minutes       |
-| `OpenBaoSnapshotStale`         | kube-state-metrics `kube_cronjob_status_last_successful_time` of the snapshot CronJob, 12 h                  | fires                        |
-| `OpenBaoRestoreDrillFailed`    | kube-state-metrics `kube_job_status_failed` of the drill's Jobs                                              | covered by the stale rule    |
-| `OpenBaoRestoreDrillStale`     | the drill CronJob's last successful time, older than 35 days                                                 | fires                        |
-| `OpenBaoConfigDrift`           | `kube_job_status_failed` of the drift CronJob's Jobs                                                         | covered by the stale rule    |
-| `OpenBaoConfigDriftCheckStale` | the drift CronJob's last successful time, older than 2 h                                                     | fires                        |
-| `PlatformRootDiskLow`          | node exporter `node_filesystem_avail_bytes{mountpoint="/"}` on m1plat1                                       | fires after 10 minutes       |
+| Alert                          | Source                                                                                                                   | Absent series                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `OpenBaoSealed`                | OpenBao's `vault_core_unsealed`, scraped from the `metrics_only` listener on port 8210                                   | fires after 10 minutes       |
+| `OpenBaoAuditFailing`          | `vault_audit_log_request_failure` and `vault_audit_log_response_failure`, same listener: every device failed             | covered by `OpenBaoSealed`'s |
+| `OpenBaoAuditFileStalled`      | the sidecar's `openbao_audit_file_stalled`, scraped from the server pod                                                  | fires after 10 minutes       |
+| `ExternalSecretSyncFailed`     | ESO's `externalsecret_status_condition{condition="Ready",status="False"}`                                                | fires after 10 minutes       |
+| `OpenBaoSnapshotStale`         | kube-state-metrics `kube_cronjob_status_last_successful_time` of the snapshot CronJob, 12 h                              | fires                        |
+| `OpenBaoRestoreDrillFailed`    | kube-state-metrics `kube_job_status_failed` of the drill's Jobs                                                          | covered by the stale rule    |
+| `OpenBaoRestoreDrillStale`     | the drill CronJob's last successful time, older than 35 days                                                             | fires                        |
+| `OpenBaoConfigDrift`           | `kube_job_status_failed` of the drift CronJob's Jobs                                                                     | covered by the stale rule    |
+| `OpenBaoConfigDriftCheckStale` | the drift CronJob's last successful time, older than 2 h                                                                 | fires                        |
+| `PlatformRootDiskLow`          | node exporter `node_filesystem_avail_bytes{mountpoint="/"}` on m1plat1                                                   | fires after 10 minutes       |
+| `PlatformVolumeDiskLow`        | node exporter `node_filesystem_avail_bytes` on the mountpoint of m1plat1's claims volume, added by the plan's slice 1.11 | fires after 10 minutes       |
 
 The `metrics_only` listener serves `sys/metrics` without a token and nothing else; the
 NetworkPolicy admits Prometheus's pods to it alone. Each rule gets a fire-on-fault proof at the
@@ -673,18 +677,18 @@ initialisation is per cluster.
 
 ## Owner inputs
 
-| Input                         | Assumed                                                                                                                                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recovery shares               | three, threshold two, all in both escrow places, which splits nothing; seal keys kept 30 days after rotation                                                                                                     |
-| Operator login                | an Auth0 application in the existing tenant with MFA, its callback on the operator's own machine                                                                                                                 |
-| Break-glass                   | the legacy generate-root endpoints on an in-pod unix socket only (D3)                                                                                                                                            |
-| Path scheme                   | `kv/platform/…`, `kv/tenants/<tenant>/<environment>/…`, and a mount `ci` for the CI cluster                                                                                                                      |
-| Database grants               | `<app prefix>/database-owner` paths, read by the database namespace that serves the app's environment (D5)                                                                                                       |
-| Store modes                   | `first-init`, `steady`, `restore`, with the marker refusal in `steady` and closed listeners otherwise                                                                                                            |
-| Platform interface            | values through a tenant-scoped token, configuration through Git and `apply` (D6)                                                                                                                                 |
-| Off-region copy               | a second S3 bucket in a region other than the servers' (plan R6); the copy into it is the follow-up `openbao-offsite-snapshots`, and until it lands a region loss of the backup bucket loses the snapshots (D11) |
-| Operator subject              | the owner's Auth0 user id, held in the private fleet repository (D7)                                                                                                                                             |
-| Bootstrap ciphertext location | the private fleet repository, because this one is public                                                                                                                                                         |
+| Input                         | Assumed                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Recovery shares               | three, threshold two, all in both escrow places, which splits nothing; seal keys kept 30 days after rotation |
+| Operator login                | an Auth0 application in the existing tenant with MFA, its callback on the operator's own machine             |
+| Break-glass                   | the legacy generate-root endpoints on an in-pod unix socket only (D3)                                        |
+| Path scheme                   | `kv/platform/…`, `kv/tenants/<tenant>/<environment>/…`, and a mount `ci` for the CI cluster                  |
+| Database grants               | `<app prefix>/database-owner` paths, read by the database namespace that serves the app's environment (D5)   |
+| Store modes                   | `first-init`, `steady`, `restore`, with the marker refusal in `steady` and closed listeners otherwise        |
+| Platform interface            | values through a tenant-scoped token, configuration through Git and `apply` (D6)                             |
+| Off-region copy               | the platform backup bucket itself, in a region other than the servers' (plan R6, D11)                        |
+| Operator subject              | the owner's Auth0 user id, held in the private fleet repository (D7)                                         |
+| Bootstrap ciphertext location | the private fleet repository, because this one is public                                                     |
 
 ## Risks / Trade-offs
 
@@ -703,9 +707,8 @@ initialisation is per cluster.
 - Root on the CI server reads every `ci/<tenant>/` path (D7).
 - Revocation covers store access, not synced copies: a revoked reader keeps the Secret it has
   until the value is rotated; an orphaned Secret stays until the runbook removes it (D4).
-- Until the follow-up `openbao-offsite-snapshots` copies them to the off-region bucket, a loss
-  of the backup bucket's region loses every snapshot; the escrowed material and a cold
-  rebuild with an empty store remain (D11).
+- A loss of the backup bucket's region, which is not the servers', loses every snapshot; the
+  escrowed material and a cold rebuild with an empty store remain (D11).
 - Audit completeness is bounded by the log pipeline and its retention, and before stage 3 by
   the pod log and a 2 GiB claim on one node.
 - Rotating the CI cluster's service-account signing key breaks its JWT mount silently; runbook

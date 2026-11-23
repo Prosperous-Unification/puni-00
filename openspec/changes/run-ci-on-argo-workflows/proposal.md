@@ -65,7 +65,7 @@ CI-0.2).
 
 `tools/tool-fleet` (a cluster purpose `ci`, a capability, rules of the `delivery` check, a
 render step, `promotion-check`), a bootstrap playbook for the CI cluster,
-`infra/versions/toolchain.json`, a tree `infra/argocd/ci`, an AppProject and Applications in
-the platform tree, two workflow templates, a Dagger module for the staging build, and a
+`infra/versions/toolchain.json`, a tree `infra/argocd/ci`, an AppProject, an ApplicationSet and
+Application files in the platform tree, two workflow templates, a Dagger module for the staging build, and a
 runbook. Follow-ups in the OpenBao design, the Harbor change, `dash-host-jobs`, the gate
 documents and the release tooling are listed, not made.

@@ -1,5 +1,5 @@
 Agent slices (phases 1 to 3) change source and run tests; none touches a host. Attended steps
-(A1 to A28) each name who runs them, the command, the receipt, the stop condition and the
+(A1 to A29) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
 removed, and an adjacent `Proof:` comment. Slices 1.1, 1.2, 1.8 and 1.9 and the first revision
@@ -28,7 +28,8 @@ step's receipt also includes `tool-fleet:health`'s reading of the store's audit 
       off the root disk) and R19 (an ApplicationSet), added to R6 (an S3 object store), R8
       (a naming rule), R27 (workers clusters and labs to `puni-01`), R34 (environment names
       `prod`, `stag` and `dev0`), R35 (its rationale) and R50 (16 vCPUs and 32 GiB), and
-      confirmed the rest as written. The slices they add are 1.10, 1.11 and the step A29.
+      confirmed the other rows he named as written; R5's cluster id, R12 and the assumed
+      parts of R3, R15 and R20 stay assumed. The slices they add are 1.10, 1.11 and the step A29.
 - [ ] 0.2 File the three decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
@@ -386,7 +387,13 @@ step's receipt also includes `tool-fleet:health`'s reading of the store's audit 
       the cluster `platform-2`, its inventory `infra/ansible/inventory/production-hosts.yml`
       and the CI cluster; the k3s templates write the label `puni.dev/capability-<rest>=true`,
       where `<rest>` is the scoped name without its `puni-` prefix; the other names PUNI defines that the new tree reads (keys under
-      `puni.dev/`, the taint `puni.dev/role`) as the list states; the environment names in
+      `puni.dev/`, the taint `puni.dev/role`), and every other name in design decision 1's
+      scope that the new tree or merged code for it holds: PriorityClasses such as
+      `puni-platform-interface`, the AppProjects, the units and the names of Argo CD
+      Applications and ApplicationSets, the namespaces of PUNI's own services such as
+      `puni-secrets`, and the Tailscale tags of `infra/access/policy.hujson`; host names,
+      repository names, environment names, third-party names and code identifiers are left
+      alone; the environment names in
       merged code the new tree reads, the WBS overlay `deploy/k8s/wbs/overlays/staging`
       becoming `stag` in the copy slice 3.5 makes. The old cluster `platform`, its live
       labels and namespaces, the workers clusters and the labs keep their names until they
@@ -400,18 +407,31 @@ step's receipt also includes `tool-fleet:health`'s reading of the store's audit 
 - [ ] 1.11 Attached volumes (R9, design decision 2), before A3. A host role `volumes`: the
       inventory names each node's volumes with the size of design decision 2, a stable
       device id and, once formatted, the filesystem UUID. The role formats a device only
-      when the inventory marks it new and it carries no filesystem; mounts by UUID under
-      `/var/lib/puni/volumes/<name>`; sets k3s's `default-local-storage-path` to the node
-      volume, so every claim of the `Retain` class lands there; gives a store with a bound
-      of its own (`platform-db`) its own volume with a static PersistentVolume; and adds
-      each volume's filesystem to the disk alerts that read the root filesystem. Where A29
-      has ruled volumes out for a node, the inventory says so and the role leaves its claims
-      on the root disk. Test: `infra/ansible/tests` with loop devices standing in for
-      volumes. Negatives, each with its own fault: an inventory volume that is absent on the
-      host is refused before k3s starts (fault: skip the presence read); a device whose
-      filesystem UUID differs from the inventory's is refused and not formatted (fault:
-      format when the UUIDs differ); a local storage path that is not on the mounted volume
-      is refused (fault: compare the path string only); a second run changes nothing.
+      when the inventory marks it new and it carries no filesystem, and mounts the node's
+      claims volume by UUID at one path, `/var/lib/puni/volumes/claims`, the same on every
+      node; a store with a bound of its own (`platform-db`) gets its own volume at
+      `/var/lib/puni/volumes/<store>` with a static PersistentVolume. k3s's
+      `default-local-storage-path` is one server-wide flag, which fills the packaged
+      `local-storage.yaml`'s `DEFAULT_PATH_FOR_NON_LISTED_NODES`, so the `k3s_server`
+      template sets it once to that path, before A3, and every node's local-path claims
+      land under it. Before k3s starts on any node, server or agent, the role asserts that
+      the path is its claims volume's mountpoint (`findmnt`, by UUID) and refuses
+      otherwise. The fallback is cluster-wide (design decision 2): where A29 rules volumes
+      out, the inventory says so for the cluster, the template leaves k3s's default path
+      and the role asserts no mount. Not a custom `nodePathMap` with the packaged component
+      disabled: k3s re-applies its packaged manifests at start, so that would mean owning a
+      provisioner of our own, and A29 measures the provider's volume product, which is the
+      same for every node. The role adds an alert, `PlatformVolumeDiskLow`, on each mounted
+      volume's free space, beside the root filesystem's. The slice also locks the
+      measurement tool of A29, `fio`, by package version and the SHA-256 of its package in
+      `infra/versions/toolchain.json`. Test: `infra/ansible/tests` with loop devices
+      standing in for volumes. Negatives, each with its own fault: an inventory volume that
+      is absent on the host is refused before k3s starts (fault: skip the presence read); a
+      device whose filesystem UUID differs from the inventory's is refused and not
+      formatted (fault: format when the UUIDs differ); a node whose claims path is not its
+      volume's mountpoint, an empty directory there included, is refused before k3s starts
+      (fault: compare the path string only); a server template with another storage path
+      is refused (fault: read agents only); a second run changes nothing.
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -1233,14 +1253,20 @@ this change reserves is step A25, so those namespaces are not an open end.
 - [ ] A2 Make and escrow the new cluster's secrets (R6), after 0.5 and 0.6. Who: owner.
       Commands: two 64-hex k3s credentials, `age-keygen`, read-only deploy keys for the fleet
       repository and the WBS deploy repository, the Argo CD local account's password and
-      the hosts' console account password of slice 1.8, and three distinct keys (R55): the
+      the hosts' console account password of slice 1.8; in S3 (R6), in a region other than the servers', the etcd
+      snapshot bucket and the platform backup bucket, each with versioning and its
+      lifecycle rule, and their two keys, each limited to its bucket or prefix: the etcd
+      snapshot key for A5 and the OpenBao snapshot key for the `openbao/` prefix without
+      delete (OpenBao change, task 4.1), each read back as allowed on its own and refused on
+      the other's; and three distinct keys (R55): the
       bastion's jump key, the servers' admin key and the bastion's own admin key (if a key
       set up by hand on 2026-11-22 serves two of these, a new one replaces it in A26), into
       `$OPS` on the controller,
       which is the operator's laptop; the encrypted files of design decision 5 into the fleet repository's directory;
       a copy of each original into both escrow places. Receipt: "escrowed" per secret beside
       its escrow entry, and "restored on a second machine" for the age identity. Stop: an
-      escrow place is unavailable. Rollback: discard the files; nothing uses them yet.
+      escrow place is unavailable, or a key's read-back is not refused outside its scope.
+      Rollback: discard the files and delete the buckets and keys; nothing uses them yet.
 - [ ] A3 Bootstrap the server, after 1.1, 1.2, the first 1.3, 1.10, 1.11, A26 and the receipt 2.7/A3. Who:
       operator. Commands:
       `fleet_ansible --limit m1plat1 --extra-vars puni_preflight_stage=before-enrollment playbooks/preflight.yml`,
@@ -1251,7 +1277,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       through the bastion and not on the tailnet address, and no public port answers; `kubectl get nodes -o wide` shows m1plat1 Ready with roles `control-plane,etcd` and the internal address 10.10.1.11,
       `flannel.1` with an MTU of 1392,
       the label `puni.dev/capability-platform-services-pv1=true`, its volumes mounted by
-      UUID and k3s's local storage path on the node volume, the taint
+      UUID and k3s's server-wide local storage path at the claims mount, the taint
       `CriticalAddonsOnly=true:NoSchedule` and no enrollment taint; CoreDNS, the metrics
       server and the volume provisioner Ready; CoreDNS still tolerates `CriticalAddonsOnly`.
       Stop: validation fails or the second bootstrap changes anything.
@@ -1266,10 +1292,11 @@ this change reserves is step A25, so those namespaces are not an open end.
       on its tailnet name and on no public address; the local account logs in and is refused a sync of a
       platform unit; `admin` cannot log in; no Service of type LoadBalancer or Ingress exists
       in `argocd`. Stop: a unit is not Healthy after 20 minutes. Rollback: delete the server.
-- [ ] A5 etcd snapshots. Who: operator; owner for the S3 account. Commands: create the new
-      S3 snapshot bucket (R6) with
+- [ ] A5 etcd snapshots. Who: operator; owner for the S3 account. Commands: read back the
+      S3 snapshot bucket made in A2 (R6), its region outside the servers', its
       versioning and the one lifecycle rule of
-      [recovery](../../../docs/infra/recovery.md#bucket-lifecycle), and read both back;
+      [recovery](../../../docs/infra/recovery.md#bucket-lifecycle), and the etcd snapshot
+      key's scope;
       `playbooks/backup.yml` with that bucket and the token fingerprint;
       `k3s etcd-snapshot save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's
       versioning and rule, the snapshot's object key, size and SHA-256, the manifest stored
@@ -1282,10 +1309,12 @@ this change reserves is step A25, so those namespaces are not an open end.
       any server (R17, R55), so m1plat1 being off costs no path; the temporary server gets
       an auth key as in A1 and an entry in the bastion's `PermitOpen` from slice 1.9's
       play, removed again when it is deleted. Commands: power m1plat1 off and record that as fence evidence;
-      create a temporary server as in A1 under another name and prepare it with
+      create a temporary server as in A1 under another name, with the scratch volume of
+      A29b as its one volume, and prepare it with
       `bootstrap.yml`'s host roles and a k3s config that names it;
       `tool-fleet:recover verify-cold-restore` with the escrowed token; `playbooks/restore.yml`
-      limited to it; read the root Application; then delete the temporary server and power
+      limited to it; read the root Application; then detach the scratch volume (A29b),
+      delete the temporary server and power
       m1plat1 on. Receipt: time from power-off to the root Synced on the temporary server; the
       fence evidence file; m1plat1 Ready again with its own datastore. Stop: the restore
       refuses, or the root cannot be read. Rollback: delete the temporary server and power
@@ -1310,18 +1339,27 @@ this change reserves is step A25, so those namespaces are not an open end.
       and `memory.stat`. Receipt: the per-container
       table in verify.md and the limits kept or changed by a commit. Stop: a container was
       killed for memory. Rollback: raise that limit in Git and sync `argocd`.
-- [ ] A29 Volume checks (R9), after A3 and with A6's temporary server, before A7 puts the
-      first store on a volume. Who: operator; owner for the console. Commands: in the provider
-      console, create a scratch volume and attach it to m1plat1; write a file of known
-      SHA-256 to it; detach it and attach it to the temporary server, read the SHA-256 back
-      there, and attach it to m1plat1 again; on the scratch volume and on the root disk,
-      measure sequential write throughput and the latency of synchronous 4 KiB writes with
-      the tool slice 1.11 locks; delete the scratch volume. Receipt: re-attach yes or no
-      with the read-back SHA-256, both readings for the volume and the root disk, and the
-      owner's yes or no on using volumes with those figures, in verify.md. Stop: re-attach
-      fails, or the owner says no; then each role's claims stay on the root disk, its
-      fallback minimum of design decision 2 applies to every server created afterwards, and
-      m1plat1 is read against its fallback. Rollback: detach and delete the scratch volume.
+- [ ] A29 Volume checks (R9), in three parts around A6 and before A7 puts the first store
+      on a volume. Who: operator; owner for the console. **A29a**, after A3 and before A6
+      powers m1plat1 off: in the provider console, create a scratch volume and attach it
+      to m1plat1; format it, record its UUID, write a file of known SHA-256 to it; detach
+      it. **A29b**, during A6: the temporary server's inventory names exactly one volume,
+      the scratch volume, as its claims volume, existing, with the UUID of A29a; the owner
+      attaches it before the temporary server is prepared; the `volumes` role mounts it at
+      the claims path, and the file's SHA-256 is read back there before the restore runs;
+      before the temporary server is deleted, the volume is detached. **A29c**, after A6
+      has powered m1plat1 on: attach the scratch volume to m1plat1, read the SHA-256 again;
+      on it and on the root disk, measure sequential write throughput and the latency of
+      synchronous 4 KiB writes with the `fio` slice 1.11 locks; detach and delete it.
+      Receipt: the UUID and SHA-256 at each part, re-attach yes or no, both readings for
+      the volume and the root disk, and the owner's yes or no on using volumes with those
+      figures, in verify.md. Stop: a re-attach or a read-back fails, or the owner says no.
+      Then the fallback is cluster-wide: the inventory rules volumes out, m1plat1's k3s
+      configuration goes back to k3s's default storage path by a rerun of `bootstrap.yml`
+      before any claim exists, the fallback minimum of design decision 2 applies to every
+      server created afterwards, and m1plat1 is read against its fallback. If A29b's
+      read-back fails, A6 continues with the temporary server's inventory rewritten for the
+      fallback. Rollback: detach and delete the scratch volume.
 - [ ] A24 Break-glass drill (R49), after A3. Who: owner. Commands: on his device, turn
       Tailscale off; confirm that m1plat1 answers on no public port; log in to m1plat1
       through the bastion, which needs no tailnet, and read `kubectl get nodes` there; then,
@@ -1454,14 +1492,19 @@ this change reserves is step A25, so those namespaces are not an open end.
       twice; `fleet_ansible --limit m1plat1 playbooks/validate-enrollment.yml`, whose hosts
       are the bootstrap servers; then a ping with do-not-fragment set at the pod MTU, 1392
       bytes in all (`ping -M do -s 1364`), from a pod on m1plat1 to a pod on h7obs and back;
-      then `tool-fleet:health`. Receipt: h7obs Ready with
+      then `tool-fleet:health`. Receipt: h7obs's claims volume mounted by its UUID at
+      `/var/lib/puni/volumes/claims`, read back with `findmnt` (unless A29 ruled volumes
+      out); h7obs Ready with
       `puni.dev/capability-observability-pv1=true`, no enrollment taint; both pings answered and
       one of 1393 bytes refused as too large; health passing with no Rancher pod on h7obs,
       the first reading of that check that could fail. Stop: validation fails, a ping at
       1392 is lost, or a Rancher pod runs on h7obs.
       Rollback: `playbooks/rollback-host.yml`, delete the Node object, delete the server.
 - [ ] A14 Bring up and measure the stack, after A7 and 3.2. Who: operator; owner for the
-      values. Commands: generate the Velero repository password and put it in escrow first;
+      values. Commands: the owner makes in S3 (R6), in a region other than the servers', the Velero and the
+      Elasticsearch snapshot buckets or prefixes, with `velero-credentials` and
+      `elastic-s3-credentials` limited to them, read back as refused outside them, and
+      escrows both; generate the Velero repository password and put it in escrow first;
       the owner writes the fifteen operator-provided values of design decision 5 into
       OpenBao, the webhook address of `#puni-alerts-dev` among them, which he holds; merge the revision that adds the units of orders 8 to 12 and their
       ExternalSecrets; sync `secret-sync`, then those units in order; after 24 hours read
@@ -1488,8 +1531,9 @@ this change reserves is step A25, so those namespaces are not an open end.
       h3mon, read again, read-only, how MLflow is started, its two paths, the size of
       the metadata store and the count and total size of the files under the artifact
       root, and compare them with the reading in verify.md; pick one run, and, if the
-      artifact root holds a file, one artifact of a run with its SHA-256; the owner
-      writes the MLflow backup credentials into OpenBao; merge the `mlflow` unit at zero
+      artifact root holds a file, one artifact of a run with its SHA-256; the owner makes
+      the MLflow backup prefix in S3 (R6) and its key, limited to it and read back as
+      refused outside it, escrows it and writes it into OpenBao; merge the `mlflow` unit at zero
       replicas with its backup job suspended, together with its ExternalSecrets; sync
       `secret-sync`, then `mlflow`; stop MLflow on h3mon; take the final copy of the
       metadata store and the artifact root there under one stamp with the unit's own
@@ -1528,8 +1572,9 @@ this change reserves is step A25, so those namespaces are not an open end.
       settings `ingress` needs and adds `nonproduction` and `ingress` there; sync `namespaces` and `policy`, which now carry slice 2.10; then `playbooks/solver.yml` limited to each, once slice 3.8 has landed and each
       host's Docker can pull the solver image its inventory names (design decision 9: for a
       Harbor reference, Harbor's CA and a pull robot first);
-      then merge the revision that adds the `traefik` Application and sync it. Receipt: h6apps
-      Ready with `product` and `ingress`, h7obs Ready with `observability`, `nonproduction`
+      then merge the revision that adds the `traefik` Application and sync it. Receipt: h6apps's claims volume
+      mounted by its UUID at `/var/lib/puni/volumes/claims`, read back with `findmnt`
+      (unless A29 ruled volumes out); h6apps Ready with `product` and `ingress`, h7obs Ready with `observability`, `nonproduction`
       and `ingress`, neither with `product` and `nonproduction` together;
       `sysctl net.ipv4.ip_unprivileged_port_start` reading 0 on both; the observability
       pods on h7obs untouched by the capability play and by the solver role's Docker
@@ -1552,7 +1597,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       Who: operator, with the website's owner; owner for the Secrets. The owner
       writes the staging Secrets of design decision 5 into OpenBao, reading the website's
       present ones with the old cluster's age identity on the controller; the staging backup
-      credential is one that cannot read production's backups. Sync `secret-sync`,
+      credential is a new S3 key (R6) for the staging backup bucket, which the owner makes
+      in a region other than the servers' and escrows, and which cannot read production's backups. Sync `secret-sync`,
       `sqlite-custody` and `public-issuers`. Then, for the website and request app in
       `website-dev` first and WBS staging second: stop the old side (scale the old
       Deployments to zero and suspend the old backup CronJob and its Flux unit; stop the
@@ -1637,7 +1683,9 @@ this change reserves is step A25, so those namespaces are not an open end.
       old writer is never started while the new one runs.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
-      production: the owner writes the production Secrets into OpenBao; the old side is
+      production: the owner makes the production backup bucket or prefix of the website
+      in S3 (R6) and its key, limited to it, read back as refused outside it and escrowed,
+      and writes the production Secrets into OpenBao; the old side is
       stopped and backed up once; the production Application is merged at zero replicas with
       its backup job suspended, and the owner syncs it; the stamp is restored; the capture
       of A18 is run before any replica and must exit 0 with an empty pending set; one replica
@@ -1651,7 +1699,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       zero-replica overlay merged to `main` and synced by the owner.
 - [ ] A20 WBS production, the simple way (R28), after 3.5, Harbor and A18's WBS receipt. Who:
       operator, with the WBS deploy tooling's owner; owner for the Secrets and for the sync.
-      As A19 for WBS: Secrets and Harbor's pull credential written into OpenBao; production
+      As A19 for WBS: its S3 backup prefix and scoped key made and read back as in A19;
+      Secrets and Harbor's pull credential written into OpenBao; production
       stopped on h2puni; one final backup; the `wbs` Application merged at zero replicas and
       synced by the owner; the stamp restored; the capture of A18 run with the production
       candidate, exit 0 and an empty pending set, before any replica; one replica merged and synced; the name

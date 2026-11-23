@@ -285,8 +285,11 @@ server (design decision 4) and are not run before its trigger.
       `playbooks/capabilities.yml` limited to the node that carries `nonproduction`,
       h7obs in the minimal profile, with PG-S5 merged, which installs the drill's host
       timer there, and read the timer active and its metric exported; A17's run of that
-      play predates PG-S5 and does not count. Then the owner writes
-      into OpenBao the key of the non-production database bucket, one that cannot read a
+      play predates PG-S5 and does not count. Then the owner makes in S3 (core R6), in a
+      region other than the servers', the non-production database bucket and its key,
+      limited to it and read back as refused on a production bucket, escrows the key and
+      writes it
+      into OpenBao: the key of the non-production database bucket, one that cannot read a
       production bucket and is not staging's SQLite backup key, and generates the two
       canary role passwords there; merge the Application files of orders 18 to 20 for
       these three units; sync `namespaces`, `policy`, `secret-sync`, `cnpg-operator`,
@@ -322,7 +325,9 @@ server (design decision 4) and are not run before its trigger.
       or on the database server by PG-S6's stop, when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
       operator; owner for the values. Commands: merge the inventory revision of PG-S1 and
       run `playbooks/capabilities.yml` limited to m1plat1; apply the storage
-      role of PG-S6 limited to m1plat1; the owner writes the production database bucket's key
+      role of PG-S6 limited to m1plat1; the owner makes in S3 (core R6), in a region other
+      than the servers', the production database bucket and its key, limited to it and read
+      back as refused on any other bucket, escrows it, and writes the production database bucket's key
       and the canary passwords; merge the `platform-db` Application; sync `secret-sync` and
       `platform-db`; create one on-demand `Backup`; run the dump job once; apply by hand a
       pod in `postgres` with the `product` selector. After 24 hours read memory as in PG-A3

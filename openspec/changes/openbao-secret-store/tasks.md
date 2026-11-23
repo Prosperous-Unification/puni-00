@@ -187,7 +187,10 @@ and the taint, with values made for the rehearsal. The plan's receipt 2.7/A7 is 
 
 - [ ] 4.1 Before the plan's A7: the four bootstrap Secrets of design D10 generated, encrypted
       into the fleet repository's directory and escrowed, with the plan's A2; the snapshot key
-      made without delete and its rights read back (prefix scoping is unverified for the provider; if it cannot scope, a bucket of its own), the bucket's 30-day lifecycle set. Receipt: "escrowed" per Secret,
+      made in S3 by the plan's A2 (plan R6), in a region other than the servers', limited to
+      the platform backup bucket's `openbao/` prefix without delete, and its rights read
+      back: write and read allowed there, delete and any other prefix refused (if it cannot
+      be scoped to the prefix, a bucket of its own); the bucket's 30-day lifecycle set. Receipt: "escrowed" per Secret,
       no value.
 - [ ] 4.2 P2, the plan's A7 on m1plat1. Run the playbook with the bootstrap set; sync `cert-manager` with the store's Issuer and Certificate (the plan's A7 as amended); in `first-init`: sync `openbao`; self-init; through `kubectl exec`,
       `Initialized: true` read and the marker written. Commit `steady` (no initialisation
