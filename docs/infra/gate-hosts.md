@@ -10,16 +10,19 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section). The `gate`
-catalogue entry is measured since #955 (`dash-host-jobs` task 6.25): 6 cores, 9 GiB, 11 GiB
-tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
+catalogue entry is measured since #955 (`dash-host-jobs` task 6.25) on h4claw, and on h2puni
+too from calibrations of 2026-11-22/23 that landed on 2026-11-24 (A-CAT-GATE-2HOSTS-1, the larger figure of the two hosts per
+dimension, [job catalogue](../../infra/jobs/README.md#one-entry-measured-on-two-hosts)): 6 cores,
+9 GiB, 11 GiB tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
 (S25-A7), so a gate holds all of either pool's cores and memory and nothing runs beside it, and
 `gate` may not be listed in `concurrencyEligible`. Its scope runs under
 `MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB
 when the pool configuration leaves it out: 13 GiB on h4claw (15 − 2), 12 GiB on h2puni (14 − 2;
 14 GiB is h2puni's pool memory budget, not its 15.24 GiB of RAM) (S25-A6). The key is absent on both hosts until the gate_host role gains the input:
 `tasks/validate.yml` asserts the exact key list of `host-pool.json` and the template renders no
-such key, so a hand-set key fails the validate play, and the default 2 applies. Three h4claw calibrations at `--parallel=1` took 5 h 16 min to 5 h 27 min (p95
-18,958 s), which replaces the intro's figure for an enrolled gate. Node sizes its default heap
+such key, so a hand-set key fails the validate play, and the default 2 applies. Three calibrations at `--parallel=1` on each host
+replace the intro's figure for an enrolled gate: h4claw 5 h 16 min to 5 h 27 min (p95 18,958 s),
+h2puni 5 h 19 min to 5 h 24 min (p95 19,456 s, the governing figure). Node sizes its default heap
 from that bound (2240 MB under 13 GiB on h4claw and under 12 GiB on h2puni, 4288 MB unbounded on
 both), so since the first bounded gate lost four lint tasks to a heap out of memory
 `bin/h2puni-gate-steps.sh` pins

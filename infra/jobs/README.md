@@ -76,6 +76,28 @@ is a different profile. Dash refuses arguments that do not match (`parseJobArgum
   estimate's `basis`; `ops job propose` keeps it in the replacement entry.
   The `gate` entry is clamped this way, to the smaller of the two gate hosts' pools.
 
+### One entry measured on two hosts
+
+One catalogue serves every gate host of a host class, so an entry calibrated on more than one
+host takes, per dimension, the larger of the hosts' figures: `p95`, `heuristic` and the
+envelope. Then each host's gate fits it and the most restrictive reservation wins. The larger
+of the hosts' p95s is the pooled nearest-rank p95 while the records number 20 or fewer (rank
+⌈0.95·n⌉ = n); beyond that, pool the records before proposing.
+`recordIds` and `recordCount` list every host's records, `calibratedAt` is the latest
+proposal's, and `tmpDiskGibLowerBound` stays `true` while any record behind `p95.tmpDiskGib`
+could not read part of its tmp directory. `notes` names each host's own figures.
+
+The `gate` entry's history:
+
+- 2026-11-20 (Dash task 6.25): three h4claw calibrations; p95 6.88 cores, 10.01 GiB and
+  8.01 GiB of tmp as a lower bound; heuristic 9 cores and 13 GiB; envelope 6 cores, 9 GiB and
+  11 GiB of tmp, clamped by hand to h2puni's pool.
+- 2026-11-23 (A-CAT-GATE-2HOSTS-1): three h2puni calibrations; p95 5.93 cores, 9.71 GiB and
+  7.91 GiB of tmp, complete; heuristic 8 cores and 13 GiB; proposed envelope 6, 9 and 10.
+  The entry keeps every larger h4claw figure, so only its provenance changed: six records,
+  `calibratedAt` 2026-11-23T13:10:11.926Z, and the tmp p95 still a lower bound (h4claw record
+  29d3503e did not read all of its tmp directory).
+
 ## Heuristics (provisional)
 
 These figures are **provisional** and will change after the first calibrations. Dash keeps them
@@ -102,6 +124,11 @@ Nothing writes this file but a reviewed commit. The loop is:
 2. `twilight-dash ops job propose --type <id>` prints the replacement catalogue entry with the record ids.
 3. The patch lands as a pull request; `JOB-CATALOGUE` judges it like any other change.
 4. `twilight-dash ops job audit` names drift on later runs, and the loop starts again.
+
+`ops job propose` reads one host's records: on either gate host it prints `recordCount` 3 with
+that host's own p95s and carries the present `notes` verbatim. A two-host entry such as
+`gate`'s is therefore merged again by hand by the rule above, or by pooling both hosts' records,
+before the replacement lands.
 
 The commands are described in the Dash
 [host jobs guide](../../apps/twilight-structure/twilight-dash/cli/docs/resources.md#calibration-proposal-and-audit-slice-4).

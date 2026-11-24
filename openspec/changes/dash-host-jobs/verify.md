@@ -5247,3 +5247,68 @@ job-run owner passed 68 cases and its real Linux namespace wrapper; 12 real
 user-scope cases skipped because this machine has no systemd user bus. Scoped
 lint, production types, formatting and full OpenSpec validation passed. These
 local checks do not establish a host gate or release readiness.
+
+## 2026-11-24 h2puni calibration landed (task 6.25 follow-up)
+
+Branch `ops/catalogue-gate-h2puni-calibration-20261124` from `main` a2e4750c7; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset; no host touched by this change (the
+calibrations and the proposal were run on h2puni by the coordinator before it).
+
+- On h2puni (host class `linux-x64-8c-15g`; pool allocatable 6 cores, 9 GiB and 12 disk
+  units), three complete `gate` calibrations on launcher 9d5778028: ad0a8150-7fe0-4801-b1ec-242ad545bc28
+  (cold, 2026-11-22 17:32Z to 22:52Z), 46b1f409-739e-49b6-8dd0-b81a218979fa (warm, 22:52Z to
+  2026-11-23 04:11Z) and 53555099-759e-4b84-a02d-b91e9008cd69 (warm, 07:45Z to 13:10Z).
+- `ops job propose --type gate` (2026-11-23T13:10:11.926Z) printed cpuCores 6 (clamped to
+  allocatable 6; heuristic 8 from p95 5.93 cores), memoryGib 9 (clamped to allocatable 9;
+  heuristic 13 from p95 9.71 GiB over 3 uncapped, unthrottled records), tmpDiskGib 10 (p95
+  7.91 GiB over 3 records, tmp telemetry complete, no lower-bound flag) and durationSeconds
+  reported only (p95 19455.95 s). It excluded 8 earlier h2puni gate runs as incomplete
+  (payload exit 137, 1 or 143, or container attribution incomplete) and 14 runs recorded under
+  another catalogue (the compose qualification's admitted checkout). Its full text, which
+  names no secret, is
+  [evidence/2026-11-23-h2puni-gate-propose.txt](evidence/2026-11-23-h2puni-gate-propose.txt).
+
+The catalogue serves both hosts with one `gate` entry, so the entry takes the larger figure of
+the two hosts per dimension (A-CAT-GATE-2HOSTS-1, by Dany's principle of whatever allows the
+most restrictiveness): envelope 6 cores and 9 GiB (clamped on both), tmpDiskGib 11 (h4claw's,
+above h2puni's 10), heuristic 9 cores (h4claw's, above 8) and 13 GiB (equal), p95 6.88 cores,
+10.01 GiB and 8.01 GiB (all h4claw's). The provenance now lists six records, h4claw's three
+and h2puni's three, with `calibratedAt` the h2puni proposal's. `tmpDiskGibLowerBound` stays
+`true`: the README defines it as some record behind `p95.tmpDiskGib` having failed to read
+part of its tmp directory, and the 8.01 figure comes from h4claw's records, one of which did. `notes` names
+both hosts' figures. The contract can express this: `recordCount` equals the number of
+distinct `recordIds` (6), and both hosts share one host class.
+
+Checks (laptop, under the pinned Bun 1.4.4+38afee6c8 from the official release, checksum
+verified; the laptop's own Bun is a 1.4.6 canary, which the Burokrat build and the tool-wiki
+hook refuse):
+
+- Burokrat `check --rule JOB-CATALOGUE --now 2026-11-24T12:00:00Z committed . HEAD` with the
+  repository's rule policy: exit 0, `allowed: true`, no findings, nothing unevaluated.
+- Burokrat `bun test src/rules/job-catalogue.test.ts`: 21 pass, 0 fail. Its case "passes the
+  four job types of this repository before their until date" judges the real catalogue under
+  `enforce`.
+- Negative: `envelope.tmpDiskGib` set to 7, below its p95 of 8.01. The same `check` on the
+  working tree reported `envelope tmpDiskGib 7 is below its calibrated p95 8.01` (`debt`, since
+  the repository policy runs the rule in `observe`), and `job-catalogue.test.ts` failed 8 of 21,
+  the first being "passes the four job types …" (`Expected: 0`, `Received: 1`). Restored to 11,
+  it passes 21 of 21.
+- Dash `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`: 53 pass, 0 fail.
+- `bunx openspec validate --all --json`: exit 0, 362 items, 362 passed. Prettier `--check` on
+  the five changed text files: clean. Burokrat `check-indexes staged . HEAD` after `git add -A`:
+  exit 0, three review-debt entries, all pre-existing (`libs/wbs/…` direct-entry counts).
+  `tools/tool-devsync` `retired-roots.test.ts`: 3 pass.
+- Not this change: Burokrat `rules.test.ts` fails 17 K3/K4 cases here and identically on a
+  clean `origin/main` a2e4750c7 checkout (47 pass, 17 fail); none reads the catalogue.
+
+### Fable review fold-in (S2-1, S3-1, S3-2, S3-3; 2026-11-24)
+
+The review of #997 at 1478d9b66 found that `nearestRankP95` takes rank ⌈0.95·n⌉, which is n for
+n of 20 or fewer, so the six-record pooled p95 is the larger of the two three-record p95s and
+the provenance stands. The README and the entry's `notes` now say so and say to pool the records
+beyond 20 (S2-1). The README's "Changing an envelope" says `ops job propose` on either host
+prints `recordCount` 3 with that host's p95s and carries the present `notes` verbatim, so a
+two-host merge is redone by hand or by pooling (S3-1). 46b1f409 ended 04:11:55Z (S3-2).
+`docs/infra/gate-hosts.md` dates the measurements and the landing and gives both hosts' gate
+durations, h2puni's p95 governing (S3-3). The checks were rerun after the fold-in; the PR body
+lists their results.
