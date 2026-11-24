@@ -5279,19 +5279,24 @@ part of its tmp directory, and the 8.01 figure comes from h4claw's records, one 
 both hosts' figures. The contract can express this: `recordCount` equals the number of
 distinct `recordIds` (6), and both hosts share one host class.
 
-Checks (laptop):
+Checks (laptop, under the pinned Bun 1.4.4+38afee6c8 from the official release, checksum
+verified; the laptop's own Bun is a 1.4.6 canary, which the Burokrat build and the tool-wiki
+hook refuse):
 
+- Burokrat `check --rule JOB-CATALOGUE --now 2026-11-24T12:00:00Z committed . HEAD` with the
+  repository's rule policy: exit 0, `allowed: true`, no findings, nothing unevaluated.
 - Burokrat `bun test src/rules/job-catalogue.test.ts`: 21 pass, 0 fail. Its case "passes the
   four job types of this repository before their until date" judges the real catalogue under
   `enforce`.
-- Negative: `envelope.tmpDiskGib` set to 7, below its p95 of 8.01, made that case fail
-  (`Expected: 0`, `Received: 1`, the check's exit code); restored to 11, it passes.
-- Dash `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`: 52 pass, 1 fail. The failure
-  is the case "calibrate.test.ts in a private Linux namespace", which reruns that file inside a
-  namespace, where one case expects the toolchain `bun 1.4.6+d457f5d0d` and the record reads
-  `bun 1.4.6-canary.1+d457f5d0d`: the laptop runs a Bun canary, not the pinned 1.4.4, and the
-  case does not read the catalogue. The real-scope cases skipped: no systemd user bus.
+- Negative: `envelope.tmpDiskGib` set to 7, below its p95 of 8.01. The same `check` on the
+  working tree reported `envelope tmpDiskGib 7 is below its calibrated p95 8.01` (`debt`, since
+  the repository policy runs the rule in `observe`), and `job-catalogue.test.ts` failed 8 of 21,
+  the first being "passes the four job types …" (`Expected: 0`, `Received: 1`). Restored to 11,
+  it passes 21 of 21.
+- Dash `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`: 53 pass, 0 fail.
 - `bunx openspec validate --all --json`: exit 0, 362 items, 362 passed. Prettier `--check` on
   the five changed text files: clean. Burokrat `check-indexes staged . HEAD` after `git add -A`:
   exit 0, three review-debt entries, all pre-existing (`libs/wbs/…` direct-entry counts).
   `tools/tool-devsync` `retired-roots.test.ts`: 3 pass.
+- Not this change: Burokrat `rules.test.ts` fails 17 K3/K4 cases here and identically on a
+  clean `origin/main` a2e4750c7 checkout (47 pass, 17 fail); none reads the catalogue.
