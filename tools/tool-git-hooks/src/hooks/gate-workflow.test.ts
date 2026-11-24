@@ -349,10 +349,13 @@ describe('the CI private-nesting step', () => {
 });
 
 // A-CI-WORKSPACE-MEMORY-3: one leaf per heavy project with its [job, phase] budget in minutes.
+// A-CI-STORE-SQLITE-BUDGET-1 (#996): wbs-store-sqlite is 110/95 until its fixture cost is fixed.
+// Proof (2026-11-24): with ci.yml at [110,95] and this entry still 90/75, `retains full event
+// scope and refuses unknown events` failed on the published heavy_leaves line (22 pass, 1 fail).
 const heavyLeaves = [
   { project: 'tool-fleet', job: 90, phase: 75 },
   { project: 'tool-devsync', job: 60, phase: 45 },
-  { project: 'wbs-store-sqlite', job: 90, phase: 75 },
+  { project: 'wbs-store-sqlite', job: 110, phase: 95 },
   { project: 'wbs-core', job: 45, phase: 30 },
 ];
 
