@@ -10,8 +10,10 @@ enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2pu
 ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
 about 100 minutes for a full gate is from before enrollment; the first observe-mode gate was
 throttled by the estimated `gate` envelope (the known issue in that section). The `gate`
-catalogue entry is measured since #955 (`dash-host-jobs` task 6.25): 6 cores, 9 GiB, 11 GiB
-tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
+catalogue entry is measured since #955 (`dash-host-jobs` task 6.25) on h4claw and since
+2026-11-24 on h2puni too (A-CAT-GATE-2HOSTS-1, the larger figure of the two hosts per
+dimension, [job catalogue](../../infra/jobs/README.md#one-entry-measured-on-two-hosts)): 6 cores,
+9 GiB, 11 GiB tmp, clamped to h2puni's pool. A clamped dimension reserves the whole pool's allocatable
 (S25-A7), so a gate holds all of either pool's cores and memory and nothing runs beside it, and
 `gate` may not be listed in `concurrencyEligible`. Its scope runs under
 `MemoryHigh = min(heuristic 13 GiB, pool budget − memoryBoundHeadroomGib)`, the headroom 2 GiB

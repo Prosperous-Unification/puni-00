@@ -12,18 +12,21 @@
       "provenance": {
         "kind": "calibrated",
         "hostClass": "linux-x64-8c-15g",
-        "calibratedAt": "2026-11-20T04:05:14.759Z",
-        "recordCount": 3,
+        "calibratedAt": "2026-11-23T13:10:11.926Z",
+        "recordCount": 6,
         "p95": { "cpuCores": 6.88, "memoryGib": 10.01, "tmpDiskGib": 8.01 },
         "recordIds": [
           "29b8b406-553a-406a-81ef-981399b071e1",
           "29d3503e-aa40-47ab-973d-1a4c427e15ee",
-          "43923656-0aa0-491b-920a-267d4ee97a63"
+          "43923656-0aa0-491b-920a-267d4ee97a63",
+          "ad0a8150-7fe0-4801-b1ec-242ad545bc28",
+          "46b1f409-739e-49b6-8dd0-b81a218979fa",
+          "53555099-759e-4b84-a02d-b91e9008cd69"
         ],
         "tmpDiskGibLowerBound": true,
         "clampedToAllocatable": ["cpuCores", "memoryGib"],
         "heuristic": { "cpuCores": 9, "memoryGib": 13 },
-        "notes": "the containers bound is declared, not measured: inside a Dash job the solver smoke's four direct docker runs, the supervisor's managed solver containers, the orphan proof's callers and Caddy in mcp-body-limit.test.ts take it and the job label (tasks 6.13, 6.21), and no container peak is measured; the smoke's docker build must run under BuildKit (docker-buildx), or every gate record is attribution_incomplete; maxRuntimeMinutes 480 is about 1.5 times the calibrated duration p95 of 18,958 s; the entry is clamped to the pool, so it holds the whole pool in cores and memory and is never concurrency-eligible (S25-A7)"
+        "notes": "the containers bound is declared, not measured: inside a Dash job the solver smoke's four direct docker runs, the supervisor's managed solver containers, the orphan proof's callers and Caddy in mcp-body-limit.test.ts take it and the job label (tasks 6.13, 6.21), and no container peak is measured; the smoke's docker build must run under BuildKit (docker-buildx), or every gate record is attribution_incomplete; maxRuntimeMinutes 480 is about 1.5 times the larger calibrated duration p95, h2puni's 19,456 s (h4claw 18,958 s); the entry is clamped to the pool, so it holds the whole pool in cores and memory and is never concurrency-eligible (S25-A7); measured on both gate hosts, one host class (A-CAT-GATE-2HOSTS-1): the records are h4claw's three (proposed 2026-11-20: p95 cpuCores 6.88, memoryGib 10.01, tmpDiskGib 8.01 as a lower bound; heuristic 9 cores, 13 GiB; tmpDiskGib 11) and h2puni's three (proposed 2026-11-23: p95 5.93, 9.71, 7.91 with complete tmp telemetry; heuristic 8 cores, 13 GiB; tmpDiskGib 10), and each p95, heuristic and envelope figure is the larger of the two hosts' per dimension, so either host's gate fits it; tmpDiskGibLowerBound stays true because the 8.01 tmp p95 is h4claw's, from records that could not read part of their tmp directory (task 6.23), so it is still a lower bound; recordCount and recordIds span both hosts, and calibratedAt is the later proposal's"
       }
     },
     {

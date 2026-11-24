@@ -252,7 +252,10 @@
       `changed=0`, `ops pool init`, units started, `--tags validate` `ok=31 changed=0`; allocatable
       6 cores, 9 GiB, 12 disk units, 4 slots). Open: the observe week on both hosts, the five
       calibrations (`gate` on h4claw: job 22ce2369 ended 2026-11-17 21:02Z, see 6.14; the armed watcher
-      runs the three calibrations once its hold is reclaimed), the catalogue PRs.
+      runs the three calibrations once its hold is reclaimed), the catalogue PRs. `gate` is
+      calibrated on both hosts: h4claw 2026-11-20 (6.25), h2puni 2026-11-23, landed 2026-11-24
+      (verify.md "2026-11-24 h2puni calibration landed (task 6.25 follow-up)",
+      A-CAT-GATE-2HOSTS-1); the other four types are still estimates.
 - [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
       and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
       S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
