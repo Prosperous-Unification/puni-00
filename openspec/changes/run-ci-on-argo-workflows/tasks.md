@@ -60,8 +60,9 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 - [ ] CI-S3 The CI tree and its delivery rules (design decisions 1 and 3). `infra/argocd/ci`
       with the units C0, C1, C2, C4, C6 and C7; the lock entries for Argo Workflows v4.1.6, Argo Events
       v1.9.11 and Dagger v0.21.12 in `infra/versions/toolchain.json`; the AppProject `ci`
-      and its Applications in the platform tree, automated sync off, each with its
-      `puni.dev/needs`. Rules added to the `delivery` check family, lettered after the core change's (a) to
+      and its ApplicationSet in the root's source path of the platform tree (core R19),
+      with an Application file per unit under `infra/argocd/apps/ci`, the template's
+      automated sync off, each file with its `puni.dev/needs`. Rules added to the `delivery` check family, lettered after the core change's (a) to
       (r): (s) an Application of a
       project other than `ci` names the in-cluster destination only, and one of project
       `ci` names the CI cluster only; (t) every pod template under the CI tree selects `ci`
@@ -190,7 +191,7 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 They are stage 2 of the core change's build order and replace its A10.
 
 - [ ] CI-A1 Bootstrap the CI cluster, after the core change's A9 has created the server at
-      12 vCPUs and 24 GiB (CI13), CI-S1, CI-S2 with its inventory revision for that server,
+      16 vCPUs and 32 GiB (CI13), CI-S1, CI-S2 with its inventory revision for that server,
       and the receipt CI-S5/A2. Who: operator. Commands: `playbooks/firewall.yml` limited
       to the platform node, so that it and the CI server admit each other's private
       address for the two paths of design decision 1;

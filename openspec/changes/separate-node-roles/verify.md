@@ -8,7 +8,9 @@ touched, and no playbook ran against a server. Their proofs are under
 [Failure proofs](#failure-proofs) and their commands under
 [Slices 1.1 to 1.9: commands](#slices-11-to-19-commands-2026-11-22). Everything else below was
 read or run while writing the plan, on 2026-11-21 and 2026-11-22, in a worktree at
-`origin/main` `b17861f83`.
+`origin/main` `b17861f83`. On 2026-11-24 the owner's answers to task 0.1 were recorded
+(plan text only, from `origin/main` `9a09bc1ad`): [Owner decisions](#owner-decisions) and
+[the commands of that update](#the-update-of-2026-11-24-commands).
 
 ## k3s behaviour
 
@@ -89,8 +91,9 @@ Not read or not provable from reading; slice 2.7 owns each:
   policy. Rehearsal 2.7/A3.
 - Which fields need `ignoreDifferences` for these charts.
 - Argo CD's memory on this cluster. 1,536 MiB is an assumption (R24).
-- The ApplicationSet documentation was not read; the choice against it rests on the
-  bootstrapping guide's description only.
+- The ApplicationSet documentation was not read. The owner chose an ApplicationSet on
+  2026-11-24 (R19); the policy, deletion and generator names in design decision 3 are from
+  memory, and slice 2.1 reads them in v3.6.2.
 
 ## Minimal placement profile: rules changed and what was read
 
@@ -124,8 +127,9 @@ triggers that are alerts as well.
 
 **What the figures said against one co-location.** On the declared figures staging did not
 fit beside the observability stack on 16 GiB: 972 MiB were left before the staging database
-and any solve. Shown that, the owner chose a larger server (below); on 24 GiB the same rows
-leave 5,442 MiB, or 2,498 with dev. A14's measurement stays the condition.
+and any solve. Shown that, the owner chose a larger server (below); on 24 GiB, as counted on 2026-11-22,
+the same rows left 5,442 MiB, or 2,498 with dev; on the 32 GiB assumed since 2026-11-24
+(R50) they leave 13,246, or 10,302 with dev. A14's measurement stays the condition.
 
 ## cert-manager behaviour
 
@@ -283,34 +287,68 @@ Each row is a decision of the owner's, stated as a decision and dated; the assum
 carries it is named. Assumptions that the planning session set for him are listed after the
 table. No conversation is reproduced here.
 
-| Date       | Decision                                                                                                                                                                           | Carried by        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 2026-11-21 | The cluster is rebuilt from nothing on new servers, beside the old one, and delivered by Argo CD                                                                                   | R1, R19           |
-| 2026-11-21 | The switch may be unsafe while there are no production users                                                                                                                       | R26               |
-| 2026-11-21 | OpenBao is set up before everything it can precede                                                                                                                                 | R22               |
-| 2026-11-21 | What merges to `main` deploys to staging; production deploys on command                                                                                                            | R20               |
-| 2026-11-21 | Server sizes and names as recommended; the owner creates the servers; machine ids and private addresses follow the fleet file, which already publishes them for the existing nodes | R2 to R5          |
-| 2026-11-21 | Dev and staging are two separate environments on a node apart from production; staging follows `main`, holds the tracker and promotes to production                                | R29, R33          |
-| 2026-11-21 | h1claw may be deleted; the backup windows that follow are accepted; the escrow precedes it                                                                                         | R30               |
-| 2026-11-21 | Alerts go to one named channel; its webhook is held by the owner outside this repository                                                                                           | decision 5        |
-| 2026-11-21 | PostgreSQL hosting is planned, for every app once it is in place; the database server is bought later                                                                              | `host-postgres`   |
-| 2026-11-22 | A host for OpenClaw and a remote workstation; one shared host in the minimal profile, 8 vCPUs and 16 GiB                                                                           | `add-agent-hosts` |
-| 2026-11-22 | The minimal setup that can grow: separate only what is hard to scale out later; every server new, every old one retired                                                            | R45, R46          |
-| 2026-11-22 | Production apps node at 4 vCPUs and 8 GiB as a trial; observability node larger than 16 GiB; staging and dev stay on it                                                            | R2                |
-| 2026-11-22 | All plans are in one pull request                                                                                                                                                  | proposal          |
-| 2026-11-22 | Harbor and the owner's own CI are built, not replaced by hosted services                                                                                                           | R10, R31          |
-| 2026-11-22 | CI is orchestrated by Argo Workflows and Argo Events with Dagger; the host pool is not used on the new capacity                                                                    | R31, CI change    |
-| 2026-11-22 | Everything is orchestratable by the `puni-user-platform` and multitenant                                                                                                           | R48               |
-| 2026-11-22 | Tailscale is the access path; platform services are not exposed to the internet                                                                                                    | R47               |
-| 2026-11-22 | Rancher Manager is included in the plan                                                                                                                                            | R54               |
-| 2026-11-22 | The platform server is bought at 8 vCPUs, 32 GB and 200 GB, and a bastion at 1 vCPU and 2 GB; servers are named by his scheme                                                      | R2, R3            |
+| Date       | Decision                                                                                                                                                                                                                                                                                             | Carried by                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 2026-11-21 | The cluster is rebuilt from nothing on new servers, beside the old one, and delivered by Argo CD                                                                                                                                                                                                     | R1, R19                         |
+| 2026-11-21 | The switch may be unsafe while there are no production users                                                                                                                                                                                                                                         | R26                             |
+| 2026-11-21 | OpenBao is set up before everything it can precede                                                                                                                                                                                                                                                   | R22                             |
+| 2026-11-21 | What merges to `main` deploys to staging; production deploys on command                                                                                                                                                                                                                              | R20                             |
+| 2026-11-21 | Server sizes and names as recommended; the owner creates the servers; machine ids and private addresses follow the fleet file, which already publishes them for the existing nodes                                                                                                                   | R2 to R5                        |
+| 2026-11-21 | Dev and staging are two separate environments on a node apart from production; staging follows `main`, holds the tracker and promotes to production                                                                                                                                                  | R29, R33                        |
+| 2026-11-21 | h1claw may be deleted; the backup windows that follow are accepted; the escrow precedes it                                                                                                                                                                                                           | R30                             |
+| 2026-11-21 | Alerts go to one named channel; its webhook is held by the owner outside this repository                                                                                                                                                                                                             | decision 5                      |
+| 2026-11-21 | PostgreSQL hosting is planned, for every app once it is in place; the database server is bought later                                                                                                                                                                                                | `host-postgres`                 |
+| 2026-11-22 | A host for OpenClaw and a remote workstation; one shared host in the minimal profile, 8 vCPUs and 16 GiB                                                                                                                                                                                             | `add-agent-hosts`               |
+| 2026-11-22 | The minimal setup that can grow: separate only what is hard to scale out later; every server new, every old one retired                                                                                                                                                                              | R45, R46                        |
+| 2026-11-22 | Production apps node at 4 vCPUs and 8 GiB as a trial; observability node larger than 16 GiB; staging and dev stay on it                                                                                                                                                                              | R2                              |
+| 2026-11-22 | All plans are in one pull request                                                                                                                                                                                                                                                                    | proposal                        |
+| 2026-11-22 | Harbor and the owner's own CI are built, not replaced by hosted services                                                                                                                                                                                                                             | R10, R31                        |
+| 2026-11-22 | CI is orchestrated by Argo Workflows and Argo Events with Dagger; the host pool is not used on the new capacity                                                                                                                                                                                      | R31, CI change                  |
+| 2026-11-22 | Everything is orchestratable by the `puni-user-platform` and multitenant                                                                                                                                                                                                                             | R48                             |
+| 2026-11-22 | Tailscale is the access path; platform services are not exposed to the internet                                                                                                                                                                                                                      | R47                             |
+| 2026-11-22 | Rancher Manager is included in the plan                                                                                                                                                                                                                                                              | R54                             |
+| 2026-11-22 | The platform server is bought at 8 vCPUs, 32 GB and 200 GB, and a bastion at 1 vCPU and 2 GB; servers are named by his scheme                                                                                                                                                                        | R2, R3                          |
+| 2026-11-24 | Confirmed as written: R1, R7, R16, R17, R21, R24, R25, R32, R51, R52, R55; R49 with SSH through the bastion and the API on the tailnet only; R53, the staging migration automatic; R54 and decision 14, an interface only with Argo CD the one deploy path                                           | those rows                      |
+| 2026-11-24 | AWS S3 is the object store for etcd snapshots, app backups, OpenBao snapshots and Harbor where supported, in a region other than the servers', so the snapshot bucket is OpenBao's off-region copy and the follow-up `openbao-offsite-snapshots` is retired; no region or account in this repository | R6; `openbao-secret-store` D11  |
+| 2026-11-24 | No plan places Harbor or OpenBao on a node of its own, so the placement stands. Names PUNI defines get the prefix `puni-` and the suffix `-pv<N>` (pv: puni-version), "everywhere"; not host names or repository names; names third parties define are unchanged; merged code is renamed by a slice  | R8, decision 1, slice 1.10      |
+| 2026-11-24 | S3 where an app supports it; every other persistent claim on an attached provider volume, not on the server's root disk; `Retain` kept; re-attachment and throughput are checked, and the root disk is the fallback                                                                                  | R9, decision 2, slice 1.11, A29 |
+| 2026-11-24 | Overruled: an ApplicationSet from the start, its controller installed, Applications generated per unit, environment and tenant, the root the one entry point                                                                                                                                         | R19, R24, decision 3            |
+| 2026-11-24 | Workers clusters and labs move to the new repository `puni-01`, not to Flux here; the move is planned in the private records repository                                                                                                                                                              | R27                             |
+| 2026-11-24 | R32 and R34 confirmed; environment names `prod`, `stag`, `dev0`, later `dev1`, `dev2`                                                                                                                                                                                                                | R32, R34, decision 3            |
+| 2026-11-24 | Only code PUNI controls runs on PUNI infrastructure; a client who leaves runs the PUNI platform themselves; so the CI cluster stays one trust zone                                                                                                                                                   | R35                             |
+| 2026-11-24 | The provider has no 12 vCPU and 24 GiB class: the CI server is 16 vCPUs and 32 GiB; no provider name or price in the repository                                                                                                                                                                      | R50, R2                         |
 
-Set for him by the planning session, each with its alternative in design.md, for him to
-overrule by id: R34 (dev's delivery is a follow-up), R35 (the CI cluster is one trust zone),
-R49 (break-glass through the bastion, then the provider's console), R50 (the CI server's
-size), R51 (no public webhook), R52 (Tailnet Lock, `sshd` login), R55 (the bastion as the
-SSH path, Tailscale kept as the target for the interfaces), and the controller on the
-operator's laptop only (decision 10).
+Task 0.1 is answered by the rows of 2026-11-24. The rows the planning session had set for
+him on 2026-11-22 (R34, R35, R49 to R53, R55) are decided; the controller on the
+operator's laptop only (decision 10) was not named and stays as written. What is still
+assumed is listed in design.md's Assumptions. Where his answer left a detail open, the
+planning session chose it and design.md says so:
+
+- the naming rule's boundary in decision 1: host names and repository names are out, which
+  the owner confirmed; the rest of the list is the planning session's reading of
+  "everywhere": in are capability labels and every key under `puni.dev/`, PriorityClasses,
+  AppProjects, units, Argo CD Application and ApplicationSet names, the namespaces of
+  PUNI's own services and Tailscale tags; out are the environment names, which appear
+  unprefixed as segments, third-party names and code identifiers; the capabilities renamed
+  are all seven of decision 1's table, `control-plane` included, and the CI change's `ci`;
+  a label key drops the `puni-` prefix that `puni.dev/` already gives; the plan text keeps
+  short forms, and slice 1.10's list fixes each scoped form;
+- for R35, the working-out of the owner's rule: dependencies count as code (frozen
+  lockfiles, images pinned by digest, a new dependency through review), and per-job VM
+  isolation (Kata Containers or Firecracker as a RuntimeClass) before any foreign code
+  runs, which needs nested virtualisation on the CI server, not verified;
+- the R6 buckets are made at the step that first writes each, with one key per bucket or
+  prefix read back as refused outside its scope;
+- the storage path is one server-wide value and the R9 fallback is cluster-wide (decision
+  2), and A29 runs in three parts around A6;
+- environment names apply to projects, the environment label, namespaces, store paths and
+  overlays; Workflow template names such as `staging-build`, the cluster id
+  `platform-production` (R5) and public host names are unchanged;
+- etcd's own data stays on the root disk, and CI keeps everything on its root disk;
+- the ApplicationSet controller is assumed at 256 MiB, and the Application files lie
+  outside the root's source path, under `infra/argocd/apps`;
+- the observability server is assumed at 16 vCPUs and 32 GiB, as A12 already provided when
+  the 24 GiB class is missing.
 
 ## Read-only readings
 
@@ -375,6 +413,37 @@ below were run again on this revision, on 2026-11-22.
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
 | Intent word count of proposal.md, "Why" to "Constraints"                                                    | 395 words here; 361, 339 and 334 in the other three                       |
+
+## The update of 2026-11-24: commands
+
+Run in a worktree at `origin/main` `9a09bc1ad` with the update applied, after
+`bun install --frozen-lockfile`. Plan text only; no source, host or cluster was touched.
+
+| Command                                                                                                                                                     | Result                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `./node_modules/.bin/openspec validate --all --json`                                                                                                        | exit 0; 362 items, 362 passed                                                                   |
+| `./node_modules/.bin/openspec validate <change> --strict` for `separate-node-roles`, `openbao-secret-store`, `run-ci-on-argo-workflows` and `host-postgres` | each valid, exit 0; the first failed once on a requirement over 500 characters, which was split |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`                                                                                       | 1 pass, 0 fail                                                                                  |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                        | 15 pass, 0 fail                                                                                 |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/current-documents.test.ts`                                                                               | 18 pass, 0 fail                                                                                 |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                 | exit 0, empty stderr                                                                            |
+| `nx format:check --files=<the twelve changed files>`                                                                                                        | exit 0                                                                                          |
+| Intent word count of each proposal, "Why" to "Constraints", headings excluded                                                                               | 400 here; 383, 389 and 339 in the other three touched, 334 in `add-agent-hosts`                 |
+
+A review of `71a1e74f4` found four S1 and six S2 findings, all applied in the next commit:
+the server-wide storage path and a cluster-wide R9 fallback; A29 split around A6, with the
+temporary server's one volume and `fio` locked by slice 1.11; the CI change's `ci`
+ApplicationSet and the four AppProjects; the S3 buckets outside the servers' region as
+OpenBao's off-region copy, `openbao-offsite-snapshots` retired, and bucket and key creation
+at A2, A5, A14, A15, A18 to A20, OpenBao task 4.1 and PG-A3/PG-A4; etcd marked root disk;
+OpenBao's volume and `PlatformVolumeDiskLow`; the project cells; CI11's SSH path; two stale
+figures; the naming boundary; and the attribution of R34's and R35's working-out to the
+planning session. The same commands were run again on that commit's tree, with the same
+results (362 passed; four changes valid under `--strict`; 1, 15 and 18 tests passing;
+Burokrat exit 0; format exit 0; intent 400, 383, 389, 339, 334).
+
+Not run for this update: the other tool-devsync tests, `check-documents-target.test.ts`,
+every Nx target and any review.
 
 ## Checks not run
 

@@ -79,14 +79,45 @@ is bound to the node.
 
 ### Requirement: Every role has a minimum disk
 
-Each role SHALL state the smallest root disk its server may have, and the step that creates
-a server MUST stop before anything is installed when the server's disk is smaller, whatever
-provider or product the server comes from.
+Each role SHALL state the smallest root disk its server may have, the smallest attached
+volume it needs, and the larger root disk that applies when volumes are ruled out. The step
+that creates a server MUST stop before anything is installed when the server's disk or a
+volume is smaller, whatever provider or product the server comes from.
 
 #### Scenario: Server with the memory and not the disk
 
 - **WHEN** a server created for a role reports a root disk under that role's minimum
 - **THEN** the step stops and the server is not bootstrapped or joined
+
+#### Scenario: Volume missing
+
+- **WHEN** a server whose role holds claims has no attached volume of the role's minimum, and
+  volumes have not been ruled out
+- **THEN** the step stops and the server is not bootstrapped or joined
+
+### Requirement: Persistent data is kept off the root disk where it can be
+
+Data SHALL go to S3 where its app supports it. Every other persistent claim SHALL land on a
+provider volume attached to its node, mounted by its filesystem UUID at one claims path that
+is the same on every node and is the k3s server's one local storage path, with the policy
+`Retain`, unless the volume checks ruled volumes out for the whole cluster. The volume role
+MUST NOT format a device that carries a filesystem.
+
+#### Scenario: Volume absent on the host
+
+- **WHEN** the inventory names a volume for a node and the host has no such device
+- **THEN** the volume role fails before k3s starts and names the volume
+
+#### Scenario: Device with another filesystem
+
+- **WHEN** a device's filesystem UUID differs from the inventory's
+- **THEN** the role refuses it and formats nothing
+
+#### Scenario: Claim on the root disk
+
+- **WHEN** the k3s server's local storage path is not the claims path, or on any node the
+  claims path is not its volume's mountpoint when k3s would start
+- **THEN** the volume role fails before k3s starts and names the node
 
 ### Requirement: Monitoring outranks non-production on a shared node
 
@@ -119,7 +150,14 @@ name a priority class.
 ### Requirement: Platform services and non-production capabilities
 
 The fleet model SHALL define the capabilities `platform-services` and `nonproduction` for
-platform clusters only.
+platform clusters only. On the rebuilt cluster every capability SHALL carry its scoped name,
+the prefix `puni-` and a suffix `-pv<N>` (`puni-platform-services-pv1`), and its node label
+SHALL be `puni.dev/capability-` followed by the name without the prefix.
+
+#### Scenario: Unscoped capability on the rebuilt cluster
+
+- **WHEN** a node of the rebuilt cluster declares a capability without the prefix and suffix
+- **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Workers node carries one
 
@@ -188,8 +226,8 @@ workload `product`, so that the two run on different nodes.
 
 #### Scenario: Workload selects another environment's label
 
-- **WHEN** a pod template of a `staging` Application does not select `nonproduction`, or one
-  of a `production` Application does not select `product`
+- **WHEN** a pod template of a `stag` Application does not select `nonproduction`, or one
+  of a `prod` Application does not select `product`
 - **THEN** the check fails and names the workload
 
 #### Scenario: Running placement
@@ -303,7 +341,7 @@ version certifies for a cluster that hosts it.
 #### Scenario: A Rancher pod contradicts the namespace
 
 - **WHEN** a pod in an annotated `cattle-` namespace selects
-  `puni.dev/capability-platform-services: "false"`
+  `puni.dev/capability-platform-services-pv1: "false"`
 - **THEN** admission refuses it
 
 #### Scenario: An upgrade plan
@@ -419,7 +457,7 @@ Staging Applications SHALL retry a failed sync with backoff.
 A merge to `main` that touches an app SHALL reach staging with no command, through a build
 that commits its rendered manifests to the pins repository. Production and platform
 Applications SHALL change only when a person syncs them. The root SHALL manage only
-Application and AppProject objects and never prune. The delivery check SHALL run inside a
+ApplicationSet and AppProject objects and never prune. The delivery check SHALL run inside a
 required check. The tracker's poller MUST NOT be retired before the build path has its
 receipt or the owner's waiver.
 
@@ -472,7 +510,7 @@ receipt or the owner's waiver.
 
 #### Scenario: Other kind in the root's path
 
-- **WHEN** the root's source path holds an object that is neither an Application nor an
+- **WHEN** the root's source path holds an object that is neither an ApplicationSet nor an
   AppProject, or the `root` project admits another kind or another destination
 - **THEN** the delivery check fails and names it
 
@@ -495,7 +533,7 @@ receipt or the owner's waiver.
 #### Scenario: Automation switched on in the cluster
 
 - **WHEN** automated sync is enabled on a production Application by an edit in the cluster
-- **THEN** the root restores the Application as `main` defines it
+- **THEN** the ApplicationSet controller restores the Application as `main` defines it
 
 #### Scenario: Manual change on staging
 
@@ -548,15 +586,34 @@ receipt or the owner's waiver.
 - **WHEN** a commit is pushed to `main` directly
 - **THEN** the repository ruleset refuses it
 
+### Requirement: ApplicationSets never delete what they generated
+
+Every Application but the root SHALL be generated by the ApplicationSet of its project from
+an Application file, under the controller policy `create-update`, so that removing a file deletes no
+Application.
+
+#### Scenario: ApplicationSet that could delete or widen
+
+- **WHEN** an ApplicationSet has a generator other than the Git files generator on this
+  repository, a `templatePatch`, a progressive sync, no `preserveResourcesOnDeletion`, or a
+  template with automated sync outside the staging project
+- **THEN** the delivery check fails and names it
+
+#### Scenario: Controller policy allows deletion
+
+- **WHEN** the rendered Argo CD install sets an ApplicationSet controller policy other than
+  `create-update`, or allows a policy override per ApplicationSet
+- **THEN** the toolchain check refuses the render
+
 ### Requirement: A project reaches only its own namespaces
 
-The destinations of the `staging` and `production` projects SHALL be exactly their own
+The destinations of the `stag` and `prod` projects SHALL be exactly their own
 namespaces. Of the platform units only `namespaces`, `policy` and `secret-sync` MAY write into
 an app namespace.
 
 #### Scenario: Project reaches beyond its namespaces
 
-- **WHEN** the destinations of the `staging` or `production` project include a wildcard,
+- **WHEN** the destinations of the `stag` or `prod` project include a wildcard,
   `argocd`, the store's namespace or any namespace not declared for it, or the project
   admits a cluster-scoped kind or a Namespace, or has no list of admitted namespaced kinds
 - **THEN** the delivery check fails and names the project
@@ -651,14 +708,14 @@ level unless it is an admitted solver namespace.
 ### Requirement: The interface syncs production and nothing else
 
 The Argo CD interface MUST have no public route. Its one local account SHALL read every
-Application and MAY sync Applications of the `production` project only, at the revision the
+Application and MAY sync Applications of the `prod` project only, at the revision the
 Application names, and MUST NOT roll one back. The built-in `admin` account MUST be disabled.
 Platform units SHALL be synced by the sync playbook with the node's credential.
 
 #### Scenario: Interface exposed or over-privileged
 
 - **WHEN** the rendered install has an Ingress, a default role other than `role:readonly`, the
-  `admin` account enabled, a grant of `sync` outside `production/*`, a grant of `override` or
+  `admin` account enabled, a grant of `sync` outside `prod/*`, a grant of `override` or
   `rollback`, or no `server.rbac.rollback.enforce.enable`
 - **THEN** the delivery check fails
 
@@ -675,7 +732,7 @@ Platform units SHALL be synced by the sync playbook with the node's credential.
 
 #### Scenario: Sync playbook given an app
 
-- **WHEN** the sync playbook is given a unit of the `staging` or `production` project to sync
+- **WHEN** the sync playbook is given a unit of the `stag` or `prod` project to sync
 - **THEN** it refuses before syncing anything
 
 #### Scenario: Removing an app's Application
@@ -1064,13 +1121,13 @@ proxy and nothing else.
 
 ### Requirement: Every tenant-scoped namespace names its tenant
 
-Every namespace of a `staging`, `production`, CI or database unit SHALL carry the label
+Every namespace of a `stag`, `prod`, CI or database unit SHALL carry the label
 `puni.dev/tenant`, and an object in such a namespace SHALL NOT carry another tenant's
 label.
 
 #### Scenario: A namespace without a tenant
 
-- **WHEN** a namespace of the `staging` project has no `puni.dev/tenant` label
+- **WHEN** a namespace of the `stag` project has no `puni.dev/tenant` label
 - **THEN** the `delivery` check refuses the tree and names the namespace
 
 #### Scenario: An object of another tenant

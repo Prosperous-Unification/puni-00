@@ -77,7 +77,9 @@ pinned.
 The owner was away and had set the goal of finalizing and merging the plan. Three points
 were settled for him, each an assumption he can overrule: no public path (CI11), a status
 written to GitHub (CI12), and a server of 12 vCPUs and 24 GiB (CI13). The two open
-questions of an earlier draft are closed by them.
+questions of an earlier draft are closed by them. On 2026-11-24 the owner decided CI11 as
+assumed and CI13 as 16 vCPUs and 32 GiB, the provider having no 12 vCPU and 24 GiB class,
+and gave CI10 its reason (core R35, R50, R51).
 
 What changed: the GitHub event source, its webhook secret, the ingress route, and the units
 `ci-cert-manager`, `ci-traefik` and `ci-issuers` are gone; the unit `ci-tailscale-operator`
