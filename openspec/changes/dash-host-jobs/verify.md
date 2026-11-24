@@ -5257,7 +5257,7 @@ calibrations and the proposal were run on h2puni by the coordinator before it).
 - On h2puni (host class `linux-x64-8c-15g`; pool allocatable 6 cores, 9 GiB and 12 disk
   units), three complete `gate` calibrations on launcher 9d5778028: ad0a8150-7fe0-4801-b1ec-242ad545bc28
   (cold, 2026-11-22 17:32Z to 22:52Z), 46b1f409-739e-49b6-8dd0-b81a218979fa (warm, 22:52Z to
-  2026-11-23 04:12Z) and 53555099-759e-4b84-a02d-b91e9008cd69 (warm, 07:45Z to 13:10Z).
+  2026-11-23 04:11Z) and 53555099-759e-4b84-a02d-b91e9008cd69 (warm, 07:45Z to 13:10Z).
 - `ops job propose --type gate` (2026-11-23T13:10:11.926Z) printed cpuCores 6 (clamped to
   allocatable 6; heuristic 8 from p95 5.93 cores), memoryGib 9 (clamped to allocatable 9;
   heuristic 13 from p95 9.71 GiB over 3 uncapped, unthrottled records), tmpDiskGib 10 (p95
@@ -5300,3 +5300,15 @@ hook refuse):
   `tools/tool-devsync` `retired-roots.test.ts`: 3 pass.
 - Not this change: Burokrat `rules.test.ts` fails 17 K3/K4 cases here and identically on a
   clean `origin/main` a2e4750c7 checkout (47 pass, 17 fail); none reads the catalogue.
+
+### Fable review fold-in (S2-1, S3-1, S3-2, S3-3; 2026-11-24)
+
+The review of #997 at 1478d9b66 found that `nearestRankP95` takes rank ⌈0.95·n⌉, which is n for
+n of 20 or fewer, so the six-record pooled p95 is the larger of the two three-record p95s and
+the provenance stands. The README and the entry's `notes` now say so and say to pool the records
+beyond 20 (S2-1). The README's "Changing an envelope" says `ops job propose` on either host
+prints `recordCount` 3 with that host's p95s and carries the present `notes` verbatim, so a
+two-host merge is redone by hand or by pooling (S3-1). 46b1f409 ended 04:11:55Z (S3-2).
+`docs/infra/gate-hosts.md` dates the measurements and the landing and gives both hosts' gate
+durations, h2puni's p95 governing (S3-3). The checks were rerun after the fold-in; the PR body
+lists their results.
