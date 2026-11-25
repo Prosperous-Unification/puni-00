@@ -1,0 +1,3 @@
+- The executable and its shell tests passed ShellCheck.
+- The shell test passed with a fake browser opener. An injected unknown-option fallback to the opener failed the test.
+- From outside the repository, the installed PATH command returned its help and the expected production reset URL.

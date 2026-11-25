@@ -1,0 +1,2 @@
+- [x] Add and test the browser opener, print mode, help and unsupported-option refusal.
+- [x] Install the executable on the operator’s local PATH.
