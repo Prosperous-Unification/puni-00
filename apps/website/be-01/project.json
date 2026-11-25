@@ -23,20 +23,32 @@
         "^production",
         "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md",
         "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md",
-        "{workspaceRoot}/apps/website/fe-01/browser/conversation-api.mjs"
+        "{workspaceRoot}/apps/website/fe-01/browser/conversation-api.mjs",
+        "{workspaceRoot}/bin/website-live-logs*",
+        "{workspaceRoot}/bin/puni-website-*"
       ],
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test ./apps/website/be-01/src --timeout=30000"
+        "commands": [
+          "bun test ./apps/website/be-01/src --timeout=30000",
+          "bash bin/website-live-logs.test.sh",
+          "bash bin/puni-website-prod-reset.test.sh"
+        ],
+        "parallel": false
       }
     },
     "lint": {
+      "inputs": [
+        "default",
+        "{workspaceRoot}/bin/website-live-logs*",
+        "{workspaceRoot}/bin/puni-website-*"
+      ],
       "executor": "nx:run-commands",
       "options": {
         "commands": [
           "bunx eslint apps/website/be-01/src apps/website/be-01/build.ts apps/website/be-01/build-smoke.ts",
           "command -v shellcheck >/dev/null 2>&1 || { echo '[website-be-01] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",
-          "shellcheck -s bash bin/puni-website-dev-reset.sh bin/puni-website-dev-reset.test.sh bin/puni-website-local-reset.sh bin/puni-website-local-reset.test.sh"
+          "shellcheck -s bash bin/puni-website-dev-reset.sh bin/puni-website-dev-reset.test.sh bin/puni-website-local-reset.sh bin/puni-website-local-reset.test.sh bin/puni-website-prod-reset.sh bin/puni-website-prod-reset.test.sh bin/website-live-logs.sh bin/website-live-logs.test.sh bin/puni-website-dev-logs bin/puni-website-prod-logs"
         ],
         "parallel": false
       }

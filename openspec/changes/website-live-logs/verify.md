@@ -1,0 +1,6 @@
+- The script test failed before implementation because the development command was missing. The completed commands passed the fake-SSH tests for routing, follow mode, help, invalid arguments and propagation of the SSH exit code.
+- In separate temporary copies, accepting an unknown environment or removing the leftover-argument refusal caused the entry-point tests to fail. The unchanged scripts then passed again.
+- Both default commands successfully read from H4. Development returned three lines and production returned zero within the requested time window. The development follow command stayed connected until a six-second test timeout.
+- ShellCheck and strict OpenSpec validation passed for the change.
+- After renaming the commands, both help flags produced identical output with the correct command name, limits and options. A fake SSH command verified that opening help makes no connection.
+- Calling the scripts by name from a temporary PATH directory failed while wrappers looked for the reader beside the symlink. Both passed from outside the checkout after the wrappers started resolving the symlink target.

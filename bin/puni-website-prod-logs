@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Proof: resolving only the link directory made the PATH entry point fail to find the reader.
+script=$(readlink -f -- "${BASH_SOURCE[0]}")
+exec "${script%/*}/website-live-logs.sh" prod "$@"

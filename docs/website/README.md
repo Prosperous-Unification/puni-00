@@ -22,6 +22,19 @@ The website introduces Prosperous Unification's software services and turns a vi
 
 Manual submission does not require a visitor account. Build is a live chat bound to the browser draft claim under the conversation allowance, with no prospect sign-in: the [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/proposal.md) superseded the earlier "choosing AI requires sign-in before any model call" line (accepted on 2026-10-11 as a batch 10 assumption, [ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md)). Send, Stop, Retry and the inline proposal card are specified in that change. Proposal submission is always an explicit action. The AI cannot agree to a price, delivery date or contract. The provider stays disabled until the [anonymous conversation activation](build-runtime.md#anonymous-conversation-activation) gates pass.
 
+## Live website logs
+
+Run the scripts from a checkout with the `h4` SSH alias configured. They show up to 100 lines from the last 30 minutes and default to the API deployment. Select `api`, `app`, or `site`, and add `--follow` to stream new output. Use `-h` or `--help` to see the options. Both entry points also work through symlinks in a directory on your PATH.
+
+```sh
+bin/puni-website-dev-logs
+bin/puni-website-prod-logs api --follow
+```
+
+## Production chat reset
+
+Sign in at `https://request.puni.dev/operator` in the browser you use for testing. Run `puni-website-prod-reset` and confirm in the browser. Use `--print` for another browser or `--help` for usage. The reset renews the current browser’s conversation allowance and opens the public intake form. Stored history and accounting are retained.
+
 ## Planning and evidence
 
 - [Country database maintenance](country-database.md): monthly DB-IP Lite refresh, retained provenance/licence, and next manual download on 1 December 2026.
