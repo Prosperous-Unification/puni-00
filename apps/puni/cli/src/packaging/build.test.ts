@@ -687,7 +687,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     stdin: Buffer.from('import must not dispatch ambient argv or consume stdin'),
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 12000,
+    timeout: 30000,
   });
   expect(imported.signalCode).toBeUndefined();
   expect(imported.exitCode, imported.stderr.toString()).toBe(0);
@@ -724,7 +724,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     stdin: Buffer.from('the installed caller must not parse stdin'),
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 12000,
+    timeout: 30000,
   });
   expect(called.signalCode).toBeUndefined();
   expect(called.exitCode, called.stderr.toString()).toBe(0);
@@ -743,7 +743,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 12000,
+    timeout: 30000,
   });
   expect(requiredCaller.signalCode).toBeUndefined();
   expect(requiredCaller.exitCode, requiredCaller.stderr.toString()).toBe(78);
@@ -820,7 +820,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 12000,
+    timeout: 30000,
   });
   expect(provisionedCaller.signalCode).toBeUndefined();
   expect(provisionedCaller.exitCode, provisionedCaller.stderr.toString()).toBe(0);
@@ -847,7 +847,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 12000,
+      timeout: 30000,
     },
   );
   expect(refusedDigest.signalCode).toBeUndefined();
@@ -873,7 +873,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 12000,
+      timeout: 30000,
     },
   );
   expect(refusedReuse.signalCode).toBeUndefined();
@@ -1543,7 +1543,10 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   // controls to this aggregate build/pack/add session. The 300s owner expired at Forge after
   // 352 assertions. Subprocess budgets remain per purpose; the measured current-profile
   // Forge observer budget is recorded beside its invocation above.
-}, 600000);
+  // A-CI-STORE-SQLITE-BUDGET-1: main run 45293794751 took 420 s on a three-CPU workspace scope;
+  // both attempts of PR #998's run 45491123307 passed 600 s, one with a 12 s caller killed at
+  // line 748. The owner gets 900 s and each installed-caller spawn 30 s.
+}, 900000);
 it('returns prior package cancellation before malformed revision or absent authority IO', async () => {
   let released = 0;
   const outcome = await buildPackage(
