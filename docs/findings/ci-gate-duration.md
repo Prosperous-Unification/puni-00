@@ -336,3 +336,42 @@ four. With about two thirds of draws on AWS, the bound of six gives about 2.76 e
 and about 9% of runs end red, against 20% at four. A full chain costs under 10 minutes of working
 runner time, plus about 10 idle minutes per waiter
 ([R5-32](checks-that-cannot-fail.md#amendment-2026-11-22-fourth-a-longer-requeue-bound-and-a-10-minute-delay)).
+
+## wbs-store-sqlite leaf budget, 2026-11-24 stopgap
+
+A-CI-STORE-SQLITE-BUDGET-1 (stopgap, for Dany to confirm) raises `gate workspace-heavy
+(wbs-store-sqlite)` from job 90 / phase 75 to job 110 / phase 95. The 90/75 budget came in with
+`3eae511db` after run 45041067883 reached 45 minutes, and the table in
+[one job per heavy project](#one-job-per-heavy-project-2026-11-21) still shows the older 60/45.
+
+Since main `9a09bc1ad` (the merge of #917), the leaf has exited 124 at its 75-minute phase on
+every full-mode main run. Both runs were on Azure hosts with a healthy scope (about 1.2 GiB, no OOM
+or pids events). The cause is tracked in
+[#996](https://github.com/Prosperous-Unification/puni-00/issues/996), which the suite's owners
+fix in the source. This change leaves the tests alone.
+
+| Run         | Head        | Files started | Tests passed | Phase  | Seconds per test |
+| ----------- | ----------- | ------------- | ------------ | ------ | ---------------- |
+| 45084247302 | `c32d27e95` | 177 of 177    | 2694 (all)   | 701 s  | 0.26 (phase)     |
+| 45128174002 | `9a09bc1ad` | 252 of 263    | 4331         | 4501 s | 1.04 (phase)     |
+| 45293794751 | `a2e4750c7` | 262 of 263    | 4470         | 4501 s | 1.01 (phase)     |
+
+On 45293794751 the only unstarted file was `catalogue-reorder-lifetime.db.test.ts` (about 13
+tests), and `move-write.db.test.ts` had 10 conformance cases left. Static `it(`/`test(` counts
+(2679) miss the generated cases, so the estimate comes from the log. That puts the suite at about
+4495 tests.
+
+- At the slower run's 1.04 s per test, including setup, the phase needs 4495 × 1.04 ≈ 4670 s,
+  or 78 minutes.
+- With a 15% margin that is 89.5 minutes, so the phase is 95 minutes.
+- The job adds the usual 15-minute reserve, for 110 minutes.
+- 110/95 stays under the workflow's longest budgets (backend 165, Twilight and workspace 120)
+  and inside `ci-requeue`'s 150-minute wait.
+
+Revert condition: once #996 lands and a full-mode main run shows the suite near its old 644 s
+(phase under about 20 minutes), return the leaf to 60/45, the budget sized from run 44496836205.
+Restore `heavy_budgets` in `ci.yml` and `heavyLeaves` in `gate-workflow.test.ts` together.
+
+Proof (2026-11-24): with `ci.yml` at `[110,95]` and `heavyLeaves` still at 90/75,
+`gate-workflow.test.ts` `retains full event scope and refuses unknown events` failed on the
+published `heavy_leaves` line (22 pass, 1 fail). With both updated, all 23 passed.

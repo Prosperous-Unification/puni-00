@@ -268,7 +268,11 @@ jobs:
           # (docs/findings/ci-gate-duration.md). The keys must equal HEAVY_TEST_PROJECTS in
           # ci-runtime-partitions.ts; gate-workflow.test.ts holds them equal.
           # Run 45041067883 reached 45 minutes during SQLite conformance with no resource-limit events.
-          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[90,75],"wbs-core":[45,30]}'
+          # A-CI-STORE-SQLITE-BUDGET-1 (stopgap, #996): since #917 every wbs-store-sqlite test costs
+          # about 0.9 s, and the leaf hit its 75m phase on runs 45128174002 and 45293794751 with no
+          # resource-limit events. 95m holds about 4495 tests at the slower run's 1.04 s each plus 15%.
+          # Back to [60,45] once the suite runs near its old 644 s.
+          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[110,95],"wbs-core":[45,30]}'
           case "$EVENT_NAME" in
             pull_request)
               base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
